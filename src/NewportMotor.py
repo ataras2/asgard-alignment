@@ -9,6 +9,7 @@ import parse
 
 import pyvisa
 
+
 class NewportMotor:
     """
     Base class for all the newport motors
@@ -345,5 +346,3 @@ class LS16P(NewportMotor):
         Return the software internal position of the motor
         """
         return self._current_pos
-
-
