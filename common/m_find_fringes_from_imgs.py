@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-pth = "data/may/heimdallr_34_run1"
+pth = "data/early_july/heimdallr_34_run0"
 # ims = np.load(os.path.join(pth, "img_stack.npy")).astype(float)
 # positions = np.load(os.path.join(pth, "positions.npy"))
 data = np.load(os.path.join(pth, "img_stack.npz"))
@@ -12,7 +12,12 @@ imshape = ims.shape
 nsets = imshape[0]
 ims_per_set = imshape[1]
 
+# crop
+# ims = ims[:, :, 460:770, 850:1250]
+
 print(ims.shape)
+
+imshape = ims.shape
 
 
 ims = ims.reshape((nsets * ims_per_set, imshape[2], imshape[3]))
