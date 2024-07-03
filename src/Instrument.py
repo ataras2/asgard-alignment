@@ -6,9 +6,27 @@ import logging
 import json
 from typing import Any
 import pyvisa
+import serial.tools.list_ports
+import sys
 
-from newport_motors.USBs.USBs import USBs
-from newport_motors.Motors.motor import M100D, LS16P, Motor
+from NewportMotor import NewportMotor, LS16P, M100D
+
+
+def compute_serial_to_port_map():
+    mapping = {}
+
+    # check if windows:
+    if sys.platform.startswith("win"):
+        ports = serial.tools.list_ports.comports()
+
+        for port, desc, hwid in sorted(ports):
+            if "Newport" in desc and "SER=" in hwid:
+                serial_number = hwid.split("SER=")[-1]
+                mapping[serial_number] = port
+    else:
+        raise NotImplementedError("Only windows is supported so far")
+
+    return mapping
 
 
 class Instrument:
@@ -51,6 +69,13 @@ class Instrument:
         for _, motor in self._motors.items():
             motor.set_to_zero()
 
+    def print_all_positions(self):
+        """
+        Print the current position of all the motors
+        """
+        for name, motor in self._motors.items():
+            print(f"{name} (COM{self.name_to_port[name]}): {motor.status_string}")
+
     def _name_to_port(self):
         """
         compute the mapping from the name to the port the motor is connected on
@@ -61,8 +86,7 @@ class Instrument:
         name_to_port: dict
             A dictionary that maps the name of the motor to the port it is connected to
         """
-        filt = {"iManufacturer": "Newport"}
-        serial_to_port = USBs.compute_serial_to_port_map(filt)
+        serial_to_port = compute_serial_to_port_map()
         name_to_port = {}
         for mapping in self._config:
             serial = mapping["serial_number"]
@@ -70,6 +94,9 @@ class Instrument:
             try:
                 name = mapping["name"]
                 port = serial_to_port[serial]
+                # check if windows and if so, remove "COM"
+                if sys.platform.startswith("win"):
+                    port = port[3:]
                 name_to_port[name] = port
             except KeyError:
                 logging.warning(f" Could not find serial number {serial} in the USBs")
@@ -82,7 +109,7 @@ class Instrument:
         """
         return self._name_to_port_mapping
 
-    def __getitem__(self, key) -> Motor:
+    def __getitem__(self, key):
         """
         Get a motor by name
         """
@@ -107,15 +134,15 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
-        resource_manager = pyvisa.ResourceManager(visa_library="@_py")
+        resource_manager = pyvisa.ResourceManager()
 
         motors = {}
 
         for component in self._config:
             visa_port = f"ASRL{self._name_to_port_mapping[component['name']]}::INSTR"
-            motor_class = Motor.string_to_motor_type(component["motor_type"])
+            motor_class = NewportMotor.string_to_motor_type(component["motor_type"])
 
-            motors[component["motor_type"]] = motor_class(
+            motors[component["name"]] = motor_class(
                 visa_port, resource_manager, **component["motor_config"]
             )
         return motors
@@ -168,63 +195,13 @@ class Instrument:
         if len(names) != len(set(names)):
             raise ValueError("All component names must be unique")
 
-    @staticmethod
-    def create_config_with_plugin(config_path, motor_names, infer_motor_type=True):
-        """
-        Using a USB monitor, create a config file with all the motors that are
-        connected one at a time
 
-        config_path: path for where to save the resulting config file
-        motor_names:
-        infer_motor_type: will use the end of the name to decide which class to instantiate
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    mapping = compute_serial_to_port_map()
 
-        e.g. for an input of ["Spherical_1_TipTilt", "Spherical_2_TipTilt"],
-        create a config file such as:
-        [
-            {
-                "name": "Spherical_1_TipTilt",
-                "motor_type": "M100D",
-                "motor_config": {
-                    "orientation": "reverse"
-                },
-                "serial_number": "A67BVBOJ"
-            },
-            {
-                "name": "Spherical_2_TipTilt",
-                "motor_type": "M100D",
-                "motor_config": {
-                    "orientation": "normal"
-                },
-                "serial_number": "A675RRE6"
-            }
-        ]
-        """
-        logging.info("Creating config file, unplug all motors")
-        input("Press enter once all motors have been removed...")
+    print(mapping)
 
-        usb = USBs()
-        configs = []
+    instrument = Instrument("motor_info_no_linear.json")
 
-        for motor in motor_names:
-            conf_to_add = {}
-            input(f"Plug in {motor} and hit enter...")
-
-            new_serial = usb.get_difference()
-            if len(new_serial) != 1:
-                raise RuntimeError(
-                    f"Was expecting one new serial device, got {len(new_serial)}"
-                )
-
-            motor_type = None
-            if infer_motor_type:
-                motor_type = Motor.infer_motor_type(motor)
-
-            conf_to_add["name"] = motor
-            conf_to_add["motor_type"] = Motor.motor_type_to_string(motor_type)
-            conf_to_add["serial_number"] = new_serial[0]
-            conf_to_add["motor_config"] = motor_type.setup_individual_config()
-
-            configs.append(conf_to_add)
-
-        with open(config_path, "w") as f:
-            json.dump(configs, f)
+    instrument.print_all_positions()

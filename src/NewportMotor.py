@@ -6,6 +6,7 @@ from enum import Enum
 import logging
 from typing import Literal
 import parse
+import numpy as np
 
 import pyvisa
 
@@ -183,6 +184,16 @@ class M100D(NewportMotor):
         """
         super().__init__(serial_port, resource_manager)
 
+        if isinstance(orientation, float):
+            if np.isclose(orientation, 0.0):
+                orientation = "normal"
+            elif np.isclose(orientation, 90.0):
+                orientation = "reversed"
+            else:
+                raise ValueError(
+                    f"orientation must be either 'normal' or 'reverse', not {orientation}"
+                )
+
         if orientation not in ["normal", "reverse"]:
             raise ValueError(
                 f"orientation must be either 'normal' or 'reverse', not {orientation}"
@@ -234,6 +245,18 @@ class M100D(NewportMotor):
         """
         for axis in self.AXES:
             self.set_absolute_position(0.0, axis)
+
+    @property
+    def status_string(self):
+        """
+        Return the status of the motor, and the position of both axes
+        """
+
+        status = self._connection.query("1TS?").strip()
+        pos_u = self.read_pos(self.AXES.U)
+        pos_v = self.read_pos(self.AXES.V)
+
+        return f"Status: {status}, U: {pos_u}, V: {pos_v}"
 
     def read_pos(self, axis: AXES) -> float:
         """
