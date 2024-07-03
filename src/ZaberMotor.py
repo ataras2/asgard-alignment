@@ -6,3 +6,15 @@ Ideas:
 - XMCC class with usage like XMCC[<axis number>].move_absolute(1000), + a dictionary that maps 
     the name of the optic to both the axis number and controller
 """
+
+import zaber_motion
+
+
+
+class ZaberLinearStage:
+    def __init__(self) -> None:
+        pass
+
+
+if __name__ == "__main__":
+    pass
