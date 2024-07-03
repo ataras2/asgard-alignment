@@ -9,6 +9,22 @@ Ideas:
 
 import zaber_motion
 
+from zaber_motion.ascii import Connection
+
+connection = Connection.open_serial_port("COM3")
+connection.enable_alerts()
+
+device_list = connection.detect_devices()
+print("Found {} devices".format(len(device_list)))
+
+
+for dev in device_list:
+    print(
+        f"Device {dev.device_id} with serial number {dev.serial_number} with {dev.axis_count} axes"
+    )
+
+
+connection.close()
 
 
 class ZaberLinearStage:
