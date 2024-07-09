@@ -312,6 +312,9 @@ class M100D(NewportMotor):
         if orientation is None:
             raise ValueError(f"invalid input {inp}")
         return {"orientation": orientation}
+    
+    def GUI(self):
+
 
 
 class LS16P(NewportMotor):
