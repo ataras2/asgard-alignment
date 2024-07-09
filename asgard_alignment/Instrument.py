@@ -62,6 +62,22 @@ class Instrument:
         self._name_to_port_mapping = self._name_to_port()
         self._motors = self._open_conncetions()
 
+    def has_motor(self, name: str) -> bool:
+        """
+        Check if the instrument has a motor with the given name
+
+        Parameters:
+        -----------
+        name: str
+            The name of the motor
+
+        Returns:
+        --------
+        bool
+            True if the motor is in the instrument, False otherwise
+        """
+        return name in self._motors
+
     def zero_all(self):
         """
         Zero all the motors

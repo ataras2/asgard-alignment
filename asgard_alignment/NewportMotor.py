@@ -7,6 +7,8 @@ import logging
 from typing import Literal
 import parse
 import numpy as np
+import streamlit as st
+import asgard_alignment.GUI
 
 import pyvisa
 
@@ -198,7 +200,10 @@ class M100D(NewportMotor):
             raise ValueError(
                 f"orientation must be either 'normal' or 'reverse', not {orientation}"
             )
-        self._current_pos = {self.AXES.U: 0.0, self.AXES.V: 0.0}
+        self._current_pos = {
+            self.AXES.U: self.read_pos(self.AXES.U),
+            self.AXES.V: self.read_pos(self.AXES.V),
+        }
         # TODO: this needs some thinking about how to implement so that the external interface doesn't notice
         self._is_reversed = orientation == "reverse"
 
@@ -312,9 +317,27 @@ class M100D(NewportMotor):
         if orientation is None:
             raise ValueError(f"invalid input {inp}")
         return {"orientation": orientation}
-    
-    def GUI(self):
 
+    def _get_callback(self, axis: AXES):
+        """
+        Get the callback function for the GUI
+        """
+        return lambda value: self.set_absolute_position(value, axis)
+
+    def GUI(self):
+        """
+        A GUI to control the motor
+        """
+        st.write("M100D motor")
+        asgard_alignment.GUI.CustomNumeric.variable_increment(
+            keys=["U", "V"],
+            callback_fns=[
+                self._get_callback(self.AXES.U),
+                self._get_callback(self.AXES.V),
+            ],
+            values=[self.get_current_pos()[0], self.get_current_pos()[1]],
+            main_bounds=[-0.75, 0.75],
+        )
 
 
 class LS16P(NewportMotor):
