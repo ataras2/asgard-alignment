@@ -4,3 +4,6 @@
 *.pyc
 
 *.json
+
+
+asgard_alignment.egg-info

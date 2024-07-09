@@ -1,0 +1,17 @@
+[project]
+name = "asgard-alignment"
+version = "0.0.1"
+# description = "A package to align asgard"
+readme = "README.md"
+requires-python =">=3.8"
+license = {file = "LICENSE"}
+
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+# include = ["*"]  # package names should match these glob patterns (["*"] by default)
+
+[build-system]
+requires = ["setuptools>=43.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
