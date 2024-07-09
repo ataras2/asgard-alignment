@@ -100,6 +100,22 @@ class SourceSelection:
         pass
 
 
+class SolarsteinDelay:
+    pass
+
+
+class BaldrCommonLens:
+    pass
+
+
+class BaldrPhaseMask:
+    """
+    Key here is that this has 2x LAC10A and can control both at once
+    """
+
+    pass
+
+
 if __name__ == "__main__":
     connection = Connection.open_serial_port("COM3")
     connection.enable_alerts()

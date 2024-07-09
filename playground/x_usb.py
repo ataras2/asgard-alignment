@@ -8,7 +8,7 @@ for port, desc, hwid in sorted(ports):
 
 exit()
 import sys
-import glob
+import glob                                 
 import serial
 
 
