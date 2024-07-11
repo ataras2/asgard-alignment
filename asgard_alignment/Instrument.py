@@ -9,7 +9,13 @@ import pyvisa
 import serial.tools.list_ports
 import sys
 
-from NewportMotor import NewportMotor, LS16P, M100D
+
+from zaber_motion.ascii import Connection
+
+from asgard_alignment.NewportMotor import NewportMotor, LS16P, M100D
+from asgard_alignment.ZaberMotor import SourceSelection, BifrostDichroic
+
+# from NewportMotor import NewportMotor, LS16P, M100D
 
 
 def compute_serial_to_port_map():
@@ -27,6 +33,23 @@ def compute_serial_to_port_map():
         raise NotImplementedError("Only windows is supported so far")
 
     return mapping
+
+
+def find_zaber_COM():
+    """
+    Find the COM port for the Zaber motor
+
+    Returns:
+    --------
+    str
+        The COM port for the Zaber motor
+    """
+    ports = serial.tools.list_ports.comports()
+
+    for port, _, hwid in sorted(ports):
+        if "VID:PID=0403:6001" in hwid:
+            return port
+    return None
 
 
 class Instrument:
@@ -142,6 +165,43 @@ class Instrument:
 
     def _open_conncetions(self):
         """
+        Open all the connections to the motors
+
+        Returns:
+        --------
+        motors: dict
+            A dictionary that maps the name of the motor to the motor object
+        """
+        # merge both newport and zaber connections
+        newport_motors = self._open_newport_conncetions()
+        zaber_motors = self._open_zaber_conncetions()
+
+        return {**newport_motors, **zaber_motors}
+
+    def _open_zaber_conncetions(self):
+        motors = {}
+
+        # first deal with the USB
+        zaber_port = find_zaber_COM()
+        connection = Connection.open_serial_port(zaber_port)
+        connection.enable_alerts()
+
+        device_list = connection.detect_devices()
+        print("Found {} devices".format(len(device_list)))
+
+        for dev in device_list:
+            for motor_config in self._config:
+                if dev.serial_number == motor_config["serial_number"]:
+                    if dev.name == "X-LSM150A-SE03":
+                        motors[motor_config["name"]] = BifrostDichroic(dev)
+                    elif dev.name == "X-LHM100A-SE03":
+                        motors[motor_config["name"]] = SourceSelection(dev)
+
+        print(motors)
+        return motors
+
+    def _open_newport_conncetions(self):
+        """
         For each instrument in the config file, open all the connections and create relevant
         motor objects
 
@@ -155,6 +215,10 @@ class Instrument:
         motors = {}
 
         for component in self._config:
+            if component["motor_type"] not in ["M100D", "LS16P"]:
+                continue
+            if component["name"] not in self._name_to_port_mapping:
+                continue
             visa_port = f"ASRL{self._name_to_port_mapping[component['name']]}::INSTR"
             motor_class = NewportMotor.string_to_motor_type(component["motor_type"])
 

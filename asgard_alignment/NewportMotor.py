@@ -200,12 +200,13 @@ class M100D(NewportMotor):
             raise ValueError(
                 f"orientation must be either 'normal' or 'reverse', not {orientation}"
             )
+
+        # TODO: this needs some thinking about how to implement so that the external interface doesn't notice
+        self._is_reversed = orientation == "reverse"
         self._current_pos = {
             self.AXES.U: self.read_pos(self.AXES.U),
             self.AXES.V: self.read_pos(self.AXES.V),
         }
-        # TODO: this needs some thinking about how to implement so that the external interface doesn't notice
-        self._is_reversed = orientation == "reverse"
 
     def _verify_valid_connection(self):
         """
@@ -322,20 +323,29 @@ class M100D(NewportMotor):
         """
         Get the callback function for the GUI
         """
-        return lambda value: self.set_absolute_position(value, axis)
+        if axis == self.AXES.U:
+            def callback():
+                self.set_absolute_position(st.session_state.U, axis)
+        elif axis == self.AXES.V:
+            def callback():
+                self.set_absolute_position(st.session_state.V, axis)
+        else:
+            raise ValueError(f"invalid axis {axis}")
+        
+        return callback
 
     def GUI(self):
         """
         A GUI to control the motor
         """
-        st.write("M100D motor")
+        st.header("M100D motor")
         asgard_alignment.GUI.CustomNumeric.variable_increment(
             keys=["U", "V"],
             callback_fns=[
                 self._get_callback(self.AXES.U),
                 self._get_callback(self.AXES.V),
             ],
-            values=[self.get_current_pos()[0], self.get_current_pos()[1]],
+            values=[self.get_current_pos[0], self.get_current_pos[1]],
             main_bounds=[-0.75, 0.75],
         )
 

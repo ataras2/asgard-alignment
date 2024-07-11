@@ -9,6 +9,7 @@ Ideas:
 
 import zaber_motion
 
+import streamlit as st
 from zaber_motion.ascii import Connection
 import time
 
@@ -52,8 +53,15 @@ class BifrostDichroic:
                 return key
         return "unknown"
 
-    def GUI_section(self):
-        pass
+    def GUI(self):
+        st.header("M100D motor")
+
+        st.write(f"Current position: {self.get_dichroic()}")
+
+        # 3 buttons for each position
+        for key in self.dichroics.keys():
+            if st.button(key):
+                self.set_dichroic(key)
 
 
 class SourceSelection:
@@ -96,8 +104,15 @@ class SourceSelection:
                 return key
         return "unknown"
 
-    def GUI_section(self):
-        pass
+    def GUI(self):
+        st.header("Source selection")
+
+        st.write(f"Current position: {self.get_source()}")
+
+        # 4 buttons for each position
+        for key in self.sources.keys():
+            if st.button(key):
+                self.set_source(key)
 
 
 class SolarsteinDelay:
