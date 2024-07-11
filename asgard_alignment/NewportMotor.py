@@ -38,6 +38,13 @@ class NewportMotor:
             read_termination=self.SERIAL_TERMIN,
         )
 
+    def close_connection(self):
+        """
+        Close the connection to the motor
+        """
+        self._connection.before_close()
+        self._connection.close()
+
     def _verify_valid_connection(self):
         raise NotImplementedError()
 
@@ -324,14 +331,18 @@ class M100D(NewportMotor):
         Get the callback function for the GUI
         """
         if axis == self.AXES.U:
+
             def callback():
                 self.set_absolute_position(st.session_state.U, axis)
+
         elif axis == self.AXES.V:
+
             def callback():
                 self.set_absolute_position(st.session_state.V, axis)
+
         else:
             raise ValueError(f"invalid axis {axis}")
-        
+
         return callback
 
     def GUI(self):

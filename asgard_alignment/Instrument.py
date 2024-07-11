@@ -183,10 +183,10 @@ class Instrument:
 
         # first deal with the USB
         zaber_port = find_zaber_COM()
-        connection = Connection.open_serial_port(zaber_port)
-        connection.enable_alerts()
+        self.zaber_com_connection = Connection.open_serial_port(zaber_port)
+        self.zaber_com_connection.enable_alerts()
 
-        device_list = connection.detect_devices()
+        device_list = self.zaber_com_connection.detect_devices()
         print("Found {} devices".format(len(device_list)))
 
         for dev in device_list:
@@ -226,6 +226,17 @@ class Instrument:
                 visa_port, resource_manager, **component["motor_config"]
             )
         return motors
+
+    def close_connections(self):
+        """
+        Close all the connections to the motors
+        """
+        self.zaber_com_connection.close()
+
+        for motor in self._motors.values():
+            # check if newport motor
+            if isinstance(motor, NewportMotor):
+                motor.close_connection()
 
     @staticmethod
     def _read_motor_config(config_path):

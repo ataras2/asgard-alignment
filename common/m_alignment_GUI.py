@@ -5,11 +5,18 @@ import asgard_alignment.GUI
 import asgard_alignment.Instrument
 
 
-st.set_page_config(layout="wide")
+# st.set_page_config(layout="wide")
 
 st.title("Motor control for Heimdallr alignment")
 
 if "instrument" not in st.session_state:
+    st.session_state.instrument = asgard_alignment.Instrument.Instrument(
+        "motor_info_no_linear_with_zaber.json"
+    )
+
+# reset button
+if st.button("Reset"):
+    st.session_state.instrument.close_connections()
     st.session_state.instrument = asgard_alignment.Instrument.Instrument(
         "motor_info_no_linear_with_zaber.json"
     )
