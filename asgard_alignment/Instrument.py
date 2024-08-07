@@ -183,21 +183,22 @@ class Instrument:
 
         # first deal with the USB
         zaber_port = find_zaber_COM()
-        self.zaber_com_connection = Connection.open_serial_port(zaber_port)
-        self.zaber_com_connection.enable_alerts()
+        if zaber_port is not None:
+            self.zaber_com_connection = Connection.open_serial_port(zaber_port)
+            self.zaber_com_connection.enable_alerts()
 
-        device_list = self.zaber_com_connection.detect_devices()
-        print("Found {} devices".format(len(device_list)))
+            device_list = self.zaber_com_connection.detect_devices()
+            print("Found {} devices".format(len(device_list)))
 
-        for dev in device_list:
-            for motor_config in self._config:
-                if dev.serial_number == motor_config["serial_number"]:
-                    if dev.name == "X-LSM150A-SE03":
-                        motors[motor_config["name"]] = BifrostDichroic(dev)
-                    elif dev.name == "X-LHM100A-SE03":
-                        motors[motor_config["name"]] = SourceSelection(dev)
+            for dev in device_list:
+                for motor_config in self._config:
+                    if dev.serial_number == motor_config["serial_number"]:
+                        if dev.name == "X-LSM150A-SE03":
+                            motors[motor_config["name"]] = BifrostDichroic(dev)
+                        elif dev.name == "X-LHM100A-SE03":
+                            motors[motor_config["name"]] = SourceSelection(dev)
 
-        print(motors)
+            print(motors)
         return motors
 
     def _open_newport_conncetions(self):

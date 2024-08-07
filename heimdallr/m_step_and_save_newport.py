@@ -225,7 +225,7 @@ import os
 import time
 
 
-pth = "data/early_july/heimdallr_34_run1"
+pth = "data/mid_july/heimdallr_34_run0_white_light"
 
 
 if not os.path.exists(pth):
@@ -235,8 +235,8 @@ else:
     if inp.lower() != "y":
         exit()
 
-start_pos = 10  # mm
-end_pos = 16  # mm
+start_pos = 11  # mm
+end_pos = 15  # mm
 step_size = 5e-3  # mm
 # step_size = 0.9  # mm
 # start_pos = 5000  # um
@@ -247,8 +247,6 @@ step_size = 5e-3  # mm
 motor = LS16P("ASRL5", pyvisa.ResourceManager())
 print(motor.read_pos())
 print(motor.query_str("1ID?"))
-
-exit()
 # motor.set_absolute_position(start_pos)
 # time.sleep(2)
 # motor.set_absolute_position(end_pos)
@@ -273,7 +271,7 @@ cam.Init()
 # Retrieve GenICam nodemap
 nodemap = cam.GetNodeMap()
 cam.BeginAcquisition()
-image_result = cam.GetNextImage(1000)
+image_result = cam.GetNextImage(2000)
 image_result.Release()
 
 img = image_result.GetNDArray()
@@ -289,11 +287,11 @@ for i, pos in enumerate(positions):
 
     time.sleep(0.2)
 
-    image_result = cam.GetNextImage(1000)
+    image_result = cam.GetNextImage(2000)
     image_result.Release()
 
     for j in range(n_imgs):
-        image_result = cam.GetNextImage(1000)
+        image_result = cam.GetNextImage(2000)
 
         if image_result.IsIncomplete():
             print(
@@ -306,7 +304,7 @@ for i, pos in enumerate(positions):
         image_result.Release()
 
     plt.imsave(
-        os.path.join(pth, f"img_{pos}.png"),
+        os.path.join(pth, f"img_{pos:.4f}.png"),
         img,
         vmin=0,
         vmax=255,
