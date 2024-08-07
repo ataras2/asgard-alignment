@@ -5,5 +5,7 @@
 
 *.json
 
+*.pickle
+
 
 asgard_alignment.egg-info
