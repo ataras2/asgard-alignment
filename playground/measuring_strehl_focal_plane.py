@@ -24,8 +24,10 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import scipy
+import glob
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.interpolate import griddata
+from scipy.interpolate import RegularGridInterpolator
 
 # from scipy import special
 # from scipy import interpolate
@@ -125,77 +127,87 @@ def interpolate_saturated_pixels(image, threshold):
     return interpolated_image
 
 
-# img = mpimg.imread('/Users/bencb/Downloads/psf_beam3_at_fpm_dm_flat.png')
-
-img = mpimg.imread("data/lab_imgs/beam_3_f400_laser_top_level_nd3.png")
-
-# qe = 0.2
-wvl = 0.635e-6  # laser wavelength
-D = 12e-3  # mm
-# f = 254e-3 #mm
-f = 400e-3  # mm
-# N = f/D #
-pixel_scale = 3.45e-6  # on point grey
-
-# img_psf_region = img[800:900,50:150]
-# img_bkg = img[:,200:]
-
-xc, yc = np.unravel_index(np.argmax(img), img.shape)
-
-ext = 35
-img_psf_region = img[xc - ext : xc + ext, yc - ext : yc + ext]
-img_bkg = img[:, 300:]  # just crop out the psf region
-
-pointgrey_grid_x_um = np.linspace(
-    -pixel_scale * img_psf_region.shape[0] / 2,
-    pixel_scale * img_psf_region.shape[0] / 2,
-    img_psf_region.shape[0],
-)
-pointgrey_grid_y_um = np.linspace(
-    -pixel_scale * img_psf_region.shape[0] / 2,
-    pixel_scale * img_psf_region.shape[1] / 2,
-    img_psf_region.shape[1],
-)
-
-x, y = np.meshgrid(pointgrey_grid_x_um, pointgrey_grid_y_um)
-
-# position to anglue ( pos = wvl * f / D ) at given wvl
-theta_x = x / f  # np.linspace(-3*wvl/D,3*wvl/D,1000)
-theta_y = y / f  # np.linspace(-3*wvl/D,3*wvl/D,1000)
-
-theta_r = (theta_x**2 + theta_y**2) ** 0.5
-
-airy_2D = (
-    2
-    * scipy.special.jv(1, 2 * np.pi / wvl * (D / 2) * np.sin(theta_r))
-    / (2 * np.pi / wvl * (D / 2) * np.sin(theta_r))
-) ** 2
-airy_2D *= 1 / np.sum(airy_2D)  #
-
-# in this case pixels are saturated so ignore them and do cubic interpolation here (not ideal)
-reduced_psf_meas = interpolate_saturated_pixels(
-    img_psf_region - np.mean(img_bkg), threshold=0.8
-)
-
-# reduced_psf_meas =  img_psf_region_interp
-
-# im_list = [airy_2D, reduced_psf_meas / np.sum(reduced_psf_meas)]
-# xlabel_list = ["", ""]
-# ylabel_list = ["", ""]
-# title_list = ["diffraction limit", "measured"]
-# cbar_label_list = ["intensity", "intensity"]
-# nice_heatmap_subplots(
-#     im_list,
-#     xlabel_list,
-#     ylabel_list,
-#     title_list,
-#     cbar_label_list,
-#     fontsize=15,
-#     cbar_orientation="bottom",
-#     axis_off=True,
-# )
 
 
-print(
-    "Strehl = ", np.max(reduced_psf_meas / np.sum(reduced_psf_meas)) / np.max(airy_2D)
-)
+
+#img = mpimg.imread('/Users/bencb/Downloads/psf_beam3_at_fpm_dm_flat.png')  
+#img = mpimg.imread('/Users/bencb/Downloads/beam4_at_mask_633nm.png')   
+
+save_path = '/Users/bencb/Downloads/'
+files = glob.glob( '/Users/bencb/Downloads/drive-download-strehl_beam_3_psf_oap_focal_plane/beam_*.png') 
+i = 0
+THRESHOLD_4_INTERP = 0.95
+for i,file in enumerate(files):
+    img = mpimg.imread(file) #files[i]) 
+     
+    #qe = 0.2 
+    wvl = 0.635e-6 #laser wavelength
+    D = 12e-3#12e-3 #mm
+    f = 254e-3 #mm
+    #N = f/D #
+    pixel_scale = 3.45e-6 # on point grey 
+    
+    #img_psf_region = img[800:900,50:150]
+    #img_bkg = img[:,200:]
+    
+    xc, yc = np.unravel_index( np.argmax( img ), img.shape )
+    
+    ext = 35
+    img_psf_region = img[xc-ext : xc+ext,yc-ext : yc+ext]
+    img_bkg = img[:,300:] # just crop out the psf region
+    
+    pointgrey_grid_x_um = np.linspace(-pixel_scale * img_psf_region.shape[0]/2,  pixel_scale * img_psf_region.shape[0]/2, img_psf_region.shape[0]    ) 
+    pointgrey_grid_y_um = np.linspace(-pixel_scale * img_psf_region.shape[0]/2,  pixel_scale * img_psf_region.shape[1]/2, img_psf_region.shape[1]    ) 
+    
+    x , y = np.meshgrid(pointgrey_grid_x_um ,pointgrey_grid_y_um , indexing='ij' )
+    
+    
+    # interpolate saturated pixels (subtracting background)
+    interp_sat  = interpolate_saturated_pixels( img_psf_region - np.mean( img_bkg ), threshold = THRESHOLD_4_INTERP)
+    
+    # create interpolator function now to put onto finner grid 
+    interp = RegularGridInterpolator((pointgrey_grid_x_um, pointgrey_grid_y_um), interp_sat , method='cubic')
+    
+    # Define the finer grid (2x sampling)
+    finer_x_um = np.linspace(pointgrey_grid_x_um[0], pointgrey_grid_x_um[-1], img_psf_region.shape[0] * 2)
+    finer_y_um = np.linspace(pointgrey_grid_y_um[0], pointgrey_grid_y_um[-1], img_psf_region.shape[1] * 2)
+
+    # Create a meshgrid for the finer coordinates
+    finer_x, finer_y = np.meshgrid(finer_x_um, finer_y_um, indexing='ij')
+    
+    # Interpolate the data onto the finer grid
+    points = np.array([finer_x.ravel(), finer_y.ravel()]).T
+
+    # Final interpolated PSF
+    psf_interp = interp(points).reshape(finer_x.shape)
+    
+    # Get theoretical diffraction limited PSF
+    # position to anglue ( pos = wvl * f / D ) at given wvl
+    theta_x = finer_x / f #x / f #np.linspace(-3*wvl/D,3*wvl/D,1000)
+    theta_y = finer_y / f #y / f #np.linspace(-3*wvl/D,3*wvl/D,1000)
+    
+    theta_r = (theta_x**2 + theta_y**2)**0.5
+    
+    airy_2D =  (2*scipy.special.jv(1,2*np.pi/wvl*(D/2)*np.sin(theta_r))/(2*np.pi/wvl*(D/2)*np.sin(theta_r)))**2
+    airy_2D *= 1/np.sum( airy_2D )  #
+    
+
+    
+    
+    
+    #strehl_est = np.max( reduced_psf_meas/np.sum(reduced_psf_meas) ) / np.max( airy_2D )
+    strehl_est = np.max( psf_interp /np.sum(psf_interp ) ) / np.max( airy_2D )
+    
+    save_name = f'PSF_COMPARISON_{file.split("/")[-1]}' 
+    
+    im_list = [airy_2D, psf_interp / np.sum(psf_interp ) ]
+    xlabel_list = ['','']
+    ylabel_list = ['','']
+    title_list = [f'diffraction limit\n(D={round(1e3*D,1)}mm, f={round(1e3*f,1)}mm, '+r'$\lambda$'+f'={round(wvl*1e9)}nm)',f'measured (S~{round(strehl_est,2)})\n{round(pixel_scale*1e6,3)}um/pix']
+    cbar_label_list = ['intensity', 'intensity' ]
+    nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list,\
+                          fontsize=15, cbar_orientation = 'bottom', axis_off=True, savefig= save_path+save_name)
+    
+    print( f'{files[i]}')
+    print( 'Strehl = ',strehl_est )
+    
