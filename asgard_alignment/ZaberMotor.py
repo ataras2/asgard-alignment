@@ -12,6 +12,9 @@ import zaber_motion
 import streamlit as st
 from zaber_motion.ascii import Connection
 import time
+import json
+
+import zaber_motion.binary
 
 
 class BifrostDichroic:
@@ -19,8 +22,8 @@ class BifrostDichroic:
         self.device = device
         self.axis = device.get_axis(1)
         self.dichroics = {
-            "H": 132.32,
-            "J": 62.32,
+            "H": 133.07,  # 131.82,
+            "J": 63.07,
             "out": 0.0,
         }
 
@@ -123,15 +126,70 @@ class BaldrCommonLens:
     pass
 
 
+class LAC10AT4A:
+    def __init__(self, axis) -> None:
+        self.axis = axis
+
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=True)
+
+    def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+        self.axis.move_absolute(new_pos, unit=units, wait_until_idle=True)
+
+    def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+        self.axis.move_relative(new_pos, unit=units, wait_until_idle=True)
+
+    def get_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+        return self.axis.get_position(unit=units)
+
+
 class BaldrPhaseMask:
     """
     Key here is that this has 2x LAC10A and can control both at once
     """
 
-    pass
+    def __init__(self, x_axis_motor, y_axis_motor, phase_positions_json) -> None:
+        self.motors = {
+            "x": x_axis_motor,
+            "y": y_axis_motor,
+        }
+
+        self.phase_positions = self._load_phase_positions(phase_positions_json)
+
+    @staticmethod
+    def _load_phase_positions(phase_positions_json):
+        with open(phase_positions_json, "r", encoding="utf-8") as file:
+            config = json.load(file)
+
+        assert len(config) == 10, "There must be 10 phase mask positions"
+
+        return config
+
+    def move_relative(self, new_pos, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+        self.motors["x"].move_relative(new_pos[0], units)
+        self.motors["y"].move_relative(new_pos[1], units)
+
+    def move_absolute(self, new_pos, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+        self.motors["x"].move_absolute(new_pos[0], units)
+        self.motors["y"].move_absolute(new_pos[1], units)
+
+    def get_position(self, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+        return [
+            self.motors["x"].get_position(units),
+            self.motors["y"].get_position(units),
+        ]
+
+    def move_to_mask(self, mask_name):
+        self.move_absolute(self.phase_positions[mask_name])
+
+    def update_mask_position(self, mask_name):
+        self.phase_positions[mask_name] = self.get_position()
 
 
 if __name__ == "__main__":
+    print(BaldrPhaseMask(None, None, "phase_positions_beam_3.json").phase_positions)
+
+    exit()
     connection = Connection.open_serial_port("COM3")
     connection.enable_alerts()
 

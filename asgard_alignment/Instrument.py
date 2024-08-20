@@ -13,7 +13,12 @@ import sys
 from zaber_motion.ascii import Connection
 
 from asgard_alignment.NewportMotor import NewportMotor, LS16P, M100D
-from asgard_alignment.ZaberMotor import SourceSelection, BifrostDichroic
+from asgard_alignment.ZaberMotor import (
+    SourceSelection,
+    BifrostDichroic,
+    LAC10AT4A,
+    BaldrPhaseMask,
+)
 
 # from NewportMotor import NewportMotor, LS16P, M100D
 
@@ -199,6 +204,41 @@ class Instrument:
                             motors[motor_config["name"]] = SourceSelection(dev)
 
             print(motors)
+
+        # now deal with all the networked motors
+        self.zaber_ip_connections = {}  # IP address, connection
+        for component in self._config:
+            if component["motor_type"] not in ["LAC10A-T4A"]:
+                continue
+            if component["name"] not in self._name_to_port_mapping:
+                continue
+
+            if component["x_mcc_ip_address"] not in self.zaber_ip_connections:
+                self.zaber_ip_connections[component["x_mcc_ip_address"]] = (
+                    Connection.open_tcp(component["x_mcc_ip_address"])
+                )
+
+            axis = (
+                self.zaber_ip_connections[component["x_mcc_ip_address"]]
+                .get_device(0)
+                .get_axis(component["axis_number"])
+            )
+
+            motors[component["name"]] = LAC10AT4A(axis)
+
+        # now make the pairs that are avaialble into phase mask objects
+
+        for beam_number in [1, 2, 3, 4]:
+            x_motor_name = f"BMX{beam_number}"
+            y_motor_name = f"BMY{beam_number}"
+
+            if x_motor_name in motors and y_motor_name in motors:
+                motors[f"Baldr_phase_beam_{beam_number}"] = BaldrPhaseMask(
+                    motors[x_motor_name],
+                    motors[y_motor_name],
+                    f"phase_positions_beam_{beam_number}.json",
+                )
+
         return motors
 
     def _open_newport_conncetions(self):
