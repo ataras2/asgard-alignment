@@ -43,14 +43,14 @@ class BifrostDichroic:
 
         self.axis.move_absolute(
             self.dichroics[dichroic],
-            unit=zaber_motion.Units.LENGTH_MILLIMETRES,
+            unit=zaber_motion.Units.LENGTH_MICROMETRES,
             wait_until_idle=False,
         )
         self.current_dichroic = dichroic
 
     def get_dichroic(self):
         """Read the position from the device and check that it is consistent"""
-        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
         for key, value in self.dichroics.items():
             if abs(pos - value) < 0.1:
                 return key
@@ -94,14 +94,14 @@ class SourceSelection:
 
         self.axis.move_absolute(
             self.sources[source],
-            unit=zaber_motion.Units.LENGTH_MILLIMETRES,
+            unit=zaber_motion.Units.LENGTH_MICROMETRES,
             wait_until_idle=True,
         )
         self.current_position = source
 
     def get_source(self):
         """Read the position from the device and check that it is consistent"""
-        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
         for key, value in self.sources.items():
             if abs(pos - value) < 0.1:
                 return key
@@ -133,13 +133,13 @@ class LAC10AT4A:
         if not self.axis.is_homed:
             self.axis.home(wait_until_idle=True)
 
-    def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+    def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
         self.axis.move_absolute(new_pos, unit=units, wait_until_idle=True)
 
-    def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+    def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
         self.axis.move_relative(new_pos, unit=units, wait_until_idle=True)
 
-    def get_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
+    def get_position(self, units=zaber_motion.Units.LENGTH_MICROMETRES):
         return self.axis.get_position(unit=units)
 
 
@@ -165,15 +165,15 @@ class BaldrPhaseMask:
 
         return config
 
-    def move_relative(self, new_pos, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+    def move_relative(self, new_pos, units=zaber_motion.units.Units.LENGTH_MICROMETRES):
         self.motors["x"].move_relative(new_pos[0], units)
         self.motors["y"].move_relative(new_pos[1], units)
 
-    def move_absolute(self, new_pos, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+    def move_absolute(self, new_pos, units=zaber_motion.units.Units.LENGTH_MICROMETRES):
         self.motors["x"].move_absolute(new_pos[0], units)
         self.motors["y"].move_absolute(new_pos[1], units)
 
-    def get_position(self, units=zaber_motion.units.Units.LENGTH_MILLIMETRES):
+    def get_position(self, units=zaber_motion.units.Units.LENGTH_MICROMETRES):
         return [
             self.motors["x"].get_position(units),
             self.motors["y"].get_position(units),
@@ -187,7 +187,22 @@ class BaldrPhaseMask:
 
 
 if __name__ == "__main__":
-    print(BaldrPhaseMask(None, None, "phase_positions_beam_3.json").phase_positions)
+
+    con = Connection.open_tcp("192.168.1.111")
+
+    print("Found {} devices".format(len(con.detect_devices())))
+
+    x_axis = con.get_device(1).get_axis(1)
+    y_axis = con.get_device(1).get_axis(3)
+
+    baldr = BaldrPhaseMask(
+        LAC10AT4A(x_axis), LAC10AT4A(y_axis), "phase_positions_beam_3.json"
+    )
+
+    print(baldr.get_position())
+
+    baldr.move_relative([0.1, 0.1])
+    print(baldr.get_position())
 
     exit()
     connection = Connection.open_serial_port("COM3")
@@ -220,7 +235,7 @@ if __name__ == "__main__":
     for i in range(10):
         time.sleep(0.5)
 
-        pos = dichroics[0].axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        pos = dichroics[0].axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
         print(f"position: {pos:.3f}mm")
 
     source_selection.set_source("SRL")
