@@ -26,16 +26,18 @@ from asgard_alignment.ZaberMotor import (
 def compute_serial_to_port_map():
     mapping = {}
 
+    ports = serial.tools.list_ports.comports()
     # check if windows:
     if sys.platform.startswith("win"):
-        ports = serial.tools.list_ports.comports()
-
         for port, desc, hwid in sorted(ports):
             if "Newport" in desc and "SER=" in hwid:
                 serial_number = hwid.split("SER=")[-1]
                 mapping[serial_number] = port
     else:
-        raise NotImplementedError("Only windows is supported so far")
+        for port, desc, hwid in sorted(ports):
+            if "CONEX" in desc and "SER=" in hwid:
+                serial_number = hwid.split("SER=")[-1].split("LOC")[0].strip() + "A"
+                mapping[serial_number] = port
 
     return mapping
 
@@ -204,6 +206,8 @@ class Instrument:
                             motors[motor_config["name"]] = SourceSelection(dev)
 
             print(motors)
+        
+        return motors #TODO: remove this
 
         # now deal with all the networked motors
         self.zaber_ip_connections = {}  # IP address, connection
