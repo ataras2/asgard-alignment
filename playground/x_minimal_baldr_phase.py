@@ -19,4 +19,11 @@ print(baldr.get_position())
 baldr.move_relative([0.1, 0.1])
 print(baldr.get_position())
 
+# example of how to control focus too:
+
+focus_axis = con.get_device(1).get_axis(2)
+focus_motor = LAC10AT4A(focus_axis)
+
+print(focus_motor.get_position())
+
 con.close()
