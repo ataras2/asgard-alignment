@@ -10,8 +10,8 @@ from scipy.interpolate import RegularGridInterpolator
 
 wvl = 0.635e-6  # laser wavelength
 D = 12e-3  # mm
-# f = 254e-3 #mm
-f = 400e-3  # mm
+f = 254e-3  # mm
+# f = 400e-3  # mm
 # N = f/D #
 pixel_scale = 3.45e-6  # on point grey
 
@@ -93,6 +93,10 @@ class CameraStream:
         self.cam = self.cam_list.GetByIndex(0)
         self.cam.Init()
         self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
+
+        self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+        self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
+        self.cam.Gain.SetValue(0)
         self.cam.BeginAcquisition()
 
     def get_frame(self):
@@ -103,6 +107,15 @@ class CameraStream:
         image_result.Release()
 
         return frame
+
+    def set_exposure_time(self, new_time):
+        self.cam.ExposureTime.SetValue(new_time)
+
+    def get_exposure_time(self):
+        try:
+            return self.cam.ExpsoureTime.GetValue()
+        except:
+            return -1
 
     def release(self):
         self.cam.EndAcquisition()
@@ -157,7 +170,32 @@ class App:
         )
         self.max_value_bar.grid(row=4, column=0, columnspan=2)
 
+        # Exposure Time Label
+        self.exposure_label = tk.Label(root, text="Exposure Time:")
+        self.exposure_label.grid(row=2, column=0)
+
+        # Exposure Time Entry
+        self.exposure_entry = tk.Entry(root)
+        self.exposure_entry.grid(row=2, column=1)
+        self.exposure_entry.bind("<Return>", self.update_exposure_time)
+
+        # Current Exposure Time Label
+        self.current_exposure_label = tk.Label(
+            root, text=f"Current Exposure Time: {-2}"
+        )
+        self.current_exposure_label.grid(row=2, column=2)
+
         self.update()
+
+    def update_exposure_time(self, event):
+        try:
+            new_exposure_time = float(self.exposure_entry.get())
+            self.cap.set_exposure_time(new_exposure_time)
+            self.current_exposure_label.config(
+                text=f"Current Exposure Time: {self.cap.get_exposure_time()}"
+            )
+        except ValueError:
+            print("Invalid exposure time entered")
 
     def update(self):
         scaling_factor = 0.2  # Adjust this factor to make the image smaller or larger
@@ -168,13 +206,13 @@ class App:
         # convert to bgr
         disp_img = cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB)
         # add red rectangle around brightest spot
-        cv2.rectangle(
-            disp_img,
-            (max_loc[0] - width, max_loc[1] - width),
-            (max_loc[0] + width, max_loc[1] + width),
-            (255, 0, 0),
-            2,
-        )
+        # cv2.rectangle(
+        #     disp_img,
+        #     (max_loc[0] - width, max_loc[1] - width),
+        #     (max_loc[0] + width, max_loc[1] + width),
+        #     (255, 0, 0),
+        #     2,
+        # )
 
         gray = frame
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(gray)
@@ -184,7 +222,10 @@ class App:
             max(0, max_loc[1] - width) : min(gray.shape[0], max_loc[1] + width),
             max(0, max_loc[0] - width) : min(gray.shape[1], max_loc[0] + width),
         ]
-        strehl_ratio = compute_strehl(frame)
+        try:
+            strehl_ratio = compute_strehl(frame)
+        except:
+            strehl_ratio = 0
         self.strehl_bar["value"] = strehl_ratio
         self.strehl_value_label.config(text=f"{strehl_ratio:.2f}")
 
@@ -205,7 +246,33 @@ class App:
         self.max_value_value_label.config(text=f"{max_val}")
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        disp_img = cv2.applyColorMap(disp_img, cv2.COLORMAP_VIRIDIS)[:, :, ::-1]
+        # rect = cv2.rectangle(
+        #     np.zeros_like(disp_img),
+        #     (max_loc[0] - width, max_loc[1] - width),
+        #     (max_loc[0] + width, max_loc[1] + width),
+        #     (255, 0, 0),
+        #     2,
+        # )
+        disp_img = cv2.applyColorMap(disp_img, cv2.COLORMAP_VIRIDIS)
+
+        cv2.rectangle(
+            disp_img,
+            (
+                int((max_loc[0] - width) * scaling_factor),
+                int((max_loc[1] - width) * scaling_factor),
+            ),
+            (
+                int((max_loc[0] + width) * scaling_factor),
+                int((max_loc[1] + width) * scaling_factor),
+            ),
+            (255, 255, 255),
+            2,
+        )
+        disp_img = disp_img[:, :, ::-1]
+
+        # my own rectangle drawing
+        # disp_img[:,30] = [255,0,0]
+
         img = ImageTk.PhotoImage(image=Image.fromarray(disp_img))
         self.camera_label.config(image=img)
         self.camera_label.image = img
