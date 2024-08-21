@@ -39,6 +39,24 @@ def compute_serial_to_port_map():
                 serial_number = hwid.split("SER=")[-1].split("LOC")[0].strip() + "A"
                 mapping[serial_number] = port
 
+    # now for the checking of LS16P devices, which are extra weird since they don't
+    # present a serial number
+
+    if sys.platform.startswith("win"):
+        raise NotImplementedError("LS16P not implemented for windows")
+    else:
+        # list all ttyACM devices
+        rm = pyvisa.ResourceManager()
+
+        for device in rm.list_resources():
+            if "ttyACM" in device:
+                try:
+                    pass
+                    # connect to the motor and query SA
+                    # mapping["SA1"] = port kind of thing
+                except Exception as e:
+                    logging.warning(f"Could not connect to {device}: {e}")
+
     return mapping
 
 
@@ -206,8 +224,8 @@ class Instrument:
                             motors[motor_config["name"]] = SourceSelection(dev)
 
             print(motors)
-        
-        return motors #TODO: remove this
+
+        return motors  # TODO: remove this
 
         # now deal with all the networked motors
         self.zaber_ip_connections = {}  # IP address, connection

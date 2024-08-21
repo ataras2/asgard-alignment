@@ -57,7 +57,7 @@ class BifrostDichroic:
         return "unknown"
 
     def GUI(self):
-        st.header("M100D motor")
+        st.header("Baldr dichroic motor")
 
         st.write(f"Current position: {self.get_dichroic()}")
 
