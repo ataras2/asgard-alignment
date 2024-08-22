@@ -126,8 +126,19 @@ def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 
             number_of_modes += 1 # we add one more mode since we dont include piston 
 
         # NOTE BECAUSE WE HAVE N,M DIMENSIONS WE NEED TO ROUND UP TO SQUARE NUMBER THE MIGHT NOT = EXACTLY number_of_modes
-        control_basis_dict  = develop_Fourier_basis( int(np.ceil(number_of_modes**0.5)), int(np.ceil(number_of_modes**0.5)) ,P = 2 * Nx_act_DM, Nx = Nx_act_DM, Ny = Nx_act_DM )
-        raw_basis = np.array(list( control_basis_dict.values() ) ) #[:number_of_modes]
+        n = round( numModes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
+        control_basis_dict  = develop_Fourier_basis( n, n ,P = 2 * Nx_act_DM, Nx = Nx_act_DM, Ny = Nx_act_DM )
+        
+        # create raw basis as ordered list from our dictionary
+        raw_basis = []
+        for i in range( n-1 ):
+            for j in np.arange( i , n-1 ):
+                if i==j:
+                    raw_basis.append( basis_dict[i,i] )
+                else:
+                    raw_basis.append( basis_dict[i,j] ) # get either side of diagonal 
+                    raw_basis.append( basis_dict[j,i] )
+                    
         
         bmcdm_basis_list = []
         for i,B in enumerate(raw_basis):
@@ -955,9 +966,15 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     # ======== reference image with FPM OUT
 
     zwfs.dm.send_data(flat_dm_cmd) 
-    _ = input('MANUALLY MOVE PHASE MASK OUT OF BEAM, PRESS ENTER TO BEGIN' )
-    watch_camera(zwfs, frames_to_watch = 70, time_between_frames=0.05)
+    #_ = input('MANUALLY MOVE PHASE MASK OUT OF BEAM, PRESS ENTER TO BEGIN' )
+    #watch_camera(zwfs, frames_to_watch = 70, time_between_frames=0.05)
 
+    # fourier tip to go off phase mask 
+    fourier_basis = construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+    tip = fourier_basis[:,0]
+    print( 'applying 2*tip cmd in Fourier basis to go off phase mask')
+    zwfs.dm.send_data( 0.5 + 2*tip ) 
+    time.sleep(0.1)
     N0_list = []
     for _ in range(number_images_recorded_per_cmd):
         N0_list.append( zwfs.get_image( ) ) #REFERENCE INTENSITY WITH FPM IN
@@ -966,19 +983,20 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     #make_fits
 
     # ======== reference image with FPM IN
-    _ = input('MANUALLY MOVE PHASE MASK BACK IN, PRESS ENTER TO BEGIN' )
-    watch_camera(zwfs, frames_to_watch = 70, time_between_frames=0.05)
-
+    #_ = input('MANUALLY MOVE PHASE MASK BACK IN, PRESS ENTER TO BEGIN' )
+    #watch_camera(zwfs, frames_to_watch = 70, time_between_frames=0.05)
+    print( 'going back to DM flat to put beam ON phase mask')
+    zwfs.dm.send_data(flat_dm_cmd) 
+    time.sleep(0.1)
     I0_list = []
     for _ in range(number_images_recorded_per_cmd):
         I0_list.append( zwfs.get_image(  ) ) #REFERENCE INTENSITY WITH FPM IN
     I0 = np.median( I0_list, axis = 0 ) 
 
     # ======== BIAS FRAME
-    _ = input('COVER THE DETECTOR FOR A BIAS FRAME' )
-
-
-    watch_camera(zwfs, frames_to_watch = 50, time_between_frames=0.05)
+    #_ = input('COVER THE DETECTOR FOR A BIAS FRAME' )
+    print('need to move source out to get bias frame...')
+    #watch_camera(zwfs, frames_to_watch = 50, time_between_frames=0.05)
 
     BIAS_list = []
     for _ in range(100):

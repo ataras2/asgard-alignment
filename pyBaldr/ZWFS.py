@@ -624,6 +624,7 @@ class ZWFS():
         #info_fits.header.set('dm_control_center', phase_controller.config['dm_control_center'] )
 
         info_fits.header.set('CM_build_method', 'FILL ME' ) # how did we build the CM 
+        info_fits.header.set('poke_amplitude', phase_controller.ctrl_parameters[ctrl_label]['poke_amp'] ) # how did we build the CM 
         # push, pull, push-pull ? 
 
         # INTERACTION MATRIX 
@@ -694,11 +695,11 @@ class ZWFS():
         dm_pixel_center_fits .header.set('EXTNAME','dm_center_ref')
 
         # TO DO... Depends on modal basis used 
-        RTT_fits = fits.PrimaryHDU( np.zeros( phase_controller.ctrl_parameters[ctrl_label]['CM'].shape) )
+        RTT_fits = fits.PrimaryHDU( np.zeros( phase_controller.ctrl_parameters[ctrl_label]['R_TT'].shape) )
         RTT_fits.header.set('what is?','tip-tilt reconstructor')
         RTT_fits.header.set('EXTNAME','R_TT')
 
-        RHO_fits = fits.PrimaryHDU(  np.zeros(phase_controller.ctrl_parameters[ctrl_label]['CM'].shape) )
+        RHO_fits = fits.PrimaryHDU(  np.zeros(phase_controller.ctrl_parameters[ctrl_label]['R_HO'].shape) )
         RHO_fits.header.set('what is?','higher-oder reconstructor')
         RHO_fits.header.set('EXTNAME','R_HO')
 

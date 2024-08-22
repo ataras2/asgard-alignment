@@ -213,7 +213,7 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
         for axx in ax.reshape(-1):
             axx.axvline(x_pupil_center,color='r',label='measured center')
             axx.axhline(y_pupil_center,color='r')
-        plt.savefig(fig_path + '1.1_centers_FPM-OFF_internal_source.png',bbox_inches='tight', dpi=300)
+        #plt.savefig(fig_path + '1.1_centers_FPM-OFF_internal_source.png',bbox_inches='tight', dpi=300)
         plt.legend() 
 
     #================================
@@ -314,7 +314,7 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
         plt.ylabel('y [pixels]',fontsize=15)
         plt.gca().tick_params(labelsize=15) 
         plt.tight_layout()
-        plt.savefig(fig_path + 'process_1.3_analyse_pupil_DM_center.png',bbox_inches='tight', dpi=300)
+        #plt.savefig(fig_path + 'process_1.3_analyse_pupil_DM_center.png',bbox_inches='tight', dpi=300)
 
         # DM imprint in pixel space 
         plt.figure() 
@@ -436,7 +436,7 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
         cax = ax.imshow( region_highlight ,cmap=cmap)
         cbar=fig.colorbar(cax, ticks=[0, 1, 2, 3])
         cbar.ax.set_yticklabels(['outside pupil', 'inside pupil', 'secondary obstruction', 'peak of the reference field'])
-        plt.savefig(fig_path + 'process_1.3_pupil_region_classification.png',bbox_inches='tight', dpi=300)
+        #plt.savefig(fig_path + 'process_1.3_pupil_region_classification.png',bbox_inches='tight', dpi=300)
         plt.show()
     #================================
     #============= Now some basic quality checks 
