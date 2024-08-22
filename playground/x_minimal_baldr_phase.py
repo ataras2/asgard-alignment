@@ -2,6 +2,7 @@ from zaber_motion.ascii import Connection
 
 from asgard_alignment.ZaberMotor import BaldrPhaseMask, LAC10AT4A
 
+from pyBaldr import utilities as util
 
 con = Connection.open_tcp("192.168.1.111")
 

@@ -43,14 +43,14 @@ class BifrostDichroic:
 
         self.axis.move_absolute(
             self.dichroics[dichroic],
-            unit=zaber_motion.Units.LENGTH_MICROMETRES,
+            unit=zaber_motion.Units.LENGTH_MILLIMETRES,
             wait_until_idle=False,
         )
         self.current_dichroic = dichroic
 
     def get_dichroic(self):
         """Read the position from the device and check that it is consistent"""
-        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
+        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
         for key, value in self.dichroics.items():
             if abs(pos - value) < 0.1:
                 return key
