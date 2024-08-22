@@ -8,7 +8,6 @@ import importlib
 #import rtc
 import sys
 import datetime
-sys.path.append('simBaldr/' )
 sys.path.append('pyBaldr/' )  
 sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
 sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
@@ -187,7 +186,6 @@ time.sleep( 0.1 )
 # TRY model_2 WITH  method='single_side_poke', or 'double_sided_poke'
 #phase_ctrl.change_control_basis_parameters(  number_of_controlled_modes=140, basis_name ='Zonal', dm_control_diameter=None, dm_control_center=None,controller_label=None)
 #phase_ctrl.build_control_model_2(zwfs, poke_amp = -0.1, label='ctrl_1', poke_method='double_sided_poke', inverse_method='MAP',  debug = True)
-
 phase_ctrl.build_control_model_2(zwfs, poke_amp = -0.3, label='ctrl_1', poke_method='double_sided_poke', inverse_method='MAP',  debug = True)
 #phase_ctrl.build_control_model( zwfs , poke_amp = -0.15, label='ctrl_1', debug = True)  
 
