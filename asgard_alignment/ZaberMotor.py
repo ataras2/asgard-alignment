@@ -12,10 +12,13 @@ import zaber_motion
 import streamlit as st
 from zaber_motion.ascii import Connection
 import time
+import datetime
 import json
 
 import zaber_motion.binary
 
+
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S") # for measuring drifts in phase mask when updating positions
 
 class BifrostDichroic:
     def __init__(self, device) -> None:
@@ -184,6 +187,11 @@ class BaldrPhaseMask:
 
     def update_mask_position(self, mask_name):
         self.phase_positions[mask_name] = self.get_position()
+
+    def write_current_mask_positions( self , file_name=f'phase_positions_beam_3_{tstamp}.json'):
+        with open(file_name, 'w') as f:
+            json.dump(self.phase_positions, f)
+
 
 
 if __name__ == "__main__":
