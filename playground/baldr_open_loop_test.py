@@ -135,6 +135,30 @@ bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 1000, std_threshold = 50 ,
 # update zwfs bad pixel mask and flattened pixel values 
 zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
 
+
+from playground import phasemask_centering_tool as pct
+
+
+initial_position = phasemask.phase_positions[phasemask_name] # starting position of phase mask
+phasemask_diameter = 50 # um <- have to ensure grid is at this resolution 
+search_radius = 100  # search radius for spiral search (um)
+delta_theta = np.pi / 10  # angular increment (rad) 
+iterations_per_circle = 2*np.pi / delta_theta
+delta_radius = phasemask_diameter / iterations_per_circle # cover 1 phasemask diameter per circle
+
+# move off phase mask, its good to make sure zwfs object has dark, bad pixel map etc first to see better
+phasemask.move_absolute( initial_position ) 
+phasemask.move_relative( [1000,1000] )  # 1mm in each axis
+time.sleep(1.2)
+reference_image = zwfs.get_image( apply_manual_reduction=True)  # Capture reference image when misaligned
+phasemask.move_absolute( initial_position )  # move back to initial_position 
+time.sleep(1.2)
+# Start spiral search and fine centering
+centered_position = pct.spiral_search_and_center(
+    zwfs, phasemask, initial_position, search_radius, delta_radius, delta_theta, reference_image, fine_tune_threshold=3, plot=True
+)
+
+
 plt.figure() ; plt.title('dark'); plt.imshow( zwfs.reduction_dict['dark'][0] ); plt.colorbar() ; plt.savefig(fig_path + 'delme.png' )
 
 plt.figure() ;  plt.title('bad pixels'); plt.imshow( zwfs.bad_pixel_filter.reshape(zwfs.reduction_dict['dark'][0].shape) ); plt.savefig(fig_path + 'delme.png' )
