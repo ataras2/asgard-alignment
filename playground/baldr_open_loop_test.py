@@ -20,8 +20,47 @@ from pyBaldr import pupil_control
 import bmc
 import FliSdk_V2
 
+
 from zaber_motion.ascii import Connection
-from asgard_alignment.ZaberMotor import BaldrPhaseMask, LAC10AT4A
+from asgard_alignment.ZaberMotor import BaldrPhaseMask, LAC10AT4A,  BifrostDichroic, SourceSelection
+
+def print_current_state():
+    print(f'source motor: \n   {source_selection.device}')
+    print(f'    -available sources: {source_selection.sources}')
+    print(f'    -current position: {source_selection.current_position}')
+    for d in dichroics:
+        print(f'dichroic motor:\n   {d.device}')
+        print(f'    -available dichroic positions: {d.dichroics}' )
+        print(f'    -current position: {d.current_dichroic}')
+    print('availabel phasemask positions: ', )
+    print(f' phasemask motors: \n   {phasemask.motors}')
+    print(f'    -available positions:')
+    for l, p in phasemask.phase_positions.items():
+        print(f'   {l, p}')
+    print(f'    -current position: {phasemask.get_position()}um')
+    print(f'focus motor:\n   {focus_motor}')
+    print(f'    -current position: {focus_motor.get_position()}um')
+
+
+def exit_all():
+    # close things 
+    try:
+        con.close() #"192.168.1.111"
+    except:
+        print('no "con" to close')
+    try:
+        connection.close() # "/dev/ttyUSB0"
+    except:
+        print('no "connection" to close')
+    try:
+        zwfs.exit_dm() # DM 
+    except:
+        print('no DM to close')
+    try:
+        zwfs.exit_camera() #camera
+    except:
+        print('no camera to close')
+
 
 # timestamp
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
@@ -35,7 +74,7 @@ phasemask_name = 'J3'
 phasemask_OUT_offset = [1000,1000]  # relative offset (um) to take phasemask out of beam
 BFO_pos = 4000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
-source_name = 'STL'
+source_name = 'SBB'
 DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
 
 
@@ -46,10 +85,10 @@ DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
 # ======  set up dichroic 
 
 # do manually (COM3 communication issue)
-"""
+
 #  ConnectionFailedException: ConnectionFailedException: Cannot open serial port: no such file or directory
 
-connection = Connection.open_serial_port("COM3")
+connection =  Connection.open_serial_port("/dev/ttyUSB0")
 connection.enable_alerts()
 
 device_list = connection.detect_devices()
@@ -70,7 +109,7 @@ for dichroic in dichroics:
     dichroic.set_dichroic("J")
 
 while dichroics[0].get_dichroic() != "J":
-    pass"""
+    pass
 
 # ====== set up phasemask
 con = Connection.open_tcp("192.168.1.111")
@@ -84,7 +123,6 @@ latest_maskpos_file = max(maskpos_files, key=os.path.getctime)
 phasemask = BaldrPhaseMask(
     LAC10AT4A(x_axis), LAC10AT4A(y_axis), latest_maskpos_file 
 )
-print( phasemask.get_position() )
 """ 
 # e.g: to update position and write to file 
 phasemask.move_absolute( [3346, 1205])
@@ -96,15 +134,23 @@ phasemask.write_current_mask_positions()
 focus_axis = con.get_device(1).get_axis(2)
 focus_motor = LAC10AT4A(focus_axis)
 
-focus_motor.move_absolute( BFO_pos )
-print(focus_motor.get_position())
 
+# print out motors we have 
 
-
-
+print_current_state()
 # ====== Set up and calibrate 
 
 debug = True # plot some intermediate results 
+
+# take out source to calibate 
+source_selection.set_source(  'none' )
+time.sleep(1)
+focus_motor.move_absolute( BFO_pos )
+time.sleep(1)
+phasemask.move_to_mask(phasemask_name) 
+time.sleep(1)
+dichroic.set_dichroic("J")
+time.sleep(1)
 
 
 pupil_crop_region = [204,268,125, 187] #[None, None, None, None] #[0, 192, 0, 192] 
@@ -135,6 +181,17 @@ bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 1000, std_threshold = 50 ,
 # update zwfs bad pixel mask and flattened pixel values 
 zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
 
+# move source back in 
+source_selection.set_source(  source_name )
+time.sleep(2)
+
+# quick check that dark subtraction works
+I0 = zwfs.get_image( apply_manual_reduction  = True)
+plt.figure(); plt.title('test image \nwith dark subtraction \nand bad pixel mask'); plt.imshow( I0 ); plt.colorbar()
+plt.savefig( fig_path + 'delme.png')
+
+
+print_current_state()
 
 from playground import phasemask_centering_tool as pct
 
@@ -218,6 +275,8 @@ phase_ctrl.build_control_model_2(zwfs, poke_amp = -0.3, label='ctrl_1', poke_met
 
 # write fits to input into RTC
 zwfs.write_reco_fits( phase_ctrl, 'ctrl_1', save_path=data_path)
+
+
 
 
 
