@@ -19,10 +19,24 @@ from pyBaldr import pupil_control
 
 import bmc
 import FliSdk_V2
-
-
 from zaber_motion.ascii import Connection
 from asgard_alignment.ZaberMotor import BaldrPhaseMask, LAC10AT4A,  BifrostDichroic, SourceSelection
+
+trouble_shooting_dict = {
+    #format:
+    'short error key' :
+    {
+        'error string' : 'longer string descibing error',
+        'fix': 'how to fix it '
+    },
+    'SerialPortBusyException' : 
+    {
+        'error string':"SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application.",
+        'fix':"You can check if any processes are using the serial port with the following command: lsof /dev/*name* (e.g. name=ttyUSB0).\nIf you found a process using the port from the previous step, you can terminate it with: sudo kill -9 <PID> "
+    }
+
+}
+
 
 def print_current_state():
     print(f'source motor: \n   {source_selection.device}')
@@ -185,35 +199,458 @@ zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
 source_selection.set_source(  source_name )
 time.sleep(2)
 
-# quick check that dark subtraction works
+# quick check that dark subtraction works and we have signal
 I0 = zwfs.get_image( apply_manual_reduction  = True)
 plt.figure(); plt.title('test image \nwith dark subtraction \nand bad pixel mask'); plt.imshow( I0 ); plt.colorbar()
 plt.savefig( fig_path + 'delme.png')
-
+plt.close()
 
 print_current_state()
 
 from playground import phasemask_centering_tool as pct
 
 
-initial_position = phasemask.phase_positions[phasemask_name] # starting position of phase mask
+initial_pos= phasemask.phase_positions[phasemask_name] # starting position of phase mask
 phasemask_diameter = 50 # um <- have to ensure grid is at this resolution 
 search_radius = 100  # search radius for spiral search (um)
-delta_theta = np.pi / 10  # angular increment (rad) 
-iterations_per_circle = 2*np.pi / delta_theta
-delta_radius = phasemask_diameter / iterations_per_circle # cover 1 phasemask diameter per circle
+dtheta = np.pi / 20  # angular increment (rad) 
+iterations_per_circle = 2*np.pi / dtheta
+dr = phasemask_diameter / iterations_per_circle # cover 1 phasemask diameter per circle
 
 # move off phase mask, its good to make sure zwfs object has dark, bad pixel map etc first to see better
-phasemask.move_absolute( initial_position ) 
+phasemask.move_absolute( initial_pos ) 
 phasemask.move_relative( [1000,1000] )  # 1mm in each axis
 time.sleep(1.2)
-reference_image = zwfs.get_image( apply_manual_reduction=True)  # Capture reference image when misaligned
-phasemask.move_absolute( initial_position )  # move back to initial_position 
+reference_img =  np.mean(zwfs.get_some_frames(number_of_frames = 10, apply_manual_reduction = True ) , axis=0 ) # Capture reference image when misaligned
+phasemask.move_absolute( initial_pos )  # move back to initial_position 
 time.sleep(1.2)
+
 # Start spiral search and fine centering
+fine_tune_threshold=3
+savefigName = fig_path + 'delme.png'
+
 centered_position = pct.spiral_search_and_center(
-    zwfs, phasemask, initial_position, search_radius, delta_radius, delta_theta, reference_image, fine_tune_threshold=3, plot=True
+    zwfs, phasemask, phasemask_name, search_radius, dr, dtheta, reference_img, fine_tune_threshold=fine_tune_threshold, savefigName=savefigName
 )
+
+def compute_image_difference(img1, img2):
+    # normalize both images first
+    img1 = img1.copy() /np.sum(img1)
+    img2 = img2.copy() /np.sum(img2)
+    return np.sum(np.abs(img1 - img2))
+
+def calculate_movement_directions(image):
+    """
+    Calculate the direction to move the phase mask to improve symmetry.
+    
+    Parameters:
+    - image: 2D numpy array representing the image.
+    
+    Returns:
+    - Tuple of (dx, dy) indicating the direction to move the phase mask.
+    """
+    y_center, x_center = np.array(image.shape) // 2
+
+    # Extract the four quadrants
+    q1 = image[:y_center, :x_center]  # Top-left
+    q2 = np.flip(image[y_center:, :x_center], axis=0)  # Bottom-left (flipped)
+    q3 = np.flip(image[:y_center, x_center:], axis=1)  # Top-right (flipped)
+    q4 = np.flip(image[y_center:, x_center:], axis=(0, 1))  # Bottom-right (flipped)
+
+    # Calculate the differences
+    diff1 = np.sum(np.abs(q1 - q4))
+    diff2 = np.sum(np.abs(q2 - q3))
+
+    # Determine movement directions based on differences
+    dx = (np.sum(np.abs(q3 - q1)) - np.sum(np.abs(q2 - q4))) / (np.sum(np.abs(q3 + q1)) + np.sum(np.abs(q2 + q4)))
+    dy = (np.sum(np.abs(q2 - q1)) - np.sum(np.abs(q3 - q4))) / (np.sum(np.abs(q2 + q1)) + np.sum(np.abs(q3 + q4)))
+
+    # Normalize to unit length
+    magnitude = np.sqrt(dx**2 + dy**2)
+    if magnitude > 0:
+        dx /= magnitude
+        dy /= magnitude
+
+    return dx, dy
+
+def is_symmetric(image, threshold=0.1):
+    """
+    Check if the image is symmetric and calculate the direction to move for better symmetry.
+    
+    Parameters:
+    - image: 2D numpy array representing the image.
+    - threshold: float, maximum allowable difference for symmetry to be considered acceptable.
+    
+    Returns:
+    - Tuple of (is_symmetric, (dx, dy)) indicating whether the image is symmetric and the direction to move.
+    """
+    y_center, x_center = np.array(image.shape) // 2
+
+    # Extract the four quadrants
+    q1 = image[:y_center, :x_center]  # Top-left
+    q2 = np.flip(image[y_center:, :x_center], axis=0)  # Bottom-left (flipped)
+    q3 = np.flip(image[:y_center, x_center:], axis=1)  # Top-right (flipped)
+    q4 = np.flip(image[y_center:, x_center:], axis=(0, 1))  # Bottom-right (flipped)
+
+    # Calculate the differences
+    diff1 = np.sum(np.abs(q1 - q4))
+    diff2 = np.sum(np.abs(q2 - q3))
+    
+    # Determine if the image is symmetric
+    symmetric = diff1 <= threshold and diff2 <= threshold
+
+    # Calculate the direction to move if not symmetric
+    if not symmetric:
+        dx, dy = calculate_movement_directions(image)
+    else:
+        dx, dy = 0, 0
+
+    return symmetric, (dx, dy)
+
+if 1:
+    x, y = initial_pos
+    angle = 0
+    radius = 0
+    plot_cnt = 0 # so we don't plot every iteration 
+    
+    diff_list = [] # to track our metrics 
+    x_pos_list = [] 
+    y_pos_list = []
+    sleep_time = 0.7 #s
+    while radius < search_radius:
+        x_pos = x + radius * np.cos(angle)
+        y_pos = y + radius * np.sin(angle)
+
+        phasemask.move_absolute([x_pos, y_pos])
+        time.sleep( sleep_time)  # wait for the phase mask to move and settle
+        img = zwfs.get_image()
+
+        diff = compute_image_difference(img, reference_img)
+        diff_list.append( diff )
+        x_pos_list.append( x_pos )
+        y_pos_list.append( y_pos )
+        print(f'img diff = {diff}, fine_tune_threshold={fine_tune_threshold}')
+
+        # Update for next spiral step
+        angle += dtheta
+        radius += dr
+
+
+
+
+        #print( radius )
+        #_ = input('next')
+        if savefigName != None: 
+            if np.mod( plot_cnt , 5) == 0:
+
+                norm = plt.Normalize(0 , fine_tune_threshold)
+
+                fig,ax = plt.subplots( 1,3 ,figsize=(10,6))
+                ax[0].set_title( 'image' )
+                ax[1].set_title( f'search positions\nx:{phasemask.motors["x"]}\ny:{phasemask.motors["y"]}' )
+                ax[2].set_title( 'search metric' )
+
+                ax[0].imshow( img )
+                ax[1].plot( [x_pos,y_pos] , 'x', color='r', label='current pos')
+                ax[1].plot( [initial_pos[0],initial_pos[1]] , 'o', color='k', label='current pos')
+                tmp_diff_list = np.array(diff_list)
+                tmp_diff_list[tmp_diff_list < 1e-5 ] = 0.1 # very small values got to finite value (errors whern 0!)
+                # s= np.exp( 400 * np.array(tmp_diff_list) / fine_tune_threshold )
+                ax[1].scatter( x_pos_list, y_pos_list , s = 10   ,\
+                 marker='o', c=diff_list, cmap='viridis', norm=norm)
+                ax[1].set_xlim( [initial_pos[0] - search_radius,  initial_pos[0] + search_radius] )
+                ax[1].set_ylim( [initial_pos[1] - search_radius,  initial_pos[1] + search_radius] )
+                ax[1].legend() 
+                ax[2].plot( diff_list )
+                ax[2].set_xlim( [0, search_radius/dr] )
+
+                ax[0].axis('off')
+                ax[1].set_ylabel( 'y pos' )
+                ax[1].set_xlabel( 'x pos' )
+                ax[2].set_ylabel( r'$\Sigma|img - img_off|$' )
+                ax[2].set_xlabel( 'iteration' )
+                plt.savefig( savefigName)
+                plt.close()
+            plot_cnt += 1
+
+    best_pos = [ x_pos_list[np.argmax( diff_list )], y_pos_list[np.argmax( diff_list )] ]
+
+    move2best = input( f'move to recommended best position = {best_pos}? enter 1/0')
+    if move2best :
+        phasemask.move_absolute( best_pos )
+    else :
+        print('moving back to initial position')
+        phasemask.move_absolute( initial_pos )
+
+    #phasemask.move_absolute( phasemask.phase_positions[phasemask_name]  )
+    time.sleep(0.5)
+    img = zwfs.get_image()
+    plt.figure();plt.imshow( img ) ;plt.savefig( savefigName )
+
+    do_fine_adjustment = input('ready for fine adjustment') 
+    if do_fine_adjustment:
+        # do fine adjustments 
+        fine_adj_imgs = []
+        for i in range(5):
+            img = zwfs.get_image() 
+            fine_adj_imgs.append( img )
+            dr = dr/2 # half movements each time  
+            dx, dy = calculate_movement_directions(img) # dx, dy are normalized to radius 1
+            phasemask.move_relative( [dr * dx, dr * dy] ) 
+
+        fig,ax = plt.subplots( len(fine_adj_imgs))
+        for img,axx in zip(fine_adj_imgs,ax.reshape(-1)):
+            axx.imshow( img )
+        plt.savefig( savefigName )
+
+        
+
+
+def calculate_movement_directions(image):
+    """
+    Calculate the direction to move the phase mask to improve symmetry.
+    
+    Parameters:
+    - image: 2D numpy array representing the image.
+    
+    Returns:
+    - Tuple of (dx, dy) indicating the direction to move the phase mask.
+    """
+    y_center, x_center = np.array(image.shape) // 2
+
+    # Extract the four quadrants
+    q1 = image[:y_center, :x_center]  # Top-left
+    q2 = np.flip(image[y_center:, :x_center], axis=0)  # Bottom-left (flipped)
+    q3 = np.flip(image[:y_center, x_center:], axis=1)  # Top-right (flipped)
+    q4 = np.flip(image[y_center:, x_center:], axis=(0, 1))  # Bottom-right (flipped)
+
+    # Calculate the differences
+    diff1 = np.sum(np.abs(q1 - q4))
+    diff2 = np.sum(np.abs(q2 - q3))
+
+    # Determine movement directions based on differences
+    dx = (np.sum(np.abs(q3 - q1)) - np.sum(np.abs(q2 - q4))) / (np.sum(np.abs(q3 + q1)) + np.sum(np.abs(q2 + q4)))
+    dy = (np.sum(np.abs(q2 - q1)) - np.sum(np.abs(q3 - q4))) / (np.sum(np.abs(q2 + q1)) + np.sum(np.abs(q3 + q4)))
+
+    # Normalize to unit length
+    magnitude = np.sqrt(dx**2 + dy**2)
+    if magnitude > 0:
+        dx /= magnitude
+        dy /= magnitude
+
+    return dx, dy
+
+def is_symmetric(image, threshold=0.1):
+    """
+    Check if the image is symmetric and calculate the direction to move for better symmetry.
+    
+    Parameters:
+    - image: 2D numpy array representing the image.
+    - threshold: float, maximum allowable difference for symmetry to be considered acceptable.
+    
+    Returns:
+    - Tuple of (is_symmetric, (dx, dy)) indicating whether the image is symmetric and the direction to move.
+    """
+    y_center, x_center = np.array(image.shape) // 2
+
+    # Extract the four quadrants
+    q1 = image[:y_center, :x_center]  # Top-left
+    q2 = np.flip(image[y_center:, :x_center], axis=0)  # Bottom-left (flipped)
+    q3 = np.flip(image[:y_center, x_center:], axis=1)  # Top-right (flipped)
+    q4 = np.flip(image[y_center:, x_center:], axis=(0, 1))  # Bottom-right (flipped)
+
+    # Calculate the differences
+    diff1 = np.sum(np.abs(q1 - q4))
+    diff2 = np.sum(np.abs(q2 - q3))
+    
+    # Determine if the image is symmetric
+    symmetric = diff1 <= threshold and diff2 <= threshold
+
+    # Calculate the direction to move if not symmetric
+    if not symmetric:
+        dx, dy = calculate_movement_directions(image)
+    else:
+        dx, dy = 0, 0
+
+    return symmetric, (dx, dy)
+
+
+
+
+
+
+import numpy as np
+import scipy.interpolate as interp
+import matplotlib.pyplot as plt
+
+# Assuming you have these arrays:
+# positions: list of [x, y] positions
+# diffs: corresponding diff values for each [x, y] position
+
+def convert_to_polar(x, y, center=(0, 0)):
+    """ Convert (x, y) to polar coordinates (radius, angle) relative to a center. """
+    x_centered, y_centered = x - center[0], y - center[1]
+    radius = np.sqrt(x_centered**2 + y_centered**2)
+    angle = np.arctan2(y_centered, x_centered)
+    return radius, angle
+
+def bin_by_angle(radius, angle, diff_list, nbins):
+    """ Bin diffs by angle into nbins. """
+    bins = np.linspace(-np.pi, np.pi, nbins + 1)
+    digitized = np.digitize(angle, bins)
+
+    # Adjust the binning so that values in the last bin are included
+    digitized = np.clip(digitized, 1, nbins)
+    
+    binned_data = {i: [] for i in range(1, nbins + 1)}
+
+    for r, a, d, bin_id in zip(radius, angle, diff_list, digitized):
+        binned_data[bin_id].append((r, d))
+    
+    return binned_data
+import numpy as np
+import scipy.interpolate as interp
+
+def interpolate_max_in_bins(binned_data):
+    """ Interpolate diff vs radius and find max in each angle bin. """
+    max_radii = []
+    max_angles = []
+    interpolated_data = {}
+
+    for bin_id, data in binned_data.items():
+        if len(data) < 2:  # Ensure at least 2 points for interpolation
+            continue
+
+        data = sorted(data, key=lambda x: x[0])  # Sort by radius
+        radii, diffs = zip(*data)
+        
+        if len(radii) > 3:  # Default spline degree is 3
+            spline = interp.UnivariateSpline(radii, diffs, s=0)
+            fine_radii = np.linspace(min(radii), max(radii), 1000)
+            fine_diffs = spline(fine_radii)
+            max_idx = np.argmax(fine_diffs)
+            max_radii.append(fine_radii[max_idx])
+            max_angles.append(np.mean([2 * np.pi / len(binned_data) * (bin_id - 1)]))
+            interpolated_data[bin_id] = (fine_radii, fine_diffs)
+        else:
+            max_radii.append(max(radii, key=lambda r: diffs[radii.index(r)]))
+            max_angles.append(np.mean([2 * np.pi / len(binned_data) * (bin_id - 1)]))
+            interpolated_data[bin_id] = (radii, diffs)  # No fine interpolation for sparse data
+
+    return max_radii, max_angles, interpolated_data
+
+
+def polar_to_cartesian(radius, angle, center=(0, 0)):
+    """ Convert polar coordinates (radius, angle) to cartesian (x, y). """
+    x = center[0] + radius * np.cos(angle)
+    y = center[1] + radius * np.sin(angle)
+    return x, y
+
+# Assume initial center is at [0, 0], adjust as needed
+center = initial_pos
+
+# Convert positions to polar coordinates
+radii, angles = zip(*[convert_to_polar(x, y, center) for x, y in zip(x_pos_list, y_pos_list)])
+
+# Bin diffs by angle with 4 * dangle bins
+nbins = int(4 * (2 * np.pi) / dtheta)
+binned_data = bin_by_angle(radii, angles, diff_list, nbins)
+
+# Interpolate and find the max diff in each angle bin
+max_radii, max_angles, interpolated_data  = interpolate_max_in_bins(binned_data)
+
+
+
+def plot_polar_heatmap(interpolated_data):
+    import matplotlib.colors as mcolors
+    # Define the number of bins and number of points
+    nbins = len(interpolated_data)
+    n_points = 1000  # Number of points for fine_radii
+
+    # Create arrays to hold the data
+    radii_list = []
+    angles_list = []
+    diffs_list = []
+
+    # Collect data
+    for bin_id, (fine_radii, fine_diffs) in interpolated_data.items():
+        angles = np.full_like(fine_radii, np.mean([2 * np.pi / nbins * (bin_id - 1)]))
+        radii_list.extend(fine_radii)
+        angles_list.extend(angles)
+        diffs_list.extend(fine_diffs)
+
+    # Convert lists to numpy arrays
+    radii_array = np.array(radii_list)
+    angles_array = np.array(angles_list)
+    diffs_array = np.array(diffs_list)
+
+    # Create polar plot
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(111, polar=True)
+    
+    # Normalize the diff values for colormap
+    norm = mcolors.Normalize(vmin=np.min(diffs_array), vmax=np.max(diffs_array))
+    cmap = plt.get_cmap('viridis')
+    
+    # Scatter plot for heatmap
+    sc = ax.scatter(angles_array, radii_array, c=diffs_array, cmap=cmap, norm=norm, s=10, edgecolors='none')
+    
+    # Add colorbar
+    cbar = plt.colorbar(sc, ax=ax, orientation='vertical')
+    cbar.set_label('Diff')
+    
+    # Set labels and title
+    ax.set_xlabel('Angle (radians)')
+    ax.set_ylabel('Radius')
+    ax.set_title('Polar Heatmap of Radius vs Diff')
+    plt.savefig( savefigName )
+
+
+
+
+
+
+plt.figure(figsize=(12, 8))
+
+for bin_id, (fine_radii, fine_diffs) in interpolated_data.items():
+    plt.plot(fine_radii, fine_diffs, label=f'Bin {bin_id}')
+
+plt.xlabel('Radius')
+plt.ylabel('Diff')
+plt.title('Radius vs Diff for Each Angle Bin')
+plt.legend()
+plt.grid(True)
+plt.savefig( savefigName )
+
+# Find the absolute max
+max_diff_idx = np.argmax(max_radii)
+best_radius = max_radii[max_diff_idx]
+best_angle = max_angles[max_diff_idx]
+
+# Convert best radius and angle to x, y position
+best_x, best_y = polar_to_cartesian(best_radius, best_angle, center)
+
+# Move the phase mask to the optimal position
+phasemask.move_absolute([best_x, best_y])
+
+#update phasemask position 
+
+print(f"Phase mask moved to optimal position: ({best_x}, {best_y})")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 plt.figure() ; plt.title('dark'); plt.imshow( zwfs.reduction_dict['dark'][0] ); plt.colorbar() ; plt.savefig(fig_path + 'delme.png' )
