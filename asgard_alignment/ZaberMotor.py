@@ -75,10 +75,10 @@ class SourceSelection:
         self.device = device
         self.axis = device.get_axis(1)
         self.sources = {
-            "SRL": 11.018,
-            "SGL": 38.018,
-            "SBB": 65.018,
-            "SLD": 92.018,
+            "SRL": 11.018 * 1e3,  # units converted mm->um
+            "SGL": 38.018 * 1e3,
+            "SBB": 65.018 * 1e3,
+            "SLD": 92.018 * 1e3,
             "none": 0.0,
         }
 

@@ -26,7 +26,7 @@ def is_symmetric(image, threshold=0.1):
     print(f'in is_summetric loop :\n  (diff1 + diff2) = {(diff1 + diff2)}, threshold={threshold}')
     return (diff1 + diff2) < threshold
 
-def spiral_search_and_center(zwfs, phasemask, initial_pos, search_radius, dr, dtheta, reference_img, fine_tune_threshold=3, plot=True):
+def spiral_search_and_center(zwfs, phasemask, initial_pos, search_radius, dr, dtheta, reference_img, fine_tune_threshold=3, savefigName=None):
     x, y = initial_pos
     angle = 0
     radius = 0
@@ -73,7 +73,7 @@ def spiral_search_and_center(zwfs, phasemask, initial_pos, search_radius, dr, dt
         angle += dtheta
         radius += dr
 
-        if plot: 
+        if savefigName != None: 
             fig_path = '/home/heimdallr/Documents/asgard-alignment/tmp/'
             if np.mod( plot_cnt , 5) == 0:
 
@@ -90,7 +90,8 @@ def spiral_search_and_center(zwfs, phasemask, initial_pos, search_radius, dr, dt
                 tmp_diff_list = np.array(diff_list)
                 tmp_diff_list[tmp_diff_list < 1e-5 ] = 0.1 # very small values got to finite value (errors whern 0!)
                 tmp_diff_list[tmp_diff_list < 1e-5 ] = 0.1
-                ax[1].scatter( x_pos_list, y_pos_list , s =  np.exp( 400 * np.array(tmp_diff_list) / fine_tune_threshold )  ,\
+                # np.exp( 4 * np.array(tmp_diff_list) / fine_tune_threshold ) # size depends on metric
+                ax[1].scatter( x_pos_list, y_pos_list , s = 40  ,\
                  marker='o', c=diff_list, cmap='viridis', norm=norm)
                 ax[1].set_xlim( [initial_pos[0] - search_radius,  initial_pos[0] + search_radius] )
                 ax[1].set_ylim( [initial_pos[1] - search_radius,  initial_pos[1] + search_radius] )
@@ -103,7 +104,7 @@ def spiral_search_and_center(zwfs, phasemask, initial_pos, search_radius, dr, dt
                 ax[1].set_xlabel( 'x pos' )
                 ax[2].set_ylabel( r'$\Sigma|img - img_off|$' )
                 ax[2].set_xlabel( 'iteration' )
-                plt.savefig( fig_path + 'delme.png')
+                plt.savefig( savefigName )
                 plt.cla()
             plot_cnt += 1
     print("Spiral search complete, centering failed.")
