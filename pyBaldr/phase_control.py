@@ -10,8 +10,9 @@ class phase_controller_1():
     linear interaction model on internal calibration source
     """
    
-    def __init__(self, config_file = None):
-       
+    def __init__(self, basis_name = 'Zonal', number_of_controlled_modes = 140 , config_file = None):
+        
+        # if config file  provided we ignore basis_name and number_of_controlled_modes
         if type(config_file)==str:
             if config_file.split('.')[-1] == 'json':
                 with open('data.json') as json_file:
@@ -24,8 +25,8 @@ class phase_controller_1():
             self.config = {}
             self.config['telescopes'] = ['AT1']
             self.config['fpm'] = 1  #0 for off, positive integer for on a particular phase dot
-            self.config['basis'] = 'Zernike' # either Zernike, Zonal, KL, fourier, or WFS_Eigenmodes
-            self.config['number_of_controlled_modes'] = 70 # number of controlled modes
+            self.config['basis'] = basis_name  # either Zernike, Zonal, KL, fourier, or WFS_Eigenmodes
+            self.config['number_of_controlled_modes'] = number_of_controlled_modes # number of controlled modes
             self.config['source'] = 1
            
             self.ctrl_parameters = {} # empty dictionary cause we have none
@@ -161,18 +162,18 @@ class phase_controller_1():
         fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
         tip = fourier_basis[:,0]
 
-        imgs_to_median = 100 
+        imgs_to_mean =  256
 
         ZWFS.dm.send_data(0.5 + 2 * tip ) # move off phase mask 
         time.sleep(0.1)
-        N0_list = ZWFS.get_some_frames(number_of_frames = imgs_to_median, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM OUT
-        N0 = np.median( N0_list, axis = 0 )
+        N0_list = ZWFS.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM OUT
+        N0 = np.mean( N0_list, axis = 0 )
 
 
         ZWFS.dm.send_data( ZWFS.dm_shapes['flat_dm'] )
         time.sleep(0.1)
-        I0_list = ZWFS.get_some_frames(number_of_frames = imgs_to_median, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM IN
-        I0 = np.median( I0_list, axis = 0 )
+        I0_list = ZWFS.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM IN
+        I0 = np.mean( I0_list, axis = 0 )
 
         # === ADD ATTRIBUTES 
         self.I0 = I0.reshape(-1)[np.array( ZWFS.pupil_pixels )] / np.mean( I0 ) # append reference intensity over defined     pupil with FPM IN 
@@ -190,8 +191,8 @@ class phase_controller_1():
                 print(f'executing cmd {i}/{len(modal_basis)}')           
                 ZWFS.dm.send_data( list( ZWFS.dm_shapes['flat_dm'] + poke_amp * m )  )
                 time.sleep(0.1)
-                img_list = ZWFS.get_some_frames(number_of_frames = imgs_to_median, apply_manual_reduction = True ) # to take median of 
-                I = np.median( img_list, axis = 0).reshape(-1) 
+                img_list = ZWFS.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) # to take median of 
+                I = np.mean( img_list, axis = 0).reshape(-1) 
 
                 # IMPORTANT : we normalize by mean over total image region (post reduction) (NOT FILTERED )... 
                 I *= 1/np.mean( I ) # we normalize by mean over total region! 
@@ -206,21 +207,21 @@ class phase_controller_1():
                 print(f'executing cmd {i}/{len(modal_basis)}')
                 I_plus_list = []
                 I_minus_list = []
-                imgs_to_median = 10
+                imgs_to_mean = 10
                 for sign in [(-1)**n for n in range(10)]: #[-1,1]:
                     ZWFS.dm.send_data( list( ZWFS.dm_shapes['flat_dm'] + sign * poke_amp/2 * m )  )
                     time.sleep(0.05)
                     if sign > 0:
-                        I_plus_list += ZWFS.get_some_frames(number_of_frames = imgs_to_median, apply_manual_reduction = True )
+                        I_plus_list += ZWFS.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True )
                         #I_plus *= 1/np.mean( I_plus )
                     if sign < 0:
-                        I_minus_list += ZWFS.get_some_frames(number_of_frames = imgs_to_median, apply_manual_reduction = True )
+                        I_minus_list += ZWFS.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True )
                         #I_minus *= 1/np.mean( I_minus )
 
-                I_plus = np.median( I_plus_list, axis = 0).reshape(-1)  # flatten so can filter with ZWFS.pupil_pixels
+                I_plus = np.mean( I_plus_list, axis = 0).reshape(-1)  # flatten so can filter with ZWFS.pupil_pixels
                 I_plus *= 1/np.mean( I_plus )
 
-                I_minus = np.median( I_minus_list, axis = 0).reshape(-1)  # flatten so can filter with ZWFS.pupil_pixels
+                I_minus = np.mean( I_minus_list, axis = 0).reshape(-1)  # flatten so can filter with ZWFS.pupil_pixels
                 I_minus *= 1/np.mean( I_minus )
 
                 errsig = (I_plus - I_minus)[np.array( ZWFS.pupil_pixels )]
@@ -618,7 +619,7 @@ class phase_controller_1():
 
         #singular values
         plt.figure() 
-        plt.semilogy(S/np.max(S))
+        plt.semilogy(S) #/np.max(S))
         #plt.axvline( np.pi * (10/2)**2, color='k', ls=':', label='number of actuators in pupil')
         plt.legend() 
         plt.xlabel('mode index')

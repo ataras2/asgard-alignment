@@ -126,7 +126,7 @@ def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 
             number_of_modes += 1 # we add one more mode since we dont include piston 
 
         # NOTE BECAUSE WE HAVE N,M DIMENSIONS WE NEED TO ROUND UP TO SQUARE NUMBER THE MIGHT NOT = EXACTLY number_of_modes
-        n = round( numModes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
+        n = round( number_of_modes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
         control_basis_dict  = develop_Fourier_basis( n, n ,P = 2 * Nx_act_DM, Nx = Nx_act_DM, Ny = Nx_act_DM )
         
         # create raw basis as ordered list from our dictionary
@@ -134,10 +134,10 @@ def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 
         for i in range( n-1 ):
             for j in np.arange( i , n-1 ):
                 if i==j:
-                    raw_basis.append( basis_dict[i,i] )
+                    raw_basis.append( control_basis_dict[i,i] )
                 else:
-                    raw_basis.append( basis_dict[i,j] ) # get either side of diagonal 
-                    raw_basis.append( basis_dict[j,i] )
+                    raw_basis.append( control_basis_dict[i,j] ) # get either side of diagonal 
+                    raw_basis.append( control_basis_dict[j,i] )
                     
         
         bmcdm_basis_list = []
@@ -722,7 +722,7 @@ def test_controller_in_cmd_space( zwfs, phase_controller, Vw =None , D=None , AO
 
 
 
-def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_images_recorded_per_cmd = 1, take_median_of_images=False, save_dm_cmds = True, calibration_dict=None, additional_header_labels=None, sleeptime_between_commands=0.01, cropping_corners=None, save_fits = None):
+def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_images_recorded_per_cmd = 5, take_mean_of_images=False, save_dm_cmds = True, calibration_dict=None, additional_header_labels=None, sleeptime_between_commands=0.01, cropping_corners=None, save_fits = None):
     """
     
 
@@ -788,7 +788,7 @@ def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_ima
 
         if should_we_record_images: 
             if take_median_of_images:
-                ims_tmp = [np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_median_of_images=False
+                ims_tmp = [ np.mean( zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ) ,axis=0) ] #[np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_median_of_images=False
             else:
                 ims_tmp = zwfs.get_image() #get_raw_images(camera, number_images_recorded_per_cmd, cropping_corners) 
             image_list.append( ims_tmp )
@@ -975,10 +975,10 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     print( 'applying 2*tip cmd in Fourier basis to go off phase mask')
     zwfs.dm.send_data( 0.5 + 2*tip ) 
     time.sleep(0.1)
-    N0_list = []
-    for _ in range(number_images_recorded_per_cmd):
-        N0_list.append( zwfs.get_image( ) ) #REFERENCE INTENSITY WITH FPM IN
-    N0 = np.median( N0_list, axis = 0 ) 
+    N0_list = zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True )
+    #for _ in range(number_images_recorded_per_cmd):
+    #    N0_list.append( zwfs.get_image( ) ) #REFERENCE INTENSITY WITH FPM IN
+    N0 = np.mean( N0_list, axis = 0 ) 
 
     #make_fits
 
@@ -988,10 +988,10 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     print( 'going back to DM flat to put beam ON phase mask')
     zwfs.dm.send_data(flat_dm_cmd) 
     time.sleep(0.1)
-    I0_list = []
-    for _ in range(number_images_recorded_per_cmd):
-        I0_list.append( zwfs.get_image(  ) ) #REFERENCE INTENSITY WITH FPM IN
-    I0 = np.median( I0_list, axis = 0 ) 
+    I0_list = zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ) 
+    #for _ in range(number_images_recorded_per_cmd):
+    #    I0_list.append( zwfs.get_image(  ) ) #REFERENCE INTENSITY WITH FPM IN
+    I0 = np.mean( I0_list, axis = 0 ) 
 
     # ======== BIAS FRAME
     #_ = input('COVER THE DETECTOR FOR A BIAS FRAME' )
@@ -1030,7 +1030,7 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     additional_labels = [('cp_x1',cp_x1),('cp_x2',cp_x2),('cp_y1',cp_y1),('cp_y2',cp_y2),('in-poke max amp', np.max(ramp_values)),('out-poke max amp', np.min(ramp_values)),('#ramp steps',number_amp_samples), ('seq0','flatdm'), ('reshape',f'{number_amp_samples}-{modal_basis.shape[0]}-{modal_basis.shape[1]}'),('Nmodes_poked',len(modal_basis)),('Nact',140)]
 
     # --- poke DM in and out and record data. Extension 0 corresponds to images, extension 1 corresponds to DM commands
-    raw_recon_data = apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_images_recorded_per_cmd = number_images_recorded_per_cmd, take_median_of_images=True, save_dm_cmds = True, calibration_dict=None, additional_header_labels = additional_labels,sleeptime_between_commands=0.03, cropping_corners=None,  save_fits = None ) # None
+    raw_recon_data = apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_images_recorded_per_cmd = number_images_recorded_per_cmd, take_mean_of_images=True, save_dm_cmds = True, calibration_dict=None, additional_header_labels = additional_labels,sleeptime_between_commands=0.03, cropping_corners=None,  save_fits = None ) # None
 
     zwfs.dm.send_data(flat_dm_cmd) 
 
