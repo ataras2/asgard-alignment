@@ -241,11 +241,13 @@ class phase_controller_1():
         elif inverse_method == 'MAP': # minimum variance of maximum posterior estimator 
             if not hasattr(self.noise_cov, '__len__'): 
                 noise_cov = np.eye( np.array(IM).shape[1] ) #built along IM cols which correspond to pupil fitered pixels
+                print( 'phase controller does not have noise covariance matrix.\nbuild it with the command update_noise_model( self, zwfs, number_of_frames = 1000 )')
             else:
                 noise_cov = np.array( self.noise_cov )
 
             if not hasattr(self.phase_cov, '__len__'): 
                 phase_cov = np.eye( np.array(IM).shape[0] )
+                print( 'phase controller does not have phase covariance matrix. Using indentity.')
             else: 
                 phase_cov = np.array( self.phase_cov )
 

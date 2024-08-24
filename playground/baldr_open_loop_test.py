@@ -276,8 +276,8 @@ plt.savefig(fig_path + 'delme.png')
 
 #init our phase controller (object that processes ZWFS images and outputs DM commands)
 zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zonal', number_of_controlled_modes = 140) 
-zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike', number_of_controlled_modes = 70) 
-fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 70) 
+zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike', number_of_controlled_modes = 5) 
+fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 5) 
 # to change basis : 
 #phase_ctrl.change_control_basis_parameters( controller_label = ctrl_method_label, number_of_controlled_modes=phase_ctrl.config['number_of_controlled_modes'], basis_name='Zonal' , dm_control_diameter=None, dm_control_center=None)
 
@@ -292,7 +292,7 @@ build_dict = {
     'fourier':fourier_dict
 }
 
-basis = 'zernike'
+basis = 'fourier'
 
 zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] )
 time.sleep( 0.1 )
@@ -335,7 +335,7 @@ CM = p.ctrl_parameters[label]['CM']
 R_TT = p.ctrl_parameters[label]['R_TT'] 
 R_HO = p.ctrl_parameters[label]['R_HO'] 
 
-M2C = p.ctrl_parameters[label]['M2C_4reco'] 
+M2C = p.config['M2C']  # p.ctrl_parameters[label]['M2C_4reco'] 
 I0 = p.ctrl_parameters[label]['ref_pupil_FPM_in']
 N0 = p.ctrl_parameters[label]['ref_pupil_FPM_out']
 
@@ -358,7 +358,25 @@ for m in range( len(IM) ):
 
 # can we do open loop reconstruction ok on our input basis?
 
+# fourier tip to go off phase mask  
+fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+tip = fourier_basis[:,0]
+
+imgs_to_mean =  256
+
+zwfs.dm.send_data(0.5 + 2 * tip ) # move off phase mask 
+time.sleep(0.1)
+N0_list = zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM OUT
+N0 = np.mean( N0_list, axis = 0 )
+
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] )
+time.sleep(0.1)
+I0_list = zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) #REFERENCE INTENSITY WITH FPM IN
+I0 = np.mean( I0_list, axis = 0 )
+
 amp = 0.2 # amp to apply to each mode
+rmse_dict = {}
 for mode_indx in range( len(IM) ) :#len(M2C)-1 ) :  
 
     mode_aberration = mode_basis.T[mode_indx]#   M2C.T[mode_indx]
@@ -371,7 +389,7 @@ for mode_indx in range( len(IM) ) :#len(M2C)-1 ) :
     #raw_img_list = []
     #for i in range( 10 ) :
     #    raw_img_list.append( zwfs.get_image() ) # @D, remember for control_phase method this needs to be flattened and filtered for pupil region
-    raw_img = zwfs.get_image()
+    raw_img = np.mean( zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
     # plt.figure() ; plt.imshow( raw_img ) ; plt.savefig( fig_path + f'delme.png') # <- signal?
     
     err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
@@ -382,7 +400,6 @@ for mode_indx in range( len(IM) ) :#len(M2C)-1 ) :
     #plt.figure(); plt.plot( I2M.T @ IM[2] ); plt.savefig( fig_path + f'delme.png')
     #plt.figure(); plt.plot( I2M.T @ IM[mode_indx]  ,label='reconstructed amplitude'); plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index'); plt.ylabel('mode amplitude'); plt.legend(); plt.savefig( fig_path + f'delme.png')
     mode_res =  I2M.T @ err_img 
-
 
     plt.figure(); plt.plot( mode_res ); plt.axvline(mode_indx  , ls=':', color='k') ; plt.savefig( fig_path + f'delme.png')
     plt.figure(figsize=(8,5));
@@ -398,7 +415,7 @@ for mode_indx in range( len(IM) ) :#len(M2C)-1 ) :
 
     _ = input('press when ready to see mode reconstruction')
     
-    cmd_res = 1/poke_amp * M2C @ mode_res
+    cmd_res =  M2C @ mode_res  # <-- should be like this. 1/poke_amp * M2C @ mode_res # SHOULD I USE M2C_4reco here? 
     
     # WITH RESIDUALS 
     
@@ -412,6 +429,29 @@ for mode_indx in range( len(IM) ) :#len(M2C)-1 ) :
     util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
     
     _ = input('press when ready to go to next moce ')
+
+    rmse = np.sqrt( np.mean(( mode_aberration - cmd_res  )**2) )
+    rmse_dict[m] = rmse
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
