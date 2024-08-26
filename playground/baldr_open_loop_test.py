@@ -581,9 +581,8 @@ plt.savefig(fig_path+'delme.png')
 # Try correct in eigenspace, filtering modes 
 
 
-
 zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zonal', number_of_controlled_modes = 140) 
-fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 89) 
+fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 100) 
 
 zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zonal_0.07pokeamp_in-out_pokes_pinv' }
 fourier_dict = {'controller': fourier_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
@@ -633,73 +632,122 @@ U, S, Vt = np.linalg.svd( IM.T , full_matrices=False)  # I append rows to IM.. c
 # IM @ CM = I . .CM = Vt.T @ np.diag(1/S) @ U.T
 (U @ np.diag(S) @ Vt) @ (Vt.T @ np.diag(1/S) @ U.T)
 
-I2M = np.diag(1/S) @ U.T
-M2C = Vt.T
-mode_basis = p.config['M2C']  # fourier 
+plt.figure(); plt.imshow( IM.T @ np.linalg.pinv( IM.T )); plt.savefig(fig_path +'delme.png')
+
+
+plt.figure(); plt.imshow( util.get_DM_command_in_2D(Vt[0]));plt.savefig(fig_path+'delme.png')
+plt.figure(); plt.semilogy(S); plt.xlabel('eigenmode index'); plt.ylabel('Eigenvalues');plt.savefig(fig_path+'delme.png')
+
+# important to get DM registration of the pupil 
+plt.figure(); plt.imshow( util.get_DM_command_in_2D(np.std( IM, axis=1) ) );plt.colorbar(); plt.title(r'$\sigma$'); plt.savefig(fig_path + 'delme.png')
+# Set pupil registration threshold at 1sigma in the pixel space 
+dm_pupil_filter =  np.std( IM, axis=1) > 1
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( dm_pupil_filter ) );plt.colorbar(); plt.title(r'$\sigma$'); plt.savefig(fig_path + 'delme.png')
+
+#p.plot_SVD_modes( zwfs, label, save_path=fig_path)
+
+truncation_index = 20
+"""Sigma = 1/S 
+gains = np.zeros(len(S))
+gains[:truncation_index] = 1
+I2M = gains * np.diag(Sigma) @ U.T"""
+#np.sum(Vt.T[0]**2) = 1 so we need to adjust by poke_amp 
+M2C = poke_amp * Vt.T 
+
+#mode_basis = p.config['M2C']  # fourier 
     
-amp = 0.2 # amp to apply to each mode
+amp = 0.4 # amp to apply to each mode
 imgs_to_mean  = 200
 
-plt.figure(); plt.imshow( util.get_DM_command_in_2D(mode_basis.T[0]));plt.savefig(fig_path+'delme.png')
+#plt.figure(); plt.imshow( util.get_DM_command_in_2D(mode_basis.T[0]));plt.savefig(fig_path+'delme.png')
+
+# test we can get on/off phase mask with DM 
+fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
 
 rmse_dict = {}
-for mode_indx in range( 5 ) :#len(M2C)-1 ) :  
+rmse_baseline_dict = {}
+truncation_index_grid = [2,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80 ]
+mode_indx_grid=range( 10 )
 
-    mode_aberration = mode_basis.T[mode_indx]#   M2C.T[mode_indx]
-    #plt.imshow( util.get_DM_command_in_2D(amp*mode_aberration));plt.colorbar();plt.show()
-    
-    dm_cmd_aber = zwfs.dm_shapes['flat_dm'] + amp * mode_aberration 
+for cnt , truncation_index in enumerate(truncation_index_grid):
+    print( f'complete {100 * cnt/len(truncation_index_grid) } %')
+    Sigma = 1/S 
+    gains = np.zeros(len(S))
+    gains[:truncation_index] = 1
+    I2M = gains * np.diag(Sigma) @ U.T
+    rmse_dict[truncation_index] = {}
+    for mode_indx in mode_indx_grid:#len(M2C)-1 ) :  
 
-    zwfs.dm.send_data( dm_cmd_aber )
-    time.sleep(0.1)
-    #raw_img_list = []
-    #for i in range( 10 ) :
-    #    raw_img_list.append( zwfs.get_image() ) # @D, remember for control_phase method this needs to be flattened and filtered for pupil region
-    raw_img = np.mean( zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
-    # plt.figure() ; plt.imshow( raw_img ) ; plt.savefig( fig_path + f'delme.png') # <- signal?
-    
-    err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
-    
-    # plt.figure() ; plt.hist( err_img, label='meas', alpha=0.3 ) ; plt.hist( IM[mode_indx] , label='from IM', alpha=0.3); plt.legend() ; plt.savefig( fig_path + f'delme.png') # <- should be around zeros
+        # apply the full aberration without pupil filter 
+        mode_aberration =  fourier_basis.T[mode_indx]#   M2C.T[mode_indx]
+        #plt.imshow( util.get_DM_command_in_2D(amp*mode_aberration));plt.colorbar();plt.show()
+        
+        dm_cmd_aber = zwfs.dm_shapes['flat_dm'] + amp * mode_aberration 
 
-    #mode_res_test : inject err_img from interaction matrix to I2M .. should result in perfect reconstruction  
-    #plt.figure(); plt.plot( I2M.T @ IM[2] ); plt.savefig( fig_path + f'delme.png')
-    #plt.figure(); plt.plot( I2M.T @ IM[mode_indx]  ,label='reconstructed amplitude'); plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index'); plt.ylabel('mode amplitude'); plt.legend(); plt.savefig( fig_path + f'delme.png')
-    mode_res =  I2M @ err_img 
+        zwfs.dm.send_data( dm_cmd_aber )
+        time.sleep(0.2)
+        #raw_img_list = []
+        #for i in range( 10 ) :
+        #    raw_img_list.append( zwfs.get_image() ) # @D, remember for control_phase method this needs to be flattened and filtered for pupil region
+        raw_img = np.mean( zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
+        # plt.figure() ; plt.imshow( raw_img ) ; plt.savefig( fig_path + f'delme.png') # <- signal?
+        
+        err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
+        
+        # plt.figure() ; plt.hist( err_img, label='meas', alpha=0.3 ) ; plt.hist( IM[mode_indx] , label='from IM', alpha=0.3); plt.legend() ; plt.savefig( fig_path + f'delme.png') # <- should be around zeros
 
-    plt.figure(); plt.plot( mode_res ); plt.axvline(mode_indx  , ls=':', color='k') ; plt.savefig( fig_path + f'delme.png')
-    plt.figure(figsize=(8,5));
-    plt.plot( mode_res  ,label='reconstructed amplitude');
-    app_amp = np.zeros( len( mode_res ) ) 
+        #mode_res_test : inject err_img from interaction matrix to I2M .. should result in perfect reconstruction  
+        #plt.figure(); plt.plot( I2M.T @ IM[2] ); plt.savefig( fig_path + f'delme.png')
+        #plt.figure(); plt.plot( I2M.T @ IM[mode_indx]  ,label='reconstructed amplitude'); plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index'); plt.ylabel('mode amplitude'); plt.legend(); plt.savefig( fig_path + f'delme.png')
+        mode_res =  I2M @ err_img 
+        """
+        plt.figure(); plt.plot( mode_res ); plt.axvline(mode_indx  , ls=':', color='k') ; plt.savefig( fig_path + f'delme.png')
+        plt.figure(figsize=(8,5));
+        plt.plot( mode_res  ,label='reconstructed amplitude');
+        app_amp = np.zeros( len( mode_res ) ) 
 
-    app_amp[mode_indx] = amp / poke_amp
-    
-    plt.plot( app_amp ,'x', label='applied amplitude');
-    plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index',fontsize=15); 
-    plt.ylabel('mode amplitude',fontsize=15); plt.gca().tick_params(labelsize=15) ; plt.legend();
-    plt.savefig( fig_path + f'delme.png')
+        app_amp[mode_indx] = amp / poke_amp
+        
+        plt.plot( app_amp ,'x', label='applied amplitude');
+        plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index',fontsize=15); 
+        plt.ylabel('mode amplitude',fontsize=15); plt.gca().tick_params(labelsize=15) ; plt.legend();
+        plt.savefig( fig_path + f'delme.png')
 
-    _ = input('press when ready to see mode reconstruction')
-    
-    cmd_res =  M2C @ mode_res  # <-- should be like this. 1/poke_amp * M2C @ mode_res # SHOULD I USE M2C_4reco here? 
-    
-    # WITH RESIDUALS 
-   
-    im_list = [util.get_DM_command_in_2D( amp * mode_aberration  ),raw_img - I0,  util.get_DM_command_in_2D( cmd_res ) ,util.get_DM_command_in_2D( amp * mode_aberration - cmd_res ) ]
-    xlabel_list = [None, None, None, None]
-    ylabel_list = [None, None, None, None]
-    title_list = ['Aberration on DM', 'I-I0', 'reconstructed DM cmd', 'residual']
-    cbar_label_list = ['DM command', 'ADU (Normalized)', 'DM command' , 'DM command' ] 
-    savefig = fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+        _ = input('press when ready to see mode reconstruction')
+        """    
+        cmd_res =  M2C @ mode_res  # <-- should be like this. 1/poke_amp * M2C @ mode_res # SHOULD I USE M2C_4reco here? 
+        
+        # WITH RESIDUALS 
+        """ 
+        im_list = [util.get_DM_command_in_2D( amp * mode_aberration  ),raw_img - I0,  util.get_DM_command_in_2D( cmd_res ) ,util.get_DM_command_in_2D( dm_pupil_filter *(amp * mode_aberration - cmd_res) ) ]
+        xlabel_list = [None, None, None, None]
+        ylabel_list = [None, None, None, None]
+        title_list = ['Aberration on DM', 'I-I0', 'reconstructed DM cmd', 'residual']
+        cbar_label_list = ['DM command', 'ADU (Normalized)', 'DM command' , 'DM command' ] 
+        savefig = fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
 
-    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
-    
-    _ = input('press when ready to go to next moce ')
-    
-    rmse = np.sqrt( np.mean(( amp * mode_aberration - cmd_res  )**2) )
-    rmse_dict[mode_indx] = rmse
+        util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+        
+        _ = input('press when ready to go to next moce ')
+        """ 
+        # filter in DM pupil for RMSE 
+        rmse = np.sqrt( np.mean((  dm_pupil_filter *(amp * mode_aberration - cmd_res)  )**2) )
+
+        rmse_baseline_dict[mode_indx] = np.sqrt( np.mean(  dm_pupil_filter *(amp * mode_aberration )**2 ) ) 
+        rmse_dict[truncation_index][mode_indx] = rmse
 
 
+
+plt.figure(); 
+for mode_indx,col in zip( mode_indx_grid[0:5], ['r','g','b','orange','y']):
+    print(mode_indx)
+    plt.plot( truncation_index_grid,  [rmse_dict[m][mode_indx] for m in rmse_dict], color=col, label= f'correcting Fourier mode = {mode_indx}');
+    plt.axhline( rmse_baseline_dict[mode_indx] , color=col,ls=':')
+plt.xlabel( 'Number of modes corrected (in Eigenspace)' ,fontsize=15)
+plt.ylabel('mode RMSE (DM CMD SPACE)')
+plt.title('Fourier basis')
+plt.legend() 
+plt.savefig(fig_path+'delme.png')
 
 
 # test tip/tilt reco and higher order
