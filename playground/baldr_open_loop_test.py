@@ -77,94 +77,17 @@ def exit_all():
     except:
         print('no camera to close')
 
-
-def get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, compass = True, compass_origin=None, savefig='tmp/delme.png' ):
-    """
-    see document in XXX for description of x,y coordinate conventions in DM plance etc.
-    measured to be 11.8 degrees in DM plane - this is default
-    """
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-    dx, dy = 0, 100  #offsets to apply to phasemask
-
-    I0 =  np.mean(zwfs.get_some_frames(number_of_frames = number_of_frames, apply_manual_reduction = True ) , axis=0 )
-
-    if compass_origin==None:
-        x_pos, y_pos = 0.85 * I0.shape[0], 0.15 * I0.shape[0] #  origin of compass default
-    phasemask.move_relative( [dx,dy] ) # move out 
-    time.sleep(0.1)
-
-    N0 = np.mean(zwfs.get_some_frames(number_of_frames = 256, apply_manual_reduction = True ) , axis=0 )
-    
-    phasemask.move_relative( [-dx,-dy] ) # move back in
-    time.sleep(0.1)
-
-    im_list = [I0/np.max(N0) , N0/np.max(N0) ]
-    xlabel_list = [None, None]
-    ylabel_list = [None, None]
-    title_list = [r'$I_0$', r'$N_0$']
-    cbar_label_list = ['Intensity (Normalized)', 'Intensity (Normalized)'] 
-    #fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
-
-    n = len(im_list)
-    fs = 15
-    fig = plt.figure(figsize=(5*n, 5))
-
-    for a in range(n) :
-        ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
-        im1 = ax1.imshow(  im_list[a] , vmin = np.min(im_list[-1]), vmax = np.max(im_list[-1]))
-
-
-        ax1.set_title( title_list[a] ,fontsize=fs)
-        ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
-        ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
-        ax1.tick_params( labelsize=fs ) 
-
-        
-
-        divider = make_axes_locatable(ax1)
-        cax = divider.append_axes('bottom', size='5%', pad=0.05)
-        cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
-        cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
-        cbar.ax.tick_params(labelsize=fs)
-
-        if (a==0) & compass:
-            # Convert theta from degrees to radians
-            theta = np.radians(theta_degrees)
-            
-            # Define the base vectors (unit vectors along y and x axis)
-            y_vector = 0.2 * im_list[a].shape[0] * np.array([0, 1])
-            x_vector = -0.2 * im_list[a].shape[0] * np.array([1, 0])
-            
-            # Create the rotation matrix
-            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
-                                        [np.sin(theta),  np.cos(theta)]])
-            
-            # Rotate the vectors
-            rotated_y_vector = rotation_matrix @ y_vector
-            rotated_x_vector = rotation_matrix @ x_vector
-            
-            # Plot the arrows at the specified coordinates
-
-            ax1.quiver(x_pos, y_pos, rotated_y_vector[0], rotated_y_vector[1], angles='xy', scale_units='xy', scale=1, color='r', label='y')
-            ax1.quiver(x_pos, y_pos, rotated_x_vector[0], rotated_x_vector[1], angles='xy', scale_units='xy', scale=1, color='r', label='x')
-            
-            # Add labels at the end of the arrows
-            ax1.text(x_pos + 1.2*rotated_y_vector[0], y_pos + 1.2*rotated_y_vector[1], r'$x$', fontsize=12, ha='right',color='r')
-            ax1.text(x_pos + 1.2*rotated_x_vector[0], y_pos + 1.2*rotated_x_vector[1], r'$y$', fontsize=12, ha='right',color='r')
-        
-        ax1.xaxis.tick_top()
-
-    if savefig!=None: 
-        plt.savefig( savefig , bbox_inches='tight', dpi=300)
-
-    return(I0, N0)
         
 # timestamp
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
-fig_path = 'tmp/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
-data_path = 'tmp/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
+
+fig_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
+data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
+
+
+if not os.path.exists(fig_path):
+   os.makedirs(fig_path)
 
 # ====== hardware variables
 beam = 3
@@ -231,7 +154,7 @@ phasemask.write_current_mask_positions()
 # ====== set up focus 
 focus_axis = con.get_device(1).get_axis(2)
 focus_motor = LAC10AT4A(focus_axis)
-
+focus_motor.move_absolute( BFO_pos )
 
 # print out motors we have 
 
@@ -251,7 +174,7 @@ dichroic.set_dichroic("J")
 time.sleep(1)
 
 
-pupil_crop_region = [204,268,125, 187] #[None, None, None, None] #[0, 192, 0, 192] 
+pupil_crop_region = [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
 
 #init our ZWFS (object that interacts with camera and DM) (old path = home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/)
 zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path = 'DMShapes/', pupil_crop_region=pupil_crop_region ) 
@@ -338,31 +261,53 @@ if pupil_report['pupil_quality_flag'] == 1:
     zwfs.update_reference_regions_in_img( pupil_report ) # 
 
 
+# x,y in compass referenced to DM right (+x), up (+y)
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}.png' )
+
+
+"""zwfs.pupil_pixel_filter =  (N0 > np.mean(N0) + 2 * np.std( N0))
+zwfs.pupil_pixel_filter[0,:]=False # first row has frame counts 
+zwfs.pupil_pixel_filter = zwfs.pupil_pixel_filter.reshape(-1)
+"""
 # plot the active pupil region registered 
-img_tmp = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True) , axis =0 )# just to get correct image shape
+#img_tmp = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True) , axis =0 )# just to get correct image shape
 fig,ax = plt.subplots(1,2,figsize=(10,5))
-ax[0].imshow(img_tmp ) ; ax[0].set_title('a current image')
-ax[1].imshow( zwfs.pupil_pixel_filter.reshape(img_tmp.shape)) ; ax[1].set_title('registered pupil')
-plt.savefig(fig_path + 'delme.png')
+ax[0].imshow( N0 ) ; ax[0].set_title('phasemask out')
+ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('registered pupil')
+plt.savefig(fig_path + f'pupil_registration_{pupil_crop_region}.png')
 
 
 # ===== Improve I0 with focus on DM ?
 fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+
 # check its focus
 plt.figure(); plt.imshow( util.get_DM_command_in_2D( fourier_basis.T[19] )) ;plt.savefig(fig_path + 'delme.png')
 
 int_sum = []
+int_sum_N0 = []
 int_sum_in_pupil = []
+int_sum_N0_in_pupil = []
 amp_grid = np.linspace(-1,1,15)
+
 for a in amp_grid:
 
     zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + a * fourier_basis.T[19] ) 
     time.sleep(0.5)
     dm_ab = a * util.get_DM_command_in_2D( fourier_basis.T[19] )
-    img = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ), axis =0 )
+    img = np.mean( zwfs.get_some_frames(number_of_frames = 1000, apply_manual_reduction = True ), axis =0 )
+
+    phasemask.move_relative([100,100])
+
+    imgN0 = np.mean( zwfs.get_some_frames(number_of_frames = 1000, apply_manual_reduction = True ), axis =0 )
+
+    phasemask.move_relative([-100,-100])
 
     int_sum.append( np.sum(img) )
     int_sum_in_pupil.append( np.sum(img.reshape(-1)[zwfs.pupil_pixel_filter]) )
+
+    int_sum_N0.append( np.sum( imgN0 ) )
+    int_sum_N0_in_pupil.append( np.sum(imgN0.reshape(-1)[zwfs.pupil_pixel_filter]) )
     print( f'\na={a}\nsum(img)={[-1]}')
     """
     im_list = [dm_ab ,img ]
@@ -378,19 +323,26 @@ for a in amp_grid:
 
 # go off to get N0 estimate 
 
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 2*fourier_basis.T[0] ) 
+"""zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 2*fourier_basis.T[0] ) 
 time.sleep(0.5)
 N0 = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ), axis =0 )
 zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
+"""
+cmd_2_opd = 3 # um RMS
+plt.figure(figsize=(10,8)); 
+#plt.axhline( N0/np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
+#plt.axhline( N0.reshape(-1)[zwfs.pupil_pixel_filter] /np.sum( N0 ), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
+plt.plot(cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ) , int_sum_N0/np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
+plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ),int_sum_N0_in_pupil /np.sum( N0 ), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
+plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ), int_sum/np.sum( N0 ), label=r'$\Sigma I_0(x,y)$' );
+plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ) , int_sum_in_pupil/np.sum( N0 ) , label=r'$\Sigma I_0(x,y \in pupil)$');
 
-plt.figure(); 
-plt.plot(amp_grid , int_sum, label=r'$\Sigma I_0(x,y)$' );
-plt.plot(amp_grid , int_sum_in_pupil , label=r'$\Sigma I_0(x,y \in pupil)$');
-plt.axhline( np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
-plt.axhline( np.sum( N0.reshape(-1)[zwfs.pupil_pixel_filter]), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
-plt.legend()
-plt.xlabel('focus amplitude (cmd space)'); plt.ylabel(r'$\Sigma I(x,y)$'); plt.axvline(0);
-plt.savefig(fig_path + 'delme.png')
+plt.legend(fontsize=12)
+plt.gca().tick_params(labelsize=15)
+plt.xlabel('focus amplitude OPD (um RMS)',fontsize=15)
+plt.ylabel(r'$\Sigma I(x,y)$',fontsize=15)
+plt.axvline(0)
+plt.savefig(fig_path + f'intensity_vs_focus_{pupil_crop_region}_BFO.png',dpi=300, bbox_inches='tight')
 
 
 a=0.8
@@ -769,13 +721,15 @@ poke_amp = p.ctrl_parameters[label]['poke_amp']
 IM = p.ctrl_parameters[label]['IM'] 
 U, S, Vt = np.linalg.svd( IM.T , full_matrices=False)  # I append rows to IM.. convention is columns.. Thats why I need CM.T etc 
 
+
 # IM @ CM = I . .CM = Vt.T @ np.diag(1/S) @ U.T
 (U @ np.diag(S) @ Vt) @ (Vt.T @ np.diag(1/S) @ U.T)
 
 plt.figure(); plt.imshow( IM.T @ np.linalg.pinv( IM.T )); plt.savefig(fig_path +'delme.png')
 
+dm_pupil_filter =  np.std( IM, axis=1) > 1
 
-plt.figure(); plt.imshow( util.get_DM_command_in_2D(Vt[0]));plt.savefig(fig_path+'delme.png')
+"""plt.figure(); plt.imshow( util.get_DM_command_in_2D(Vt[0]));plt.savefig(fig_path+'delme.png')
 plt.figure(); plt.semilogy(S); plt.xlabel('eigenmode index'); plt.ylabel('Eigenvalues');plt.savefig(fig_path+'delme.png')
 
 # important to get DM registration of the pupil 
@@ -783,8 +737,8 @@ plt.figure(); plt.imshow( util.get_DM_command_in_2D(np.std( IM, axis=1) ) );plt.
 # Set pupil registration threshold at 1sigma in the pixel space 
 dm_pupil_filter =  np.std( IM, axis=1) > 1
 plt.figure(); plt.imshow( util.get_DM_command_in_2D( dm_pupil_filter ) );plt.colorbar(); plt.title(r'$\sigma$'); plt.savefig(fig_path + 'delme.png')
-
-#p.plot_SVD_modes( zwfs, label, save_path=fig_path)
+"""
+p.plot_SVD_modes( zwfs, label, save_path=fig_path)
 
 truncation_index = 20
 """Sigma = 1/S 
@@ -854,11 +808,11 @@ for cnt , truncation_index in enumerate(truncation_index_grid):
         plt.savefig( fig_path + f'delme.png')
 
         _ = input('press when ready to see mode reconstruction')
-        """    
+        """  
         cmd_res =  M2C @ mode_res  # <-- should be like this. 1/poke_amp * M2C @ mode_res # SHOULD I USE M2C_4reco here? 
         
         # WITH RESIDUALS 
-        """ 
+        
         im_list = [util.get_DM_command_in_2D( amp * mode_aberration  ),raw_img - I0,  util.get_DM_command_in_2D( cmd_res ) ,util.get_DM_command_in_2D( dm_pupil_filter *(amp * mode_aberration - cmd_res) ) ]
         xlabel_list = [None, None, None, None]
         ylabel_list = [None, None, None, None]
@@ -869,7 +823,7 @@ for cnt , truncation_index in enumerate(truncation_index_grid):
         util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
         
         _ = input('press when ready to go to next moce ')
-        """ 
+        
         # filter in DM pupil for RMSE 
         rmse = np.sqrt( np.mean((  dm_pupil_filter *(amp * mode_aberration - cmd_res)  )**2) )
 
@@ -887,7 +841,7 @@ plt.xlabel( 'Number of modes corrected (in Eigenspace)' ,fontsize=15)
 plt.ylabel('mode RMSE (DM CMD SPACE)')
 plt.title('Fourier basis')
 plt.legend() 
-plt.savefig(fig_path+'delme.png')
+plt.savefig(fig_path+'Fourier_correction_Eigenmode_space_singularvalue_truncation.png')
 
 
 # test tip/tilt reco and higher order
