@@ -244,8 +244,6 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
     reference_img, fine_tune_threshold=2, savefigName='tmp/delme.png', usr_input=True)
 
 """
- 
-# ====== testing reconstruction 
 
 #init our pupil controller (object that processes ZWFS images and outputs VCM commands)
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
@@ -263,6 +261,65 @@ fig,ax = plt.subplots(1,2,figsize=(10,5))
 ax[0].imshow(img_tmp ) ; ax[0].set_title('a current image')
 ax[1].imshow( zwfs.pupil_pixel_filter.reshape(img_tmp.shape)) ; ax[1].set_title('registered pupil')
 plt.savefig(fig_path + 'delme.png')
+
+
+# ===== Improve I0 with focus on DM ?
+fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+# check its focus
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( fourier_basis.T[19] )) ;plt.savefig(fig_path + 'delme.png')
+
+int_sum = []
+int_sum_in_pupil = []
+amp_grid = np.linspace(-1,1,15)
+for a in amp_grid:
+
+    zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + a * fourier_basis.T[19] ) 
+    time.sleep(0.5)
+    dm_ab = a * util.get_DM_command_in_2D( fourier_basis.T[19] )
+    img = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ), axis =0 )
+
+    int_sum.append( np.sum(img) )
+    int_sum_in_pupil.append( np.sum(img.reshape(-1)[zwfs.pupil_pixel_filter]) )
+    print( f'\na={a}\nsum(img)={[-1]}')
+    """
+    im_list = [dm_ab ,img ]
+    xlabel_list = [None, None]
+    ylabel_list = [None, None]
+    title_list = ['Aberration on DM', 'Intensity']
+    cbar_label_list = [f'DM command (a={round(a,1)})', 'ADU ' ] 
+    savefig = fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+    """
+    #_ = input('next?')
+
+# go off to get N0 estimate 
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 2*fourier_basis.T[0] ) 
+time.sleep(0.5)
+N0 = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ), axis =0 )
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
+
+plt.figure(); 
+plt.plot(amp_grid , int_sum, label=r'$\Sigma I_0(x,y)$' );
+plt.plot(amp_grid , int_sum_in_pupil , label=r'$\Sigma I_0(x,y \in pupil)$');
+plt.axhline( np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
+plt.axhline( np.sum( N0.reshape(-1)[zwfs.pupil_pixel_filter]), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
+plt.legend()
+plt.xlabel('focus amplitude (cmd space)'); plt.ylabel(r'$\Sigma I(x,y)$'); plt.axvline(0);
+plt.savefig(fig_path + 'delme.png')
+
+
+a=0.8
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
+
+
+
+phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
+
+ 
+# ====== testing reconstruction 
+
 
 
 # --- linear ramps 
