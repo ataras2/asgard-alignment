@@ -267,6 +267,50 @@ def develop_Fourier_basis( n,m ,P = 2*12, Nx = 12, Ny = 12):
     return(basis_dict)
 
 
+
+def pin_outer_actuators_to_inner_diameter(inner_command):
+    """
+    input a basis defined on 10x10 grid and this will convert it to a
+    12x12 grid without corners (BMC multi3.5 DM geometry) with the outer
+    perimeter actuators pinned to the inner perimeter value
+    """
+    if len(inner_command) != 100:
+        raise ValueError("Input command must be of length 100")
+
+    inner_command = np.array(inner_command).reshape(10, 10)
+    
+    # Initialize a 12x12 grid with zeros
+    command_140 = np.zeros((12, 12))
+
+    # Map the inner 10x10 command to the corresponding position in the 12x12 grid
+    command_140[1:11, 1:11] = inner_command
+
+    # Set the perimeter actuators equal to the inner adjacent values
+    # Top and bottom rows
+    command_140[0, 1:11] = command_140[1, 1:11]
+    command_140[11, 1:11] = command_140[10, 1:11]
+
+    # Left and right columns
+    command_140[1:11, 0] = command_140[1:11, 1]
+    command_140[1:11, 11] = command_140[1:11, 10]
+
+    # Corners (set these to zero since they are missing actuators)
+    corners = [(0, 0), (0, 11), (11, 0), (11, 11)]
+    for corner in corners:
+        command_140[corner] = 0
+
+    # Flatten the 12x12 grid to get the final 140-length command
+    command_140_flat = command_140.flatten()
+
+    # Remove the corner actuators (i.e., elements 0, 11, 132, 143)
+    indices_to_remove = [0, 11, 132, 143]
+    command_140_flat = np.delete(command_140_flat, indices_to_remove)
+
+    return command_140_flat.tolist()
+
+
+
+
 def spiral_search_TT_coefficients( dr, dtheta, aoi_tp, aoi_tt, num_points, r0=0, theta0=0):
     """
     generate tip (tp) / tilt (tt) coefficients for a spiral search covering
@@ -444,16 +488,90 @@ def line_intersection(line1, line2):
     return( x, y )
 
 
-def move_fpm( tel, pos = 0):
-    # in real life this will command a motor - but for now i do this manually
+
+def get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, compass = True, compass_origin=None, savefig='tmp/delme.png' ):
     """
-    # SETS FOCAL PLANE MASK - TO IMPLIMENT ONCE WE HAVE FPM MOTORS
-    if pos == 0:    
-        print( 'move FPM to position X')
-    elif pos == 1:  
-        print( 'move FPM to position Y') #etc
+    see document in Asgard/03 modules/Baldr/Baldr_detector_reference_coordinates_calibration.docx 
+    for description of x,y coordinate conventions in DM plance etc.
+    +x is right facing DM, +y up facing DM. 
+    measured to be 11.8 degrees in DM plane - this is default
     """
-    return(None)
+
+    dx, dy = 200, 200  #offsets to apply to phasemask
+
+    I0 =  np.mean(zwfs.get_some_frames(number_of_frames = number_of_frames, apply_manual_reduction = True ) , axis=0 )
+
+    if compass_origin==None:
+        x_pos, y_pos = 0.85 * I0.shape[0], 0.15 * I0.shape[0] #  origin of compass default
+    phasemask.move_relative( [dx,dy] ) # move out 
+    time.sleep(0.1)
+
+    N0 = np.mean(zwfs.get_some_frames(number_of_frames = 256, apply_manual_reduction = True ) , axis=0 )
+    
+    phasemask.move_relative( [-dx,-dy] ) # move back in
+    time.sleep(0.1)
+
+    im_list = [I0/np.max(N0) , N0/np.max(N0) ]
+    xlabel_list = [None, None]
+    ylabel_list = [None, None]
+    title_list = [r'$I_0$', r'$N_0$']
+    cbar_label_list = ['Intensity (Normalized)', 'Intensity (Normalized)'] 
+    #fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    n = len(im_list)
+    fs = 15
+    fig = plt.figure(figsize=(5*n, 5))
+
+    for a in range(n) :
+        ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
+        im1 = ax1.imshow(  im_list[a] , vmin = np.min(im_list[-1]), vmax = np.max(im_list[-1]))
+
+
+        ax1.set_title( title_list[a] ,fontsize=fs)
+        ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
+        ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
+        ax1.tick_params( labelsize=fs ) 
+
+        
+
+        divider = make_axes_locatable(ax1)
+        cax = divider.append_axes('bottom', size='5%', pad=0.05)
+        cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
+        cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
+        cbar.ax.tick_params(labelsize=fs)
+
+        if (a==0) & compass:
+            # Convert theta from degrees to radians
+            theta = np.radians(theta_degrees)
+            
+            # Define the base vectors (unit vectors along y and x axis)
+            y_vector = 0.2 * im_list[a].shape[0] * np.array([0, 1])
+            x_vector = -0.2 * im_list[a].shape[0] * np.array([1, 0])
+            
+            # Create the rotation matrix
+            rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)],
+                                        [np.sin(theta),  np.cos(theta)]])
+            
+            # Rotate the vectors
+            rotated_y_vector = rotation_matrix @ y_vector
+            rotated_x_vector = rotation_matrix @ x_vector
+            
+            # Plot the arrows at the specified coordinates
+
+            ax1.quiver(x_pos, y_pos, rotated_y_vector[0], rotated_y_vector[1], angles='xy', scale_units='xy', scale=1, color='r', label='y')
+            ax1.quiver(x_pos, y_pos, rotated_x_vector[0], rotated_x_vector[1], angles='xy', scale_units='xy', scale=1, color='r', label='x')
+            
+            # Add labels at the end of the arrows
+            ax1.text(x_pos + 1.2*rotated_y_vector[0], y_pos + 1.2*rotated_y_vector[1], r'$x$', fontsize=12, ha='right',color='r')
+            ax1.text(x_pos + 1.2*rotated_x_vector[0], y_pos + 1.2*rotated_x_vector[1], r'$y$', fontsize=12, ha='right',color='r')
+        
+        ax1.xaxis.tick_top()
+
+    if savefig!=None: 
+        plt.savefig( savefig , bbox_inches='tight', dpi=300)
+
+    return(I0, N0)
+        
 
 
 def watch_camera(zwfs, frames_to_watch = 10, time_between_frames=0.01,cropping_corners=None) :

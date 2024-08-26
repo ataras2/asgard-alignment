@@ -249,6 +249,8 @@ def move_relative_and_get_image( zwfs, phasemask , savefigName= None ):
 
 
 
+
+
 if __name__=="__main__":
 
     print( ' THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: \n\
