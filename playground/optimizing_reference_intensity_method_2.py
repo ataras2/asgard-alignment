@@ -5,6 +5,8 @@ import time
 import os 
 import matplotlib.pyplot as plt 
 from scipy.optimize import curve_fit
+from scipy.optimize import least_squares
+from scipy.ndimage import distance_transform_edt
 import importlib
 import corner
 #import rtc
@@ -42,17 +44,6 @@ trouble_shooting_dict = {
 }
 
 
-def Ic_model_constrained(x, A, B, F, mu):
-
-    # force mu between 0-360 degrees 
-    mu = np.arccos( np.cos( mu ) )
-
-    penalty = 0
-    # F and B are forced to be positive via a fit penality
-    if (F < 0) or (B < 0) : # F and mu can be correlated so constrain the quadrants 
-        penalty = 1e3
-    I = A + B * np.cos(F * x + mu) + penalty
-    return I 
 
 
 def print_current_state(full_report=False):
@@ -291,10 +282,21 @@ if pupil_report['pupil_quality_flag'] == 1:
     zwfs.update_reference_regions_in_img( pupil_report ) # 
 
 
-# x,y in compass referenced to DM right (+x), up (+y)
-I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}.png' )
 
+#
+# other random method to try 
+aa = np.std( poke_imgs, axis=(0,2,3) )
+ plt.figure() ; plt.imshow( util.get_DM_command_in_2D(np.std( poke_imgs, axis=(0,2,3) ))) ;plt.colorbar(); plt.savefig( 'tmp/delme.png')
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'])
+
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig= f'tmp/0.delme_before.png' )
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 0.005 * (aa-np.min(aa)) )
+
+util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig='tmp/0.delme_after.png' )
 
 
 # =====================
@@ -305,11 +307,20 @@ experiment_label = 'optimize_ref_int_method_2/iteration_2'
 
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
+
+
 fig_path = f'tmp/{tstamp.split("T")[0]}/{experiment_label}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
 data_path = f'tmp/{tstamp.split("T")[0]}/{experiment_label}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 if not os.path.exists(fig_path):
    os.makedirs(fig_path)
+
+
+
+# x,y in compass referenced to DM right (+x), up (+y)
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemask_name}_before.png' )
+
 
 # --- linear ramps 
 # use baldr.
@@ -374,6 +385,8 @@ if len(recomended_bad_pixels) > 0:
     poke_imgs_norm = poke_imgs_norm * bad_pixel_mask
 
 
+# amplitude index we use for registration
+a0 = len(ramp_values)//2 - 1
 
 # to get good threshold (reliable)
 # each actuator should influence slightly the 9 actuators around it, so we would expect around 9 outliers 
@@ -390,7 +403,7 @@ act_img_mask_1x1 = {} #pixel with peak sensitivity to the actuator
 act_img_mask_3x3 = {} # 3x3 region around pixel with peak sensitivity to the actuator
 poor_registration_list = np.zeros(Nact).astype(bool) # list of actuators in control region that have poor registration 
 
-a0 = len(ramp_values)//2 - 1
+
 for act_idx in range(Nact):
     # use difference in normalized image (check plt.figure(); plt.hist(poke_imgs_norm[0][0].reshape(-1)) ;plt.savefig(fig_path + 'delme.png'))
     delta =  poke_imgs[a0][act_idx] - poke_imgs[-a0][act_idx] 
@@ -468,7 +481,18 @@ plt.savefig(  fig_path + f'4.poorly_registered_actuators_{tstamp}.png', bbox_inc
 
 
 
-#mean_filtered_pupil = 1/(3*3)  * np.mean( P2C_3x3 @ N0.reshape(-1) )
+
+def Ic_model_constrained(x, A, B, F, mu):
+
+    # force mu between 0-360 degrees 
+    #mu = np.arccos( np.cos( mu ) )
+
+    #penalty = 0
+    # F and B are forced to be positive via a fit penality
+    #if (F < 0) or (B > 0): # F and mu can be correlated so constrain the quadrants 
+    #    penalty = 1e3
+    I = A + B * np.cos(F * x + mu) #+ penalty
+    return I 
 
 param_dict = {}
 cov_dict = {}
@@ -491,15 +515,59 @@ for act_idx in range(len(flat_dm_cmd)):
 
         #plt.figure(); plt.plot(x_data, y_data) ; plt.savefig(fig_path+'delme.png')
         #_ = input('asd')
-        initial_guess = [np.mean(I_i), (np.max(I_i)-np.min(I_i)),  15,  1.32]
+        """
+        # brite grid search to get initial values 
+        A_grid = np.linspace( np.min(I_i), np.max(I_i), 10)
+        B_grid=np.linspace( 0, np.max(I_i) - np.min(I_i), 10) 
+        F_grid = np.linspace(5,20,10)
+        mu_grid=np.linspace(0,2*np.pi,10)
+
+
+        A, B , F, mu = np.meshgrid( A_grid, B_grid,  F_grid, mu_grid )
+
+        # Calculate the residuals
+        residuals = np.abs(y_data - A[..., np.newaxis] + B[..., np.newaxis] * np.cos(F[..., np.newaxis] * x_data + mu[..., np.newaxis]))
+
+        # Sum the residuals over x to get the total residual for each A, B, F, mu
+        total_residuals = np.sum(residuals, axis=-1)
+
+        # Find the indices of the minimum residual
+        min_indices = np.unravel_index(np.argmin(total_residuals), total_residuals.shape)
+
+        initial_A = A_grid[min_indices[0]]
+        initial_B = B_grid[min_indices[1]]
+        initial_F = F_grid[min_indices[2]]
+        initial_mu = mu_grid[min_indices[3]]
+
+        initial_guess = [initial_A , initial_B,  initial_F,  initial_mu]
         #initial_guess = [7, 2, 15, 2.4] #[0.5, 0.5, 15, 2.4]  #A_opt, B_opt, F_opt, mu_opt  ( S = A+B*cos(F*x + mu) )
 
-        try:
+        """
+        # Initial guesses for the parameters [A, B, F, mu]
+        initial_guess = [np.mean(y_data), -np.ptp(y_data) / 2, 15, 2]  # Adjust as needed
+
+        # Set bounds: A can be any value, B > 0, F > 0, mu between 0 and 2*pi
+        bounds = ([-np.inf, -np.inf, 0, -2*np.pi], [np.inf, np.inf, np.inf, 2 * np.pi])
+
+        # Use least_squares to optimize the parameters within the bounds
+        #result = least_squares(residuals, initial_guess, bounds=bounds, args=(x_data, y_data))
+
+        # Extract optimized parameters
+        #optimal_A, optimal_B, optimal_F, optimal_mu = result.x
+
+        #try:
+        if 1:
             # FIT 
             popt, pcov = curve_fit(Ic_model_constrained, x_data, y_data, p0=initial_guess)
-
+            #popt = least_squares(residuals, initial_guess, bounds=bounds, args=(x_data, y_data))
             # Extract the optimized parameters explictly to measure residuals
-            A_opt, B_opt, F_opt, mu_opt = popt
+            A_opt, B_opt, F_opt, mu_opt = popt #.x
+
+            # Calculate the covariance matrix
+            #J = popt.jac  # Jacobian matrix at the solution
+            #residual_variance = 2 * popt.cost / (len(y_data) - len(initial_guess))
+            #pcov = residual_variance * np.linalg.pinv(J.T @ J)
+
 
             # STORE FITS 
             param_dict[act_idx] = popt
@@ -541,8 +609,9 @@ for act_idx in range(len(flat_dm_cmd)):
                 plt.savefig(fig_path  + f'individual_fits/intensity_model_vs_measured_act_{act_idx}_norm.png', dpi=300, bbox_inches='tight')
 
 
-        except:
-             print(f'\n!!!!!!!!!!!!\nfit failed for actuator {act_idx}\n!!!!!!!!!!!!\nanalyse plot to try understand why')
+        #except:
+        #     print(f'\n!!!!!!!!!!!!\nfit failed for actuator {act_idx}\n!!!!!!!!!!!!\nanalyse plot to try understand why')
+
         #     """nofit_list.append( act_idx ) 
         #     fig1, ax1 = plt.subplots(1,1)
         #     ax1.plot( ramp_values, S )
@@ -550,6 +619,7 @@ for act_idx in range(len(flat_dm_cmd)):
             
 
 
+#plt.figure(); plt.plot( pd.DataFrame( param_dict ).T[1], pd.DataFrame( param_dict ).T[3] * 180/np.pi,'.' ); plt.savefig(fig_path + 'delme.png')
 if debug: # plot mosaic 
 
     Nrows = np.ceil( len(param_dict)**0.5).astype(int)
@@ -570,31 +640,56 @@ if debug: # plot mosaic
 
     # CORNER PLOT 
     #labels = ['Q', 'W', 'F', r'$\mu$']
-    corner.corner( np.array(list( param_dict.values() )), quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['A', 'B', 'F', r'$\mu$'] , range = [(0,4*np.mean(y_data)),(0, 2*(np.max(y_data)-np.min(y_data)) ) , (5,20), (0,6) ] ) #, range = [(2*np.min(S), 102*np.max(S)), (0, 2*(np.max(S) - np.min(S)) ), (5, 20), (-3,3)] ) #['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]']
+    corner.corner( np.array(list( param_dict.values() )), quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['A', 'B', 'F', r'$\mu$'] ,range = [(0,4*np.mean(y_data)),(-2*(np.max(y_data)-np.min(y_data)), 0 ) , (5,20), (0,6) ] ) # range = [(0,4*np.mean(y_data)),(0, 2*(np.max(y_data)-np.min(y_data)) ) , (5,20), (0,6) ] #, range = [(2*np.min(S), 102*np.max(S)), (0, 2*(np.max(S) - np.min(S)) ), (5, 20), (-3,3)] ) #['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]']
     plt.savefig( fig_path + f'6.corner_plot_of_fitted_parameters_{tstamp}.png', bbox_inches='tight', dpi=300)
     plt.show()
 
 
 
-mu_array = np.array([param_dict[act][-1] for act in param_dict])
-new_flat = flat_dm_cmd.copy()
-target_rad = 3 * np.pi/2
+#mu_array = np.array([param_dict[act][-1] for act in param_dict])
+new_flat = np.nan * flat_dm_cmd.copy()
+target_rad =  np.deg2rad( 270 )
 for act in param_dict:
     x0 = flat_dm_cmd[act] # reference flat used when ramping actuators
     F = param_dict[act][-2]
     mu = param_dict[act][-1]
     if F > 1:
         # Calibrating new flat = x0+x
-        #F.(x0 + x) + mu = 3 * np.pi/2 # most sensitive part of cosine curve 
+        #F.(x0 + x) + mu = target_rad # most sensitive part of cosine curve 
         
-        new_flat[act] = x0 + np.arccos( np.cos(target_rad - mu) ) * 1/F #(3*np.pi/2 - mu) * 1/F  )
+        new_flat[act] = (target_rad - mu)*1/F # np.arccos( np.cos(target_rad - mu) ) * 1/F #(3*np.pi/2 - mu) * 1/F  )
+
         #new_flat[act] = x + x0
 
 # revert any prohibited values to the original DM flat 
-new_flat[(new_flat>1) + (new_flat<0)] = flat_dm_cmd[(new_flat>1) + (new_flat<0)]
+#new_flat[(new_flat>1) + (new_flat<0)] = flat_dm_cmd[(new_flat>1) + (new_flat<0)]
+
 # plot 
-plt.figure(); plt.imshow( util.get_DM_command_in_2D( new_flat )); plt.colorbar(); plt.savefig(fig_path + '7.newflat.png')
-plt.figure(); plt.imshow( util.get_DM_command_in_2D( flat_dm_cmd )); plt.colorbar(); plt.savefig(fig_path + '8.original_flat.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( new_flat )); plt.colorbar(); plt.savefig(fig_path + f'7.newflat_{tstamp}.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( flat_dm_cmd )); plt.colorbar(); plt.savefig(fig_path + f'8.original_flat_{tstamp}.png')
+
+
+# interpolate
+nan_mask = np.isnan( util.get_DM_command_in_2D( new_flat ) )
+nearest_index = distance_transform_edt(nan_mask, return_distances=False, return_indices=True)
+
+# Use the indices to replace NaNs with the nearest non-NaN values
+filled_data = util.get_DM_command_in_2D( new_flat )[tuple(nearest_index)]
+
+#corner_indices = [0, 12-1, 12 * (12-1), 12*12-1]
+corner_flat_indices = [0, 12-1, 12 * (12-1), 12*12-1]
+
+# Remove the corner elements from the flattened array
+new_flat_interpolated = np.delete(filled_data.reshape(-1), corner_flat_indices)
+
+plt.figure();plt.imshow(  util.get_DM_command_in_2D(  new_flat_interpolated ) ); plt.colorbar(); plt.savefig(fig_path + f'9.newflat_interp_{tstamp}.png')
+
+
+zwfs.dm.send_data( new_flat_interpolated  )
+time.sleep(0.1)
+
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig=fig_path + f'10.FPM-in-out_{phasemask_name}_after.png' )
 
 
 
@@ -645,10 +740,14 @@ dm_fit_regions.header.set('registration_threshold',registration_threshold)
 dm_fit_regions.header.set('index 0 ','active_DM_region')   
 dm_fit_regions.header.set('index 1 ','well registered actuators') 
 dm_fit_regions.header.set('index 2 ','poor registered actuators') 
+#
+new_flat = fits.PrimaryHDU( np.array(new_flat_interpolated ) )
+new_flat.header.set('EXTNAME','NEW_FLAT')
 
-for f in [N0_fits, I0_fits, P2C_fits, param_fits, cov_fits,res_fits, dm_fit_regions ]:
+
+for f in [N0_fits, I0_fits, P2C_fits, param_fits, cov_fits,res_fits, dm_fit_regions, new_flat ]:
     output_fits.append( f ) 
 
 
-output_fits.writeto( fig_path + f'processed_pokeramp_{tstamp}.fits', overwrite=True )  #data_path + 'ZWFS_internal_calibration.fits'
+output_fits.writeto( fig_path + f'newflat_fit_{tstamp}.fits', overwrite=True )  #data_path + 'ZWFS_internal_calibration.fits'
 

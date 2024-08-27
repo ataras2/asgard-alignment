@@ -276,9 +276,6 @@ if pupil_report['pupil_quality_flag'] == 1:
     zwfs.update_reference_regions_in_img( pupil_report ) # 
 
 
-# x,y in compass referenced to DM right (+x), up (+y)
-I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}.png' )
 
 
 
@@ -297,12 +294,12 @@ def objective_function(delta_cmd, zwfs, pupil_mask):
     zwfs.dm.send_data(zwfs.dm.send_data(zwfs.dm_shapes['flat_dm']) + delta_cmd)
     
     # Get the new image and average it
-    image_raw = np.mean(zwfs.get_some_images(), axis=0)
+    image_raw = np.mean(zwfs.get_some_frames(number_of_frames = 10, apply_manual_reduction=True, timeout_limit = 20000), axis=0)
     # normalize the image before filtering for the pupil
     image = ( image_raw - np.mean(image_raw) )/ np.std(image_raw )
 
     # Mask the pupil region
-    pupil_pixels = image[pupil_mask]
+    pupil_pixels = image.reshape(-1)[pupil_mask]
     
     # Calculate the sum and variance of the intensity within the pupil
     sum_intensity = np.sum(pupil_pixels)
@@ -312,10 +309,27 @@ def objective_function(delta_cmd, zwfs, pupil_mask):
     # Since minimize is the objective, we can minimize -sum_intensity (to maximize it) and variance_intensity
     cost = -sum_intensity + alpha * variance_intensity
     
+    if np.std( delta_cmd ) > 0.5 :
+        zwfs.dm.send_data(zwfs.dm.send_data(zwfs.dm_shapes['flat_dm']) )
+        raise TypeError('DM going too crazy')
+
+    #print( cost )
+
     return cost
 
+experiment_label = 'optimize_ref_int_method_1/iteration_1'
+
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
+
+fig_path = f'tmp/{tstamp.split("T")[0]}/{experiment_label}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
+data_path = f'tmp/{tstamp.split("T")[0]}/{experiment_label}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
+
+if not os.path.exists(fig_path):
+   os.makedirs(fig_path)
+
+
 # Initial guess for the DM command (can start with zeros, random, or previous good result)
-initial_cmd = np.random.uniform(0, 1, 140)
+initial_cmd = np.random.uniform(0, 0.01, 140)
 
 # Define the bounds for the DM command (between 0 and 1 for each element)
 bounds = [(0, 1) for _ in range(140)]
@@ -325,13 +339,21 @@ alpha = 1.0  # Weighting factor for the variance term in the cost function
 
 # Define a mask to select only the pupil pixels
 # Assuming you already have a pupil mask defined as a boolean array of the same shape as the image
-pupil_mask = ...  # Your code to define this mask
+pupil_mask = zwfs.pupil_pixel_filter  # Your code to define this mask
 
 # Perform the optimization
-result = minimize(objective_function, initial_cmd, args=(zwfs,pupil_mask,), bounds=bounds, method='L-BFGS-B')
+result = minimize(objective_function, initial_cmd, args=(zwfs,pupil_mask,), \
+    bounds=bounds, method='L-BFGS-B',options={'maxiter':10,'disp':True})
+
 
 # The result contains the optimized DM command
 optimal_cmd = result.x
 
 # Send the optimal command to the DM
 zwfs.dm.send_data(optimal_cmd)
+
+time.sleep(0.5)
+
+# x,y in compass referenced to DM right (+x), up (+y)
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}_after.png' )
