@@ -908,7 +908,7 @@ def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_ima
             if take_median_of_images:
                 ims_tmp = [ np.mean( zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ) ,axis=0) ] #[np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_median_of_images=False
             else:
-                ims_tmp = zwfs.get_image() #get_raw_images(camera, number_images_recorded_per_cmd, cropping_corners) 
+                ims_tmp = [ zwfs.get_image() ] #get_raw_images(camera, number_images_recorded_per_cmd, cropping_corners) 
             image_list.append( ims_tmp )
 
     
@@ -1093,7 +1093,7 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     print( 'applying 2*tip cmd in Fourier basis to go off phase mask')
     zwfs.dm.send_data( 0.5 + 2*tip ) 
     time.sleep(0.1)
-    N0_list = zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True )
+    N0_list = zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True )
     #for _ in range(number_images_recorded_per_cmd):
     #    N0_list.append( zwfs.get_image( ) ) #REFERENCE INTENSITY WITH FPM IN
     N0 = np.mean( N0_list, axis = 0 ) 
@@ -1106,7 +1106,7 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     print( 'going back to DM flat to put beam ON phase mask')
     zwfs.dm.send_data(flat_dm_cmd) 
     time.sleep(0.1)
-    I0_list = zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ) 
+    I0_list = zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ) 
     #for _ in range(number_images_recorded_per_cmd):
     #    I0_list.append( zwfs.get_image(  ) ) #REFERENCE INTENSITY WITH FPM IN
     I0 = np.mean( I0_list, axis = 0 ) 

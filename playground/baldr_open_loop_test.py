@@ -40,22 +40,33 @@ trouble_shooting_dict = {
 }
 
 
-def print_current_state():
-    print(f'source motor: \n   {source_selection.device}')
-    print(f'    -available sources: {source_selection.sources}')
-    print(f'    -current position: {source_selection.current_position}')
-    for d in dichroics:
-        print(f'dichroic motor:\n   {d.device}')
-        print(f'    -available dichroic positions: {d.dichroics}' )
-        print(f'    -current position: {d.current_dichroic}')
-    print('availabel phasemask positions: ', )
-    print(f' phasemask motors: \n   {phasemask.motors}')
-    print(f'    -available positions:')
-    for l, p in phasemask.phase_positions.items():
-        print(f'   {l, p}')
-    print(f'    -current position: {phasemask.get_position()}um')
-    print(f'focus motor:\n   {focus_motor}')
-    print(f'    -current position: {focus_motor.get_position()}um')
+def print_current_state(full_report=False):
+    if full_report:
+        print(f'source motor: \n   {source_selection.device}')
+        print(f'    -available sources: {source_selection.sources}')
+        print(f'    -current position: {source_selection.current_position}')
+        for d in dichroics:
+            print(f'dichroic motor:\n   {d.device}')
+            print(f'    -available dichroic positions: {d.dichroics}' )
+            print(f'    -current position: {d.current_dichroic}')
+        print('availabel phasemask positions: ', )
+        print(f' phasemask motors: \n   {phasemask.motors}')
+        print(f'    -available positions:')
+        for l, p in phasemask.phase_positions.items():
+            print(f'   {l, p}')
+        print(f'    -current position: {phasemask.get_position()}um')
+        print(f'focus motor:\n   {focus_motor}')
+        print(f'    -current position: {focus_motor.get_position()}um')
+
+    else:
+        print(f'source motor {source_selection.device} current position: {source_selection.current_position}')
+        for d in dichroics:
+            print(f'dichroic motor {d.device} current position: {d.current_dichroic}')
+        print(f'phasemask name: {phasemask_name}')
+        print(f'phasemask motors {phasemask.motors["x"].axis} current position: {phasemask.get_position()[0]}um')
+        print(f'phasemask motors {phasemask.motors["y"].axis} current position: {phasemask.get_position()[1]}um')
+        print(f'focus motor {focus_motor.axis} current position: {focus_motor.get_position()}um')
+
 
 
 def exit_all():
@@ -278,6 +289,22 @@ ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('regi
 plt.savefig(fig_path + f'pupil_registration_{pupil_crop_region}.png')
 
 
+
+#####
+
+# TESTING 
+
+#####
+
+
+# --- linear ramps 
+# use baldr.
+recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
+number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+#recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
+
+
+
 # ===== Improve I0 with focus on DM ?
 fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
 
@@ -357,11 +384,6 @@ phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigNam
 
 
 
-# --- linear ramps 
-# use baldr.
-#recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
-#number_images_recorded_per_cmd = 4, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
-#recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
 
 
 #zwfs.pupil_pixel_filter = ~zwfs.bad_pixel_filter
