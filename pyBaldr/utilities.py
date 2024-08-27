@@ -858,7 +858,7 @@ def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_ima
         Na is number actuators on DM (columns).   
     number_images_recorded_per_cmd : TYPE, optional
         DESCRIPTION. The default is 1. puting a value >= 0 means no images are recorded.
-    take_median_of_images: TYPE, optional
+    take_mean_of_images: TYPE, optional
         DESCRIPTION. The default is False. if True we take the median image of number_images_recorded_per_cmd such that there is only one image per command (that is the aggregated image)
     calibration_dict: TYPE, optional
         DESCRIPTION. The default is None meaning saved images don't get flat fielded. 
@@ -905,8 +905,8 @@ def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_ima
         time.sleep(sleeptime_between_commands)
 
         if should_we_record_images: 
-            if take_median_of_images:
-                ims_tmp = [ np.mean( zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ) ,axis=0) ] #[np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_median_of_images=False
+            if take_mean_of_images:
+                ims_tmp = [ np.mean( zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ) ,axis=0) ] #[np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_mean_of_images=False
             else:
                 ims_tmp = [ zwfs.get_image() ] #get_raw_images(camera, number_images_recorded_per_cmd, cropping_corners) 
             image_list.append( ims_tmp )
@@ -928,7 +928,7 @@ def apply_sequence_to_DM_and_record_images(zwfs, DM_command_sequence, number_ima
         for k,v in camera_info_dict.items():
             cam_fits.header.set(k,v)
         cam_fits.header.set('#images per DM command', number_images_recorded_per_cmd )
-        cam_fits.header.set('take_median_of_images', take_median_of_images )
+        cam_fits.header.set('take_mean_of_images', take_mean_of_images )
         
         cam_fits.header.set('cropping_corners_r1', zwfs.pupil_crop_region[0] )
         cam_fits.header.set('cropping_corners_r2', zwfs.pupil_crop_region[1] )
@@ -1072,8 +1072,10 @@ def scan_detector_framerates(zwfs, frame_rates, number_images_recorded_per_cmd =
 
 
 
-def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, number_images_recorded_per_cmd = 2, save_fits = None) :
-
+def GET_BDR_RECON_DATA_INTERNAL(zwfs,  number_amp_samples = 18, amp_max = 0.2, number_images_recorded_per_cmd = 10, source_selector = None,save_fits = None) :
+    """
+    source_selector is motor to move light source for bias frame, if None we ask to manually move it
+    """
     flat_dm_cmd = zwfs.dm_shapes['flat_dm']
 
     modal_basis = np.eye(len(flat_dm_cmd))
@@ -1112,16 +1114,29 @@ def GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 18, amp_max = 0.2, nu
     I0 = np.mean( I0_list, axis = 0 ) 
 
     # ======== BIAS FRAME
-    #_ = input('COVER THE DETECTOR FOR A BIAS FRAME' )
-    print('need to move source out to get bias frame...')
+    if source_selector == None:
+        _ = input('COVER THE DETECTOR FOR A BIAS FRAME OR TURN OFF SOURCE, PRESS ENTER ONCE READ' )
+    else: # we assume you gave us the sourcemotor object for moving the source.
+        # get the name of the source currently used:
+        current_source_name = source_selector.current_position
+        # move this source out to none
+        source_selector.set_source(  'none' ) 
+        print('Moving source out to get bias frame...')
     #watch_camera(zwfs, frames_to_watch = 50, time_between_frames=0.05)
 
     BIAS_list = []
     for _ in range(100):
         time.sleep(0.05)
-        BIAS_list.append( zwfs.get_image(  ) ) #REFERENCE INTENSITY WITH FPM IN
+        BIAS_list.append( np.mean(zwfs.get_some_frames(number_of_frames = number_images_recorded_per_cmd, apply_manual_reduction = True ),axis=0 ) ) #REFERENCE INTENSITY WITH FPM IN
     #I0 = np.median( I0_list, axis = 0 ) 
 
+    if source_selector == None:    
+        _ = input('PUT SOURCE BACK ON CAMERA, PRESS ENTER ONCE DONE' )
+    else:
+        source_selector.set_source( current_source_name )
+        print('moving source back in')
+
+    
     #====== make references fits files
     I0_fits = fits.PrimaryHDU( I0 )
     N0_fits = fits.PrimaryHDU( N0 )
@@ -1172,7 +1187,7 @@ def Ic_model_constrained(x, A, B, F, mu):
     penalty = 0
     if (F < 0) or (mu < 0): # F and mu can be correlated so constrain the quadrants 
         penalty = 1e3
-    I = A + 2 * B * np.cos(F * x + mu) + penalty
+    I = A + B * np.cos(F * x + mu) + penalty
     return I 
 
 def Ic_model_constrained_3param(x, A,  F, mu): 
@@ -1185,7 +1200,7 @@ def Ic_model_constrained_3param(x, A,  F, mu):
 
 
 # should this be free standing or a method? ZWFS? controller? - output a report / fits file
-def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=None, debug=True, savefits=None) :
+def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=None, debug=True, fig_path = 'tmp/', savefits=None) :
     """
     # calibration of our ZWFS: 
     # this will fit M0, b0, mu, F which can be appended to a phase_controller,
@@ -1207,6 +1222,7 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
 
     # ========================== !! 0 !! =====================
     # -- prelims of reading in and labelling data 
+    tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
     # poke values used in linear ramp
     No_ramps = int(recon_data['SEQUENCE_IMGS'].header['#ramp steps'])
@@ -1290,6 +1306,7 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
            plt.imshow( get_DM_command_in_2D( dm_pupil_filt ) )
            plt.title('influence region on DM where we will fit intensity models per actuator')
            plt.show()
+           plt.savefig(  fig_path + f'process_fits_0_{tstamp}.png', bbox_inches='tight', dpi=300)
 
 
       
@@ -1331,9 +1348,11 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
             act_img_mask_1x1[act_idx] = mask_1x1 
             #act_flag[act_idx] = 0 
     if debug:
+        plt.figure()
         plt.title('masked regions of influence per actuator')
         plt.imshow( np.sum( list(act_img_mask_3x3.values()), axis = 0 ) )
-        plt.show()
+        #plt.show()
+        plt.savefig(  fig_path + f'process_fits_1_{tstamp}.png', bbox_inches='tight', dpi=300)
 
     # turn our dictionary to a big pixel to command matrix 
     P2C_1x1 = np.array([list(act_img_mask_1x1[act_idx].reshape(-1)) for act_idx in range(Nact)])
@@ -1342,7 +1361,6 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
     # we can look at filtering a particular actuator in image P2C_3x3[i].reshape(zwfs.get_image().shape)
     # we can also interpolate signals in 3x3 grid to if DM actuator not perfectly registered to center of pixel. 
     
-
 
     if debug: 
         im_list = [(I0 - N0) / N0 ]
@@ -1361,6 +1379,8 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
         ax.grid(True, which='minor',axis='both', linestyle='-', color='k' ,lw=3)
         ax.set_xticks( np.arange(12) - 0.5 , minor=True)
         ax.set_yticks( np.arange(12) - 0.5 , minor=True)
+
+        plt.savefig(  fig_path + f'process_fits_2_{tstamp}.png', bbox_inches='tight', dpi=300)
         #plt.savefig( fig_path + f'active_DM_region_{tstamp}.png' , bbox_inches='tight', dpi=300) 
         # check the well registered DM region : 
         fig,ax = plt.subplots(1,1)
@@ -1369,6 +1389,8 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
         ax.grid(True, which='minor',axis='both', linestyle='-', color='k',lw=2 )
         ax.set_xticks( np.arange(12) - 0.5 , minor=True)
         ax.set_yticks( np.arange(12) - 0.5 , minor=True)
+
+        plt.savefig(  fig_path + f'process_fits_3_{tstamp}.png', bbox_inches='tight', dpi=300)
   
         #plt.savefig( fig_path + f'poorly_registered_actuators_{tstamp}.png' , bbox_inches='tight', dpi=300) 
 
@@ -1380,7 +1402,7 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
         ax.set_xticks( np.arange(12) - 0.5 , minor=True)
         ax.set_yticks( np.arange(12) - 0.5 , minor=True)
 
-        #plt.savefig( fig_path + f'poorly_registered_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
+        plt.savefig(  fig_path + f'process_fits_4_{tstamp}.png', bbox_inches='tight', dpi=300)
 
         plt.show() 
 
@@ -1459,16 +1481,16 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
                     j+=1
             except:
                 print(f'\n!!!!!!!!!!!!\nfit failed for actuator {act_idx}\n!!!!!!!!!!!!\nanalyse plot to try understand why')
-                nofit_list.append( act_idx ) 
+                """nofit_list.append( act_idx ) 
                 fig1, ax1 = plt.subplots(1,1)
                 ax1.plot( ramp_values, S )
-                ax1.set_title('could not fit this!') 
+                ax1.set_title('could not fit this!') """
                  
        
 
     if debug:
-        #plt.savefig( fig_path + f'cosine_interation_model_fits_ALL_{tstamp}.png' , bbox_inches='tight', dpi=300) 
-        plt.show() 
+        plt.savefig( fig_path + f'process_fits_5_{tstamp}.png' , bbox_inches='tight', dpi=300) 
+        #plt.show() 
 
     if debug:
         """ used to buff things out (adding new 0 normal noise variance to samples) 
@@ -1487,8 +1509,9 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
         buffcorners = np.array([np.array(Qlst).ravel(),np.array(Wlst).ravel(), np.array(Flst).ravel(),np.array(mulst).ravel()]).T
         corner.corner( buffcorners , quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]'] ) 
         """
-        corner.corner( np.array(list( param_dict.values() )), quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['Q', 'W', 'F', r'$\mu$'] , range = [(0,2*np.mean(y_data)),(0, 10*(np.max(y_data)-np.min(y_data)) ) , (5,20), (0,6) ] ) #, range = [(2*np.min(S), 102*np.max(S)), (0, 2*(np.max(S) - np.min(S)) ), (5, 20), (-3,3)] ) #['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]']
-        #plt.savefig( fig_path + f'fitted_Ic_model_parameters_corner_plot_{tstamp}.png', bbox_inches='tight', dpi=300)
+        #labels = ['Q', 'W', 'F', r'$\mu$']
+        corner.corner( np.array(list( param_dict.values() )), quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['A', 'B', 'F', r'$\mu$'] , range = [(0,2*np.mean(y_data)),(0, 10*(np.max(y_data)-np.min(y_data)) ) , (5,20), (0,6) ] ) #, range = [(2*np.min(S), 102*np.max(S)), (0, 2*(np.max(S) - np.min(S)) ), (5, 20), (-3,3)] ) #['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]']
+        plt.savefig( fig_path + f'process_fits_6_{tstamp}.png', bbox_inches='tight', dpi=300)
         plt.show()
         
     output_fits = fits.HDUList( [] )
@@ -1512,11 +1535,14 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
     #fitted parameters
     param_fits = fits.PrimaryHDU( np.array(list( param_dict.values() )) )
     param_fits.header.set('EXTNAME','FITTED_PARAMS')
-    param_fits.header.set('COL0','Q [adu]')
+    """param_fits.header.set('COL0','Q [adu]')
     param_fits.header.set('COL1','W [adu/cos(rad)]')
     param_fits.header.set('COL2','F [rad/cmd]')
+    param_fits.header.set('COL4','mu [rad]')"""
+    param_fits.header.set('COL0','A [adu]')
+    param_fits.header.set('COL1','B [adu]')
+    param_fits.header.set('COL2','F [rad/cmd]')
     param_fits.header.set('COL4','mu [rad]')
-    
     if len(nofit_list)!=0:
         for i, act_idx in enumerate(nofit_list):
             param_fits.header.set(f'{i}_fit_fail_act', act_idx)
@@ -1541,7 +1567,7 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
 
     if savefits!=None:
            
-        output_fits.writeto( savefits )  #data_path + 'ZWFS_internal_calibration.fits'
+        output_fits.writeto( savefits, overwrite=True )  #data_path + 'ZWFS_internal_calibration.fits'
 
     return( output_fits ) 
 
