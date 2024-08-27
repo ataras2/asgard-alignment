@@ -301,7 +301,12 @@ plt.savefig(fig_path + f'pupil_registration_{pupil_crop_region}.png')
 # use baldr.
 recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
 number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
-#recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
+# recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
+
+M2C = util.construct_command_basis( basis='Zernike', number_of_modes = 5, Nx_act_DM = 12,Nx_act_basis =12, act_offset= (0,0), without_piston=True) 
+active_dm_actuator_filter = (abs(np.sum( M2C, axis=1 )) > 0 ).astype(bool)                           
+
+zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
 
 
 

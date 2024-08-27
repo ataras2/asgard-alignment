@@ -291,7 +291,7 @@ from scipy.optimize import minimize
 # Define your objective function
 def objective_function(delta_cmd, zwfs, pupil_mask):
     # Send the current command to the deformable mirror
-    zwfs.dm.send_data(zwfs.dm.send_data(zwfs.dm_shapes['flat_dm']) + delta_cmd)
+    zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'] + delta_cmd)
     
     # Get the new image and average it
     image_raw = np.mean(zwfs.get_some_frames(number_of_frames = 10, apply_manual_reduction=True, timeout_limit = 20000), axis=0)
@@ -307,7 +307,7 @@ def objective_function(delta_cmd, zwfs, pupil_mask):
     
     # Define the cost function: we want to maximize sum_intensity and minimize variance_intensity
     # Since minimize is the objective, we can minimize -sum_intensity (to maximize it) and variance_intensity
-    cost = -sum_intensity + alpha * variance_intensity
+    cost = -sum_intensity  +  ( alpha * variance_intensity )
     
     if np.std( delta_cmd ) > 0.5 :
         zwfs.dm.send_data(zwfs.dm.send_data(zwfs.dm_shapes['flat_dm']) )
@@ -329,7 +329,7 @@ if not os.path.exists(fig_path):
 
 
 # Initial guess for the DM command (can start with zeros, random, or previous good result)
-initial_cmd = np.random.uniform(0, 0.01, 140)
+initial_cmd = np.random.uniform(-0.05, 0.05, 140)
 
 # Define the bounds for the DM command (between 0 and 1 for each element)
 bounds = [(0, 1) for _ in range(140)]
@@ -350,7 +350,7 @@ result = minimize(objective_function, initial_cmd, args=(zwfs,pupil_mask,), \
 optimal_cmd = result.x
 
 # Send the optimal command to the DM
-zwfs.dm.send_data(optimal_cmd)
+zwfs.dm.send_data( zwfs.dm.send_data(zwfs.dm_shapes['flat_dm']) + optimal_cmd)
 
 time.sleep(0.5)
 
