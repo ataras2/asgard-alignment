@@ -70,3 +70,51 @@ Traceback (most recent call last):
     self._handle = _dlopen(self._name, mode)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^
 OSError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32, version LIBFFI_BASE_7.0
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 276, in <module>
+    from pyBaldr import utilities as util
+  File "/home/heimdallr/Documents/asgard-alignment/pyBaldr/utilities.py", line 19, in <module>
+    import FliSdk_V2 
+    ^^^^^^^^^^^^^^^^
+  File "/opt/FirstLightImaging/FliSdk/Python/demo/FliSdk_V2.py", line 1, in <module>
+    import LibLoader
+  File "/opt/FirstLightImaging/FliSdk/Python/demo/LibLoader.py", line 12, in <module>
+    lib = ctypes.cdll.LoadLibrary(_DIRNAME + "/lib/release/libFliSdk.so")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/ctypes/__init__.py", line 454, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/ctypes/__init__.py", line 376, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32, version LIBFFI_BASE_7.0
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 276, in <module>
+    from pyBaldr import utilities as util
+  File "/home/heimdallr/Documents/asgard-alignment/pyBaldr/utilities.py", line 19, in <module>
+    import FliSdk_V2 
+    ^^^^^^^^^^^^^^^^
+  File "/opt/FirstLightImaging/FliSdk/Python/demo/FliSdk_V2.py", line 1, in <module>
+    import LibLoader
+  File "/opt/FirstLightImaging/FliSdk/Python/demo/LibLoader.py", line 12, in <module>
+    lib = ctypes.cdll.LoadLibrary(_DIRNAME + "/lib/release/libFliSdk.so")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/ctypes/__init__.py", line 454, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/ctypes/__init__.py", line 376, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32, version LIBFFI_BASE_7.0

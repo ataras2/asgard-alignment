@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt 
 from scipy.optimize import curve_fit
 import importlib
+import corner
 #import rtc
 import sys
 import datetime
@@ -42,8 +43,13 @@ trouble_shooting_dict = {
 
 
 def Ic_model_constrained(x, A, B, F, mu):
+
+    # force mu between 0-360 degrees 
+    mu = np.arccos( np.cos( mu ) )
+
     penalty = 0
-    if (F < 0) or (mu < 0): # F and mu can be correlated so constrain the quadrants 
+    # F and B are forced to be positive via a fit penality
+    if (F < 0) or (B < 0) : # F and mu can be correlated so constrain the quadrants 
         penalty = 1e3
     I = A + B * np.cos(F * x + mu) + penalty
     return I 
@@ -295,7 +301,7 @@ compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_
 #   OPTIMIZING I0 - INTENSITY REFERENCE WITH PHASEMASK INSERTED IN BEAM
 # =====================
 
-experiment_label = 'optimize_ref_int_method_2'
+experiment_label = 'optimize_ref_int_method_2/iteration_2'
 
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
@@ -307,8 +313,9 @@ if not os.path.exists(fig_path):
 
 # --- linear ramps 
 # use baldr.
-recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
-number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+#recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
+#number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+
 # recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
 
 recon_data = fits.open( '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
@@ -320,6 +327,7 @@ recon_data = fits.open( '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-20
 
 # -- prelims of reading in and labelling data 
 
+debug = True 
 # poke values used in linear ramp
 No_ramps = int(recon_data['SEQUENCE_IMGS'].header['#ramp steps'])
 max_ramp = float( recon_data['SEQUENCE_IMGS'].header['in-poke max amp'] )
@@ -354,10 +362,10 @@ plt.savefig( fig_path + 'delme.png')"""
 recomended_bad_pixels = np.where( (np.std( poke_imgs_norm ,axis = (0,1)) > 10) + (np.std( poke_imgs ,axis = (0,1)) == 0 ))
 print('recommended bad pixels (high or zero std) at :',recomended_bad_pixels )
 
-if len(bad_pixels[0]) > 0:
+if len(recomended_bad_pixels) > 0:
     
     bad_pixel_mask = np.ones(I0.shape)
-    for ibad,jbad in list(zip(bad_pixels[0], bad_pixels[1])):
+    for ibad,jbad in list(zip(recomended_bad_pixels, recomended_bad_pixels)):
         bad_pixel_mask[ibad,jbad] = 0
         
     I0 *= bad_pixel_mask
@@ -365,24 +373,24 @@ if len(bad_pixels[0]) > 0:
     poke_imgs  = poke_imgs * bad_pixel_mask
     poke_imgs_norm = poke_imgs_norm * bad_pixel_mask
 
+
+
+# to get good threshold (reliable)
+# each actuator should influence slightly the 9 actuators around it, so we would expect around 9 outliers 
+the_tenth_list = []
+for act_idx in np.where(  dm_pupil_filt ): #Where we define our DM pupil
+    d = abs(poke_imgs[a0][act_idx] - poke_imgs[-a0][act_idx]).reshape(-1)
+    the_tenth_list.append( np.sort( d[np.isfinite(d)] )[::-1][10] )
+
+# no registration threshold
+registration_threshold = np.mean( the_tenth_list ) / 4
+
 Sw_x, Sw_y = 3,3 #+- pixels taken around region of peak influence. PICK ODD NUMBERS SO WELL CENTERED!   
 act_img_mask_1x1 = {} #pixel with peak sensitivity to the actuator
 act_img_mask_3x3 = {} # 3x3 region around pixel with peak sensitivity to the actuator
 poor_registration_list = np.zeros(Nact).astype(bool) # list of actuators in control region that have poor registration 
 
-
-a0 = len(ramp_values)//2 - 2
-
-# to get good threshold (reliable)
-# each actuator should influence slightly the 9 actuators around it, so we would expect around 9 outliers 
-the_tenth_list = []
-for act_indx in np.where(  dm_pupil_filt ): #Where we define our DM pupil
-    d = abs(poke_imgs[a0][act_idx] - poke_imgs[-a0][act_idx]).reshape(-1)
-    the_tenth_list.append( np.sort( d[np.isfinite(d)] )[::-1][10] )
-
-# no registration threshold
-registration_threshold = 0#np.mean( the_tenth_list )
-
+a0 = len(ramp_values)//2 - 1
 for act_idx in range(Nact):
     # use difference in normalized image (check plt.figure(); plt.hist(poke_imgs_norm[0][0].reshape(-1)) ;plt.savefig(fig_path + 'delme.png'))
     delta =  poke_imgs[a0][act_idx] - poke_imgs[-a0][act_idx] 
@@ -415,13 +423,12 @@ if debug:
     plt.title('pixel to actuator registration')
     plt.imshow( np.sum( list(act_img_mask_1x1.values()), axis = 0 ) )
     #plt.show()
-    plt.savefig(  fig_path + 'pixel_to_actuator_registration.png')  #f'process_fits_1_{tstamp}.png', bbox_inches='tight', dpi=300)
+    plt.savefig(  fig_path + f'1.pixel_to_actuator_registration_{tstamp}.png')  #f'process_fits_1_{tstamp}.png', bbox_inches='tight', dpi=300)
 
 
 # turn our dictionary to a big pixel to command matrix 
 P2C_1x1 = np.array([list(act_img_mask_1x1[act_idx].reshape(-1)) for act_idx in range(Nact)])
 P2C_3x3 = np.array([list(act_img_mask_3x3[act_idx].reshape(-1)) for act_idx in range(Nact)])
-
 
 
 # check the active region 
@@ -432,9 +439,10 @@ ax.grid(True, which='minor',axis='both', linestyle='-', color='k' ,lw=3)
 ax.set_xticks( np.arange(12) - 0.5 , minor=True)
 ax.set_yticks( np.arange(12) - 0.5 , minor=True)
 
-plt.savefig(  fig_path + f'process_fits_2_{tstamp}.png', bbox_inches='tight', dpi=300)
+plt.savefig(  fig_path + f'2.active_DM_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
 #plt.savefig( fig_path + f'active_DM_region_{tstamp}.png' , bbox_inches='tight', dpi=300) 
 # check the well registered DM region : 
+
 fig,ax = plt.subplots(1,1)
 ax.imshow( util.get_DM_command_in_2D( np.sum( P2C_1x1, axis=1 )))
 ax.set_title('well registered actuators')
@@ -442,7 +450,7 @@ ax.grid(True, which='minor',axis='both', linestyle='-', color='k',lw=2 )
 ax.set_xticks( np.arange(12) - 0.5 , minor=True)
 ax.set_yticks( np.arange(12) - 0.5 , minor=True)
 
-plt.savefig(  fig_path + f'process_fits_well_registered_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
+plt.savefig(  fig_path + f'3.well_registered_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
 
 #plt.savefig( fig_path + f'poorly_registered_actuators_{tstamp}.png' , bbox_inches='tight', dpi=300) 
 
@@ -454,7 +462,7 @@ ax.grid(True, which='minor',axis='both', linestyle='-', color='k', lw=2 )
 ax.set_xticks( np.arange(12) - 0.5 , minor=True)
 ax.set_yticks( np.arange(12) - 0.5 , minor=True)
 
-plt.savefig(  fig_path + f'process_fits_poorly_registered_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
+plt.savefig(  fig_path + f'4.poorly_registered_actuators_{tstamp}.png', bbox_inches='tight', dpi=300)
 
 
 
@@ -483,7 +491,7 @@ for act_idx in range(len(flat_dm_cmd)):
 
         #plt.figure(); plt.plot(x_data, y_data) ; plt.savefig(fig_path+'delme.png')
         #_ = input('asd')
-        initial_guess = [np.mean(S), (np.max(S)-np.min(S)),  15,  2.4]
+        initial_guess = [np.mean(I_i), (np.max(I_i)-np.min(I_i)),  15,  1.32]
         #initial_guess = [7, 2, 15, 2.4] #[0.5, 0.5, 15, 2.4]  #A_opt, B_opt, F_opt, mu_opt  ( S = A+B*cos(F*x + mu) )
 
         try:
@@ -499,7 +507,7 @@ for act_idx in range(len(flat_dm_cmd)):
             # also record fit residuals 
             fit_residuals.append( I_i - Ic_model_constrained(ramp_values, A_opt, B_opt, F_opt, mu_opt) )
 
-            if  1 : # None: #65:
+            if  debug : # None: #65:
                 #plt.cla()
                 #PLOT
                 fig1 = plt.figure(figsize=(8,5))
@@ -553,24 +561,24 @@ if debug: # plot mosaic
 
         axx[j].plot( ramp_values, Ic_model_constrained(ramp_values, A_opt, B_opt, F_opt, mu_opt) ,label=f'fit (act{act_idx})') 
         axx[j].plot( ramp_values, I_i ,label=f'measured (act{act_idx})' )
-        aaa.axis('off')
+        axx[j].axis('off')
     j=0 #axx index
 
-    plt.savefig( fig_path + f'process_fits_5_{tstamp}_2.png' , bbox_inches='tight', dpi=300) 
+    plt.savefig( fig_path + f'5.fit_mosaic_{tstamp}.png' , bbox_inches='tight', dpi=300) 
     #plt.show() 
 
-if debug:
 
+    # CORNER PLOT 
     #labels = ['Q', 'W', 'F', r'$\mu$']
     corner.corner( np.array(list( param_dict.values() )), quantiles=[0.16,0.5,0.84], show_titles=True, labels = ['A', 'B', 'F', r'$\mu$'] , range = [(0,4*np.mean(y_data)),(0, 2*(np.max(y_data)-np.min(y_data)) ) , (5,20), (0,6) ] ) #, range = [(2*np.min(S), 102*np.max(S)), (0, 2*(np.max(S) - np.min(S)) ), (5, 20), (-3,3)] ) #['Q [adu]', 'W [adu/cos(rad)]', 'F [rad/cmd]', r'$\mu$ [rad]']
-    plt.savefig( fig_path + f'process_fits_6_{tstamp}.png', bbox_inches='tight', dpi=300)
+    plt.savefig( fig_path + f'6.corner_plot_of_fitted_parameters_{tstamp}.png', bbox_inches='tight', dpi=300)
     plt.show()
 
 
 
 mu_array = np.array([param_dict[act][-1] for act in param_dict])
 new_flat = flat_dm_cmd.copy()
-target_rad = np.pi/2
+target_rad = 3 * np.pi/2
 for act in param_dict:
     x0 = flat_dm_cmd[act] # reference flat used when ramping actuators
     F = param_dict[act][-2]
@@ -579,13 +587,14 @@ for act in param_dict:
         # Calibrating new flat = x0+x
         #F.(x0 + x) + mu = 3 * np.pi/2 # most sensitive part of cosine curve 
         
-        new_flat[act] = np.arccos( np.cos(np.mean(mu_array) - mu) ) * 1/F #(3*np.pi/2 - mu) * 1/F  )
+        new_flat[act] = x0 + np.arccos( np.cos(target_rad - mu) ) * 1/F #(3*np.pi/2 - mu) * 1/F  )
         #new_flat[act] = x + x0
 
 # revert any prohibited values to the original DM flat 
 new_flat[(new_flat>1) + (new_flat<0)] = flat_dm_cmd[(new_flat>1) + (new_flat<0)]
 # plot 
-plt.figure(); plt.imshow( util.get_DM_command_in_2D( new_flat )); plt.colorbar(); plt.savefig(fig_path + 'delme.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( new_flat )); plt.colorbar(); plt.savefig(fig_path + '7.newflat.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( flat_dm_cmd )); plt.colorbar(); plt.savefig(fig_path + '8.original_flat.png')
 
 
 
