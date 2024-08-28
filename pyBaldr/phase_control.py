@@ -310,6 +310,10 @@ class phase_controller_1():
         ctrl_parameters['IM'] = IM # interaction matrix
        
         ctrl_parameters['I2M'] = I2M # intensity to mode matrix 
+
+        ctrl_parameters['inverse_method'] = inverse_method 
+
+        ctrl_parameters['poke_method'] = poke_method 
         
         ### ASSUMES INDEX 0, 1 IN BASIS CORRESPOND TO TIP/TILT <- This is not the case for Fourier basis!! 
         ctrl_parameters['R_TT'] = R_TT # projection of signal to tip / tilt mode amplitudes

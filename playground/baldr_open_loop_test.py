@@ -192,8 +192,9 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
-zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
+zwfs.set_camera_fps
 zwfs.set_camera_fps( 200 );time.sleep(0.2)
+zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
 zwfs.bias_off();time.sleep(0.2)
@@ -404,8 +405,8 @@ source_selector = None)
 
 #init our phase controller (object that processes ZWFS images and outputs DM commands)
 zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zonal', number_of_controlled_modes = 140) 
-zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike', number_of_controlled_modes = 5) 
-fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 5)
+zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike', number_of_controlled_modes = 20) 
+fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 20)
 
 # to change basis : 
 #phase_ctrl.change_control_basis_parameters( controller_label = ctrl_method_label, number_of_controlled_modes=phase_ctrl.config['number_of_controlled_modes'], basis_name='Zonal' , dm_control_diameter=None, dm_control_center=None)
@@ -900,6 +901,8 @@ plt.savefig(fig_path+'Fourier_correction_Eigenmode_space_singularvalue_truncatio
 
 
 
+
+
 # TRY model_2 WITH  method='single_side_poke', or 'double_sided_poke'
 #phase_ctrl.change_control_basis_parameters(  number_of_controlled_modes=140, basis_name ='Zonal', dm_control_diameter=None, dm_control_center=None,controller_label=None)
 #phase_ctrl.build_control_model_2(zwfs, poke_amp = -0.1, label='ctrl_1', poke_method='double_sided_poke', inverse_method='MAP',  debug = True)
@@ -1096,3 +1099,62 @@ plt.savefig( fig_path + "delme.png")
 
 #plt.figure(); plt.imshow( Ip-I0 ); plt.savefig( fig_path + "delme.png")
 
+
+
+
+
+amp = 0.2
+
+for mode_indx in range( 5 ) :#len(M2C)-1 ) :  
+
+    mode_aberration = mode_basis.T[mode_indx]#   M2C.T[mode_indx]
+    #plt.imshow( util.get_DM_command_in_2D(amp*mode_aberration));plt.colorbar();plt.show()
+    
+    dm_cmd_aber = zwfs.dm_shapes['flat_dm'] + amp * mode_aberration 
+
+    zwfs.dm.send_data( dm_cmd_aber )
+    time.sleep(0.1)
+    #raw_img_list = []
+    #for i in range( 10 ) :
+    #    raw_img_list.append( zwfs.get_image() ) # @D, remember for control_phase method this needs to be flattened and filtered for pupil region
+    raw_img = np.mean( zwfs.get_some_frames(number_of_frames = imgs_to_mean, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
+    # plt.figure() ; plt.imshow( raw_img ) ; plt.savefig( fig_path + f'delme.png') # <- signal?
+    
+    err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
+    
+    # plt.figure() ; plt.hist( err_img, label='meas', alpha=0.3 ) ; plt.hist( IM[mode_indx] , label='from IM', alpha=0.3); plt.legend() ; plt.savefig( fig_path + f'delme.png') # <- should be around zeros
+
+    #mode_res_test : inject err_img from interaction matrix to I2M .. should result in perfect reconstruction  
+    #plt.figure(); plt.plot( I2M.T @ IM[2] ); plt.savefig( fig_path + f'delme.png')
+    #plt.figure(); plt.plot( I2M.T @ IM[mode_indx]  ,label='reconstructed amplitude'); plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index'); plt.ylabel('mode amplitude'); plt.legend(); plt.savefig( fig_path + f'delme.png')
+    mode_res =  I2M.T @ err_img 
+
+    plt.figure(); plt.plot( mode_res ); plt.axvline(mode_indx  , ls=':', color='k') ; plt.savefig( fig_path + f'delme.png')
+    plt.figure(figsize=(8,5));
+    plt.plot( mode_res  ,label='reconstructed amplitude');
+    app_amp = np.zeros( len( mode_res ) ) 
+
+    app_amp[mode_indx] = amp / poke_amp
+    
+    plt.plot( app_amp ,'x', label='applied amplitude');
+    plt.axvline(mode_indx  , ls=':', color='k', label='mode applied') ; plt.xlabel('mode index',fontsize=15); 
+    plt.ylabel('mode amplitude',fontsize=15); plt.gca().tick_params(labelsize=15) ; plt.legend();
+    plt.savefig( fig_path + f'delme.png')
+
+    _ = input('press when ready to see mode reconstruction')
+    
+    cmd_res =  M2C @ mode_res  # <-- should be like this. 1/poke_amp * M2C @ mode_res # SHOULD I USE M2C_4reco here? 
+    
+    # WITH RESIDUALS 
+    
+    im_list = [util.get_DM_command_in_2D( amp * mode_aberration  ),raw_img - I0,  util.get_DM_command_in_2D( cmd_res ) ,util.get_DM_command_in_2D( amp * mode_aberration - cmd_res ) ]
+    xlabel_list = [None, None, None, None]
+    ylabel_list = [None, None, None, None]
+    title_list = ['Aberration on DM', 'I-I0', 'reconstructed DM cmd', 'residual']
+    cbar_label_list = ['DM command', 'ADU (Normalized)', 'DM command' , 'DM command' ] 
+    savefig = fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+    
+    _ = input('press when ready to go to next moce ')
+    

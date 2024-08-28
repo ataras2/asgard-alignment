@@ -330,7 +330,7 @@ class ZWFS():
         self.bad_pixels = np.where( self.bad_pixel_filter )[0]
 
 
-    def get_image(self, apply_manual_reduction  = True ):
+    def get_image(self, apply_manual_reduction  = True, which_index = -1 ):
 
         # I do not check if the camera is running. Users should check this 
         # gets the last image in the buffer
@@ -342,17 +342,17 @@ class ZWFS():
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
 
             if len( self.reduction_dict['bias'] ) > 0:
-                cropped_img -= self.reduction_dict['bias'][0] # take the most recent bias. bias must be set in same cropping state 
+                cropped_img -= self.reduction_dict['bias'][which_index] # take the most recent bias. bias must be set in same cropping state 
 
             if len( self.reduction_dict['dark'] ) > 0:
-                cropped_img -= self.reduction_dict['dark'][0] # take the most recent dark. Dark must be set in same cropping state 
+                cropped_img -= self.reduction_dict['dark'][which_index] # take the most recent dark. Dark must be set in same cropping state 
 
             if len( self.reduction_dict['flat'] ) > 0:
-                cropped_img /= np.array( self.reduction_dict['flat'][0] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
             if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                 # enforce the same type for mask
-                cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][0] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+                cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
 
 
         if type( self.pixelation_factor ) == int : 
@@ -626,6 +626,8 @@ class ZWFS():
         #info_fits.header.set('dm_control_center', phase_controller.config['dm_control_center'] )
 
         info_fits.header.set('CM_build_method', 'FILL ME' ) # how did we build the CM 
+        info_fits.header.set('inverse_method', phase_controller.ctrl_parameters[ctrl_label]['inverse_method'] )
+        info_fits.header.set('poke_method',phase_controller.ctrl_parameters[ctrl_label]['poke_method']  )
         info_fits.header.set('poke_amplitude', phase_controller.ctrl_parameters[ctrl_label]['poke_amp'] ) # how did we build the CM 
         # push, pull, push-pull ? 
 
@@ -667,10 +669,12 @@ class ZWFS():
         I0_fits.header.set('what is?','FPM IN')
         I0_fits.header.set('EXTNAME','I0')        
 
+
         # MODE TO DM COMMAND MATRIX (normalized <C|C> = 1)
         M2C_fits = fits.PrimaryHDU( phase_controller.config['M2C']  ) # mode to commands
         M2C_fits.header.set('what is?','mode to dm cmd matrix')
         M2C_fits.header.set('EXTNAME','M2C')
+
 
 
         # NOTE: if not cropping_corners!=NONE, pixel filters (e.g. pupil_pixel) are defined 
@@ -696,6 +700,15 @@ class ZWFS():
         dm_pixel_center_fits .header.set('what is?','dm_center_reference_pixels')
         dm_pixel_center_fits .header.set('EXTNAME','dm_center_ref')
 
+        dark_fits = fits.PrimaryHDU(  self.reduction_dict['dark'] )
+        dark_fits.header.set('EXTNAME','DARK')
+
+        bias_fits = fits.PrimaryHDU(  self.reduction_dict['bias'] )
+        bias_fits.header.set('EXTNAME','BIAS')
+
+        badpixel_fits = fits.PrimaryHDU(  self.bad_pixels )
+        badpixel_fits.header.set('EXTNAME','BAD_PIXELS')
+
         # TO DO... Depends on modal basis used 
         RTT_fits = fits.PrimaryHDU( np.zeros( phase_controller.ctrl_parameters[ctrl_label]['R_TT'].shape) )
         RTT_fits.header.set('what is?','tip-tilt reconstructor')
@@ -707,7 +720,7 @@ class ZWFS():
 
         fits_list = [info_fits, IM_fits, CM_fits, I2M_fits, M2C_fits, N0_fits, I0_fits,\
         pupil_fits, secondary_fits, outside_fits, dm_pixel_center_fits,\
-        RTT_fits,RHO_fits]
+        RTT_fits,RHO_fits,dark_fits,bias_fits, badpixel_fits]
 
 
         reconstructor_fits = fits.HDUList( [] )
