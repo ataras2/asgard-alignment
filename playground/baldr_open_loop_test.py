@@ -364,7 +364,7 @@ cmd_2_opd = 3 # um RMS
 plt.figure(figsize=(10,8)); 
 #plt.axhline( N0/np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
 #plt.axhline( N0.reshape(-1)[zwfs.pupil_pixel_filter] /np.sum( N0 ), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
-plt.plot(cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ) , int_sum_N0/np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
+plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ) , int_sum_N0/np.sum( N0 ), color='k',ls=':', label=r'$\Sigma N_0(x,y)$')
 plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ),int_sum_N0_in_pupil /np.sum( N0 ), color='k',ls='--', label=r'$\Sigma N_0(x,y \in pupil)$')
 plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ), int_sum/np.sum( N0 ), label=r'$\Sigma I_0(x,y)$' );
 plt.plot( cmd_2_opd * amp_grid * np.std( fourier_basis.T[19] ) , int_sum_in_pupil/np.sum( N0 ) , label=r'$\Sigma I_0(x,y \in pupil)$');
