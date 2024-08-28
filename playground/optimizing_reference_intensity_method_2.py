@@ -282,7 +282,6 @@ if pupil_report['pupil_quality_flag'] == 1:
     zwfs.update_reference_regions_in_img( pupil_report ) # 
 
 
-
 #
 # other random method to try 
 aa = np.std( poke_imgs, axis=(0,2,3) )
@@ -303,7 +302,7 @@ compass = True, compass_origin=None, savefig='tmp/0.delme_after.png' )
 #   OPTIMIZING I0 - INTENSITY REFERENCE WITH PHASEMASK INSERTED IN BEAM
 # =====================
 
-experiment_label = 'optimize_ref_int_method_2/iteration_2'
+experiment_label = 'optimize_ref_int_method_2/iteration_3'
 
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
@@ -316,10 +315,11 @@ if not os.path.exists(fig_path):
    os.makedirs(fig_path)
 
 
-
+#zwfs.dm_shapes['flat_dm']  = zwfs.dm_shapes['flat_dm'] + a_opt * fourier_basis.T[19]
+#zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'])
 # x,y in compass referenced to DM right (+x), up (+y)
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemask_name}_before.png' )
+compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemask_name}_before_w_focus.png' )
 
 
 # --- linear ramps 
@@ -329,7 +329,7 @@ compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemas
 
 # recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
 
-recon_data = fits.open( '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
+recon_data = fits.open('/home/heimdallr/Documents/asgard-alignment/tmp/28-08-2024/pokeramp_data_MASK_J3_0.16focus_offset_sydney_28-08-2024T08.21.47.fits' )# '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
 
 
 #zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 

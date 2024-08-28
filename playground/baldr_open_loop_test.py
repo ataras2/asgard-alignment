@@ -303,10 +303,10 @@ recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp
 number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
 # recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
 
-M2C = util.construct_command_basis( basis='Zernike', number_of_modes = 5, Nx_act_DM = 12,Nx_act_basis =12, act_offset= (0,0), without_piston=True) 
-active_dm_actuator_filter = (abs(np.sum( M2C, axis=1 )) > 0 ).astype(bool)                           
+#M2C = util.construct_command_basis( basis='Zernike', number_of_modes = 5, Nx_act_DM = 12,Nx_act_basis =12, act_offset= (0,0), without_piston=True) 
+#active_dm_actuator_filter = (abs(np.sum( M2C, axis=1 )) > 0 ).astype(bool)                           
 
-zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+#zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
 
 
 
@@ -314,7 +314,7 @@ zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[
 fourier_basis = util.construct_command_basis( basis='fourier', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
 
 # check its focus
-plt.figure(); plt.imshow( util.get_DM_command_in_2D( fourier_basis.T[19] )) ;plt.savefig(fig_path + 'delme.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( fourier_basis.T[19] )) ;plt.savefig(fig_path + 'focus_DM.png')
 
 int_sum = []
 int_sum_N0 = []
@@ -374,15 +374,23 @@ plt.gca().tick_params(labelsize=15)
 plt.xlabel('focus amplitude OPD (um RMS)',fontsize=15)
 plt.ylabel(r'$\Sigma I(x,y)$',fontsize=15)
 plt.axvline(0)
-plt.savefig(fig_path + f'intensity_vs_focus_{pupil_crop_region}_BFO.png',dpi=300, bbox_inches='tight')
+plt.savefig(fig_path + f'intensity_vs_focus_{pupil_crop_region}_BFO_with_{a_opt}_focus_offset.png',dpi=300, bbox_inches='tight')
+
+# add focus amplitude where gradient was maximum to DM flat 
+#a_opt = 0.16#0.5 / cmd_2_opd 
+#zwfs.dm_shapes['flat_dm']  = zwfs.dm_shapes['flat_dm'] + 0.16 * fourier_basis.T[19]
+
+# now do pokaramp with fpcus offset 
+recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs,number_amp_samples = 20, amp_max = 0.2,\
+number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_{a_opt}focus_offset_sydney_{tstamp}.fits',\
+source_selector = None) 
 
 
-a=0.8
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
 
 
 
-phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
+
+#phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
 
  
 # ====== testing reconstruction 
