@@ -675,7 +675,10 @@ class ZWFS():
         M2C_fits.header.set('what is?','mode to dm cmd matrix')
         M2C_fits.header.set('EXTNAME','M2C')
 
-
+        # M2C to use for reconstructions (scales by amplitude used in IM construction)
+        M2C4reco_fits = fits.PrimaryHDU( phase_controller.ctrl_parameters[ctrl_label]['M2C_4reco']  ) # mode to commands scaled by poke amp in IM 
+        M2C4reco_fits.header.set('what is?','M2C for reco')
+        M2C4reco_fits.header.set('EXTNAME','M2C_4RECO')
 
         # NOTE: if not cropping_corners!=NONE, pixel filters (e.g. pupil_pixel) are defined 
         # relative to this crop region! which is cropped post frame read-out.
@@ -709,16 +712,16 @@ class ZWFS():
         badpixel_fits = fits.PrimaryHDU(  self.bad_pixels )
         badpixel_fits.header.set('EXTNAME','BAD_PIXELS')
 
-        # TO DO... Depends on modal basis used 
-        RTT_fits = fits.PrimaryHDU( np.zeros( phase_controller.ctrl_parameters[ctrl_label]['R_TT'].shape) )
+        # 
+        RTT_fits = fits.PrimaryHDU(  phase_controller.ctrl_parameters[ctrl_label]['R_TT'] )
         RTT_fits.header.set('what is?','tip-tilt reconstructor')
         RTT_fits.header.set('EXTNAME','R_TT')
 
-        RHO_fits = fits.PrimaryHDU(  np.zeros(phase_controller.ctrl_parameters[ctrl_label]['R_HO'].shape) )
+        RHO_fits = fits.PrimaryHDU(  phase_controller.ctrl_parameters[ctrl_label]['R_HO'] )
         RHO_fits.header.set('what is?','higher-oder reconstructor')
         RHO_fits.header.set('EXTNAME','R_HO')
 
-        fits_list = [info_fits, IM_fits, CM_fits, I2M_fits, M2C_fits, N0_fits, I0_fits,\
+        fits_list = [info_fits, IM_fits, CM_fits, I2M_fits, M2C4reco_fits, M2C_fits, N0_fits, I0_fits,\
         pupil_fits, secondary_fits, outside_fits, dm_pixel_center_fits,\
         RTT_fits,RHO_fits,dark_fits,bias_fits, badpixel_fits]
 

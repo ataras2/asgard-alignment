@@ -216,7 +216,7 @@ zwfs.start_camera()
 zwfs.build_manual_dark()
 
 # get our bad pixels 
-bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 1000, std_threshold = 50 , flatten=False)
+bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 2000, std_threshold = 25 , flatten=False) # std_threshold = 50
 
 # update zwfs bad pixel mask and flattened pixel values 
 zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
@@ -318,18 +318,21 @@ build_dict = {
     'zonal':zonal_dict ,
     #'zernike_20modes_map':zernike_dict_20,
     #'fourier_90modes_map':fourier_dict_90,
-    'fourier_20modes_pinv':fourier_dict_20_pinv
-    #'fourier_20modes_map':fourier_dict_20
+    'fourier_20modes_pinv':fourier_dict_20_pinv,
+    'fourier_20modes_map':fourier_dict_20
 }
 
-iter = 6
+# iter 10 , reduced bad pixel mask threshold from 50 - 25 . WORKED FOR TT!! at least in open loop reconstructor
+#           no good pinv but MAP seems critical! used 10k frames for this 
+# iter 11 , updated reconstructor fits to include RTT RHO M2C_4reco properly 
+
+iter = 11
 
 #subprocess.run()
 # build and write them to fits 
 for basis in build_dict:
 
-
-    current_path = fig_path + f'iter_{iter}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
+    current_path = fig_path + f'iter_{iter}_{phasemask_name}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
     #data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
@@ -369,7 +372,7 @@ for basis in build_dict:
 
     zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
 
-    current_path = fig_path + f'iter_{iter}/{basis}_reconstructor/'  #fig_path + f'{basis}_reconstructor/' # current_path + f'{basis}_reconstructor'
+    current_path = fig_path + f'iter_{iter}_{phasemask_name}/{basis}_reconstructor/'  #fig_path + f'{basis}_reconstructor/' # current_path + f'{basis}_reconstructor'
 
     p = build_dict[basis]['controller']
     label = build_dict[basis]['label']
@@ -400,6 +403,45 @@ for basis in build_dict:
     ax[0].imshow( N0 ) ; ax[0].set_title('phasemask out')
     ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('registered pupil')
     plt.savefig(current_path + f'registered_pupil_{tstamp}.png')
+
+    ####
+    # Estimate pixel noise, add this to reconstructor 
+    ##
+    zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ) 
+    time.sleep(0.05)
+    frames = zwfs.get_some_frames(number_of_frames = 1000, apply_manual_reduction = True )
+
+    frame_fits = fits.PrimaryHDU( frames ) 
+    frame_fits.header.set('EXTNAME','FRAMES_FPM_IN')
+    camera_info_dict = util.get_camera_info(zwfs.camera)
+    for k,v in camera_info_dict.items():
+        frame_fits.header.set(k,v)
+    frame_fits.writeto( current_path + 'FRAMES_FPM_IN.fits')
+
+    img_var = np.var( frames ,axis=0) #zwfs.get_image()
+    img_mean = np.mean( frames ,axis=0) #zwfs.get_image()
+    im_list = [img_mean, img_var]
+    xlabel_list = [None, None]
+    ylabel_list = [None, None]
+    title_list = [None, None]
+    cbar_label_list = [r'$\mu$ [adu]',r'$\sigma^2$ [adu$^2$]'] 
+    savefig = current_path + 'image_statistics_FPM_in.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+
+    # assuming a flat DM => I = I0 => err_signal = 0 and only noise from detector, how much do we reconstruct on the mode? 
+    img_std = np.sqrt(img_var.reshape(-1)[zwfs.pupil_pixels] )
+
+    plt.figure(figsize=(8,5))
+    std_grid = np.linspace(0,2,10)
+    TTerrs = [R_TT @ (a * img_std ) for a in std_grid]
+    plt.plot(std_grid,  [abs(e[0]) for e in TTerrs], label = 'tip')
+    plt.plot(std_grid,  [abs(e[1]) for e in TTerrs], label = 'tilt')
+    plt.ylabel( 'mode error',fontsize=15)
+    plt.xlabel( r'$<\sigma_{pixels}>$',fontsize=15)
+    plt.legend(fontsize=15) 
+    plt.gca().tick_params(labelsize=15)
+    plt.savefig( current_path + 'TT_error_vs_image_std.png')
 
     # Look at the signals in the interaction matrix (filtered by registered pupil pixels)
     for m in np.logspace( 0, np.log10( M2C.shape[1]-2 ), 5 ).astype(int):
@@ -434,7 +476,7 @@ for basis in build_dict:
     plt.legend()
     plt.xlabel('mode index')
     plt.ylabel('reconstructed amplitude')
-    plt.savefig( current_path + f'{basis}_amp_reco_test.png')
+    plt.savefig( current_path + f'{basis}_amp_reco_test_on_IM.png')
 
     # apply a mode and try reconstruct it 
     
@@ -448,7 +490,8 @@ for basis in build_dict:
     i_tt = 1 # index 
 
     a_ho1 = [0.5, 0.1, 1.2] # HO amplitudes
-    i_ho1 = [5,8,2] #indicies 
+    # 3 random higher order modes 
+    i_ho1 = list(np.random.choice(np.arange(2, 11), size=3, replace=False))  #[5,8,2] #indicies 
 
     # build the total command 
     cmd =  a_tt * ab_basis[:,i_tt] # note M2C here is already scaled by the IM poke amplitude (or should be)
@@ -487,16 +530,19 @@ for basis in build_dict:
     #
     xlabel_list = [None, None, None, None, None]
     ylabel_list = [None, None, None, None, None]
+    vlims= [ [np.nanmin(cmd),np.nanmax(cmd)],  [np.nanmin(imgrid),np.nanmax(imgrid)], \
+       [np.nanmin(cmd_TT),np.nanmax(cmd_TT)],  [np.nanmin(cmd_reco_TT),np.nanmax(cmd_reco_TT)],[np.nanmin(cmd_TT),np.nanmax(cmd_TT)]]
     title_list = ['full DM \naberration', 'ZWFS signal' ,'tip/tilt \ncomponent', 'reconstruction', 'residual']
     cbar_label_list = ['DM units', 'ADU (Normalized)','DM units', 'DM units' , 'DM units' ] 
     savefig = current_path + f'{basis}_TT_reconstruction_test.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
 
-    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, vlims = vlims, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
     
     
     im_list = [ util.get_DM_command_in_2D( cmd ), imgrid, util.get_DM_command_in_2D(cmd_HO),\
      util.get_DM_command_in_2D(cmd_reco_HO), util.get_DM_command_in_2D(cmd_HO - cmd_reco_HO)] 
     #
+
     xlabel_list = [None, None, None, None, None]
     ylabel_list = [None, None, None, None, None]
     title_list = ['full DM \naberration', 'ZWFS signal' ,'HO \ncomponent', 'reconstruction', 'residual']
@@ -507,8 +553,61 @@ for basis in build_dict:
     
     plt.close()
 
+    # save as fits 
+    reco_openloop_fits = fits.HDUList( [] )
+    for thing, lab in zip( [cmd, imgrid, cmd_TT, cmd_reco_TT, cmd_HO, cmd_reco_HO], ['cmd', 'zwfs_signal', 'cmd_TT', 'cmd_reco_TT', 'cmd_HO', 'cmd_reco_HO']):
 
-    # finally we could try some closed loop 
+            tmp_fits = fits.PrimaryHDU( thing ) 
+            tmp_fits.header.set('EXTNAME',lab)
+
+            camera_info_dict = util.get_camera_info(zwfs.camera)
+            for k,v in camera_info_dict.items():
+                tmp_fits.header.set(k,v)
+
+            reco_openloop_fits.append( tmp_fits )
+    
+    reco_openloop_fits.writeto( current_path + 'reco_open_loop_test.fits')
+
+"""
+###
+## Apply some open loop corrections and look at image - are we stable? 
+##
+# flat DM reco. R_TT commands and start sending .. are we stable?  
+basis = 'fourier_20modes_map'
+p = build_dict[basis]['controller']
+label = build_dict[basis]['label']
+
+R_TT = p.ctrl_parameters[label]['R_TT'] 
+R_HO = p.ctrl_parameters[label]['R_HO'] 
+
+M2C = p.ctrl_parameters[label]['M2C_4reco'] 
+
+zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
+
+for i in range(100):
+    
+    raw_img = np.mean( zwfs.get_some_frames(number_of_frames = 100, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
+
+    plt.figure(); plt.imshow( raw_img ); plt.savefig( fig_path + 'delme.png')
+
+    _ = input ( "continue?")
+
+    err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
+        
+    amp_err = R_TT @ err_img
+    print( 'estimated tip/tilt amplitudes = ', amp_err[0], amp_err[1])
+
+    # now reconstruct command with R_TT and R_HO 
+    cmd_reco_TT = M2C @ R_TT @ err_img # R_TT goes to modal space and then M2C sends mode amplitude to DM command 
+
+    zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'] + cmd_reco_TT)
+    time.sleep(0.05)
+
+"""
+
+
+
+# finally we could try some closed loop 
 #exit_all()
 """   
 fig,ax = plt.subplots( 1,3 )

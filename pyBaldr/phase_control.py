@@ -258,7 +258,7 @@ class phase_controller_1():
         # get tip/tilt reconstructors from I2M matrix (IN MODAL SPACE!)
         # NOTE: This ASSUMES that index 0, 1 correspond to tip/tilt
 
-        if self.config['basis']=='Zonal':
+        if 'zonal' in self.config['basis'].lower(): # force lower case to avoid cast sensitivity 
             # if zonal then modes are actuators (in DM space), mode to command (M2C) is identity and CM = I2M.T.
 
             fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
@@ -267,7 +267,7 @@ class phase_controller_1():
             # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
             R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
 
-        elif self.config['basis']!='Zonal':
+        elif 'zonal' not in self.config['basis'].lower():
             # then in some modal space
             # we can safely assume first and second indicies are tip/tilt 
             # we project onto modal space defined by intensity to mode matrix I2M 
