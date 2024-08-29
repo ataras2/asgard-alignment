@@ -197,7 +197,8 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
 
-zwfs.deactive_cropping() # zwfws.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests 
+
+zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
 zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_camera_fps( 200 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
@@ -300,7 +301,7 @@ zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_na
 
 zernike_phase_ctrl_90 = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike_pinned_edges', number_of_controlled_modes = 90) 
 zernike_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike_pinned_edges', number_of_controlled_modes = 20) 
-fourier_phase_ctrl_90 = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 90)
+fourier_phase_ctrl_50 = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 50)
 fourier_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 20)
 
 # to change basis : 
@@ -310,27 +311,30 @@ fourier_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, bas
 zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.07pokeamp_in-out_pokes_map' }
 zernike_dict_90 = {'controller': zernike_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
 zernike_dict_20  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
-fourier_dict_90 = {'controller': fourier_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
+fourier_dict_50 = {'controller': fourier_phase_ctrl_50, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
     'zonal':zonal_dict ,
-    #'zernike_20modes_map':zernike_dict_20,
-    #'fourier_90modes_map':fourier_dict_90,
-    'fourier_20modes_pinv':fourier_dict_20_pinv,
+    'zernike_20modes_map':zernike_dict_20,
+    'fourier_50modes_map':fourier_dict_50,
+    #'fourier_20modes_pinv':fourier_dict_20_pinv,
     'fourier_20modes_map':fourier_dict_20
 }
 
 # iter 10 , reduced bad pixel mask threshold from 50 - 25 . WORKED FOR TT!! at least in open loop reconstructor
 #           no good pinv but MAP seems critical! used 10k frames for this 
 # iter 11 , updated reconstructor fits to include RTT RHO M2C_4reco properly 
-
-iter = 11
+# iter 12 , fixed bug with R_TT in zonal basis (with addition of pinned_to_edge basis a case went missing in R_TT construction)
+#       update4d zwfs reconstructor fits writing with M2C_reco etc. 
+# iter 13 , trying fourier with more modes
+# iter 14 , loading to rtc realized cropping state was set wrong from previous latency tests.. even though crop diabled the crop rows/cols still remain
+iter = 14 
 
 #subprocess.run()
 # build and write them to fits 
-for basis in build_dict:
+for basis in  build_dict:
 
     current_path = fig_path + f'iter_{iter}_{phasemask_name}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
     #data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 

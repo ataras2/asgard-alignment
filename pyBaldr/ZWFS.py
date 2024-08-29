@@ -670,6 +670,10 @@ class ZWFS():
         I0_fits.header.set('EXTNAME','I0')        
 
 
+        FLAT_DM = fits.PrimaryHDU( self.dm_shapes['flat_dm'] ) # mode to commands
+        FLAT_DM.header.set('what is?','flat_dm')
+        FLAT_DM.header.set('EXTNAME','FLAT_DM')
+
         # MODE TO DM COMMAND MATRIX (normalized <C|C> = 1)
         M2C_fits = fits.PrimaryHDU( phase_controller.config['M2C']  ) # mode to commands
         M2C_fits.header.set('what is?','mode to dm cmd matrix')
@@ -721,7 +725,7 @@ class ZWFS():
         RHO_fits.header.set('what is?','higher-oder reconstructor')
         RHO_fits.header.set('EXTNAME','R_HO')
 
-        fits_list = [info_fits, IM_fits, CM_fits, I2M_fits, M2C4reco_fits, M2C_fits, N0_fits, I0_fits,\
+        fits_list = [info_fits, IM_fits, CM_fits, I2M_fits, FLAT_DM, M2C4reco_fits, M2C_fits, N0_fits, I0_fits,\
         pupil_fits, secondary_fits, outside_fits, dm_pixel_center_fits,\
         RTT_fits,RHO_fits,dark_fits,bias_fits, badpixel_fits]
 

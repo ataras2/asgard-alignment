@@ -252,8 +252,11 @@ class phase_controller_1():
                 phase_cov = np.array( self.phase_cov )
 
             #minimum variance of maximum posterior estimator 
-            I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
-            
+            try:
+                I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+            except:
+                print( '-------- maybe singular using pinv instead of inv ----------')
+                I2M = (phase_cov @ IM @ np.linalg.pinv(IM.T @ phase_cov @ IM + noise_cov) ).T
         
         # get tip/tilt reconstructors from I2M matrix (IN MODAL SPACE!)
         # NOTE: This ASSUMES that index 0, 1 correspond to tip/tilt
@@ -261,7 +264,16 @@ class phase_controller_1():
         if 'zonal' in self.config['basis'].lower(): # force lower case to avoid cast sensitivity 
             # if zonal then modes are actuators (in DM space), mode to command (M2C) is identity and CM = I2M.T.
 
-            fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+            # NOTE IF WE WANT ZONAL TO GO STRAIGHT TO CMD SPACE WE SHOULD PROJECT ONTO CM (M2C @ I2M.T). This has implications if we want to apply control in modal space. 
+            # i.e. (M2C_4reco @ I2M.T).T
+            if 'pinned_edges' in self.config['basis'].lower():
+                # then we have to define tip/tilt on a 10x10 grid (since outer actuators are pinned so mode space of the zonal basis is size 10x10=100!) 
+                fourier_basis_tmp = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+                fourier_basis = np.array( [util.get_DM_command_in_2D(f)[1:-1,1:-1].reshape(-1) for f in fourier_basis_tmp.T] ).T # just crop it to inner perimeter! 
+            
+                
+            else: 
+                fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
             tip = fourier_basis[:,0]
             tilt = fourier_basis[:,1]
             # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
