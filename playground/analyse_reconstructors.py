@@ -199,7 +199,7 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 
 
 zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
-zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
+zwfs.set_camera_dit( 0.002 );time.sleep(0.2)
 zwfs.set_camera_fps( 200 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
@@ -316,9 +316,9 @@ fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_me
 fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
-    'zonal':zonal_dict ,
-    'zernike_20modes_map':zernike_dict_20,
-    'fourier_50modes_map':fourier_dict_50,
+    #'zonal':zonal_dict ,
+    #'zernike_20modes_map':zernike_dict_20,
+    #'fourier_50modes_map':fourier_dict_50,
     #'fourier_20modes_pinv':fourier_dict_20_pinv,
     'fourier_20modes_map':fourier_dict_20
 }
@@ -330,7 +330,11 @@ build_dict = {
 #       update4d zwfs reconstructor fits writing with M2C_reco etc. 
 # iter 13 , trying fourier with more modes
 # iter 14 , loading to rtc realized cropping state was set wrong from previous latency tests.. even though crop diabled the crop rows/cols still remain
-iter = 14 
+
+# iter 1 fixed DM flat update writing fits 
+# iter 2 changed output of dark , bais to global (not locally cropped) frame
+# iter 3 fixed bug with get image in other regions (-1 -> None for default ) and aggregating full frame dark! 
+iter = 3
 
 #subprocess.run()
 # build and write them to fits 

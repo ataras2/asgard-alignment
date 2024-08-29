@@ -86,8 +86,8 @@ class ZWFS():
         self.dm_number_of_actuators = 140
         
         # ========== dictionary to hold reduction products
-        self.reduction_dict = {'bias':[], 'dark':[], 'flat':[], 'bad_pixel_mask':[]}
-
+        self.reduction_dict = {'bias':[], 'dark':[], 'flat':[], 'bad_pixel_mask':[],'bias_fullframe':[], 'dark_fullframe':[]}
+        # note full frame reduction darks etc are mainly for RTC after 
 
         # ========== DM shapes
         shapes_dict = {}
@@ -261,17 +261,23 @@ class ZWFS():
 
     def build_manual_dark( self ):
         fps = self.get_camera_fps()
+        dark_fullframe_list = []
         dark_list = []
         for _ in range(1000):
             time.sleep(1/fps)
             dark_list.append( self.get_image(apply_manual_reduction  = False) )
+            dark_fullframe_list.append( self.get_image_in_another_region() ) 
+
         dark = np.median(dark_list ,axis = 0).astype(int)
+        dark_fullframe = np.median( dark_fullframe_list , axis=0).astype(int)
 
         if len( self.reduction_dict['bias'] ) > 0:
             dark -= self.reduction_dict['bias'][0]
 
+        if len( self.reduction_dict['bias_fullframe']) > 0 :
+            dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
         self.reduction_dict['dark'].append( dark )
-
+        self.reduction_dict['dark_fullframe'].append( dark_fullframe )
 
     def get_bad_pixel_indicies( self, no_frames = 1000, std_threshold = 100 , flatten=False):
         # To get bad pixels we just take a bunch of images and look at pixel variance 
@@ -416,7 +422,7 @@ class ZWFS():
         if not camera_err_flag:
             print(f"Error with command {cmd}")
 
-    def get_image_in_another_region(self, crop_region=[0,-1,0,-1]):
+    def get_image_in_another_region(self, crop_region=[0,None,0,None]):
         
         # I do not check if the camera is running. Users should check this 
         # gets the last image in the buffer
@@ -707,11 +713,19 @@ class ZWFS():
         dm_pixel_center_fits .header.set('what is?','dm_center_reference_pixels')
         dm_pixel_center_fits .header.set('EXTNAME','dm_center_ref')
 
-        dark_fits = fits.PrimaryHDU(  self.reduction_dict['dark'] )
+        # local means cropped 
+        darkLocal_fits = fits.PrimaryHDU(  self.reduction_dict['dark'] )
+        darkLocal_fits.header.set('EXTNAME','DARK_LOCAL')
+
+        biasLocal_fits = fits.PrimaryHDU(  self.reduction_dict['bias'] )
+        biasLocal_fits.header.set('EXTNAME','BIAS_LOCAL')
+        # full frame 
+        dark_fits = fits.PrimaryHDU(  self.reduction_dict['dark_fullframe'] )
         dark_fits.header.set('EXTNAME','DARK')
 
-        bias_fits = fits.PrimaryHDU(  self.reduction_dict['bias'] )
+        bias_fits = fits.PrimaryHDU(  self.reduction_dict['bias_fullframe'] )
         bias_fits.header.set('EXTNAME','BIAS')
+
 
         badpixel_fits = fits.PrimaryHDU(  self.bad_pixels )
         badpixel_fits.header.set('EXTNAME','BAD_PIXELS')
