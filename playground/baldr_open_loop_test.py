@@ -96,7 +96,6 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 fig_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
 data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
-
 if not os.path.exists(fig_path):
    os.makedirs(fig_path)
 
@@ -192,7 +191,7 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
-zwfs.set_camera_fps
+zwfs.deactive_cropping() # zwfws.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests 
 zwfs.set_camera_fps( 200 );time.sleep(0.2)
 zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)

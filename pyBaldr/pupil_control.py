@@ -91,7 +91,7 @@ class pupil_controller_1():
 
         
 
-def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_pupil=True):
+def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_pupil=True, std_below_med_threshold = 1):
     """
     
     DM_torre_actuator_seperation is hard coded and should ALWAYS match the real seperation on  zwfs.dm_shapes['four_torres_2'] 
@@ -133,23 +133,23 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
 
     X, Y = np.meshgrid( zwfs.col_coords, zwfs.row_coords )
 
-    imglist = []
-    for _ in range(10):
-       imglist.append( zwfs.get_image().astype(int) )  #[r1: r2, c1: c2] <- we made zwfs automatically crop 
-       time.sleep(0.1)
-    img = np.median( imglist, axis=0)
+    #imglist = []
+    #for _ in range(10):
+    #   imglist.append( zwfs.get_image().astype(int) )  #[r1: r2, c1: c2] <- we made zwfs automatically crop 
+    #   time.sleep(0.1)
+    img = np.mean( zwfs.get_some_frames(number_of_frames = 1000, apply_manual_reduction = True ), axis=0)
 
     N0 = img # set this as our reference FPM OUT image for now 
 
     ## General Assymetric pupil
     density, intensity_bins  = np.histogram( img.reshape(-1) )
-    intensity_threshold =  np.median( intensity_bins ) - 1.*np.std(intensity_bins) #np.median( intensity_edges ) 
+    intensity_threshold =  np.median( intensity_bins ) - std_below_med_threshold*np.std(intensity_bins) #np.median( intensity_edges ) 
 
     pupil_filter = img.reshape(-1) > intensity_threshold
     
     # for now just essentially copy pupil_filter with higher threshold
     # TO REVIEW 
-    pupil_filter_tight = img.reshape(-1) > 1.1 * intensity_threshold
+    pupil_filter_tight = img.reshape(-1) > 1.2 * std_below_med_threshold * intensity_threshold
     
 
     x_pupil_center, y_pupil_center = np.mean(X.reshape(-1)[pupil_filter]), np.mean(Y.reshape(-1)[pupil_filter])
@@ -163,13 +163,13 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
         collapsed_pupil_y = np.sum(img, axis=1)
         #plt.figure(); plt.plot( collapsed_pupil_x); plt.show()
         density, intensity_bins  = np.histogram( list(collapsed_pupil_x) + list(collapsed_pupil_y)  )
-        intensity_threshold =  np.median( intensity_bins ) - 1*np.std(intensity_bins) 
+        intensity_threshold =  np.median( intensity_bins ) - std_below_med_threshold * np.std(intensity_bins) 
         diam_filter_x = collapsed_pupil_x > intensity_threshold
         diam_filter_y = collapsed_pupil_y > intensity_threshold
 
         pupil_diam_x = np.sum( diam_filter_x )
         pupil_diam_y = np.sum( diam_filter_y )
-        pupil_diam = 0.5*(pupil_diam_x+pupil_diam_y) 
+        pupil_diam = 0.5*(pupil_diam_x+pupil_diam_y) #average
 
         #  warning! - circle_centre=(x_pupil_center, y_pupil_center) definitions of x,y may be inverted...CHECK THIS.
         inside_pup = util.circle(radius=pupil_diam//2, size=img.shape, circle_centre=(x_pupil_center, y_pupil_center), origin='middle')

@@ -261,9 +261,9 @@ class phase_controller_1():
         if self.config['basis']=='Zonal':
             # if zonal then modes are actuators (in DM space), mode to command (M2C) is identity and CM = I2M.T.
 
-            zernike_basis = util.construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
-            tip = zernike_basis[:,0]
-            tilt = zernike_basis[:,1]
+            fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+            tip = fourier_basis[:,0]
+            tilt = fourier_basis[:,1]
             # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
             R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
 
@@ -318,7 +318,7 @@ class phase_controller_1():
         ### ASSUMES INDEX 0, 1 IN BASIS CORRESPOND TO TIP/TILT <- This is not the case for Fourier basis!! 
         ctrl_parameters['R_TT'] = R_TT # projection of signal to tip / tilt mode amplitudes
         
-        ctrl_parameters['R_HO'] = R_TT # projection of signal to higher order mode amplitudes
+        ctrl_parameters['R_HO'] = R_HO # projection of signal to higher order mode amplitudes
         # e.g. cmd_TT ~ M2C @ R_TT @ signal
         ### 
         
@@ -631,12 +631,12 @@ class phase_controller_1():
         plt.xlabel('mode index')
         plt.ylabel('singular values')
         if save_path!=None:
-            plt.savefig(save_path + f'singularvalues_{tstamp}.png', bbox_inches='tight', dpi=300)
+            plt.savefig(save_path + f'singularvalues_{tstamp}.png', bbox_inches='tight', dpi=200)
         plt.show()
         
         # THE IMAGE MODES 
-
-        fig,ax = plt.subplots(8,8,figsize=(30,30))
+        n_row = round( np.sqrt( M2C.shape[1]) ) - 1
+        fig,ax = plt.subplots(n_row  ,n_row ,figsize=(30,30))
         plt.subplots_adjust(hspace=0.1,wspace=0.1)
         for i,axx in enumerate(ax.reshape(-1)):
             # we filtered circle on grid, so need to put back in grid
@@ -645,20 +645,21 @@ class phase_controller_1():
             vtgrid[tmp] = Vt[i]
             axx.imshow( vtgrid.reshape(ZWFS.I0.shape ) ) #cp_x2-cp_x1,cp_y2-cp_y1) )
             #axx.set_title(f'\n\n\nmode {i}, S={round(S[i]/np.max(S),3)}',fontsize=5)
+            #
             axx.text( 10,10,f'{i}',color='w',fontsize=4)
             axx.text( 10,20,f'S={round(S[i]/np.max(S),3)}',color='w',fontsize=4)
             axx.axis('off')
             #plt.legend(ax=axx)
         plt.tight_layout()
         if save_path!=None:
-            plt.savefig(save_path + f'det_eignmodes_{tstamp}.png',bbox_inches='tight',dpi=300)
+            plt.savefig(save_path + f'det_eignmodes_{tstamp}.png',bbox_inches='tight',dpi=200)
         plt.show()
         
         # THE DM MODES 
 
         # NOTE: if not zonal (modal) i might need M2C to get this to dm space 
         # if zonal M2C is just identity matrix. 
-        fig,ax = plt.subplots(8,8,figsize=(30,30))
+        fig,ax = plt.subplots(n_row, n_row, figsize=(30,30))
         plt.subplots_adjust(hspace=0.1,wspace=0.1)
         for i,axx in enumerate(ax.reshape(-1)):
             axx.imshow( util.get_DM_command_in_2D( M2C @ U.T[i] ) )
@@ -669,7 +670,7 @@ class phase_controller_1():
             #plt.legend(ax=axx)
         plt.tight_layout()
         if save_path!=None:
-            plt.savefig(save_path + f'dm_eignmodes_{tstamp}.png',bbox_inches='tight',dpi=300)
+            plt.savefig(save_path + f'dm_eignmodes_{tstamp}.png',bbox_inches='tight',dpi=200)
         plt.show()
 
 

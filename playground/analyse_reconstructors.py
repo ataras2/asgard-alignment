@@ -100,6 +100,10 @@ data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_dem
 if not os.path.exists(fig_path):
    os.makedirs(fig_path)
 
+#experiment_label = 'experi_good_pupil/'
+#if not os.path.exists(fig_path + experiment_label):
+#   os.makedirs(fig_path+ experiment_label)
+
 # ====== hardware variables
 beam = 3
 phasemask_name = 'J3'
@@ -268,7 +272,7 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
 
 #analyse pupil and decide if it is ok. This must be done before reconstructor
-pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = True, return_report = True)
+pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_pupil=False, std_below_med_threshold=1.4 )
 
 if pupil_report['pupil_quality_flag'] == 1: 
     zwfs.update_reference_regions_in_img( pupil_report ) # 
@@ -287,39 +291,61 @@ zwfs.pupil_pixel_filter = zwfs.pupil_pixel_filter.reshape(-1)
 fig,ax = plt.subplots(1,2,figsize=(10,5))
 ax[0].imshow( N0 ) ; ax[0].set_title('phasemask out')
 ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('registered pupil')
-plt.savefig(fig_path + f'delme.png')
+plt.savefig(fig_path + f'registered_pupil_{tstamp}.png')
 
 
 #init our phase controller (object that processes ZWFS images and outputs DM commands)
+# its not actually 140 modes since edges pinned 
 zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zonal_pinned_edges', number_of_controlled_modes = 140) 
-zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike_pinned_edges', number_of_controlled_modes = 99) 
-fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 99)
+
+zernike_phase_ctrl_90 = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike_pinned_edges', number_of_controlled_modes = 90) 
+zernike_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike_pinned_edges', number_of_controlled_modes = 20) 
+fourier_phase_ctrl_90 = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 90)
+fourier_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier_pinned_edges', number_of_controlled_modes = 20)
 
 # to change basis : 
 #phase_ctrl.change_control_basis_parameters( controller_label = ctrl_method_label, number_of_controlled_modes=phase_ctrl.config['number_of_controlled_modes'], basis_name='Zonal' , dm_control_diameter=None, dm_control_center=None)
 
 
-zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.07pokeamp_in-out_pokes_pinv' }
-zernike_dict = {'controller': zernike_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_pinv' }
-fourier_dict = {'controller': fourier_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
+zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.07pokeamp_in-out_pokes_map' }
+zernike_dict_90 = {'controller': zernike_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
+zernike_dict_20  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
+fourier_dict_90 = {'controller': fourier_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
+fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
+fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
     'zonal':zonal_dict ,
-    'zernike':zernike_dict ,
-    'fourier':fourier_dict
+    #'zernike_20modes_map':zernike_dict_20,
+    #'fourier_90modes_map':fourier_dict_90,
+    'fourier_20modes_pinv':fourier_dict_20_pinv
+    #'fourier_20modes_map':fourier_dict_20
 }
 
+iter = 6
 
+#subprocess.run()
+# build and write them to fits 
 for basis in build_dict:
-    p = build_dict[basis]['controller']
+
+
+    current_path = fig_path + f'iter_{iter}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
+    #data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
+
+
+    if not os.path.exists(current_path):
+        os.makedirs(current_path)
+    
+
+    #p = build_dict[basis]['controller']
     label = build_dict[basis]['label']
 
 
     # ====== Building noise model (covariance of detector signals)
-    p.update_noise_model(zwfs, number_of_frames = 10000 )
+    build_dict[basis]['controller'].update_noise_model(zwfs, number_of_frames = 10000 )
 
 
-    p.build_control_model_2(
+    build_dict[basis]['controller'].build_control_model_2(
         zwfs, \
         poke_amp = build_dict[basis]['poke_amp'], label=label, \
         poke_method = build_dict[basis]['poke_method'], inverse_method= build_dict[basis]['inverse_method'],  debug = True \
@@ -330,15 +356,187 @@ for basis in build_dict:
     time.sleep( 0.1 )
 
 
-
     # write fits to input into RTC
-    zwfs.write_reco_fits( p, label, save_path=data_path, save_label=label)
+    zwfs.write_reco_fits( build_dict[basis]['controller'], label, save_path=current_path, save_label=label)
 
+    # get an image associated with file of the pupils.
+    I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig=current_path + f'FPM-in-out_{phasemask_name}_{label}.png' )
+
+
+# anmalyse them all 
+for basis in build_dict:
+
+    zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
+
+    current_path = fig_path + f'iter_{iter}/{basis}_reconstructor/'  #fig_path + f'{basis}_reconstructor/' # current_path + f'{basis}_reconstructor'
+
+    p = build_dict[basis]['controller']
+    label = build_dict[basis]['label']
+
+    # plot and save SVD 
+    p.plot_SVD_modes( zwfs, label, save_path=current_path)
+
+    # re-label for readability 
+    I0 = p.ctrl_parameters[label]['ref_pupil_FPM_in']
+    N0 = p.ctrl_parameters[label]['ref_pupil_FPM_out']
+
+    mode_basis = p.config['M2C']  
+    poke_amp = p.ctrl_parameters[label]['poke_amp']
+    I2M = p.ctrl_parameters[label]['I2M']
+    IM = p.ctrl_parameters[label]['IM'] 
+
+    # unfiltered CM
+    CM = p.ctrl_parameters[label]['CM'] 
+    R_TT = p.ctrl_parameters[label]['R_TT'] 
+    R_HO = p.ctrl_parameters[label]['R_HO'] 
+
+    M2C = p.ctrl_parameters[label]['M2C_4reco'] 
+    I0 = p.ctrl_parameters[label]['ref_pupil_FPM_in']
+    N0 = p.ctrl_parameters[label]['ref_pupil_FPM_out']
+
+    # registered pupil 
+    fig,ax = plt.subplots(1,2,figsize=(10,5))
+    ax[0].imshow( N0 ) ; ax[0].set_title('phasemask out')
+    ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('registered pupil')
+    plt.savefig(current_path + f'registered_pupil_{tstamp}.png')
+
+    # Look at the signals in the interaction matrix (filtered by registered pupil pixels)
+    for m in np.logspace( 0, np.log10( M2C.shape[1]-2 ), 5 ).astype(int):
+        tmp =  zwfs.pupil_pixel_filter.copy()
+        imgrid = np.zeros(tmp.shape)
+        imgrid[tmp] = IM[m] #
+
+        fig,ax = plt.subplots(1,2,figsize=(8,16))
+        im = ax[0].imshow( imgrid.reshape( zwfs.I0.shape ) ); 
+        ax[0].set_title(f'ZWFS signal \nin defined pupil')
+        ax[1].set_title(f'DM mode : {m}')
+        #plt.colorbar( im , ax=ax )
+        im1 = ax[1].imshow( util.get_DM_command_in_2D( mode_basis.T[m] ) )
+        #ax[1].imshow( N0 ) ; ax[1].set_title('N0')
+        plt.savefig(current_path + f'{basis}_IM_{m}_signal.png')
+        #plt.close() 
+        #_= input('next?')
+
+
+    # Test R_TT and R_H0 on IM signal 
+    err_TT_1 = R_TT @ IM[0]
+    err_TT_2 = R_TT @ IM[5]
+    err_HO_1 = R_HO @ IM[0] # should be zero 
+    err_HO_2 = R_HO @ IM[5]
+
+    plt.figure() 
+    plt.plot( err_TT_1, label=r'$RTT.IM_0$')
+    plt.plot( err_TT_2,  label=r'$RTT.IM_5$')
+    plt.plot( err_HO_1,  label=r'$RHO.IM_0$')
+    plt.plot( err_HO_2,  label=r'$RHO.IM_5$')
+    plt.axhline( poke_amp, color='k', ls = ":", label = 'probe amplitude')
+    plt.legend()
+    plt.xlabel('mode index')
+    plt.ylabel('reconstructed amplitude')
+    plt.savefig( current_path + f'{basis}_amp_reco_test.png')
+
+    # apply a mode and try reconstruct it 
+    
+    if 'zonal' not in basis: # then we use the naitive basis 
+        ab_basis = M2C
+    else: # then zonal - so we build the fourier basis so apply fourier modes as aberrations (not zonal)
+        b = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+        ab_basis = poke_amp * b
+
+    a_tt = 1.2 #TT amplitude 
+    i_tt = 1 # index 
+
+    a_ho1 = [0.5, 0.1, 1.2] # HO amplitudes
+    i_ho1 = [5,8,2] #indicies 
+
+    # build the total command 
+    cmd =  a_tt * ab_basis[:,i_tt] # note M2C here is already scaled by the IM poke amplitude (or should be)
+    for a,i in zip( a_ho1, i_ho1):
+        cmd += a * ab_basis[:,i] #note that M2C was scaled by poke amplitude - so coefficients are relative to this
+
+    # seperate HO and TT commands to check the reconstructors are working right! 
+    # look at higher order and tip/tilt components seperately 
+    cmd_HO =  np.zeros( len(cmd) )
+    for a,i in zip( a_ho1, i_ho1):
+        cmd_HO += a * ab_basis[:,i] #note that M2C was scaled by poke amplitude - so coefficients are relative to this
+
+    cmd_TT = a_tt * ab_basis[:,i_tt]
+
+    #send the DM command 
+    zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + cmd ) 
+    time.sleep(0.1)
+    # now get some images 
+    raw_img = np.mean( zwfs.get_some_frames(number_of_frames = 10, apply_manual_reduction = True ) ,axis=0) #zwfs.get_image()
+       
+    err_img = p.get_img_err( 1/np.mean(raw_img) * raw_img.reshape(-1)[zwfs.pupil_pixel_filter]  ) 
+        
+    # now reconstruct command with R_TT and R_HO 
+    cmd_reco_TT = M2C @ R_TT @ err_img # R_TT goes to modal space and then M2C sends mode amplitude to DM command 
+ 
+    cmd_reco_HO = M2C @ R_HO @ err_img
+
+    # filtered pupil error rebuilt in square region ()
+    tmp =  zwfs.pupil_pixel_filter.copy()
+    imgrid = np.zeros(tmp.shape)
+    imgrid[tmp] = err_img #
+    imgrid = imgrid.reshape( zwfs.I0.shape )
+
+    im_list = [ util.get_DM_command_in_2D(cmd) , imgrid, util.get_DM_command_in_2D(cmd_TT),\
+     util.get_DM_command_in_2D(cmd_reco_TT), util.get_DM_command_in_2D(cmd_TT - cmd_reco_TT)] 
+    #
+    xlabel_list = [None, None, None, None, None]
+    ylabel_list = [None, None, None, None, None]
+    title_list = ['full DM \naberration', 'ZWFS signal' ,'tip/tilt \ncomponent', 'reconstruction', 'residual']
+    cbar_label_list = ['DM units', 'ADU (Normalized)','DM units', 'DM units' , 'DM units' ] 
+    savefig = current_path + f'{basis}_TT_reconstruction_test.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
     
     
+    im_list = [ util.get_DM_command_in_2D( cmd ), imgrid, util.get_DM_command_in_2D(cmd_HO),\
+     util.get_DM_command_in_2D(cmd_reco_HO), util.get_DM_command_in_2D(cmd_HO - cmd_reco_HO)] 
+    #
+    xlabel_list = [None, None, None, None, None]
+    ylabel_list = [None, None, None, None, None]
+    title_list = ['full DM \naberration', 'ZWFS signal' ,'HO \ncomponent', 'reconstruction', 'residual']
+    cbar_label_list = ['DM units', 'ADU (Normalized)','DM units', 'DM units' , 'DM units' ] 
+    savefig = current_path + f'{basis}_HO_reconstruction_test.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+    
+    plt.close()
+
+
+    # finally we could try some closed loop 
+#exit_all()
+"""   
+fig,ax = plt.subplots( 1,3 )
+im0= ax[0].imshow( cmd_reco_TT.reshape(12,12) )
+im1=ax[1].imshow( cmd_TT.reshape(12,12) )
+im2=ax[2].imshow( cmd_TT.reshape(12,12) - cmd_reco_TT.reshape(12,12) )
+plt.colorbar(im0, ax=ax[0])
+plt.colorbar(im1, ax=ax[1])
+plt.colorbar(im2, ax=ax[2])
+ax[0].set_title('TT reconstructed')
+ax[1].set_title('TT applied')
+ax[2].set_title('residual')
+
+
+fig,ax = plt.subplots( 1,3 )
+im0=ax[0].imshow( cmd_reco_HO.reshape(12,12) )
+im1=ax[1].imshow( cmd_HO.reshape(12,12) )
+im2=ax[2].imshow( cmd_HO.reshape(12,12) - cmd_reco_HO.reshape(12,12) )
+plt.colorbar(im0, ax=ax[0])
+plt.colorbar(im1, ax=ax[1])
+plt.colorbar(im2, ax=ax[2])
+ax[0].set_title('HO reconstructed')
+ax[1].set_title('HO applied')
+ax[2].set_title('residual')
+                
 
 
 
 exit_all() 
-
+"""
 
