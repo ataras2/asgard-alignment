@@ -9,6 +9,7 @@ from astropy.io import fits
 from scipy import ndimage
 from scipy import signal
 from scipy.interpolate import RegularGridInterpolator
+from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
 import itertools
 import corner
@@ -28,7 +29,7 @@ import bmc
 data_path = '/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
-def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
+def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
 
@@ -82,6 +83,132 @@ def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 
             M2C = np.array( bmcdm_basis_list ).T # take transpose to make columns the modes in command space.
 
 
+    elif basis == 'Zernike_pinned_edges':
+        """
+        designed for BMC multi 3.5 DM, define zernike basis on 10x10 central grid and 
+        interpolate outside of this grid, pinning the value of perimeter actuators to the
+        inner perimeter value. 
+        """
+        nact_len = 12 # must be 12
+        # alway construct with piston cause we use as a filter, we delete piston later if specified by user
+        b0 = construct_command_basis( basis='Zernike', number_of_modes = number_of_modes, Nx_act_DM = nact_len, Nx_act_basis = nact_len, act_offset=(0,0), without_piston=False)
+
+        # put values outside pupil to nan 
+        btmp = np.array( [get_DM_command_in_2D( bb ) for bb in b0.T])
+
+        # interpolate
+        nan_mask = btmp[0] #util.get_DM_command_in_2D( b0.T[0] != 0 )
+        nan_mask[nan_mask==0] = np.nan
+
+        #nan_mask = np.isnan(nan_mask)
+        nearest_index = distance_transform_edt(np.isnan(nan_mask), return_distances=False, return_indices=True)
+
+        # Use the indices to replace NaNs with the nearest non-NaN values
+
+        with_corners = np.array( [ (nan_mask * bb)[tuple(nearest_index)] for bb in btmp[:]] ).T
+        #filled_data = get_DM_command_in_2D( new_flat )[tuple(nearest_index)]
+
+
+        # Define the indices of the corners to be removed
+        corners = [(0, 0), (0, nact_len-1), (nact_len-1, 0), (nact_len-1, nact_len-1)]
+        # Convert 2D corner indices to 1D
+        corner_indices = [i * 12 + j for i, j in corners]
+
+        # Flatten the array
+        bmcdm_basis_list = []
+        for w in with_corners.T:
+            flattened_array = w.flatten()
+            filtered_array = np.delete(flattened_array, corner_indices)
+
+            bmcdm_basis_list.append( filtered_array )
+
+        # piston was taken care of in construction of original zernike basis  b0 = construct_command_basis(
+        if without_piston:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list[1:]]
+        else:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list[:]]
+        M2C = np.array( control_basis ).T
+
+             
+    elif basis == 'fourier':
+        # NOT TESTED YET ON REAL DM!! 
+        if without_piston:
+            number_of_modes += 1 # we add one more mode since we dont include piston 
+
+        # NOTE BECAUSE WE HAVE N,M DIMENSIONS WE NEED TO ROUND UP TO SQUARE NUMBER THE MIGHT NOT = EXACTLY number_of_modes
+        n = round( number_of_modes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
+        control_basis_dict  = develop_Fourier_basis( n, n ,P = 2 * Nx_act_DM, Nx = Nx_act_DM, Ny = Nx_act_DM )
+        
+        # create raw basis as ordered list from our dictionary
+        raw_basis = []
+        for i in range( n-1 ):
+            for j in np.arange( i , n-1 ):
+                if i==j:
+                    raw_basis.append( control_basis_dict[i,i] )
+                else:
+                    raw_basis.append( control_basis_dict[i,j] ) # get either side of diagonal 
+                    raw_basis.append( control_basis_dict[j,i] )
+                    
+        
+        bmcdm_basis_list = []
+        for i,B in enumerate(raw_basis):
+            B = B.reshape(-1)
+            B[corner_indices] = np.nan
+            bmcdm_basis_list.append( B[np.isfinite(B)] )
+        # flatten & normalize each basis cmd 
+        # <M|M> = 1
+        if without_piston:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list[1:]] #remove piston mode
+        else:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list]# take transpose to make columns the modes in command space.
+        M2C = np.array( control_basis ).T 
+
+    elif basis == 'fourier_pinned_edges':
+        """
+        designed for BMC multi 3.5 DM, define zernike basis on 10x10 central grid and 
+        interpolate outside of this grid, pinning the value of perimeter actuators to the
+        inner perimeter value. 
+        """
+        n = round( number_of_modes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
+        actlen_tmp = 10 # must be 10 for this option! we then calculate perimeter values here! 
+        control_basis_dict  = develop_Fourier_basis( n, n ,P = 2 * actlen_tmp, Nx = actlen_tmp, Ny = actlen_tmp )
+                
+        # create raw basis as ordered list from our dictionary
+        raw_basis = []
+        for i in range( n-1 ):
+            for j in np.arange( i , n-1 ):
+                if i==j:
+                    raw_basis.append( control_basis_dict[i,i] )
+                else:
+                    raw_basis.append( control_basis_dict[i,j] ) # get either side of diagonal 
+                    raw_basis.append( control_basis_dict[j,i] )
+                    
+        # pin_outer_actuators_to_inner requires 10x10 input!!! creates 12x12 with missing corner pinning outer actuators 
+        bmcdm_basis_list = np.array( [pin_outer_actuators_to_inner_diameter(bb.reshape(-1)) for bb in np.array( raw_basis)] )
+
+        # <M|M> = 1
+        if without_piston:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list[1:]] #remove piston mode
+        else:
+            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list]# take transpose to make columns the modes in command space.
+        
+        M2C = np.array( control_basis ).T 
+
+
+    elif basis == 'Zonal': 
+        #hardcoded for BMC multi3.5 DM (140 actuators)
+        M2C = np.eye( 140 ) # we just consider this over all actuators (so defaults to 140 modes) 
+        # we filter zonal basis in the eigenvectors of the control matrix. 
+    
+    elif basis == 'Zonal_pinned_edges':
+        # pin edges of actuator
+        b = np.eye(100) #
+        bmcdm_basis_list = np.array( [pin_outer_actuators_to_inner_diameter(bb) for bb in b.T] )
+        # <M|M> = 1
+        control_basis = np.array( [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list] )
+
+        M2C = np.array( control_basis ).T
+
     elif basis == 'KL':         
         if without_piston:
             number_of_modes += 1 # we add one more mode since we dont include piston 
@@ -116,48 +243,12 @@ def construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 
         else:
             M2C = np.array( bmcdm_basis_list ).T # take transpose to make columns the modes in command space.
 
-
-    #elif basis == 'Sensor_Eigenmodes': this is done specifically in a phase_control.py function - as it needs a interaction matrix covariance first 
-
-             
-    elif basis == 'fourier':
-        # NOT TESTED YET ON REAL DM!! 
-        if without_piston:
-            number_of_modes += 1 # we add one more mode since we dont include piston 
-
-        # NOTE BECAUSE WE HAVE N,M DIMENSIONS WE NEED TO ROUND UP TO SQUARE NUMBER THE MIGHT NOT = EXACTLY number_of_modes
-        n = round( number_of_modes**0.5 ) + 1 # number of modes = (n-1)*(m-1) , n=m => (n-1)**2 
-        control_basis_dict  = develop_Fourier_basis( n, n ,P = 2 * Nx_act_DM, Nx = Nx_act_DM, Ny = Nx_act_DM )
-        
-        # create raw basis as ordered list from our dictionary
-        raw_basis = []
-        for i in range( n-1 ):
-            for j in np.arange( i , n-1 ):
-                if i==j:
-                    raw_basis.append( control_basis_dict[i,i] )
-                else:
-                    raw_basis.append( control_basis_dict[i,j] ) # get either side of diagonal 
-                    raw_basis.append( control_basis_dict[j,i] )
-                    
-        
-        bmcdm_basis_list = []
-        for i,B in enumerate(raw_basis):
-            B = B.reshape(-1)
-            B[corner_indices] = np.nan
-            bmcdm_basis_list.append( B[np.isfinite(B)] )
-        # flatten & normalize each basis cmd 
-        if without_piston:
-            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list[1:]] #remove piston mode
-        else:
-            control_basis = [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in bmcdm_basis_list]# take transpose to make columns the modes in command space.
-        M2C = np.array( control_basis ).T 
-
-    elif basis == 'Zonal': 
-        #hardcoded for BMC multi3.5 DM (140 actuators)
-        M2C = np.eye( 140 ) # we just consider this over all actuators (so defaults to 140 modes) 
-        # we filter zonal basis in the eigenvectors of the control matrix. 
+    else:
+        raise TypeError( ' input basis name invalid. Try: Zonal, Zonal_pinned_edges, Zernike, Zernike_pinned_edges, fourier, fourier_pinned_edges, KL etc ')
+    
     
     return(M2C)
+
 
 
 def fourier_vector(n, m, P = 2*12, Nx = 12, Ny = 12):
@@ -846,7 +937,7 @@ def nice_DM_plot( data, savefig=None ): #for a 140 actuator BMC 3.5 DM
         ax.imshow( get_DM_command_in_2D(data) )
     else: 
         ax.imshow( data )
-    ax.set_title('poorly registered actuators')
+    #ax.set_title('poorly registered actuators')
     ax.grid(True, which='minor',axis='both', linestyle='-', color='k', lw=2 )
     ax.set_xticks( np.arange(12) - 0.5 , minor=True)
     ax.set_yticks( np.arange(12) - 0.5 , minor=True)
