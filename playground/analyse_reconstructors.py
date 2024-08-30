@@ -316,9 +316,9 @@ fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_me
 fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
-    #'zonal':zonal_dict ,
+    'zonal':zonal_dict ,
     #'zernike_20modes_map':zernike_dict_20,
-    #'fourier_50modes_map':fourier_dict_50,
+    'fourier_50modes_map':fourier_dict_50,
     #'fourier_20modes_pinv':fourier_dict_20_pinv,
     'fourier_20modes_map':fourier_dict_20
 }
@@ -334,13 +334,14 @@ build_dict = {
 # iter 1 fixed DM flat update writing fits 
 # iter 2 changed output of dark , bais to global (not locally cropped) frame
 # iter 3 fixed bug with get image in other regions (-1 -> None for default ) and aggregating full frame dark! 
-iter = 3
+# iter 4 final 
+itera = 4
 
 #subprocess.run()
 # build and write them to fits 
 for basis in  build_dict:
 
-    current_path = fig_path + f'iter_{iter}_{phasemask_name}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
+    current_path = fig_path + f'iter_{itera}_{phasemask_name}/{basis}_reconstructor/' # f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/figures/' 
     #data_path = f'tmp/{tstamp.split("T")[0]}/' #'/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
@@ -380,7 +381,7 @@ for basis in build_dict:
 
     zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
 
-    current_path = fig_path + f'iter_{iter}_{phasemask_name}/{basis}_reconstructor/'  #fig_path + f'{basis}_reconstructor/' # current_path + f'{basis}_reconstructor'
+    current_path = fig_path + f'iter_{itera}_{phasemask_name}/{basis}_reconstructor/'  #fig_path + f'{basis}_reconstructor/' # current_path + f'{basis}_reconstructor'
 
     p = build_dict[basis]['controller']
     label = build_dict[basis]['label']
