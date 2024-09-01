@@ -344,12 +344,21 @@ class M100D(NewportMotor):
             raise ValueError(f"invalid axis {axis}")
 
         return callback
+    
+    def update_current_pos(self):
+        self._current_pos[0] = self.read_pos(self.AXES.U)
+        self._current_pos[1] = self.read_pos(self.AXES.V)
+        print(self._current_pos)
 
     def GUI(self):
         """
         A GUI to control the motor
         """
         st.header("M100D motor")
+        # add a read button
+             
+        st.button("Read pos", on_click=self.update_current_pos)
+
         asgard_alignment.GUI.CustomNumeric.variable_increment(
             keys=["U", "V"],
             callback_fns=[
@@ -369,9 +378,12 @@ class LS16P(NewportMotor):
 
     HW_BOUNDS = [-8.0, 8.0]
 
-    def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
+    def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager, expected_address=None):
         super().__init__(serial_port, resource_manager)
         self._current_pos = 0.0
+
+        if expected_address is not None:
+            assert int(self._connection.query("SA?").strip()[2:]) == expected_address
 
     def _verify_valid_connection(self):
         """
@@ -379,6 +391,8 @@ class LS16P(NewportMotor):
         """
         id_number = self._connection.query("1ID?").strip()
         assert "LS16P" in id_number
+
+
 
     def set_absolute_position(self, value: float):
         """
