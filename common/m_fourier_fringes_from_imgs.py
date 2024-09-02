@@ -5,7 +5,7 @@ import os
 
 plt.ion()
 
-pth = "data/mid_july/heimdallr_34_run0_white_light"
+pth = "data/early_sept/heimdallr_13_run0_sld"
 
 # ims = np.load(os.path.join(pth, "img_stack.npy")).astype(float)
 # positions = np.load(os.path.join(pth, "positions.npy"))

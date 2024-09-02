@@ -225,8 +225,40 @@ import os
 import time
 
 
-pth = "data/mid_july/heimdallr_34_run0_white_light"
+pth = "data/early_sept/heimdallr_13_run0_sld"
 
+
+# make motor
+# beam 4 : asrl5
+# beam1 : asrl31
+motor = LS16P("ASRL31", pyvisa.ResourceManager())
+print(motor.read_pos())
+print(motor.query_str("SA?"))
+
+assert motor.query_str("SA?") == "SA1"
+
+motor.write_str("OR")
+motor.write_str("RFP")
+
+time.sleep(2)
+motor.set_absolute_position(7.888)
+exit()
+
+middle = 8 - 1
+
+
+start_pos = middle - 3  # mm
+end_pos = middle + 3  # mm
+step_size = 5e-3  # mm
+# step_size = 0.9  # mm
+# start_pos = 5000  # um
+# end_pos = 8500  # um
+# step_size = 5  # um
+
+motor.set_absolute_position(start_pos)
+input("Press enter to start")
+motor.set_absolute_position(end_pos)
+input("Press enter to start")
 
 if not os.path.exists(pth):
     os.makedirs(pth)
@@ -235,18 +267,7 @@ else:
     if inp.lower() != "y":
         exit()
 
-start_pos = 11  # mm
-end_pos = 15  # mm
-step_size = 5e-3  # mm
-# step_size = 0.9  # mm
-# start_pos = 5000  # um
-# end_pos = 8500  # um
-# step_size = 5  # um
 
-# make motor
-motor = LS16P("ASRL5", pyvisa.ResourceManager())
-print(motor.read_pos())
-print(motor.query_str("1ID?"))
 # motor.set_absolute_position(start_pos)
 # time.sleep(2)
 # motor.set_absolute_position(end_pos)

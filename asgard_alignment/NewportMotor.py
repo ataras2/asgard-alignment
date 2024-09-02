@@ -369,9 +369,60 @@ class LS16P(NewportMotor):
 
     HW_BOUNDS = [-8.0, 8.0]
 
+    ERROR_BITS = {
+        "0010": "Bit motor stall timeout",
+        "0020": "Bit time out motion",
+        "0040": "Bit time out homing",
+        "0080": "Bit bad memory parameters",
+        "0100": "Bit supply voltage too low",
+        "0200": "Bit internal error",
+        "0400": "Bit memory problem",
+        "0800": "Bit over temperature",
+    }
+
+    CONTROLLER_STATES = {
+        "0A": "READY OPEN LOOP: after reset",
+        "0B": "READY OPEN LOOP: after HOMING state",
+        "0C": "READY OPEN LOOP: after STEPPING state",
+        "0D": "READY OPEN LOOP: after CONFIGURATION state",
+        "0E": "READY OPEN LOOP: after with no parameters",
+        "0F": "READY OPEN LOOP: after JOGGING state",
+        "10": "READY OPEN LOOP: after SCANNING state",
+        "11": "READY OPEN LOOP: after READY CLOSED LOOP state",
+        "14": "CONFIGURATION",
+        "1E": "HOMING",
+        "1F": "REFERENCING",
+        "28": "MOVING OPEN LOOP (OL)",
+        "29": "MOVING CLOSED LOOP (CL)",
+        "32": "READY CLOSED LOOP: after HOMING state",
+        "33": "READY CLOSED LOOP: after MOVING CL state",
+        "34": "READY CLOSED LOOP: after DISABLE state",
+        "35": "READY CLOSED LOOP: after REFERENCING state",
+        "36": "READY CLOSED LOOP: after HOLDING state",
+        "3C": "DISABLE: after READY CLOSED LOOP state",
+        "3D": "DISABLE: after MOVING CL state",
+        "46": "JOGGING",
+        "50": "SCANNING",
+        "5A": "HOLDING"
+    }
+
     def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
         super().__init__(serial_port, resource_manager)
         self._current_pos = 0.0
+
+        # we always set the motor to the closed loop mode
+        self._connection.write("1OR")
+        self._connection.write("1RF")
+
+        self.set_absolute_position(8.0)
+
+    def read_state(self):
+        """
+        Read the state of the motor
+        """
+        msg = self._connection.query("1TS?").strip()
+
+        error_bits = msg[3:8]
 
     def _verify_valid_connection(self):
         """

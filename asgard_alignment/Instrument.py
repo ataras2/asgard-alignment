@@ -43,7 +43,7 @@ def compute_serial_to_port_map():
     # present a serial number
 
     if sys.platform.startswith("win"):
-        raise NotImplementedError("LS16P not implemented for windows")
+        pass
     else:
         # list all ttyACM devices
         rm = pyvisa.ResourceManager()
