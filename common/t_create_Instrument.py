@@ -1,4 +1,6 @@
-import asgard_alignment.Instrument
+import asgard_alignment.MultiDeviceServer
 
 
-instr = asgard_alignment.Instrument.Instrument("motor_info_no_linear.json")
+instr = asgard_alignment.MultiDeviceServer.MultiDeviceServer(
+    "motor_info_no_linear.json"
+)

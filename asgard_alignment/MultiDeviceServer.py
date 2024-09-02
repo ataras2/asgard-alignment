@@ -81,7 +81,7 @@ def find_zaber_COM():
     return None
 
 
-class Instrument:
+class MultiDeviceServer:
     """
     A class to represent a collection of motors that are connected to the same device
     """
@@ -109,8 +109,8 @@ class Instrument:
         config_path: str
             The path to the config file for the instrument
         """
-        Instrument._validate_config_file(config_path)
-        self._config = Instrument._read_motor_config(config_path)
+        MultiDeviceServer._validate_config_file(config_path)
+        self._config = MultiDeviceServer._read_motor_config(config_path)
         self._name_to_port_mapping = self._name_to_port()
         self._motors = self._open_conncetions()
 
@@ -360,6 +360,6 @@ if __name__ == "__main__":
 
     print(mapping)
 
-    instrument = Instrument("motor_info_no_linear.json")
+    instrument = MultiDeviceServer("motor_info_no_linear.json")
 
     instrument.print_all_positions()
