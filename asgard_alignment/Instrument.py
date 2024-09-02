@@ -54,6 +54,10 @@ def compute_serial_to_port_map():
                     pass
                     # connect to the motor and query SA
                     # mapping["SA1"] = port kind of thing
+                    sa = LS16P.connect_and_get_SA(device)
+                    if sa is not None:
+                        mapping[sa] = device
+
                 except Exception as e:
                     logging.warning(f"Could not connect to {device}: {e}")
 

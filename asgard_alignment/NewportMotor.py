@@ -403,7 +403,7 @@ class LS16P(NewportMotor):
         "3D": "DISABLE: after MOVING CL state",
         "46": "JOGGING",
         "50": "SCANNING",
-        "5A": "HOLDING"
+        "5A": "HOLDING",
     }
 
     def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
@@ -415,6 +415,27 @@ class LS16P(NewportMotor):
         self._connection.write("1RF")
 
         self.set_absolute_position(8.0)
+
+    @classmethod
+    def connect_and_get_SA(cls, port):
+        """
+        Connect to the motor and check the SA
+        """
+        rm = pyvisa.ResourceManager()
+
+        connection = rm.open_resource(
+            port,
+            baud_rate=cls.SERIAL_BAUD,
+            write_termination=cls.SERIAL_TERMIN,
+            read_termination=cls.SERIAL_TERMIN,
+        )
+
+        sa = connection.query("SA?").strip()
+
+        connection.before_close()
+        connection.close()
+
+        return sa
 
     def read_state(self):
         """
