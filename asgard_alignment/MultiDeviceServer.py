@@ -8,6 +8,7 @@ from typing import Any
 import pyvisa
 import serial.tools.list_ports
 import sys
+import parse
 
 
 from zaber_motion.ascii import Connection
@@ -129,6 +130,50 @@ class MultiDeviceServer:
             True if the motor is in the instrument, False otherwise
         """
         return name in self._motors
+
+    def handle_zmq(self, message: Any) -> Any:
+        """
+        main function to handle the ZMQ messages from the outside world
+        Note that zmq messages target the axes, not the motors themselves
+        """
+
+        if "=" in message:
+            # this is a set command
+            # of the form MAIN1.<device name>.<parameter category>.<parameter name>=<value>
+            parse_results = parse.parse(
+                "MAIN1.{device_name}.{category}.{parameter}={value}", message
+            )
+
+            if parse_results is None:
+                raise ValueError(f"Could not parse message {message}")
+
+            motor = self._motors[parse_results["device_name"]]
+            motor.set_parameter(
+                parse_results["category"],
+                parse_results["parameter"],
+                parse_results["value"],
+            )
+
+            # ACK
+            response = f"ACK"
+
+        else:
+            # this is a get command
+            # of the form MAIN1.<device name>.<parameter category>.<parameter name>
+            parse_results = parse.parse(
+                "MAIN1.{device_name}.{category}.{parameter}", message
+            )
+
+            if parse_results is None:
+                raise ValueError(f"Could not parse message {message}")
+
+            # get the value of the parameter
+            motor = self._motors[parse_results["device_name"]]
+            response = motor.get_parameter(
+                parse_results["category"], parse_results["parameter"]
+            )
+
+        # send back response over Zmq
 
     def zero_all(self):
         """
