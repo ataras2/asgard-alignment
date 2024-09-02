@@ -175,7 +175,6 @@ class M100D(NewportMotor):
         self,
         serial_port,
         resource_manager: pyvisa.ResourceManager,
-        orientation: Literal["normal", "reversed"] = "normal",
     ) -> None:
         """
         A class for the tip tile M100D motors
@@ -193,23 +192,7 @@ class M100D(NewportMotor):
         """
         super().__init__(serial_port, resource_manager)
 
-        if isinstance(orientation, float):
-            if np.isclose(orientation, 0.0):
-                orientation = "normal"
-            elif np.isclose(orientation, 90.0):
-                orientation = "reversed"
-            else:
-                raise ValueError(
-                    f"orientation must be either 'normal' or 'reverse', not {orientation}"
-                )
-
-        if orientation not in ["normal", "reverse"]:
-            raise ValueError(
-                f"orientation must be either 'normal' or 'reverse', not {orientation}"
-            )
-
         # TODO: this needs some thinking about how to implement so that the external interface doesn't notice
-        self._is_reversed = orientation == "reverse"
         self._current_pos = {
             self.AXES.U: self.read_pos(self.AXES.U),
             self.AXES.V: self.read_pos(self.AXES.V),
@@ -222,35 +205,12 @@ class M100D(NewportMotor):
         id_number = self._connection.query("1ID?").strip()
         assert "M100D" in id_number
 
-    def _get_axis(self, axis: AXES):
-        """
-        Get the axis and apply the reverse flag if needed
-        """
-        if self._is_reversed:
-            if axis == self.AXES.U:
-                axis = self.AXES.V
-            elif axis == self.AXES.V:
-                axis = self.AXES.U
-        return axis
-
-    def _alter_value(self, axis: AXES, value: float):
-        """
-        if the motor is reversed, then the value for the U axis needs to be flipped
-        the function should always be called after _get_axis i.e. the axis should be already changed
-        """
-        if self._is_reversed and axis == self.AXES.U:
-            return -value
-        return value
-
     @property
     def get_current_pos(self):
         """
         Return the current position of the motor in degrees
         """
-        return [
-            self._alter_value(self._get_axis(ax), self._current_pos[self._get_axis(ax)])
-            for ax in M100D.AXES
-        ]
+        return [self._current_pos[ax] for ax in M100D.AXES]
 
     def set_to_zero(self):
         """
@@ -281,13 +241,12 @@ class M100D(NewportMotor):
         Returns:
             position (float) : the position of the axis in degrees
         """
-        axis = self._get_axis(axis)
 
         return_str = self._connection.query(f"1TP{axis.name}").strip()
         subset = parse.parse("{}" + f"TP{axis.name}" + "{}", return_str)
 
         if subset is not None:
-            return self._alter_value(axis, float(subset[1]))
+            return float(subset[1])
         raise ValueError(f"Could not parse {return_str}")
 
     def set_absolute_position(self, value: float, axis: AXES):
@@ -298,8 +257,6 @@ class M100D(NewportMotor):
             value (float) : The new position in degrees
             axis (M100D.AXES) : the axis to set
         """
-        axis = self._get_axis(axis)
-        value = self._alter_value(axis, value)
         str_to_write = f"1PA{axis.name}{value}"
         logging.info(f"sending {str_to_write}")
         self._connection.write(str_to_write)
