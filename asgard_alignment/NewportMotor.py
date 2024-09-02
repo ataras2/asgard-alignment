@@ -411,10 +411,10 @@ class LS16P(NewportMotor):
         self._current_pos = 0.0
 
         # we always set the motor to the closed loop mode
-        self._connection.write("1OR")
-        self._connection.write("1RF")
+        self._connection.write("OR")
+        self._connection.write("RFP")
 
-        self.set_absolute_position(8.0)
+        # self.set_absolute_position(8.0)
 
     @classmethod
     def connect_and_get_SA(cls, port):
@@ -437,13 +437,24 @@ class LS16P(NewportMotor):
 
         return sa
 
-    def read_state(self):
+    def read_state(self, echo=False):
         """
         Read the state of the motor
         """
         msg = self._connection.query("1TS?").strip()
 
         error_bits = msg[3:8]
+
+        error_str = self.ERROR_BITS[error_bits] if error_bits in self.ERROR_BITS else ""
+        state = msg[8:10]
+        state_str = (
+            self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
+        )
+
+        if echo:
+            print(f"Error: {error_str}, State: {state_str}")
+
+        return error_str, state_str
 
     def _verify_valid_connection(self):
         """
