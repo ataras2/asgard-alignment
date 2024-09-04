@@ -146,6 +146,8 @@ def analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_
     intensity_threshold =  np.median( intensity_bins ) - std_below_med_threshold*np.std(intensity_bins) #np.median( intensity_edges ) 
 
     pupil_filter = img.reshape(-1) > intensity_threshold
+
+    print( pupil_filter  )
     
     # for now just essentially copy pupil_filter with higher threshold
     # TO REVIEW 

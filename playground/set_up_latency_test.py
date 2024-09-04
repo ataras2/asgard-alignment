@@ -104,7 +104,7 @@ if not os.path.exists(fig_path):
 beam = 3
 phasemask_name = 'J3'
 phasemask_OUT_offset = [1000,1000]  # relative offset (um) to take phasemask out of beam
-BFO_pos = 4000 # um (absolute position of detector imgaging lens) 
+BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
 source_name = 'SBB'
 DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
@@ -185,24 +185,33 @@ dichroic.set_dichroic("J")
 time.sleep(1)
 
 
+ 
 pupil_crop_region = [None, None, None, None] # [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
+
 
 #init our ZWFS (object that interacts with camera and DM) (old path = home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/)
 zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path = 'DMShapes/', pupil_crop_region=pupil_crop_region ) 
 
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
+# [160,220, 110,185]
+zwfs.get_dit_limits()
 
-r1,r2 = 32*6 , 32*9 - 1
-c1,c2 = 32*4 , 32*6 - 1
+r1,r2 = 32*5 , 32*7 - 1
+c1,c2 = 32*3 , 32*6 - 1
 zwfs.set_camera_cropping(r1, r2, c1, c2)
 zwfs.set_camera_dit( 0.0002 );time.sleep(0.2)
-zwfs.set_camera_fps( 2000 );time.sleep(0.2)
+zwfs.set_camera_fps( 4000 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
 zwfs.bias_off();time.sleep(0.2)
 zwfs.flat_off();time.sleep(0.2)
 
+print( float( zwfs.get_dit_limits()[1]) )
+zwfs.set_camera_dit( float(  zwfs.get_dit_limits()[1]) ) ;time.sleep(0.2)
 
+# get the set values
+fps = float( FliSdk_V2.FliSerialCamera.SendCommand(zwfs.camera, "fps")[1].split(': ')[-1]) 
+tint = float( FliSdk_V2.FliSerialCamera.SendCommand(zwfs.camera, "tint")[1].split(': ')[-1])
 
 # trying different DM flat 
 #zwfs.dm_shapes['flat_dm'] = 0.5 * np.ones(140)
@@ -272,7 +281,7 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
 
 #analyse pupil and decide if it is ok. This must be done before reconstructor
-pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = True, return_report = True)
+pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = False, return_report = True, std_below_med_threshold=1)
 
 if pupil_report['pupil_quality_flag'] == 1: 
     zwfs.update_reference_regions_in_img( pupil_report ) # 
@@ -280,7 +289,7 @@ if pupil_report['pupil_quality_flag'] == 1:
 
 # x,y in compass referenced to DM right (+x), up (+y)
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}.png' )
+compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}_fps{round(fps)}_tint{tint}.png' )
 
 """zwfs.pupil_pixel_filter =  (N0 > np.mean(N0) + 2 * np.std( N0))
 zwfs.pupil_pixel_filter[0,:]=False # first row has frame counts 
@@ -297,20 +306,20 @@ plt.savefig(fig_path + f'delme.png')
 #init our phase controller (object that processes ZWFS images and outputs DM commands)
 zonal_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zonal', number_of_controlled_modes = 140) 
 #zernike_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'Zernike', number_of_controlled_modes = 5) 
-#fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 5)
+fourier_phase_ctrl = phase_control.phase_controller_1(config_file = None, basis_name = 'fourier', number_of_controlled_modes = 20)
 
 # to change basis : 
 #phase_ctrl.change_control_basis_parameters( controller_label = ctrl_method_label, number_of_controlled_modes=phase_ctrl.config['number_of_controlled_modes'], basis_name='Zonal' , dm_control_diameter=None, dm_control_center=None)
 
 
-zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zonal_0.07pokeamp_in-out_pokes_pinv' }
+#zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zonal_0.07pokeamp_in-out_pokes_pinv' }
 #zernike_dict = {'controller': zernike_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zernike_0.2pokeamp_in-out_pokes_pinv' }
-#fourier_dict = {'controller': fourier_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
+fourier_dict = {'controller': fourier_phase_ctrl, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
-    'zonal':zonal_dict 
+    #'zonal':zonal_dict 
     #'zernike':zernike_dict ,
-    #'fourier':fourier_dict
+    'fourier':fourier_dict
 }
 
 

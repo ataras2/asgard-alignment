@@ -263,7 +263,7 @@ class ZWFS():
         fps = self.get_camera_fps()
         dark_fullframe_list = []
         dark_list = []
-        for _ in range(1000):
+        for _ in range(100):
             time.sleep(1/fps)
             dark_list.append( self.get_image(apply_manual_reduction  = False) )
             dark_fullframe_list.append( self.get_image_in_another_region() ) 
@@ -509,6 +509,13 @@ class ZWFS():
         FliSdk_V2.FliSerialCamera.SendCommand(self.camera, f"set cropping rows {r1}-{r2}")
         FliSdk_V2.FliSerialCamera.SendCommand(self.camera, "set cropping on")
     
+        # update coordinates 
+        r1 = 0; c1 = 0
+        c2, r2 = FliSdk_V2.GetCurrentImageDimension(self.camera)
+        
+        self.row_coords = np.linspace(  (r1 - r2)/2 ,  (r2 - r1)/2, int( (r2-r1) ) )  #rows
+        self.col_coords = np.linspace(  (c1 - c2)/2 ,  (c2 - c1)/2, int((c2-c1) ) )  #columns
+
 
 
     def deactive_cropping(self):

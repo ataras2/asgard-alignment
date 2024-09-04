@@ -107,8 +107,8 @@ if not os.path.exists(fig_path):
 # ====== hardware variables
 beam = 3
 phasemask_name = 'J3'
-phasemask_OUT_offset = [1000,1000]  # relative offset (um) to take phasemask out of beam
-BFO_pos = 4000 # um (absolute position of detector imgaging lens) 
+phasemask_OUT_offset = [1000, 1000] # relative offset (um) to take phasemask out of beam
+BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
 source_name = 'SBB'
 DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
@@ -124,6 +124,7 @@ DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
 
 #  ConnectionFailedException: ConnectionFailedException: Cannot open serial port: no such file or directory
 
+# run python playground/x_usb.py 
 connection =  Connection.open_serial_port("/dev/ttyUSB0")
 connection.enable_alerts()
 
@@ -189,7 +190,7 @@ dichroic.set_dichroic("J")
 time.sleep(1)
 
 
-pupil_crop_region = [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
+pupil_crop_region = [160,220, 110,185] # [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
 
 #init our ZWFS (object that interacts with camera and DM) (old path = home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/)
 zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path = 'DMShapes/', pupil_crop_region=pupil_crop_region ) 
@@ -199,8 +200,8 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 
 
 zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
-zwfs.set_camera_dit( 0.002 );time.sleep(0.2)
-zwfs.set_camera_fps( 200 );time.sleep(0.2)
+zwfs.set_camera_dit( 0.006 );time.sleep(0.2)
+zwfs.set_camera_fps( 100 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
 zwfs.bias_off();time.sleep(0.2)
@@ -230,7 +231,8 @@ time.sleep(2)
 I0 = zwfs.get_image( apply_manual_reduction  = True)
 plt.figure(); plt.title('test image \nwith dark subtraction \nand bad pixel mask'); plt.imshow( I0 ); plt.colorbar()
 plt.savefig( fig_path + 'delme.png')
-plt.close()
+plt.show()
+#plt.close()
 
 print_current_state()
 
@@ -273,7 +275,7 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
 
 #analyse pupil and decide if it is ok. This must be done before reconstructor
-pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = True, return_report = True, symmetric_pupil=False, std_below_med_threshold=1.4 )
+pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = False, return_report = True, symmetric_pupil=False, std_below_med_threshold=1.4 )
 
 if pupil_report['pupil_quality_flag'] == 1: 
     zwfs.update_reference_regions_in_img( pupil_report ) # 
@@ -318,7 +320,7 @@ fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'po
 build_dict = {
     'zonal':zonal_dict ,
     #'zernike_20modes_map':zernike_dict_20,
-    'fourier_50modes_map':fourier_dict_50,
+    #'fourier_50modes_map':fourier_dict_50,
     #'fourier_20modes_pinv':fourier_dict_20_pinv,
     'fourier_20modes_map':fourier_dict_20
 }
@@ -335,7 +337,10 @@ build_dict = {
 # iter 2 changed output of dark , bais to global (not locally cropped) frame
 # iter 3 fixed bug with get image in other regions (-1 -> None for default ) and aggregating full frame dark! 
 # iter 4 final 
-itera = 4
+
+# iter 
+#itera = 1 - first with new system ppl moving round 
+itera = 2
 
 #subprocess.run()
 # build and write them to fits 

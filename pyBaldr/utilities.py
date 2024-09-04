@@ -250,6 +250,29 @@ def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20,
     return(M2C)
 
 
+def get_tip_tilt_vectors( dm_model='bmc_multi3.5',nact_len=12):
+    tip = np.array([[n for n in np.linspace(-1,1,nact_len)] for _ in range(nact_len)])
+    tilt = tip.T
+    if dm_model == 'bmc_multi3.5':
+        # Define the indices of the corners to be removed
+        corners = [(0, 0), (0, nact_len-1), (nact_len-1, 0), (nact_len-1, nact_len-1)]
+        # Convert 2D corner indices to 1D
+        corner_indices = [i * 12 + j for i, j in corners]
+
+        # remove corners
+        tip_tilt_list = []
+        for i,B in enumerate([tip,tilt]):
+            B = B.reshape(-1)
+            B[corner_indices] = np.nan
+            tip_tilt_list.append( B[np.isfinite(B)] )
+        
+        tip_tilt = np.array( [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in tip_tilt_list] ).T
+
+    else:
+        tip_tilt = np.array( [np.sqrt( 1/np.nansum( cb**2 ) ) * cb.reshape(-1) for cb in [tip.reshape(-1),tilt.reshape(-1)]] ).T
+
+    return( tip_tilt ) 
+
 
 def fourier_vector(n, m, P = 2*12, Nx = 12, Ny = 12):
     """

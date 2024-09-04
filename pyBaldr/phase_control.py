@@ -268,17 +268,20 @@ class phase_controller_1():
             # i.e. (M2C_4reco @ I2M.T).T
             if 'pinned_edges' in self.config['basis'].lower():
                 # then we have to define tip/tilt on a 10x10 grid (since outer actuators are pinned so mode space of the zonal basis is size 10x10=100!) 
-                fourier_basis_tmp = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
-                fourier_basis = np.array( [util.get_DM_command_in_2D(f)[1:-1,1:-1].reshape(-1) for f in fourier_basis_tmp.T] ).T # just crop it to inner perimeter! 
-            
-                
+                #fourier_basis_tmp = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+                #fourier_basis = np.array( [util.get_DM_command_in_2D(f)[1:-1,1:-1].reshape(-1) for f in fourier_basis_tmp.T] ).T # just crop it to inner perimeter! 
+                tip_tilt = util.get_tip_tilt_vectors( dm_model='bmc_multi3.5',nact_len=12)
+                tip_tilt = np.array( [util.get_DM_command_in_2D(f)[1:-1,1:-1].reshape(-1) for f in tip_tilt.T] ).T # just crop it to inner perimeter! 
             else: 
-                fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
-            tip = fourier_basis[:,0]
-            tilt = fourier_basis[:,1]
-            # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
-            R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
+                #fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
+                tip_tilt = util.get_tip_tilt_vectors( dm_model='bmc_multi3.5',nact_len=12)
 
+            tip = tip_tilt[0] #fourier_basis[:,0]
+            tilt = tip_tilt[1] #fourier_basis[:,1]
+            # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
+            #R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
+            R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
+        
         elif 'zonal' not in self.config['basis'].lower():
             # then in some modal space
             # we can safely assume first and second indicies are tip/tilt 

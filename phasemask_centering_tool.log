@@ -214,3 +214,1076 @@ Traceback (most recent call last):
     self._handle = _dlopen(self._name, mode)
                    ^^^^^^^^^^^^^^^^^^^^^^^^^
 OSError: /lib/x86_64-linux-gnu/libgobject-2.0.so.0: undefined symbol: ffi_type_uint32, version LIBFFI_BASE_7.0
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 369, in <module>
+    device_list = connection.detect_devices()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 782, in detect_devices
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.no_device_found_exception.NoDeviceFoundException: NoDeviceFoundException: Cannot find any device on the port. Make sure that you have opened correct port and devices are powered on.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 366, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 369, in <module>
+    device_list = connection.detect_devices()
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 782, in detect_devices
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.no_device_found_exception.NoDeviceFoundException: NoDeviceFoundException: Cannot find any device on the port. Make sure that you have opened correct port and devices are powered on.
+DEBUG - SDK Install Path: /opt/Boston Micromachines
+INFO - Enumerating devices, looking for SN: MULTI00714E
+DEBUG - Product: DM Driver USB Interface
+DEBUG - Manufacturer: Cambridge Innovations
+DEBUG - EEPROM SN: 'MULTI00714E'
+DEBUG - Driver SN match.
+DEBUG - Firmware version: 1.00 04/05/10 20:33:30
+DEBUG - Loading map file: /opt/Boston Micromachines/Map/MULTI140.map expected count: 160
+DEBUG - Loading map file: /opt/Boston Micromachines/Map/MULTI140.map expected count: 160
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Found 3 devices
+Found 2 dichroics
+Found source selection
+Found 1 devices
+source motor: 
+   Device 2 SN: 121474 (X-LHM100A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available sources: {'SRL': 11018.0, 'SGL': 38018.0, 'SBB': 65018.0, 'SLD': 92018.0, 'none': 0.0}
+    -current position: none
+dichroic motor:
+   Device 1 SN: 121408 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+dichroic motor:
+   Device 3 SN: 121407 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+availabel phasemask positions: 
+ phasemask motors: 
+   {'x': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e77d0f90>, 'y': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e74f8a90>}
+    -available positions:
+   ('J1', [2985.5636249999984, 3161.4665624999984])
+   ('J2', [3165.2289374999987, 2143.982249999999])
+   ('J3', [3710.0, 580.0])
+   ('J4', [3509.9386874999987, 197.2389374999999])
+   ('J5', [2794.9445624999985, 4106.036999999998])
+   ('H1', [8034.099374999996, 4840.128749999998])
+   ('H2', [8225.670937499997, 3825.716249999998])
+   ('H3', [8400.716624999995, 2866.501124999999])
+   ('H4', [8578.595999999996, 1878.329999999999])
+   ('H5', [8758.046999999997, 890.2779374999996])
+    -current position: [3665.005687499998, 558.9984374999998]um
+focus motor:
+   <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e74f9950>
+    -current position: 2999.9939999999983um
+- index:0 -> C-RED 2#01-00001643d2be#EDT-0
+--->using cameraIndex=0
+Setting mode full.
+Updating...
+source motor: 
+   Device 2 SN: 121474 (X-LHM100A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available sources: {'SRL': 11018.0, 'SGL': 38018.0, 'SBB': 65018.0, 'SLD': 92018.0, 'none': 0.0}
+    -current position: SBB
+dichroic motor:
+   Device 1 SN: 121408 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+dichroic motor:
+   Device 3 SN: 121407 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+availabel phasemask positions: 
+ phasemask motors: 
+   {'x': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e77d0f90>, 'y': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e74f8a90>}
+    -available positions:
+   ('J1', [2985.5636249999984, 3161.4665624999984])
+   ('J2', [3165.2289374999987, 2143.982249999999])
+   ('J3', [3710.0, 580.0])
+   ('J4', [3509.9386874999987, 197.2389374999999])
+   ('J5', [2794.9445624999985, 4106.036999999998])
+   ('H1', [8034.099374999996, 4840.128749999998])
+   ('H2', [8225.670937499997, 3825.716249999998])
+   ('H3', [8400.716624999995, 2866.501124999999])
+   ('H4', [8578.595999999996, 1878.329999999999])
+   ('H5', [8758.046999999997, 890.2779374999996])
+    -current position: [3710.011312499998, 580.0010624999998]um
+focus motor:
+   <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7f83e74f9950>
+    -current position: 3999.9999374999984um
+img diff = 47.849421182546045, fine_tune_threshold=3
+img diff = 8.221226106900588, fine_tune_threshold=3
+img diff = 5.936186606835739, fine_tune_threshold=3
+img diff = 6.753731318542945, fine_tune_threshold=3
+img diff = 19.04948712973888, fine_tune_threshold=3
+img diff = 9.36586797992718, fine_tune_threshold=3
+img diff = 83.55914898186879, fine_tune_threshold=3
+img diff = 7.658744307140173, fine_tune_threshold=3
+img diff = 12.91778267680294, fine_tune_threshold=3
+img diff = 13.765147662942422, fine_tune_threshold=3
+img diff = 10.952336922024788, fine_tune_threshold=3
+img diff = 6.310661822308413, fine_tune_threshold=3
+img diff = 5.646157373189069, fine_tune_threshold=3
+img diff = 6.714852250687482, fine_tune_threshold=3
+img diff = 5.3891930374618155, fine_tune_threshold=3
+img diff = 7.047421371453715, fine_tune_threshold=3
+img diff = 6.277326590260175, fine_tune_threshold=3
+img diff = 5.8338491918636795, fine_tune_threshold=3
+img diff = 11.690010491710838, fine_tune_threshold=3
+img diff = 6.220334546333056, fine_tune_threshold=3
+img diff = 6.790218202331575, fine_tune_threshold=3
+img diff = 6.792607797101088, fine_tune_threshold=3
+img diff = 19.409079436784967, fine_tune_threshold=3
+img diff = 7.226724037268527, fine_tune_threshold=3
+img diff = 15.664384480408096, fine_tune_threshold=3
+img diff = 6.760381038408366, fine_tune_threshold=3
+img diff = 5.935939419494453, fine_tune_threshold=3
+img diff = 5.259700035782696, fine_tune_threshold=3
+img diff = 5.338321866788925, fine_tune_threshold=3
+img diff = 5.5775947915898705, fine_tune_threshold=3
+img diff = 5.265082052928075, fine_tune_threshold=3
+img diff = 7.10724867616088, fine_tune_threshold=3
+img diff = 6.806308129372132, fine_tune_threshold=3
+img diff = 9.302350287965506, fine_tune_threshold=3
+img diff = 18.306483539916893, fine_tune_threshold=3
+img diff = 21.744319401771858, fine_tune_threshold=3
+img diff = 11.01083195254182, fine_tune_threshold=3
+img diff = 23.147950693753806, fine_tune_threshold=3
+img diff = 5.477881052588659, fine_tune_threshold=3
+img diff = 5.311724103652278, fine_tune_threshold=3
+img diff = 5.691025264524612, fine_tune_threshold=3
+img diff = 6.714532142609881, fine_tune_threshold=3
+img diff = 5.73439637853508, fine_tune_threshold=3
+img diff = 5.594710430447649, fine_tune_threshold=3
+img diff = 6.203428460658213, fine_tune_threshold=3
+img diff = 6.922655042671339, fine_tune_threshold=3
+img diff = 8.086374659570335, fine_tune_threshold=3
+img diff = 9.392474369239041, fine_tune_threshold=3
+img diff = 5.974950037165354, fine_tune_threshold=3
+img diff = 70.04912330723101, fine_tune_threshold=3
+img diff = 5.186815838884929, fine_tune_threshold=3
+img diff = 59.06150027522972, fine_tune_threshold=3
+img diff = 5.855049282053875, fine_tune_threshold=3
+img diff = 26.712503791042174, fine_tune_threshold=3
+img diff = 7.31590592594797, fine_tune_threshold=3
+img diff = 21.419937402567065, fine_tune_threshold=3
+img diff = 5.6523442015552785, fine_tune_threshold=3
+img diff = 5.676202366580162, fine_tune_threshold=3
+img diff = 5.542333375683251, fine_tune_threshold=3
+img diff = 5.3673961587255175, fine_tune_threshold=3
+img diff = 12.272013764276018, fine_tune_threshold=3
+img diff = 12.200538020326455, fine_tune_threshold=3
+img diff = 6.470755915181584, fine_tune_threshold=3
+img diff = 6.600391396952865, fine_tune_threshold=3
+img diff = 7.0431168901972345, fine_tune_threshold=3
+img diff = 7.700249063264103, fine_tune_threshold=3
+img diff = 7.381776111871423, fine_tune_threshold=3
+img diff = 8.566414614031135, fine_tune_threshold=3
+img diff = 6.81041834981596, fine_tune_threshold=3
+img diff = 6.176826031996581, fine_tune_threshold=3
+img diff = 6.045598656111009, fine_tune_threshold=3
+img diff = 5.17424917632675, fine_tune_threshold=3
+img diff = 6.834404263852431, fine_tune_threshold=3
+img diff = 6.193399815026023, fine_tune_threshold=3
+img diff = 6.492497335833306, fine_tune_threshold=3
+img diff = 5.972498203841946, fine_tune_threshold=3
+img diff = 7.2176740034364135, fine_tune_threshold=3
+img diff = 10.63416707485089, fine_tune_threshold=3
+img diff = 8.172976869709448, fine_tune_threshold=3
+img diff = 5.7075354026177045, fine_tune_threshold=3
+img diff = 5.151604316734612, fine_tune_threshold=3
+img diff = 5.959995966779662, fine_tune_threshold=3
+img diff = 5.459322570487576, fine_tune_threshold=3
+img diff = 5.292869863448816, fine_tune_threshold=3
+img diff = 5.40120956152829, fine_tune_threshold=3
+img diff = 6.567411780059791, fine_tune_threshold=3
+img diff = 7.912030120181081, fine_tune_threshold=3
+img diff = 5.231782644007781, fine_tune_threshold=3
+img diff = 7.123391477175122, fine_tune_threshold=3
+img diff = 7.355837165607648, fine_tune_threshold=3
+img diff = 9.674819277764822, fine_tune_threshold=3
+img diff = 39.37341371540918, fine_tune_threshold=3
+img diff = 5.850769796359355, fine_tune_threshold=3
+img diff = 7.457086517836081, fine_tune_threshold=3
+img diff = 25.237960141238318, fine_tune_threshold=3
+img diff = 9.715244069965948, fine_tune_threshold=3
+img diff = 6.110796289758649, fine_tune_threshold=3
+img diff = 5.360994592597549, fine_tune_threshold=3
+img diff = 9.053285630930665, fine_tune_threshold=3
+img diff = 7.850378427468238, fine_tune_threshold=3
+img diff = 5.745264681796849, fine_tune_threshold=3
+img diff = 8.462271170097935, fine_tune_threshold=3
+img diff = 6.184803971261763, fine_tune_threshold=3
+img diff = 6.448222235930574, fine_tune_threshold=3
+img diff = 8.24589940377041, fine_tune_threshold=3
+img diff = 5.443738954200221, fine_tune_threshold=3
+img diff = 5.953105767479762, fine_tune_threshold=3
+img diff = 5.858348623710572, fine_tune_threshold=3
+img diff = 6.155790081452351, fine_tune_threshold=3
+img diff = 5.312796695944112, fine_tune_threshold=3
+img diff = 12.891176010086845, fine_tune_threshold=3
+img diff = 5.545747433935042, fine_tune_threshold=3
+img diff = 5.390725025168114, fine_tune_threshold=3
+img diff = 5.97374301884055, fine_tune_threshold=3
+img diff = 5.628415118422811, fine_tune_threshold=3
+img diff = 17.78656317815569, fine_tune_threshold=3
+img diff = 6.240230301379439, fine_tune_threshold=3
+img diff = 5.635581363243357, fine_tune_threshold=3
+img diff = 9.602271255835625, fine_tune_threshold=3
+img diff = 5.475524594548844, fine_tune_threshold=3
+img diff = 5.313342250566903, fine_tune_threshold=3
+img diff = 5.309920993961175, fine_tune_threshold=3
+img diff = 14.318561278410716, fine_tune_threshold=3
+img diff = 16.638500683845756, fine_tune_threshold=3
+img diff = 5.849025951715118, fine_tune_threshold=3
+img diff = 7.800747881413147, fine_tune_threshold=3
+img diff = 5.759078942569539, fine_tune_threshold=3
+img diff = 19.574923991259745, fine_tune_threshold=3
+img diff = 6.571085761400803, fine_tune_threshold=3
+img diff = 10.08663369822105, fine_tune_threshold=3
+img diff = 8.900166089844692, fine_tune_threshold=3
+img diff = 12.84063169689678, fine_tune_threshold=3
+img diff = 6.789549560449465, fine_tune_threshold=3
+img diff = 5.547806122422914, fine_tune_threshold=3
+img diff = 5.811224729921692, fine_tune_threshold=3
+img diff = 5.477018272820047, fine_tune_threshold=3
+img diff = 6.17832020007007, fine_tune_threshold=3
+img diff = 12.154505630126527, fine_tune_threshold=3
+img diff = 5.36823838945739, fine_tune_threshold=3
+img diff = 5.26045641472175, fine_tune_threshold=3
+img diff = 16.23332305079542, fine_tune_threshold=3
+img diff = 5.727142072173537, fine_tune_threshold=3
+img diff = 6.687924815610702, fine_tune_threshold=3
+img diff = 15.892203057636422, fine_tune_threshold=3
+img diff = 19.753386179157026, fine_tune_threshold=3
+img diff = 6.972618200087352, fine_tune_threshold=3
+img diff = 11.992641734216647, fine_tune_threshold=3
+img diff = 14.654883400308023, fine_tune_threshold=3
+img diff = 16.11595919931304, fine_tune_threshold=3
+img diff = 10.704955115980379, fine_tune_threshold=3
+img diff = 16.628781328878375, fine_tune_threshold=3
+img diff = 6.252931275084491, fine_tune_threshold=3
+img diff = 267.20780703336635, fine_tune_threshold=3
+img diff = 289.5404633278527, fine_tune_threshold=3
+img diff = 8.265808629030943, fine_tune_threshold=3
+img diff = 6.680403028008297, fine_tune_threshold=3
+img diff = 19.390259530487985, fine_tune_threshold=3
+img diff = 11.896493616896553, fine_tune_threshold=3
+img diff = 19.030932222915254, fine_tune_threshold=3
+img diff = 7.027883460813072, fine_tune_threshold=3
+img diff = 4.1566910864099516, fine_tune_threshold=3
+img diff = 7.524403651940349, fine_tune_threshold=3
+img diff = 8.015816532707749, fine_tune_threshold=3
+img diff = 7.5989572341818095, fine_tune_threshold=3
+img diff = 9.202143529532743, fine_tune_threshold=3
+img diff = 7.6182459201827, fine_tune_threshold=3
+img diff = 4.938939268933129, fine_tune_threshold=3
+img diff = 4.543279387262512, fine_tune_threshold=3
+img diff = 16.431845238269354, fine_tune_threshold=3
+img diff = 5.462459312689946, fine_tune_threshold=3
+img diff = 9.65882794616211, fine_tune_threshold=3
+img diff = 4.125288346027609, fine_tune_threshold=3
+img diff = 7.822341558000572, fine_tune_threshold=3
+img diff = 4.412138614694521, fine_tune_threshold=3
+img diff = 5.866596943727256, fine_tune_threshold=3
+img diff = 9.574425616514015, fine_tune_threshold=3
+img diff = 5.241636380362703, fine_tune_threshold=3
+img diff = 5.725434797134997, fine_tune_threshold=3
+img diff = 4.64937303829111, fine_tune_threshold=3
+img diff = 4.851472098450513, fine_tune_threshold=3
+img diff = 4.929214502020661, fine_tune_threshold=3
+img diff = 5.066717464058774, fine_tune_threshold=3
+img diff = 4.925951636670934, fine_tune_threshold=3
+img diff = 4.035651168240668, fine_tune_threshold=3
+img diff = 4.117887415338354, fine_tune_threshold=3
+img diff = 3.8854241052429423, fine_tune_threshold=3
+img diff = 4.190096834392273, fine_tune_threshold=3
+img diff = 5.572362291056089, fine_tune_threshold=3
+img diff = 4.800230949080692, fine_tune_threshold=3
+img diff = 6.582464294373482, fine_tune_threshold=3
+img diff = 4.454907930404026, fine_tune_threshold=3
+img diff = 4.520572056114688, fine_tune_threshold=3
+img diff = 6.2215086496630505, fine_tune_threshold=3
+img diff = 4.805964290227569, fine_tune_threshold=3
+img diff = 4.0960504812861345, fine_tune_threshold=3
+img diff = 4.782864708956678, fine_tune_threshold=3
+img diff = 10.094218775782839, fine_tune_threshold=3
+img diff = 4.695501425339144, fine_tune_threshold=3
+img diff = 9.415168423981441, fine_tune_threshold=3
+img diff = 5.995797076181951, fine_tune_threshold=3
+img diff = 5.850645982627758, fine_tune_threshold=3
+img diff = 5.473559437692938, fine_tune_threshold=3
+img diff = 5.332912976190542, fine_tune_threshold=3
+img diff = 12.904994376941499, fine_tune_threshold=3
+img diff = 4.991181492044614, fine_tune_threshold=3
+img diff = 5.878750541183766, fine_tune_threshold=3
+img diff = 7.477473598888006, fine_tune_threshold=3
+img diff = 4.413494336763963, fine_tune_threshold=3
+img diff = 10.42101605247413, fine_tune_threshold=3
+img diff = 21.757369687666188, fine_tune_threshold=3
+img diff = 4.294199337683306, fine_tune_threshold=3
+img diff = 5.906853320914057, fine_tune_threshold=3
+img diff = 7.385761306878635, fine_tune_threshold=3
+img diff = 6.855583524098529, fine_tune_threshold=3
+img diff = 6.262295355567096, fine_tune_threshold=3
+img diff = 11.604395498738514, fine_tune_threshold=3
+img diff = 24.813738002671702, fine_tune_threshold=3
+img diff = 4.991792451115346, fine_tune_threshold=3
+img diff = 7.355305395462514, fine_tune_threshold=3
+img diff = 4.865324272785546, fine_tune_threshold=3
+img diff = 5.015396731289289, fine_tune_threshold=3
+img diff = 114.34555483994109, fine_tune_threshold=3
+img diff = 4.441603547185243, fine_tune_threshold=3
+img diff = 4.439413356679174, fine_tune_threshold=3
+img diff = 4.257523052751321, fine_tune_threshold=3
+img diff = 7.895288928263618, fine_tune_threshold=3
+img diff = 4.048102289637863, fine_tune_threshold=3
+img diff = 6.022360707260737, fine_tune_threshold=3
+img diff = 11.645524074184827, fine_tune_threshold=3
+img diff = 6.205959308038152, fine_tune_threshold=3
+img diff = 11.717813278481525, fine_tune_threshold=3
+img diff = 30.723267575986036, fine_tune_threshold=3
+img diff = 10.630759694821784, fine_tune_threshold=3
+img diff = 4.656021601752192, fine_tune_threshold=3
+img diff = 6.873669318428004, fine_tune_threshold=3
+img diff = 10.591468571659107, fine_tune_threshold=3
+img diff = 15.114265235586371, fine_tune_threshold=3
+img diff = 6.5419653856611255, fine_tune_threshold=3
+img diff = 4.535436182709457, fine_tune_threshold=3
+img diff = 5.04986212176951, fine_tune_threshold=3
+img diff = 3.7806685134667664, fine_tune_threshold=3
+img diff = 7.214753716349497, fine_tune_threshold=3
+img diff = 6.142311651554518, fine_tune_threshold=3
+img diff = 5.179491295553221, fine_tune_threshold=3
+img diff = 4.056759984079175, fine_tune_threshold=3
+img diff = 3.7332388172524356, fine_tune_threshold=3
+img diff = 4.951070103432439, fine_tune_threshold=3
+img diff = 24.219485174179045, fine_tune_threshold=3
+img diff = 3.7499044671021906, fine_tune_threshold=3
+img diff = 10.193037408380633, fine_tune_threshold=3
+img diff = 96.9248473615545, fine_tune_threshold=3
+img diff = 4.40833158102612, fine_tune_threshold=3
+img diff = 3.7877167138639614, fine_tune_threshold=3
+img diff = 6.954924273420143, fine_tune_threshold=3
+img diff = 5.155510598966424, fine_tune_threshold=3
+img diff = 9.701135850949896, fine_tune_threshold=3
+img diff = 3.803019705588988, fine_tune_threshold=3
+img diff = 5.844608962782416, fine_tune_threshold=3
+img diff = 7.03151520510183, fine_tune_threshold=3
+img diff = 4.454496707059152, fine_tune_threshold=3
+img diff = 6.166864169629774, fine_tune_threshold=3
+img diff = 37.50619977965809, fine_tune_threshold=3
+img diff = 4.827736732320482, fine_tune_threshold=3
+img diff = 5.1938064902117596, fine_tune_threshold=3
+img diff = 15.845293820371497, fine_tune_threshold=3
+img diff = 4.516050323672686, fine_tune_threshold=3
+img diff = 11.877435631886822, fine_tune_threshold=3
+img diff = 3.6687154680812455, fine_tune_threshold=3
+img diff = 5.639082745609906, fine_tune_threshold=3
+img diff = 7.327579560956678, fine_tune_threshold=3
+img diff = 2.9775296927956996, fine_tune_threshold=3
+img diff = 3.6843044189144747, fine_tune_threshold=3
+img diff = 5.00463138445471, fine_tune_threshold=3
+img diff = 5.155080320875346, fine_tune_threshold=3
+img diff = 3.323197727100977, fine_tune_threshold=3
+img diff = 3.4064944762423943, fine_tune_threshold=3
+img diff = 7.715184189025943, fine_tune_threshold=3
+img diff = 2.7817543096988473, fine_tune_threshold=3
+img diff = 3.6748500475750525, fine_tune_threshold=3
+img diff = 136.5607633478744, fine_tune_threshold=3
+img diff = 2.6948117843365598, fine_tune_threshold=3
+img diff = 9.217800475350606, fine_tune_threshold=3
+img diff = 8.123148296354083, fine_tune_threshold=3
+img diff = 6.217071185368095, fine_tune_threshold=3
+img diff = 25.242933262244648, fine_tune_threshold=3
+img diff = 6.989491301054606, fine_tune_threshold=3
+img diff = 7.579232446429611, fine_tune_threshold=3
+img diff = 5.515637827892978, fine_tune_threshold=3
+img diff = 6.286755112058831, fine_tune_threshold=3
+img diff = 11.66504971954462, fine_tune_threshold=3
+img diff = 6.57655496624184, fine_tune_threshold=3
+img diff = 4.795349646185851, fine_tune_threshold=3
+img diff = 3.985036112473355, fine_tune_threshold=3
+img diff = 3.3736989169082108, fine_tune_threshold=3
+img diff = 4.678471236509916, fine_tune_threshold=3
+img diff = 3.7820014630817944, fine_tune_threshold=3
+img diff = 3.8497576741752884, fine_tune_threshold=3
+img diff = 3.5961036978294, fine_tune_threshold=3
+img diff = 3.4310194831222534, fine_tune_threshold=3
+img diff = 4.432965124368212, fine_tune_threshold=3
+img diff = 4.390675522677551, fine_tune_threshold=3
+img diff = 5.424213897887419, fine_tune_threshold=3
+img diff = 4.4246637111534275, fine_tune_threshold=3
+img diff = 4.462672427279758, fine_tune_threshold=3
+img diff = 7.029757185601791, fine_tune_threshold=3
+img diff = 11.816232896660663, fine_tune_threshold=3
+img diff = 7.947064637683575, fine_tune_threshold=3
+img diff = 4.639958243829981, fine_tune_threshold=3
+img diff = 3.8050371974342174, fine_tune_threshold=3
+img diff = 4.555859313705009, fine_tune_threshold=3
+img diff = 5.324497314244454, fine_tune_threshold=3
+img diff = 4.768589287093208, fine_tune_threshold=3
+img diff = 4.371613631149033, fine_tune_threshold=3
+img diff = 4.687608720670165, fine_tune_threshold=3
+img diff = 8.506202419734773, fine_tune_threshold=3
+img diff = 3.1804785120279506, fine_tune_threshold=3
+img diff = 8.130045708089845, fine_tune_threshold=3
+img diff = 3.1586679551801526, fine_tune_threshold=3
+img diff = 4.649512293251416, fine_tune_threshold=3
+img diff = 7.913233780069867, fine_tune_threshold=3
+img diff = 26.445666376158385, fine_tune_threshold=3
+img diff = 11.094794883483276, fine_tune_threshold=3
+img diff = 10.282960705190973, fine_tune_threshold=3
+img diff = 13.449600971496997, fine_tune_threshold=3
+img diff = 21.626462441171686, fine_tune_threshold=3
+img diff = 171.92435816413342, fine_tune_threshold=3
+img diff = 23.02513771262346, fine_tune_threshold=3
+img diff = 10.464594725807121, fine_tune_threshold=3
+img diff = 13.398348304883545, fine_tune_threshold=3
+img diff = 10.666467423448761, fine_tune_threshold=3
+img diff = 10.437310785369844, fine_tune_threshold=3
+img diff = 10.334021027643072, fine_tune_threshold=3
+img diff = 10.155522761966509, fine_tune_threshold=3
+img diff = 10.700349959752334, fine_tune_threshold=3
+img diff = 10.307485030386397, fine_tune_threshold=3
+img diff = 19.11973692523263, fine_tune_threshold=3
+img diff = 10.916646737499192, fine_tune_threshold=3
+img diff = 10.112264230427016, fine_tune_threshold=3
+img diff = 10.559295535845985, fine_tune_threshold=3
+img diff = 10.25426321248369, fine_tune_threshold=3
+img diff = 12.251034868868562, fine_tune_threshold=3
+img diff = 10.41190578189142, fine_tune_threshold=3
+img diff = 40.037359844864625, fine_tune_threshold=3
+img diff = 13.033520142531085, fine_tune_threshold=3
+img diff = 11.352514709838587, fine_tune_threshold=3
+img diff = 10.206524018135227, fine_tune_threshold=3
+img diff = 11.391308793043308, fine_tune_threshold=3
+img diff = 8073.320751215822, fine_tune_threshold=3
+img diff = 68.57693756046967, fine_tune_threshold=3
+img diff = 10.807213793265863, fine_tune_threshold=3
+img diff = 10.542787965984683, fine_tune_threshold=3
+img diff = 14.783540050706417, fine_tune_threshold=3
+img diff = 15.656918584519005, fine_tune_threshold=3
+img diff = 10.246534092358708, fine_tune_threshold=3
+img diff = 10.322623395534942, fine_tune_threshold=3
+img diff = 10.771367387540973, fine_tune_threshold=3
+img diff = 11.882113170568893, fine_tune_threshold=3
+img diff = 24.660820244614015, fine_tune_threshold=3
+img diff = 10.109980811705242, fine_tune_threshold=3
+img diff = 10.390018314882544, fine_tune_threshold=3
+img diff = 10.760054458940091, fine_tune_threshold=3
+img diff = 17.53708348633635, fine_tune_threshold=3
+img diff = 10.833045872842307, fine_tune_threshold=3
+img diff = 10.809165466988919, fine_tune_threshold=3
+img diff = 16.903033273260455, fine_tune_threshold=3
+img diff = 10.205731833750393, fine_tune_threshold=3
+img diff = 10.224645462371356, fine_tune_threshold=3
+img diff = 10.332165865100995, fine_tune_threshold=3
+img diff = 12.45371725136517, fine_tune_threshold=3
+img diff = 10.788497879735068, fine_tune_threshold=3
+img diff = 14.096517055907379, fine_tune_threshold=3
+img diff = 10.222994320947967, fine_tune_threshold=3
+img diff = 13.553414482461486, fine_tune_threshold=3
+img diff = 10.544566927259174, fine_tune_threshold=3
+img diff = 10.257109831274661, fine_tune_threshold=3
+img diff = 10.154208666189565, fine_tune_threshold=3
+img diff = 10.743483535079653, fine_tune_threshold=3
+img diff = 11.129928830346284, fine_tune_threshold=3
+img diff = 10.147714479978728, fine_tune_threshold=3
+img diff = 10.249914164380101, fine_tune_threshold=3
+img diff = 11.077272515512417, fine_tune_threshold=3
+img diff = 42.364453097299034, fine_tune_threshold=3
+img diff = 10.634325120318943, fine_tune_threshold=3
+img diff = 10.74276197990859, fine_tune_threshold=3
+img diff = 15.77458600983261, fine_tune_threshold=3
+img diff = 10.96687223593581, fine_tune_threshold=3
+img diff = 10.606292024897927, fine_tune_threshold=3
+img diff = 26.714376170454322, fine_tune_threshold=3
+img diff = 16.217055175487396, fine_tune_threshold=3
+img diff = 10.622345395315655, fine_tune_threshold=3
+img diff = 11.0068487183209, fine_tune_threshold=3
+img diff = 11.320447045473301, fine_tune_threshold=3
+img diff = 10.265467478892262, fine_tune_threshold=3
+img diff = 10.47416931397716, fine_tune_threshold=3
+img diff = 10.805710991794822, fine_tune_threshold=3
+img diff = 11.231784555926936, fine_tune_threshold=3
+img diff = 10.354967491623718, fine_tune_threshold=3
+img diff = 10.367210565547117, fine_tune_threshold=3
+img diff = 10.259516327467553, fine_tune_threshold=3
+img diff = 10.138828814071612, fine_tune_threshold=3
+img diff = 5.47289541834919, fine_tune_threshold=3
+img diff = 3.630099662035576, fine_tune_threshold=3
+img diff = 11.170040924110946, fine_tune_threshold=3
+img diff = 6.860830680983465, fine_tune_threshold=3
+img diff = 21.76568605797192, fine_tune_threshold=3
+img diff = 15.65438809881774, fine_tune_threshold=3
+img diff = 15.740116688108147, fine_tune_threshold=3
+img diff = 10.809332451615012, fine_tune_threshold=3
+img diff = 51.20213494819046, fine_tune_threshold=3
+img diff = 21.778951483684327, fine_tune_threshold=3
+img diff = 3.276552130294208, fine_tune_threshold=3
+img diff = 7.563287189221073, fine_tune_threshold=3
+img diff = 12.742655141885304, fine_tune_threshold=3
+img diff = 3.841935865543989, fine_tune_threshold=3
+img diff = 6.094583921489981, fine_tune_threshold=3
+img diff = 5.669709616655281, fine_tune_threshold=3
+img diff = 4.032285281829994, fine_tune_threshold=3
+img diff = 14.460529344912153, fine_tune_threshold=3
+img diff = 10.725708329365617, fine_tune_threshold=3
+img diff = 4.927261558453147, fine_tune_threshold=3
+img diff = 4.045951754013183, fine_tune_threshold=3
+img diff = 4.8967456595100165, fine_tune_threshold=3
+img diff = 6.502080210822314, fine_tune_threshold=3
+img diff = 20.079077049262466, fine_tune_threshold=3
+img diff = 21.67529419363139, fine_tune_threshold=3
+img diff = 23.15437820660654, fine_tune_threshold=3
+img diff = 9.342966988753847, fine_tune_threshold=3
+img diff = 4.777873779113676, fine_tune_threshold=3
+img diff = 4.110972548182327, fine_tune_threshold=3
+img diff = 16.97611414264977, fine_tune_threshold=3
+img diff = 4.295142796308941, fine_tune_threshold=3
+img diff = 4.465567148391738, fine_tune_threshold=3
+img diff = 5.508511518440642, fine_tune_threshold=3
+img diff = 5.179457322389224, fine_tune_threshold=3
+img diff = 6.107356142282169, fine_tune_threshold=3
+img diff = 5.118780826320275, fine_tune_threshold=3
+img diff = 4.466262052597735, fine_tune_threshold=3
+img diff = 7.795960554263114, fine_tune_threshold=3
+img diff = 15.327138190339308, fine_tune_threshold=3
+img diff = 12.947616241131495, fine_tune_threshold=3
+img diff = 4.469996333129237, fine_tune_threshold=3
+img diff = 11.909217699705847, fine_tune_threshold=3
+img diff = 5.514993068976802, fine_tune_threshold=3
+img diff = 4.042946317074471, fine_tune_threshold=3
+img diff = 6.473979396365927, fine_tune_threshold=3
+img diff = 3.5200221708611483, fine_tune_threshold=3
+img diff = 3.9214093091136504, fine_tune_threshold=3
+img diff = 4.82820702380697, fine_tune_threshold=3
+img diff = 4.501592544794837, fine_tune_threshold=3
+img diff = 5.075380934447114, fine_tune_threshold=3
+img diff = 4.130301553171765, fine_tune_threshold=3
+img diff = 7.9914886838488295, fine_tune_threshold=3
+img diff = 4.865371229138116, fine_tune_threshold=3
+img diff = 4.944351552982878, fine_tune_threshold=3
+img diff = 3.959231028279546, fine_tune_threshold=3
+img diff = 3.714456552835321, fine_tune_threshold=3
+img diff = 8.188464744834342, fine_tune_threshold=3
+img diff = 3.3573008120781713, fine_tune_threshold=3
+img diff = 5.034576178003617, fine_tune_threshold=3
+img diff = 4.8555445700372335, fine_tune_threshold=3
+img diff = 16.628411004798608, fine_tune_threshold=3
+img diff = 6.774969269745143, fine_tune_threshold=3
+img diff = 10.829371413020382, fine_tune_threshold=3
+img diff = 80.91229916732556, fine_tune_threshold=3
+img diff = 314.7576069408543, fine_tune_threshold=3
+img diff = 33.45929956410019, fine_tune_threshold=3
+img diff = 3.8354163216062473, fine_tune_threshold=3
+img diff = 5.581682452359104, fine_tune_threshold=3
+img diff = 4.90589380866063, fine_tune_threshold=3
+img diff = 26.171300440187157, fine_tune_threshold=3
+img diff = 3.5559383037344414, fine_tune_threshold=3
+img diff = 4.017970899257015, fine_tune_threshold=3
+img diff = 4.7314693523997855, fine_tune_threshold=3
+img diff = 5.152946059959233, fine_tune_threshold=3
+img diff = 4.099617905694608, fine_tune_threshold=3
+img diff = 8.833907330162837, fine_tune_threshold=3
+img diff = 5.224403481893484, fine_tune_threshold=3
+img diff = 9.448512971616314, fine_tune_threshold=3
+img diff = 9.148110550824956, fine_tune_threshold=3
+img diff = 4.427811300838451, fine_tune_threshold=3
+img diff = 6.211823907792674, fine_tune_threshold=3
+img diff = 5.182838463800695, fine_tune_threshold=3
+img diff = 5.112161158536761, fine_tune_threshold=3
+img diff = 5.3969554432789675, fine_tune_threshold=3
+img diff = 4.889508628314392, fine_tune_threshold=3
+img diff = 5.463750111989617, fine_tune_threshold=3
+img diff = 6.489093639901944, fine_tune_threshold=3
+img diff = 10.820167400189629, fine_tune_threshold=3
+img diff = 5.92722576115514, fine_tune_threshold=3
+img diff = 6.459321350990811, fine_tune_threshold=3
+img diff = 5.195912276517266, fine_tune_threshold=3
+img diff = 9.458063021840458, fine_tune_threshold=3
+img diff = 9.875054072172675, fine_tune_threshold=3
+img diff = 6.370705970576692, fine_tune_threshold=3
+img diff = 5.29506954564231, fine_tune_threshold=3
+img diff = 4.968340595843184, fine_tune_threshold=3
+img diff = 6.288800302896261, fine_tune_threshold=3
+img diff = 10.376708495434452, fine_tune_threshold=3
+img diff = 5.565373074366372, fine_tune_threshold=3
+img diff = 5.892299327374014, fine_tune_threshold=3
+img diff = 14.868504188585149, fine_tune_threshold=3
+img diff = 5.626826358267449, fine_tune_threshold=3
+img diff = 6.652601476486387, fine_tune_threshold=3
+img diff = 50.82070466611599, fine_tune_threshold=3
+img diff = 45.2314485165275, fine_tune_threshold=3
+img diff = 6.9696430878611935, fine_tune_threshold=3
+img diff = 5.073575545372471, fine_tune_threshold=3
+img diff = 6.344450719909104, fine_tune_threshold=3
+img diff = 5.533329596909263, fine_tune_threshold=3
+img diff = 5.883277206148871, fine_tune_threshold=3
+img diff = 5.015377044684231, fine_tune_threshold=3
+img diff = 6.552961310988826, fine_tune_threshold=3
+img diff = 5.97941625347686, fine_tune_threshold=3
+img diff = 6.294425311233217, fine_tune_threshold=3
+img diff = 5.905292219951907, fine_tune_threshold=3
+img diff = 5.188898245561219, fine_tune_threshold=3
+img diff = 5.534968339399466, fine_tune_threshold=3
+img diff = 4.958124590613936, fine_tune_threshold=3
+img diff = 5.68487888129703, fine_tune_threshold=3
+img diff = 6.067333086511169, fine_tune_threshold=3
+img diff = 4.985095966321245, fine_tune_threshold=3
+img diff = 6.9578552731454995, fine_tune_threshold=3
+img diff = 8.610009089435732, fine_tune_threshold=3
+img diff = 6.043972469277755, fine_tune_threshold=3
+img diff = 5.187099422349429, fine_tune_threshold=3
+img diff = 10.839210916542644, fine_tune_threshold=3
+img diff = 7.9361914550529535, fine_tune_threshold=3
+img diff = 37.53736075585446, fine_tune_threshold=3
+img diff = 35.338246108961144, fine_tune_threshold=3
+img diff = 17.848611497590415, fine_tune_threshold=3
+img diff = 15.47119349963501, fine_tune_threshold=3
+img diff = 5.307218640461089, fine_tune_threshold=3
+img diff = 10.84387885993733, fine_tune_threshold=3
+img diff = 11.303276358799877, fine_tune_threshold=3
+img diff = 5.195898803602745, fine_tune_threshold=3
+img diff = 7.674400925898272, fine_tune_threshold=3
+img diff = 5.5088437282591105, fine_tune_threshold=3
+img diff = 7.654027541693276, fine_tune_threshold=3
+img diff = 6.234320688592499, fine_tune_threshold=3
+img diff = 5.29324951104814, fine_tune_threshold=3
+img diff = 6.249388330249799, fine_tune_threshold=3
+img diff = 5.399541349650949, fine_tune_threshold=3
+img diff = 5.319945486780753, fine_tune_threshold=3
+img diff = 5.50596323921293, fine_tune_threshold=3
+img diff = 5.595912705077538, fine_tune_threshold=3
+img diff = 13.80448373696515, fine_tune_threshold=3
+img diff = 5.693168626691039, fine_tune_threshold=3
+img diff = 10.491111266026845, fine_tune_threshold=3
+img diff = 6.283580079208615, fine_tune_threshold=3
+img diff = 9.508026899685852, fine_tune_threshold=3
+img diff = 7.961169702579214, fine_tune_threshold=3
+img diff = 6.490758258829247, fine_tune_threshold=3
+img diff = 130.02095951336844, fine_tune_threshold=3
+img diff = 15.073084242681302, fine_tune_threshold=3
+img diff = 5.433921473570308, fine_tune_threshold=3
+img diff = 8.841711062452454, fine_tune_threshold=3
+img diff = 6.70259332498019, fine_tune_threshold=3
+img diff = 10.489282333319144, fine_tune_threshold=3
+img diff = 9.045585739074465, fine_tune_threshold=3
+img diff = 5.3636875413185585, fine_tune_threshold=3
+img diff = 16.171279122075553, fine_tune_threshold=3
+img diff = 17.603099710705244, fine_tune_threshold=3
+img diff = 16.231774238573045, fine_tune_threshold=3
+img diff = 16.118423627697585, fine_tune_threshold=3
+img diff = 16.124867888541772, fine_tune_threshold=3
+img diff = 16.507163758751023, fine_tune_threshold=3
+img diff = 16.146621050278604, fine_tune_threshold=3
+img diff = 16.103241736743158, fine_tune_threshold=3
+img diff = 18.274238510799112, fine_tune_threshold=3
+img diff = 16.88921040688018, fine_tune_threshold=3
+img diff = 16.540995883651416, fine_tune_threshold=3
+img diff = 16.16235884693301, fine_tune_threshold=3
+img diff = 27.550920311530874, fine_tune_threshold=3
+img diff = 16.615996274352675, fine_tune_threshold=3
+img diff = 80.11567382352852, fine_tune_threshold=3
+img diff = 19.382399691043048, fine_tune_threshold=3
+img diff = 16.099061677023546, fine_tune_threshold=3
+img diff = 16.11059830732537, fine_tune_threshold=3
+img diff = 53.38233864056802, fine_tune_threshold=3
+img diff = 16.434846562337906, fine_tune_threshold=3
+img diff = 16.733499001550896, fine_tune_threshold=3
+img diff = 16.363036748417255, fine_tune_threshold=3
+img diff = 19.372307039830346, fine_tune_threshold=3
+img diff = 16.562012656208488, fine_tune_threshold=3
+img diff = 16.367068607709648, fine_tune_threshold=3
+img diff = 26.46169600701104, fine_tune_threshold=3
+img diff = 16.237712622588628, fine_tune_threshold=3
+img diff = 16.443732848546325, fine_tune_threshold=3
+img diff = 16.072420613131982, fine_tune_threshold=3
+img diff = 16.135477684076264, fine_tune_threshold=3
+img diff = 20.168431780575524, fine_tune_threshold=3
+img diff = 16.23794400149824, fine_tune_threshold=3
+img diff = 31.20345910422624, fine_tune_threshold=3
+img diff = 17.341325868244816, fine_tune_threshold=3
+img diff = 28.55366006189015, fine_tune_threshold=3
+img diff = 16.711658741761248, fine_tune_threshold=3
+img diff = 16.390483052184255, fine_tune_threshold=3
+img diff = 21.169461357859294, fine_tune_threshold=3
+img diff = 16.124367215119996, fine_tune_threshold=3
+img diff = 16.12265542259291, fine_tune_threshold=3
+img diff = 16.15317794348961, fine_tune_threshold=3
+img diff = 16.15515478716466, fine_tune_threshold=3
+img diff = 16.175522663834126, fine_tune_threshold=3
+img diff = 16.18711368821959, fine_tune_threshold=3
+img diff = 16.20914897751783, fine_tune_threshold=3
+img diff = 16.218843765889503, fine_tune_threshold=3
+img diff = 16.183427122796505, fine_tune_threshold=3
+img diff = 16.121119841873764, fine_tune_threshold=3
+img diff = 16.365081593333596, fine_tune_threshold=3
+img diff = 16.8795401366354, fine_tune_threshold=3
+img diff = 16.131448214182566, fine_tune_threshold=3
+img diff = 17.30472894756531, fine_tune_threshold=3
+img diff = 18.04567303324706, fine_tune_threshold=3
+img diff = 16.309361042332664, fine_tune_threshold=3
+img diff = 30.253248244415612, fine_tune_threshold=3
+img diff = 16.412967541657544, fine_tune_threshold=3
+img diff = 16.22208737113042, fine_tune_threshold=3
+img diff = 17.228572361162698, fine_tune_threshold=3
+img diff = 16.340285579402074, fine_tune_threshold=3
+img diff = 27.744713963299706, fine_tune_threshold=3
+img diff = 16.134554921266634, fine_tune_threshold=3
+img diff = 16.132455518327795, fine_tune_threshold=3
+img diff = 16.20952619870927, fine_tune_threshold=3
+img diff = 16.05897078243678, fine_tune_threshold=3
+img diff = 16.066103790111857, fine_tune_threshold=3
+img diff = 16.123818951162495, fine_tune_threshold=3
+img diff = 16.462812765540896, fine_tune_threshold=3
+img diff = 16.200575467718984, fine_tune_threshold=3
+img diff = 16.16271220423851, fine_tune_threshold=3
+img diff = 16.322665592534683, fine_tune_threshold=3
+img diff = 16.33783374674477, fine_tune_threshold=3
+img diff = 16.312575345158294, fine_tune_threshold=3
+img diff = 17.196572421991455, fine_tune_threshold=3
+img diff = 17.142167119370356, fine_tune_threshold=3
+img diff = 18.25567883259615, fine_tune_threshold=3
+img diff = 16.188335654121843, fine_tune_threshold=3
+img diff = 16.177336631545288, fine_tune_threshold=3
+img diff = 16.23145340501586, fine_tune_threshold=3
+img diff = 16.272057021983613, fine_tune_threshold=3
+img diff = 16.076816441872236, fine_tune_threshold=3
+img diff = 59.048283049921395, fine_tune_threshold=3
+img diff = 5.586248044987141, fine_tune_threshold=3
+img diff = 5.057782450572672, fine_tune_threshold=3
+img diff = 5.295676604444775, fine_tune_threshold=3
+img diff = 44.661418462158714, fine_tune_threshold=3
+img diff = 12.207925870345976, fine_tune_threshold=3
+img diff = 12.295051698370472, fine_tune_threshold=3
+img diff = 40.81580676159969, fine_tune_threshold=3
+img diff = 4.312119898518404, fine_tune_threshold=3
+img diff = 7.246220795910953, fine_tune_threshold=3
+img diff = 4.051562696495264, fine_tune_threshold=3
+img diff = 3.9278842226811572, fine_tune_threshold=3
+img diff = 6.200473181404309, fine_tune_threshold=3
+img diff = 9.401410856290445, fine_tune_threshold=3
+img diff = 4.562061071245928, fine_tune_threshold=3
+img diff = 5.078833772309386, fine_tune_threshold=3
+img diff = 4.400919077706769, fine_tune_threshold=3
+img diff = 6.643543701804921, fine_tune_threshold=3
+img diff = 3.9579282849511532, fine_tune_threshold=3
+img diff = 5.24170308044085, fine_tune_threshold=3
+img diff = 35.887604786716665, fine_tune_threshold=3
+img diff = 4.273735067386917, fine_tune_threshold=3
+img diff = 7.272979513048851, fine_tune_threshold=3
+img diff = 5.7756790548744785, fine_tune_threshold=3
+img diff = 5.314667654624729, fine_tune_threshold=3
+img diff = 5.899089672478716, fine_tune_threshold=3
+img diff = 5.438478464388597, fine_tune_threshold=3
+img diff = 6.5079112850931615, fine_tune_threshold=3
+img diff = 9.242905466701764, fine_tune_threshold=3
+img diff = 4.261418401945185, fine_tune_threshold=3
+img diff = 20.510325635586092, fine_tune_threshold=3
+img diff = 71.6054276970395, fine_tune_threshold=3
+img diff = 13.997630625188764, fine_tune_threshold=3
+img diff = 10.11392761484932, fine_tune_threshold=3
+img diff = 15.296827075269611, fine_tune_threshold=3
+img diff = 9.373970150909297, fine_tune_threshold=3
+img diff = 54.74938041569625, fine_tune_threshold=3
+img diff = 59.40116777787662, fine_tune_threshold=3
+img diff = 5.358314080232921, fine_tune_threshold=3
+img diff = 8.88885978101057, fine_tune_threshold=3
+img diff = 21.287201009991122, fine_tune_threshold=3
+img diff = 5.654994390660842, fine_tune_threshold=3
+img diff = 4.449891764875517, fine_tune_threshold=3
+img diff = 5.083407316359299, fine_tune_threshold=3
+img diff = 5.979133075342059, fine_tune_threshold=3
+img diff = 4.92486029928169, fine_tune_threshold=3
+img diff = 4.508541309349052, fine_tune_threshold=3
+img diff = 4.227127115831957, fine_tune_threshold=3
+img diff = 5.7841369731796775, fine_tune_threshold=3
+img diff = 9.91258805412792, fine_tune_threshold=3
+img diff = 7.786908066091474, fine_tune_threshold=3
+img diff = 8.707737666172658, fine_tune_threshold=3
+img diff = 5.053549402449305, fine_tune_threshold=3
+img diff = 4.057031220939619, fine_tune_threshold=3
+img diff = 8.093418666847986, fine_tune_threshold=3
+img diff = 4.187016541275861, fine_tune_threshold=3
+img diff = 12.632499572730003, fine_tune_threshold=3
+img diff = 6.444362358306362, fine_tune_threshold=3
+img diff = 13.222105229350177, fine_tune_threshold=3
+img diff = 15.32174999487718, fine_tune_threshold=3
+img diff = 16.485897700560386, fine_tune_threshold=3
+img diff = 5.175346305210062, fine_tune_threshold=3
+img diff = 4.902574258376127, fine_tune_threshold=3
+img diff = 3.9769375832430836, fine_tune_threshold=3
+img diff = 4.631782423065208, fine_tune_threshold=3
+img diff = 7.397681108122724, fine_tune_threshold=3
+img diff = 3.8650610578166624, fine_tune_threshold=3
+img diff = 4.523526620763304, fine_tune_threshold=3
+img diff = 6.133538404612761, fine_tune_threshold=3
+img diff = 4.223610734631347, fine_tune_threshold=3
+img diff = 17.91640953904125, fine_tune_threshold=3
+img diff = 4.36019643784167, fine_tune_threshold=3
+img diff = 4.48988868594294, fine_tune_threshold=3
+img diff = 19.725090555790004, fine_tune_threshold=3
+img diff = 4.100426325173441, fine_tune_threshold=3
+img diff = 7.275601693039615, fine_tune_threshold=3
+img diff = 7.817666203686647, fine_tune_threshold=3
+img diff = 6.478657781979739, fine_tune_threshold=3
+img diff = 11.87018629801879, fine_tune_threshold=3
+img diff = 4.052134250378057, fine_tune_threshold=3
+img diff = 3.7954836175669193, fine_tune_threshold=3
+img diff = 58.28609725751009, fine_tune_threshold=3
+img diff = 5.004230280258225, fine_tune_threshold=3
+img diff = 3.63137660601671, fine_tune_threshold=3
+img diff = 5.000755171827818, fine_tune_threshold=3
+img diff = 7.3047561417649565, fine_tune_threshold=3
+img diff = 5.701667173756534, fine_tune_threshold=3
+img diff = 3.8709445504546904, fine_tune_threshold=3
+img diff = 4.050542104305781, fine_tune_threshold=3
+img diff = 4.1271696276676595, fine_tune_threshold=3
+img diff = 3.932172954142292, fine_tune_threshold=3
+img diff = 4.101233126358826, fine_tune_threshold=3
+img diff = 6.006742514906777, fine_tune_threshold=3
+img diff = 4.599901121317467, fine_tune_threshold=3
+img diff = 4.960850811138835, fine_tune_threshold=3
+img diff = 4.433657481163767, fine_tune_threshold=3
+img diff = 9.185089440900647, fine_tune_threshold=3
+img diff = 9.231874392478183, fine_tune_threshold=3
+img diff = 65.22711152332604, fine_tune_threshold=3
+img diff = 5.246012715530776, fine_tune_threshold=3
+img diff = 4607.225191337162, fine_tune_threshold=3
+img diff = 6.861639424309441, fine_tune_threshold=3
+img diff = 14.523161559145354, fine_tune_threshold=3
+img diff = 35.8057497836516, fine_tune_threshold=3
+img diff = 23.747280905324338, fine_tune_threshold=3
+img diff = 4.951601902479668, fine_tune_threshold=3
+img diff = 4.217860602315614, fine_tune_threshold=3
+img diff = 9.879467270908446, fine_tune_threshold=3
+img diff = 5.257656618750831, fine_tune_threshold=3
+img diff = 6.728785636896521, fine_tune_threshold=3
+img diff = 5.964264979139015, fine_tune_threshold=3
+img diff = 4.015687495727057, fine_tune_threshold=3
+img diff = 4.8728566627232865, fine_tune_threshold=3
+img diff = 4.134089086153224, fine_tune_threshold=3
+img diff = 3.631282905338879, fine_tune_threshold=3
+img diff = 5.081625271739294, fine_tune_threshold=3
+img diff = 4.4993120471469465, fine_tune_threshold=3
+img diff = 4.700604297424115, fine_tune_threshold=3
+img diff = 5.9505496284865345, fine_tune_threshold=3
+img diff = 3.909964984157556, fine_tune_threshold=3
+img diff = 12.817495039672304, fine_tune_threshold=3
+img diff = 12.41392489435592, fine_tune_threshold=3
+img diff = 5.487987957201294, fine_tune_threshold=3
+img diff = 9.806959763844285, fine_tune_threshold=3
+img diff = 6.3535403368446275, fine_tune_threshold=3
+img diff = 27.06657897206871, fine_tune_threshold=3
+img diff = 4.35038629719199, fine_tune_threshold=3
+img diff = 37.59676012892447, fine_tune_threshold=3
+img diff = 5.355901069375265, fine_tune_threshold=3
+img diff = 14.054884131506265, fine_tune_threshold=3
+img diff = 8.537863022493074, fine_tune_threshold=3
+img diff = 6.972087302514273, fine_tune_threshold=3
+img diff = 5.17415229499788, fine_tune_threshold=3
+img diff = 8.956436811876621, fine_tune_threshold=3
+img diff = 5.356256018462526, fine_tune_threshold=3
+img diff = 4.0671872631555654, fine_tune_threshold=3
+img diff = 3.7013975787882742, fine_tune_threshold=3
+img diff = 3.984141286953286, fine_tune_threshold=3
+img diff = 3.654310670319951, fine_tune_threshold=3
+img diff = 3.778825539508042, fine_tune_threshold=3
+img diff = 8.301344740751343, fine_tune_threshold=3
+img diff = 4.194538326062766, fine_tune_threshold=3
+img diff = 3.4901685494649906, fine_tune_threshold=3
+img diff = 13.57667992115179, fine_tune_threshold=3
+img diff = 4.995604698660611, fine_tune_threshold=3
+img diff = 5.5243251530017785, fine_tune_threshold=3
+img diff = 6.371499473275918, fine_tune_threshold=3
+img diff = 7.469268301071267, fine_tune_threshold=3
+img diff = 8.826543499889443, fine_tune_threshold=3
+img diff = 8.2067466059741, fine_tune_threshold=3
+img diff = 10.356732603559086, fine_tune_threshold=3
+img diff = 8.227034149408459, fine_tune_threshold=3
+img diff = 10.607704840518755, fine_tune_threshold=3
+img diff = 18.147282707014988, fine_tune_threshold=3
+img diff = 5.082974714826463, fine_tune_threshold=3
+img diff = 6.0785103008486345, fine_tune_threshold=3
+img diff = 7.322174331313763, fine_tune_threshold=3
+img diff = 6.300680746270826, fine_tune_threshold=3
+img diff = 5.788221386071023, fine_tune_threshold=3
+img diff = 7.343496112219608, fine_tune_threshold=3

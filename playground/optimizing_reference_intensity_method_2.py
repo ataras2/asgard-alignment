@@ -114,7 +114,7 @@ if not os.path.exists(fig_path):
 beam = 3
 phasemask_name = 'J3'
 phasemask_OUT_offset = [1000,1000]  # relative offset (um) to take phasemask out of beam
-BFO_pos = 4000 # um (absolute position of detector imgaging lens) 
+BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
 source_name = 'SBB'
 DM_serial_number = '17DW019#122' # Syd = '17DW019#122', ANU = '17DW019#053'
@@ -195,19 +195,21 @@ dichroic.set_dichroic("J")
 time.sleep(1)
 
 
-pupil_crop_region = [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
+pupil_crop_region = [160,220, 110,185] #[204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
 
 #init our ZWFS (object that interacts with camera and DM) (old path = home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/)
 zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path = 'DMShapes/', pupil_crop_region=pupil_crop_region ) 
 
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
+zwfs.deactive_cropping() 
 zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_camera_fps( 200 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
 zwfs.bias_off();time.sleep(0.2)
 zwfs.flat_off();time.sleep(0.2)
+
 
 # trying different DM flat 
 #zwfs.dm_shapes['flat_dm'] = 0.5 * np.ones(140)
@@ -276,7 +278,7 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
 
 #analyse pupil and decide if it is ok. This must be done before reconstructor
-pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = True, return_report = True)
+pupil_report = pupil_control.analyse_pupil_openloop( zwfs, debug = False, return_report = True, symmetric_pupil=False, std_below_med_threshold=1.4 )
 
 if pupil_report['pupil_quality_flag'] == 1: 
     zwfs.update_reference_regions_in_img( pupil_report ) # 
@@ -284,15 +286,15 @@ if pupil_report['pupil_quality_flag'] == 1:
 
 #
 # other random method to try 
-aa = np.std( poke_imgs, axis=(0,2,3) )
- plt.figure() ; plt.imshow( util.get_DM_command_in_2D(np.std( poke_imgs, axis=(0,2,3) ))) ;plt.colorbar(); plt.savefig( 'tmp/delme.png')
+#aa = np.std( poke_imgs, axis=(0,2,3) )
+# plt.figure() ; plt.imshow( util.get_DM_command_in_2D(np.std( poke_imgs, axis=(0,2,3) ))) ;plt.colorbar(); plt.savefig( 'tmp/delme.png')
 
 zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'])
 
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
 compass = True, compass_origin=None, savefig= f'tmp/0.delme_before.png' )
 
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 0.005 * (aa-np.min(aa)) )
+#zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + 0.005 * (aa-np.min(aa)) )
 
 util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
 compass = True, compass_origin=None, savefig='tmp/0.delme_after.png' )
@@ -302,7 +304,7 @@ compass = True, compass_origin=None, savefig='tmp/0.delme_after.png' )
 #   OPTIMIZING I0 - INTENSITY REFERENCE WITH PHASEMASK INSERTED IN BEAM
 # =====================
 
-experiment_label = 'optimize_ref_int_method_2/iteration_3'
+experiment_label = 'optimize_ref_int_method_2/iteration_4'
 
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
@@ -324,12 +326,12 @@ compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemas
 
 # --- linear ramps 
 # use baldr.
-#recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
-#number_images_recorded_per_cmd = 200, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
+number_images_recorded_per_cmd = 50, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
 
 # recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
 
-recon_data = fits.open('/home/heimdallr/Documents/asgard-alignment/tmp/28-08-2024/pokeramp_data_MASK_J3_0.16focus_offset_sydney_28-08-2024T08.21.47.fits' )# '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
+recon_data = fits.open(  data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') #'/home/heimdallr/Documents/asgard-alignment/tmp/28-08-2024/pokeramp_data_MASK_J3_0.16focus_offset_sydney_28-08-2024T08.21.47.fits' )# '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
 
 
 #zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
