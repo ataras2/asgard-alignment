@@ -1287,3 +1287,500 @@ img diff = 7.322174331313763, fine_tune_threshold=3
 img diff = 6.300680746270826, fine_tune_threshold=3
 img diff = 5.788221386071023, fine_tune_threshold=3
 img diff = 7.343496112219608, fine_tune_threshold=3
+DEBUG - SDK Install Path: /opt/Boston Micromachines
+INFO - Enumerating devices, looking for SN: MULTI00714E
+DEBUG - Product: DM Driver USB Interface
+DEBUG - Manufacturer: Cambridge Innovations
+DEBUG - EEPROM SN: 'MULTI00714E'
+DEBUG - Driver SN match.
+DEBUG - Firmware version: 1.00 04/05/10 20:33:30
+DEBUG - Loading map file: /opt/Boston Micromachines/Map/MULTI140.map expected count: 160
+DEBUG - Loading map file: /opt/Boston Micromachines/Map/MULTI140.map expected count: 160
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Found 3 devices
+Found 2 dichroics
+Found source selection
+Found 1 devices
+source motor: 
+   Device 2 SN: 121474 (X-LHM100A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available sources: {'SRL': 11018.0, 'SGL': 38018.0, 'SBB': 65018.0, 'SLD': 92018.0, 'none': 0.0}
+    -current position: none
+dichroic motor:
+   Device 1 SN: 121408 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+dichroic motor:
+   Device 3 SN: 121407 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+availabel phasemask positions: 
+ phasemask motors: 
+   {'x': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a32fa950>, 'y': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a2fe39d0>}
+    -available positions:
+   ('J1', [2989.9689374999984, 3167.5387499999983])
+   ('J2', [3206.662687499999, 2062.6863749999993])
+   ('J3', [3634.6923749999983, 568.0709999999998])
+   ('J4', [3558.087562499998, 189.6189374999999])
+   ('J5', [2779.633124999999, 4075.9618124999984])
+   ('H1', [7969.376999999996, 4793.099062499998])
+   ('H2', [8253.483937499997, 3740.110312499998])
+   ('H3', [8390.429624999995, 2880.6695624999984])
+   ('H4', [8584.668187499996, 1840.063312499999])
+   ('H5', [8733.043874999996, 890.2779374999996])
+    -current position: [8733.043874999996, 890.2779374999996]um
+focus motor:
+   <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a2ff0950>
+    -current position: 3999.9999374999984um
+- index:0 -> C-RED 2#01-00001643d2be#EDT-0
+--->using cameraIndex=0
+Setting mode full.
+Updating...
+source motor: 
+   Device 2 SN: 121474 (X-LHM100A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available sources: {'SRL': 11018.0, 'SGL': 38018.0, 'SBB': 65018.0, 'SLD': 92018.0, 'none': 0.0}
+    -current position: SBB
+dichroic motor:
+   Device 1 SN: 121408 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+dichroic motor:
+   Device 3 SN: 121407 (X-LSM150A-SE03) -> Connection 1 (ASCII Serial port: /dev/ttyUSB0)
+    -available dichroic positions: {'H': 133.07, 'J': 63.07, 'out': 0.0}
+    -current position: J
+availabel phasemask positions: 
+ phasemask motors: 
+   {'x': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a32fa950>, 'y': <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a2fe39d0>}
+    -available positions:
+   ('J1', [2989.9689374999984, 3167.5387499999983])
+   ('J2', [3206.662687499999, 2062.6863749999993])
+   ('J3', [3634.6923749999983, 568.0709999999998])
+   ('J4', [3558.087562499998, 189.6189374999999])
+   ('J5', [2779.633124999999, 4075.9618124999984])
+   ('H1', [7969.376999999996, 4793.099062499998])
+   ('H2', [8253.483937499997, 3740.110312499998])
+   ('H3', [8390.429624999995, 2880.6695624999984])
+   ('H4', [8584.668187499996, 1840.063312499999])
+   ('H5', [8733.043874999996, 890.2779374999996])
+    -current position: [3634.6923749999983, 568.0709999999998]um
+focus motor:
+   <asgard_alignment.ZaberMotor.LAC10AT4A object at 0x7fc6a2ff0950>
+    -current position: 3999.9999374999984um
+img diff = 46.452961824792524, fine_tune_threshold=3
+img diff = 41.794074562998155, fine_tune_threshold=3
+img diff = 38.80654777106828, fine_tune_threshold=3
+img diff = 62.06592584243784, fine_tune_threshold=3
+img diff = 44.0204630972766, fine_tune_threshold=3
+img diff = 57.09744903715456, fine_tune_threshold=3
+img diff = 38.751807310304464, fine_tune_threshold=3
+img diff = 43.41314955753728, fine_tune_threshold=3
+img diff = 43.627739980333914, fine_tune_threshold=3
+img diff = 48.23519058744821, fine_tune_threshold=3
+img diff = 70.24235096963864, fine_tune_threshold=3
+img diff = 39.606129027173125, fine_tune_threshold=3
+img diff = 56.34152596257138, fine_tune_threshold=3
+img diff = 46.649153962368395, fine_tune_threshold=3
+img diff = 40.26015131200721, fine_tune_threshold=3
+img diff = 41.200226575103926, fine_tune_threshold=3
+img diff = 44.71901696058296, fine_tune_threshold=3
+img diff = 38.88395234128805, fine_tune_threshold=3
+img diff = 76.60184665594544, fine_tune_threshold=3
+img diff = 41.63705905169823, fine_tune_threshold=3
+img diff = 40.006911866006384, fine_tune_threshold=3
+img diff = 54.33787389498906, fine_tune_threshold=3
+img diff = 39.14379160810811, fine_tune_threshold=3
+img diff = 38.64085193432664, fine_tune_threshold=3
+img diff = 40.54790507481079, fine_tune_threshold=3
+img diff = 39.346598090763166, fine_tune_threshold=3
+img diff = 38.90727105439416, fine_tune_threshold=3
+img diff = 40.83776378303482, fine_tune_threshold=3
+img diff = 44.00361296791803, fine_tune_threshold=3
+img diff = 97.0386969026252, fine_tune_threshold=3
+img diff = 38.92796650068561, fine_tune_threshold=3
+img diff = 41.644722764939566, fine_tune_threshold=3
+img diff = 42.340044587274456, fine_tune_threshold=3
+img diff = 43.14339925088155, fine_tune_threshold=3
+img diff = 75.63036877372906, fine_tune_threshold=3
+img diff = 40.663683515702346, fine_tune_threshold=3
+img diff = 61.89751496881872, fine_tune_threshold=3
+img diff = 42.72085067732896, fine_tune_threshold=3
+img diff = 54.056795815784376, fine_tune_threshold=3
+img diff = 40.33663927078814, fine_tune_threshold=3
+img diff = 67.37625356123654, fine_tune_threshold=3
+img diff = 62.715138367704135, fine_tune_threshold=3
+img diff = 92579.02632712614, fine_tune_threshold=3
+img diff = 39.98626430114572, fine_tune_threshold=3
+img diff = 41.639858670049804, fine_tune_threshold=3
+img diff = 51.45190611189797, fine_tune_threshold=3
+img diff = 42.94126186530054, fine_tune_threshold=3
+img diff = 38.797285146490054, fine_tune_threshold=3
+img diff = 44.27400954452866, fine_tune_threshold=3
+img diff = 40.54422201169757, fine_tune_threshold=3
+img diff = 43.34657629454992, fine_tune_threshold=3
+img diff = 50.434558364137025, fine_tune_threshold=3
+img diff = 55.70933004461179, fine_tune_threshold=3
+img diff = 40.81717959178716, fine_tune_threshold=3
+img diff = 44.62313798609097, fine_tune_threshold=3
+img diff = 43.22054348226277, fine_tune_threshold=3
+img diff = 47.78672100491422, fine_tune_threshold=3
+img diff = 38.71586687190005, fine_tune_threshold=3
+img diff = 53.54609913177026, fine_tune_threshold=3
+img diff = 38.54220403576755, fine_tune_threshold=3
+img diff = 53.698716474640065, fine_tune_threshold=3
+img diff = 42.77816560982945, fine_tune_threshold=3
+img diff = 46.91482166321067, fine_tune_threshold=3
+img diff = 58.82634470537678, fine_tune_threshold=3
+img diff = 406.8447966651216, fine_tune_threshold=3
+img diff = 40.62378796030896, fine_tune_threshold=3
+img diff = 42.603514041520675, fine_tune_threshold=3
+img diff = 38.76336140673493, fine_tune_threshold=3
+img diff = 39.24973422264248, fine_tune_threshold=3
+img diff = 39.920012831376695, fine_tune_threshold=3
+img diff = 38.88700194110355, fine_tune_threshold=3
+img diff = 48.18508536542138, fine_tune_threshold=3
+img diff = 40.0793396846185, fine_tune_threshold=3
+img diff = 41.2141048704397, fine_tune_threshold=3
+img diff = 38.806130249408184, fine_tune_threshold=3
+img diff = 39.735326587305295, fine_tune_threshold=3
+img diff = 38.47975910719361, fine_tune_threshold=3
+img diff = 43.50252835233474, fine_tune_threshold=3
+img diff = 44.63010618648942, fine_tune_threshold=3
+img diff = 45.45553175260685, fine_tune_threshold=3
+img diff = 55.60485831325653, fine_tune_threshold=3
+img diff = 63.78019089765753, fine_tune_threshold=3
+img diff = 58.68307467554183, fine_tune_threshold=3
+img diff = 58.44089613081019, fine_tune_threshold=3
+img diff = 55.579190979519794, fine_tune_threshold=3
+img diff = 69.65513619600121, fine_tune_threshold=3
+img diff = 104.5572341358016, fine_tune_threshold=3
+img diff = 55.402436484083225, fine_tune_threshold=3
+img diff = 55.95337372291011, fine_tune_threshold=3
+img diff = 55.461529548283615, fine_tune_threshold=3
+img diff = 55.53457148154182, fine_tune_threshold=3
+img diff = 63.775581016141864, fine_tune_threshold=3
+img diff = 55.385017571555366, fine_tune_threshold=3
+img diff = 64.01125506155059, fine_tune_threshold=3
+img diff = 55.65743154518862, fine_tune_threshold=3
+img diff = 55.50624930697413, fine_tune_threshold=3
+img diff = 61.34398092978438, fine_tune_threshold=3
+img diff = 57.57516614333295, fine_tune_threshold=3
+img diff = 62.12275078537681, fine_tune_threshold=3
+img diff = 161.97717226662377, fine_tune_threshold=3
+img diff = 60.428828620356434, fine_tune_threshold=3
+img diff = 56.5670506121825, fine_tune_threshold=3
+img diff = 55.51386051032582, fine_tune_threshold=3
+img diff = 57.47447908767569, fine_tune_threshold=3
+img diff = 81.67387552124134, fine_tune_threshold=3
+img diff = 96.3509535473712, fine_tune_threshold=3
+img diff = 55.15713337202225, fine_tune_threshold=3
+img diff = 58.67844566616638, fine_tune_threshold=3
+img diff = 60.776271292143086, fine_tune_threshold=3
+img diff = 58.24070661827618, fine_tune_threshold=3
+img diff = 70.59077822865152, fine_tune_threshold=3
+img diff = 176.4296385940591, fine_tune_threshold=3
+img diff = 105.46813613949139, fine_tune_threshold=3
+img diff = 61.54992731973748, fine_tune_threshold=3
+img diff = 102.55812687607505, fine_tune_threshold=3
+img diff = 55.699934651199996, fine_tune_threshold=3
+img diff = 55.65266891319787, fine_tune_threshold=3
+img diff = 56.159841442366826, fine_tune_threshold=3
+img diff = 85.03661130406735, fine_tune_threshold=3
+img diff = 55.45356092347812, fine_tune_threshold=3
+img diff = 55.37042456516664, fine_tune_threshold=3
+img diff = 56.208310037080366, fine_tune_threshold=3
+img diff = 55.4006660001024, fine_tune_threshold=3
+img diff = 55.671019007965526, fine_tune_threshold=3
+img diff = 55.86765060365429, fine_tune_threshold=3
+img diff = 113.86997849908052, fine_tune_threshold=3
+img diff = 76.78345167023032, fine_tune_threshold=3
+img diff = 56.40123593615615, fine_tune_threshold=3
+img diff = 55.53186606406227, fine_tune_threshold=3
+img diff = 55.85617406138913, fine_tune_threshold=3
+img diff = 59.91550742317651, fine_tune_threshold=3
+img diff = 91.06219207388392, fine_tune_threshold=3
+img diff = 55.344333684431795, fine_tune_threshold=3
+img diff = 57.93095641480027, fine_tune_threshold=3
+img diff = 55.03793817766152, fine_tune_threshold=3
+img diff = 55.5499396979871, fine_tune_threshold=3
+img diff = 55.479043493296494, fine_tune_threshold=3
+img diff = 58.12857980942408, fine_tune_threshold=3
+img diff = 278.05697460592603, fine_tune_threshold=3
+img diff = 55.60530951049906, fine_tune_threshold=3
+img diff = 57.844814545891545, fine_tune_threshold=3
+img diff = 80.07623660387075, fine_tune_threshold=3
+img diff = 67.98425532255726, fine_tune_threshold=3
+img diff = 60.39300457407904, fine_tune_threshold=3
+img diff = 55.681558556342225, fine_tune_threshold=3
+img diff = 57.74546253921919, fine_tune_threshold=3
+img diff = 55.668963791347615, fine_tune_threshold=3
+img diff = 61.11868700451829, fine_tune_threshold=3
+img diff = 117.06880211595205, fine_tune_threshold=3
+img diff = 60.56383164002486, fine_tune_threshold=3
+img diff = 55.469791339389936, fine_tune_threshold=3
+img diff = 55.54347768197057, fine_tune_threshold=3
+img diff = 58.614143830373536, fine_tune_threshold=3
+img diff = 55.898562932289266, fine_tune_threshold=3
+img diff = 55.47151021283075, fine_tune_threshold=3
+img diff = 55.56134561751564, fine_tune_threshold=3
+img diff = 57.1410358106865, fine_tune_threshold=3
+img diff = 56.21528576116684, fine_tune_threshold=3
+img diff = 59.656347058789954, fine_tune_threshold=3
+img diff = 62.109592896977844, fine_tune_threshold=3
+img diff = 14.016637532373664, fine_tune_threshold=3
+img diff = 38.28624998068743, fine_tune_threshold=3
+img diff = 21.751980492162414, fine_tune_threshold=3
+img diff = 17.230739003049234, fine_tune_threshold=3
+img diff = 33.99984298671424, fine_tune_threshold=3
+img diff = 23.96937025870019, fine_tune_threshold=3
+img diff = 61.40041522841114, fine_tune_threshold=3
+img diff = 39.07423186746055, fine_tune_threshold=3
+img diff = 13.076970513626847, fine_tune_threshold=3
+img diff = 12.582680327218563, fine_tune_threshold=3
+img diff = 11.406309922231616, fine_tune_threshold=3
+img diff = 180.07807960571444, fine_tune_threshold=3
+img diff = 15.3726745012871, fine_tune_threshold=3
+img diff = 34.409129295818914, fine_tune_threshold=3
+img diff = 14.807526995354461, fine_tune_threshold=3
+img diff = 13.534456637810894, fine_tune_threshold=3
+img diff = 38.57988054545873, fine_tune_threshold=3
+img diff = 13.440235001618547, fine_tune_threshold=3
+img diff = 11.65381589527091, fine_tune_threshold=3
+img diff = 13.186046212721763, fine_tune_threshold=3
+img diff = 13.992336323177078, fine_tune_threshold=3
+img diff = 17.852602032782695, fine_tune_threshold=3
+img diff = 13.164751787622112, fine_tune_threshold=3
+img diff = 130.6609247154626, fine_tune_threshold=3
+img diff = 17.401038612883628, fine_tune_threshold=3
+img diff = 27.99581579848381, fine_tune_threshold=3
+img diff = 17.554459748116486, fine_tune_threshold=3
+img diff = 16.362326167697933, fine_tune_threshold=3
+img diff = 16.889796977125897, fine_tune_threshold=3
+img diff = 21.21717392869826, fine_tune_threshold=3
+img diff = 17.917153408526048, fine_tune_threshold=3
+img diff = 13.344729181711, fine_tune_threshold=3
+img diff = 79.41075118231868, fine_tune_threshold=3
+img diff = 15.577224864270859, fine_tune_threshold=3
+img diff = 16.308406226620434, fine_tune_threshold=3
+img diff = 11.93094499945758, fine_tune_threshold=3
+img diff = 20.489080330406306, fine_tune_threshold=3
+img diff = 12.150582358730997, fine_tune_threshold=3
+img diff = 12.732203731460748, fine_tune_threshold=3
+img diff = 11.609512585079603, fine_tune_threshold=3
+img diff = 11.655232248420738, fine_tune_threshold=3
+img diff = 11.837228732151118, fine_tune_threshold=3
+img diff = 11.777294501916755, fine_tune_threshold=3
+img diff = 11.219824998307226, fine_tune_threshold=3
+img diff = 11.975209287759068, fine_tune_threshold=3
+img diff = 29.467838009864785, fine_tune_threshold=3
+img diff = 16.41440825626202, fine_tune_threshold=3
+img diff = 12.964151578009403, fine_tune_threshold=3
+img diff = 15.975393560964772, fine_tune_threshold=3
+img diff = 21.497447588977195, fine_tune_threshold=3
+img diff = 14.636394573011302, fine_tune_threshold=3
+img diff = 22.609303716009347, fine_tune_threshold=3
+img diff = 13.075836093950576, fine_tune_threshold=3
+img diff = 11.623628195268438, fine_tune_threshold=3
+img diff = 14.137773789238064, fine_tune_threshold=3
+img diff = 13.384350738236527, fine_tune_threshold=3
+img diff = 58.93093628177458, fine_tune_threshold=3
+img diff = 11.949692287911088, fine_tune_threshold=3
+img diff = 19.533498120447895, fine_tune_threshold=3
+img diff = 11.288246031919662, fine_tune_threshold=3
+img diff = 11.564022161052605, fine_tune_threshold=3
+img diff = 14.530636065189729, fine_tune_threshold=3
+img diff = 18.42252316027386, fine_tune_threshold=3
+img diff = 25.91907489149076, fine_tune_threshold=3
+img diff = 11.846778048438301, fine_tune_threshold=3
+img diff = 16.905303521195798, fine_tune_threshold=3
+img diff = 13.345234061050483, fine_tune_threshold=3
+img diff = 19.50949855303936, fine_tune_threshold=3
+img diff = 12.888904990913474, fine_tune_threshold=3
+img diff = 12.960781388295782, fine_tune_threshold=3
+img diff = 11.198154457393839, fine_tune_threshold=3
+img diff = 11.55245844149701, fine_tune_threshold=3
+img diff = 12.276115421770736, fine_tune_threshold=3
+img diff = 13.810660132547405, fine_tune_threshold=3
+img diff = 16.611822384284586, fine_tune_threshold=3
+img diff = 15.469358063409057, fine_tune_threshold=3
+img diff = 11.790837773477989, fine_tune_threshold=3
+img diff = 11.98368643481353, fine_tune_threshold=3
+img diff = 11.657933751890083, fine_tune_threshold=3
+img diff = 17.88141772959291, fine_tune_threshold=3
+img diff = 112.51716121575177, fine_tune_threshold=3
+img diff = 113.82316698956838, fine_tune_threshold=3
+img diff = 115.02791158093797, fine_tune_threshold=3
+img diff = 120.16090790270933, fine_tune_threshold=3
+img diff = 112.07721372713067, fine_tune_threshold=3
+img diff = 111.840885783008, fine_tune_threshold=3
+img diff = 114.05901658611228, fine_tune_threshold=3
+img diff = 121.98170730421364, fine_tune_threshold=3
+img diff = 120.82311624074329, fine_tune_threshold=3
+img diff = 114.00149471448046, fine_tune_threshold=3
+img diff = 113.61870309164104, fine_tune_threshold=3
+img diff = 114.18229994690714, fine_tune_threshold=3
+img diff = 112.9182459493107, fine_tune_threshold=3
+img diff = 277.960625298154, fine_tune_threshold=3
+img diff = 114.44177648950568, fine_tune_threshold=3
+img diff = 114.11414997760254, fine_tune_threshold=3
+img diff = 112.29620574101341, fine_tune_threshold=3
+img diff = 130.0980624659221, fine_tune_threshold=3
+img diff = 111.20545137099299, fine_tune_threshold=3
+img diff = 112.60443916216546, fine_tune_threshold=3
+img diff = 126.57107854194828, fine_tune_threshold=3
+img diff = 114.57195941310303, fine_tune_threshold=3
+img diff = 116.95225146572432, fine_tune_threshold=3
+img diff = 114.88576087893594, fine_tune_threshold=3
+img diff = 115.53903913741082, fine_tune_threshold=3
+img diff = 112.42528482662112, fine_tune_threshold=3
+img diff = 113.83178931712459, fine_tune_threshold=3
+img diff = 492.17796177621574, fine_tune_threshold=3
+img diff = 115.49810298705704, fine_tune_threshold=3
+img diff = 112.2249958658411, fine_tune_threshold=3
+img diff = 112.16713491275961, fine_tune_threshold=3
+img diff = 114.28976555354944, fine_tune_threshold=3
+img diff = 115.85473136959541, fine_tune_threshold=3
+img diff = 112.34297428012793, fine_tune_threshold=3
+img diff = 122.08210550443317, fine_tune_threshold=3
+img diff = 186.52059898497234, fine_tune_threshold=3
+img diff = 112.3063579709872, fine_tune_threshold=3
+img diff = 114.62526762524772, fine_tune_threshold=3
+img diff = 113.99126637554582, fine_tune_threshold=3
+img diff = 118.94179557004193, fine_tune_threshold=3
+img diff = 114.8447121536683, fine_tune_threshold=3
+img diff = 118.98547169027219, fine_tune_threshold=3
+img diff = 113.93029756709564, fine_tune_threshold=3
+img diff = 111.63777855703279, fine_tune_threshold=3
+img diff = 114.85228505700965, fine_tune_threshold=3
+img diff = 113.75654575976043, fine_tune_threshold=3
+img diff = 111.99892439348238, fine_tune_threshold=3
+img diff = 114.20121607932197, fine_tune_threshold=3
+img diff = 112.32641861026701, fine_tune_threshold=3
+img diff = 140.7188468574019, fine_tune_threshold=3
+img diff = 113.28012518708798, fine_tune_threshold=3
+img diff = 114.58818356273099, fine_tune_threshold=3
+img diff = 111.99415792218488, fine_tune_threshold=3
+img diff = 114.7527485098497, fine_tune_threshold=3
+img diff = 117.0114600123773, fine_tune_threshold=3
+img diff = 127.77861643930473, fine_tune_threshold=3
+img diff = 112.24688269146445, fine_tune_threshold=3
+img diff = 120.26690436889703, fine_tune_threshold=3
+img diff = 121.24926733597523, fine_tune_threshold=3
+img diff = 112.323402627596, fine_tune_threshold=3
+img diff = 112.38363273801352, fine_tune_threshold=3
+img diff = 112.05574335975021, fine_tune_threshold=3
+img diff = 114.46943344864738, fine_tune_threshold=3
+img diff = 114.83967127760873, fine_tune_threshold=3
+img diff = 112.40595907302838, fine_tune_threshold=3
+img diff = 113.92061912324667, fine_tune_threshold=3
+img diff = 116.29183382402528, fine_tune_threshold=3
+img diff = 114.78454871277182, fine_tune_threshold=3
+img diff = 443.3055261790473, fine_tune_threshold=3
+img diff = 115.50055802964602, fine_tune_threshold=3
+img diff = 139.69912346553602, fine_tune_threshold=3
+img diff = 120.76241816133825, fine_tune_threshold=3
+img diff = 117.6392059881762, fine_tune_threshold=3
+img diff = 116.10664669067016, fine_tune_threshold=3
+img diff = 111.97743790296116, fine_tune_threshold=3
+img diff = 112.28895848201984, fine_tune_threshold=3
+img diff = 112.35040509699101, fine_tune_threshold=3
+img diff = 112.5293026800009, fine_tune_threshold=3
+img diff = 112.6593973447836, fine_tune_threshold=3
+img diff = 112.20197351891974, fine_tune_threshold=3
+img diff = 8.288767487244018, fine_tune_threshold=3
+img diff = 28.44207008644574, fine_tune_threshold=3
+img diff = 8.793916888183503, fine_tune_threshold=3
+img diff = 10.725040934979713, fine_tune_threshold=3
+img diff = 9.145061764805652, fine_tune_threshold=3
+img diff = 22.543429321888002, fine_tune_threshold=3
+img diff = 8.430498738320786, fine_tune_threshold=3
+img diff = 21.301924381471864, fine_tune_threshold=3
+img diff = 13.250346931716473, fine_tune_threshold=3
+img diff = 24.183530865084414, fine_tune_threshold=3
+img diff = 30.36136274863275, fine_tune_threshold=3
+img diff = 177.30210473825986, fine_tune_threshold=3
+img diff = 21.68305239396282, fine_tune_threshold=3
+img diff = 41.700661599719865, fine_tune_threshold=3
+img diff = 9.247374517497576, fine_tune_threshold=3
+img diff = 12.638819204523873, fine_tune_threshold=3
+img diff = 21.05328822342647, fine_tune_threshold=3
+img diff = 22.844545809405265, fine_tune_threshold=3
+img diff = 31.69674189092896, fine_tune_threshold=3
+img diff = 8.86281447350408, fine_tune_threshold=3
+img diff = 81.92589064266954, fine_tune_threshold=3
+img diff = 20.538031675007225, fine_tune_threshold=3
+img diff = 18.37003009323943, fine_tune_threshold=3
+img diff = 12.073226270872597, fine_tune_threshold=3
+img diff = 10.585003841283642, fine_tune_threshold=3
+img diff = 88.59327287847177, fine_tune_threshold=3
+img diff = 26.788340711605308, fine_tune_threshold=3
+img diff = 206.2125708566983, fine_tune_threshold=3
+img diff = 12.512983719903218, fine_tune_threshold=3
+img diff = 10.523578026369524, fine_tune_threshold=3
+img diff = 8.679250658477107, fine_tune_threshold=3
+img diff = 14.21088691702479, fine_tune_threshold=3
+img diff = 14.259441634978458, fine_tune_threshold=3
+img diff = 45.35927235913891, fine_tune_threshold=3
+img diff = 74.9862537855948, fine_tune_threshold=3
+img diff = 21.251066660546815, fine_tune_threshold=3
+img diff = 70.90460057660124, fine_tune_threshold=3
+img diff = 36.28352380121056, fine_tune_threshold=3
+img diff = 11.35970846728235, fine_tune_threshold=3
+img diff = 7.920855019375907, fine_tune_threshold=3
+img diff = 13.902202075563498, fine_tune_threshold=3
+img diff = 59.02472289795251, fine_tune_threshold=3
+img diff = 65.86020302671486, fine_tune_threshold=3
+img diff = 18.39974592680275, fine_tune_threshold=3
+img diff = 34.4474761147062, fine_tune_threshold=3
+img diff = 129.3874616106697, fine_tune_threshold=3
+img diff = 20.33669651801337, fine_tune_threshold=3
+img diff = 15.437469472918204, fine_tune_threshold=3
+img diff = 11.33287218550807, fine_tune_threshold=3
+img diff = 199.72963915134142, fine_tune_threshold=3
+img diff = 12.025575313439731, fine_tune_threshold=3
+img diff = 12.835523531836586, fine_tune_threshold=3
+img diff = 23.35414139810336, fine_tune_threshold=3
+img diff = 11.634408579950414, fine_tune_threshold=3
+img diff = 11.419711738333161, fine_tune_threshold=3
+img diff = 8.311751729223579, fine_tune_threshold=3
+img diff = 13.637847628634475, fine_tune_threshold=3
+img diff = 69.40934058684412, fine_tune_threshold=3
+img diff = 12.253311596712718, fine_tune_threshold=3
+img diff = 27.74661170417373, fine_tune_threshold=3
+img diff = 21.701615772166818, fine_tune_threshold=3
+img diff = 100.94045217457816, fine_tune_threshold=3
+img diff = 11.09488044306557, fine_tune_threshold=3
+img diff = 56.376213931228634, fine_tune_threshold=3
+img diff = 39.53779542387448, fine_tune_threshold=3
+img diff = 73.82979098547031, fine_tune_threshold=3
+img diff = 20.383300264927076, fine_tune_threshold=3
+img diff = 9.994864796174761, fine_tune_threshold=3
+img diff = 36.30205609497719, fine_tune_threshold=3
+img diff = 17.314117297623795, fine_tune_threshold=3
+img diff = 14.344700568157121, fine_tune_threshold=3
+img diff = 12.107584905217017, fine_tune_threshold=3
+img diff = 11.209842288944444, fine_tune_threshold=3
+img diff = 12.624923586637092, fine_tune_threshold=3
+img diff = 9.93067593800142, fine_tune_threshold=3
+img diff = 31.96589999757923, fine_tune_threshold=3
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 495, in <module>
+    centered_position = spiral_search_and_center(
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 100, in spiral_search_and_center
+    phasemask.move_absolute([x_pos, y_pos])
+  File "/home/heimdallr/Documents/asgard-alignment/asgard_alignment/ZaberMotor.py", line 177, in move_absolute
+    self.motors["y"].move_absolute(new_pos[1], units)
+  File "/home/heimdallr/Documents/asgard-alignment/asgard_alignment/ZaberMotor.py", line 140, in move_absolute
+    self.axis.move_absolute(new_pos, unit=units, wait_until_idle=True)
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/axis.py", line 440, in move_absolute
+    call("device/move", request)
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.request_timeout_exception.RequestTimeoutException: RequestTimeoutException: Device has not responded in given timeout
