@@ -15,11 +15,11 @@ from zaber_motion.ascii import Connection
 
 from asgard_alignment.NewportMotor import NewportMotor, LS16P, M100D
 from asgard_alignment.ZaberMotor import (
-    SourceSelection,
-    BifrostDichroic,
     LAC10AT4A,
-    BaldrPhaseMask,
+    ZaberLinearStage,
+    ZaberLinearActuator,
 )
+
 
 # from NewportMotor import NewportMotor, LS16P, M100D
 
@@ -82,9 +82,9 @@ def find_zaber_COM():
     return None
 
 
-class MultiDeviceServer:
+class Instrument:
     """
-    A class to represent a collection of motors that are connected to the same device
+    A class to represent a collection of motors that are connected to the same machine
     """
 
     def __init__(self, config_path) -> None:
@@ -110,8 +110,8 @@ class MultiDeviceServer:
         config_path: str
             The path to the config file for the instrument
         """
-        MultiDeviceServer._validate_config_file(config_path)
-        self._config = MultiDeviceServer._read_motor_config(config_path)
+        Instrument._validate_config_file(config_path)
+        self._config = Instrument._read_motor_config(config_path)
         self._name_to_port_mapping = self._name_to_port()
         self._motors = self._open_conncetions()
 
@@ -137,43 +137,71 @@ class MultiDeviceServer:
         Note that zmq messages target the axes, not the motors themselves
         """
 
-        if "=" in message:
-            # this is a set command
+        if message == "ls":
+            return "\n".join(self._motors)
+
+        if message == "init_all":
+            for motor in self._motors.values():
+                motor.initialise()
+            return "ACK"
+
+        def validate_message(parsed_message):
+            """
+            Check if the message is a valid message
+            """
+
+            if parsed_message is None:
+                return "Could not parse message"
+
+            if self.has_motor(parsed_message["device_name"]) is False:
+                return f"Could not find motor {parsed_message['device_name']}"
+
+            if parsed_message["parameter"] not in ["lrPosition"]:
+                return f"Parameter {parsed_message['parameter']} not implemented"
+
+            return None
+
+        def handle_write_message(msg):
+            """
+            Handle a write message
+            """
             # of the form MAIN1.<device name>.<parameter category>.<parameter name>=<value>
             parse_results = parse.parse(
-                "MAIN1.{device_name}.{category}.{parameter}={value}", message
+                "MAIN1.{device_name}.{category}.{parameter}={value}", msg
             )
 
-            if parse_results is None:
-                raise ValueError(f"Could not parse message {message}")
+            error = validate_message(parse_results)
+            if error is not None:
+                return error
 
             motor = self._motors[parse_results["device_name"]]
-            motor.set_parameter(
-                parse_results["category"],
-                parse_results["parameter"],
-                parse_results["value"],
-            )
 
-            # ACK
-            response = f"ACK"
+            if parse_results["parameter"] == "lrPosition":
+                motor.set_position(float(parse_results["value"]))
 
-        else:
+            return "ACK"
+
+        def handle_read_message(msg):
             # this is a get command
             # of the form MAIN1.<device name>.<parameter category>.<parameter name>
             parse_results = parse.parse(
-                "MAIN1.{device_name}.{category}.{parameter}", message
+                "MAIN1.{device_name}.{category}.{parameter}", msg
             )
 
-            if parse_results is None:
-                raise ValueError(f"Could not parse message {message}")
+            error = validate_message(parse_results)
+            if error is not None:
+                return error
 
-            # get the value of the parameter
             motor = self._motors[parse_results["device_name"]]
-            response = motor.get_parameter(
-                parse_results["category"], parse_results["parameter"]
-            )
 
-        # send back response over Zmq
+            if parse_results["parameter"] == "lrPosition":
+                response = f"r{motor.position}"
+
+            return response
+
+        if "=" in message:
+            return handle_write_message(message)
+        return handle_read_message(message)
 
     def zero_all(self):
         """
@@ -267,14 +295,8 @@ class MultiDeviceServer:
             for dev in device_list:
                 for motor_config in self._config:
                     if dev.serial_number == motor_config["serial_number"]:
-                        if dev.name == "X-LSM150A-SE03":
-                            motors[motor_config["name"]] = BifrostDichroic(dev)
-                        elif dev.name == "X-LHM100A-SE03":
-                            motors[motor_config["name"]] = SourceSelection(dev)
-
-            print(motors)
-
-        return motors  # TODO: remove this
+                        if dev.name in ["X-LSM150A-SE03", "X-LHM100A-SE03"]:
+                            motors[motor_config["name"]] = ZaberLinearStage(dev)
 
         # now deal with all the networked motors
         self.zaber_ip_connections = {}  # IP address, connection
@@ -295,20 +317,7 @@ class MultiDeviceServer:
                 .get_axis(component["axis_number"])
             )
 
-            motors[component["name"]] = LAC10AT4A(axis)
-
-        # now make the pairs that are avaialble into phase mask objects
-
-        for beam_number in [1, 2, 3, 4]:
-            x_motor_name = f"BMX{beam_number}"
-            y_motor_name = f"BMY{beam_number}"
-
-            if x_motor_name in motors and y_motor_name in motors:
-                motors[f"Baldr_phase_beam_{beam_number}"] = BaldrPhaseMask(
-                    motors[x_motor_name],
-                    motors[y_motor_name],
-                    f"phase_positions_beam_{beam_number}.json",
-                )
+            motors[component["name"]] = ZaberLinearActuator(axis)
 
         return motors
 
@@ -405,6 +414,6 @@ if __name__ == "__main__":
 
     print(mapping)
 
-    instrument = MultiDeviceServer("motor_info_no_linear.json")
+    instrument = Instrument("motor_info_no_linear.json")
 
     instrument.print_all_positions()

@@ -11,9 +11,10 @@ import streamlit as st
 import asgard_alignment.GUI
 
 import pyvisa
+from asgard_alignment.AsgardDevice import AsgardDevice
 
 
-class NewportMotor:
+class NewportMotor(AsgardDevice):
     """
     Base class for all the newport motors
     """
@@ -198,6 +199,10 @@ class M100D(NewportMotor):
             self.AXES.V: self.read_pos(self.AXES.V),
         }
 
+    def initialise(self):
+        # no need to initialise this motor
+        pass 
+
     def _verify_valid_connection(self):
         """
         Verify that the serial connection opened by the class is indeed to to a NEWPORT M100D
@@ -365,13 +370,15 @@ class LS16P(NewportMotor):
 
     def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
         super().__init__(serial_port, resource_manager)
+
+        # self.set_absolute_position(8.0)
+
+    def initialise(self):
         self._current_pos = 0.0
 
         # we always set the motor to the closed loop mode
         self._connection.write("OR")
         self._connection.write("RFP")
-
-        # self.set_absolute_position(8.0)
 
     @classmethod
     def connect_and_get_SA(cls, port):
