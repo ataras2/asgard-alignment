@@ -193,6 +193,31 @@ class BaldrPhaseMask:
             json.dump(self.phase_positions, f)
 
 
+    def update_all_mask_positions_relative_to_current(self, current_mask_name, reference_mask_position_file, write_file = False):
+        # read in reference mask position file (any file where relative distances between masks is well calibrated - absolute values don't matter)
+        # subtract off current_mask position in reference from all entries to generate offsets (so current_mask_name is origin in the offsets)
+        # for each phase mask apply the relative offset from the current motor position to calculate new positions. update self.phase_positions.
+
+        # read in positions from reference file
+        reference_position = self._load_phase_positions(phase_positions_json)
+
+        # set origin at the current phase mask in reference file 
+        new_origin = reference_position[current_mask_name] 
+
+        # get mapping (offsets) between phase masks from reference file relative to current_mask_name
+        offsets = {}
+        for mask_name, mask_position in reference_position.items():
+            offsets[mask_name] = np.array( mask_position ) - np.array( new_origin ) 
+            
+        # apply offsets relative to the actual current motor position
+        current_position = np.array( self.get_position() )
+        for mask_name, offset in offsets.items() :  
+            self.phase_positions[mask_name] = list( current_position + offset )
+
+        if write_file:
+            write_current_mask_positions( self , file_name=f'phase_positions_beam_3_{tstamp}.json')
+
+
 
 if __name__ == "__main__":
 
