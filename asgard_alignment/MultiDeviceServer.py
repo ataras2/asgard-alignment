@@ -57,7 +57,10 @@ def compute_serial_to_port_map():
                     # mapping["SA1"] = port kind of thing
                     sa = LS16P.connect_and_get_SA(device)
                     if sa is not None:
-                        mapping[sa] = device
+                        # device is of  the form ASRL/dev/ttyACM1::INSTR
+                        # want just the /dev/ttyACM1 part
+                        port = device.split("::")[0][4:]
+                        mapping[sa] = port
 
                 except Exception as e:
                     logging.warning(f"Could not connect to {device}: {e}")
@@ -290,7 +293,7 @@ class Instrument:
             self.zaber_com_connection.enable_alerts()
 
             device_list = self.zaber_com_connection.detect_devices()
-            print("Found {} devices".format(len(device_list)))
+            print("Found {} zaber devices on COM port".format(len(device_list)))
 
             for dev in device_list:
                 for motor_config in self._config:

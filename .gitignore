@@ -7,5 +7,9 @@
 
 *.pickle
 
+*.png
+*.fits
+*.csv
+*.txt
 
 asgard_alignment.egg-info
