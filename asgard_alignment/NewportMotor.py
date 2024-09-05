@@ -9,6 +9,7 @@ import parse
 import numpy as np
 import streamlit as st
 import asgard_alignment.GUI
+import time
 
 import pyvisa
 
@@ -33,10 +34,14 @@ class NewportMotor:
         """
         self._connection = resource_manager.open_resource(
             self._serial_port,
-            baud_rate=self.SERIAL_BAUD,
-            write_termination=self.SERIAL_TERMIN,
-            read_termination=self.SERIAL_TERMIN,
+            # baud_rate=self.SERIAL_BAUD,
+            # write_termination=self.SERIAL_TERMIN,
+            # read_termination=self.SERIAL_TERMIN,
         )
+
+        self._connection.baud_rate = self.SERIAL_BAUD
+        self._connection.write_termination = self.SERIAL_TERMIN
+        self._connection.read_termination = self.SERIAL_TERMIN
 
     def close_connection(self):
         """
@@ -369,6 +374,7 @@ class LS16P(NewportMotor):
 
         # we always set the motor to the closed loop mode
         self._connection.write("OR")
+        time.sleep(2.0)
         self._connection.write("RFP")
 
         # self.set_absolute_position(8.0)
@@ -456,3 +462,21 @@ class LS16P(NewportMotor):
         Return the software internal position of the motor
         """
         return self._current_pos
+
+    def GUI(self):
+        """
+        A GUI to control the motor
+        """
+        st.header("LS16P motor")
+
+        def callback():
+            self.set_absolute_position(st.session_state.pos)
+
+        asgard_alignment.GUI.CustomNumeric.variable_increment(
+            keys=["pos"],
+            callback_fns=[
+                callback,
+            ],
+            values=[self.get_current_pos],
+            main_bounds=[0.0, 16.0],
+        )
