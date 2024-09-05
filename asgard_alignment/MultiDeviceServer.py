@@ -262,7 +262,7 @@ class MultiDeviceServer:
             self.zaber_com_connection.enable_alerts()
 
             device_list = self.zaber_com_connection.detect_devices()
-            print("Found {} devices".format(len(device_list)))
+            print("Found {} zaber devices on COM port".format(len(device_list)))
 
             for dev in device_list:
                 for motor_config in self._config:
