@@ -222,7 +222,7 @@ zwfs.start_camera()
 zwfs.build_manual_dark()
 
 # get our bad pixels 
-bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 1000, std_threshold = 50 , flatten=False)
+bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 100, std_threshold = 50 , flatten=False)
 
 # update zwfs bad pixel mask and flattened pixel values 
 zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
@@ -274,6 +274,15 @@ phasemask_centering_tool.spiral_search_and_center(zwfs, phasemask, phasemask_nam
 
 """
 
+# check which focus is best 
+for i in np.linspace(-1,1,15): 
+    zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + i * btmp.T[3]); 
+    time.sleep(0.1);
+    plt.figure(); plt.imshow( np.log10( 200 + zwfs.get_image())); plt.colorbar();
+    plt.savefig( fig_path + 'delme.png');
+    _=input('next?')
+
+
 #init our pupil controller (object that processes ZWFS images and outputs VCM commands)
 pupil_ctrl = pupil_control.pupil_controller_1(config_file = None)
 
@@ -320,8 +329,8 @@ if not os.path.exists(fig_path):
 #zwfs.dm_shapes['flat_dm']  = zwfs.dm_shapes['flat_dm'] + a_opt * fourier_basis.T[19]
 #zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'])
 # x,y in compass referenced to DM right (+x), up (+y)
-I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemask_name}_before_w_focus.png' )
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=25, \
+compass = True, compass_origin=None, savefig=fig_path + f'0.FPM-in-out_{phasemask_name}_after_w_focus.png' )
 
 
 # --- linear ramps 
@@ -333,8 +342,10 @@ number_images_recorded_per_cmd = 50, save_fits = data_path+f'pokeramp_data_MASK_
 
 recon_data = fits.open(  data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') #'/home/heimdallr/Documents/asgard-alignment/tmp/28-08-2024/pokeramp_data_MASK_J3_0.16focus_offset_sydney_28-08-2024T08.21.47.fits' )# '/home/heimdallr/Documents/asgard-alignment/tmp/27-08-2024/pokeramp_data_MASK_J3_sydney_27-08-2024T10.47.02.fits')
 
-
-#zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+btmp = util.construct_command_basis( basis='Zernike', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=False)
+active_dm_actuator_filter = btmp.T[0] > 0
+zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+P2C_1x1 = zonal_fits['P2C'].data[0] # pixel to actuator registration 
 
 #print( [z.header['EXTNAME'] for z in zonal_fits ] ) 
 

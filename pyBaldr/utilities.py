@@ -638,7 +638,7 @@ def get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=2
 
     for a in range(n) :
         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
-        im1 = ax1.imshow(  im_list[a] , vmin = np.min(im_list[-1]), vmax = np.max(im_list[-1]))
+        im1 = ax1.imshow(  im_list[a] , vmin =  np.min(im_list[-1]), vmax = np.max([np.max(im_list[-1]), np.max(im_list[0])]) )
 
 
         ax1.set_title( title_list[a] ,fontsize=fs)

@@ -199,7 +199,7 @@ class BaldrPhaseMask:
         # for each phase mask apply the relative offset from the current motor position to calculate new positions. update self.phase_positions.
 
         # read in positions from reference file
-        reference_position = self._load_phase_positions(phase_positions_json)
+        reference_position = self._load_phase_positions(reference_mask_position_file)
 
         # set origin at the current phase mask in reference file 
         new_origin = reference_position[current_mask_name] 
