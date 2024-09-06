@@ -200,7 +200,7 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 
 
 zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
-zwfs.set_camera_dit( 0.006 );time.sleep(0.2)
+zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_camera_fps( 100 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
@@ -294,7 +294,7 @@ zwfs.pupil_pixel_filter = zwfs.pupil_pixel_filter.reshape(-1)
 fig,ax = plt.subplots(1,2,figsize=(10,5))
 ax[0].imshow( N0 ) ; ax[0].set_title('phasemask out')
 ax[1].imshow( zwfs.pupil_pixel_filter.reshape(N0.shape)) ; ax[1].set_title('registered pupil')
-plt.savefig(fig_path + f'registered_pupil_{tstamp}.png')
+plt.savefig(fig_path + f'registered_pupil_{phasemask_name}_{tstamp}.png')
 
 
 #init our phase controller (object that processes ZWFS images and outputs DM commands)
@@ -313,15 +313,17 @@ fourier_phase_ctrl_20 = phase_control.phase_controller_1(config_file = None, bas
 zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.07pokeamp_in-out_pokes_map' }
 zernike_dict_90 = {'controller': zernike_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
 zernike_dict_20  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
+zernike_dict_20_pinv  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_50 = {'controller': fourier_phase_ctrl_50, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
     'zonal':zonal_dict ,
-    #'zernike_20modes_map':zernike_dict_20,
-    #'fourier_50modes_map':fourier_dict_50,
-    #'fourier_20modes_pinv':fourier_dict_20_pinv,
+    'zernike_20modes_map':zernike_dict_20,
+    'zernike_20modes_pinv':zernike_dict_20_pinv,
+    'fourier_50modes_map':fourier_dict_50,
+    'fourier_20modes_pinv':fourier_dict_20_pinv,
     'fourier_20modes_map':fourier_dict_20
 }
 
@@ -340,7 +342,11 @@ build_dict = {
 
 # iter 
 #itera = 1 - first with new system ppl moving round 
-itera = 2
+#itera = 2 - with J1
+
+
+# 6/9/24 
+# iter1 - calibrating a bunch of reconstructors on all basis
 
 #subprocess.run()
 # build and write them to fits 

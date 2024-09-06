@@ -276,8 +276,8 @@ class phase_controller_1():
                 #fourier_basis = util.construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
                 tip_tilt = util.get_tip_tilt_vectors( dm_model='bmc_multi3.5',nact_len=12)
 
-            tip = tip_tilt[0] #fourier_basis[:,0]
-            tilt = tip_tilt[1] #fourier_basis[:,1]
+            tip = tip_tilt[:,0] #fourier_basis[:,0]
+            tilt = tip_tilt[:,1] #fourier_basis[:,1]
             # Another option would be to get eigen modes U, S, Vt = svd(IM@IM.T), U[0], U[1] as tip/tilt on zonal basis? 
             #R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )
             R_TT, R_HO = util.project_matrix( I2M.T , projection_vector_list = [tip, tilt] )

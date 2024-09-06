@@ -158,15 +158,40 @@ class BaldrPhaseMask:
         }
 
         self.phase_positions = self._load_phase_positions(phase_positions_json)
+        
+        #self._load_phasemask_parameters("phasemask_parameters_beam_3.json"):
+        self.phasemask_parameters = {
+                        "J1": {"depth":0.474 ,  "diameter":54},  
+                        "J2": {"depth":0.474 ,  "diameter":44}, 
+                        "J3": {"depth":0.474 ,  "diameter":36}, 
+                        "J4": {"depth":0.474 ,  "diameter":32},
+                        "J5": {"depth":0.474 ,  "diameter":65},
+                        "H1": {"depth":0.654 ,  "diameter":68},  
+                        "H2": {"depth":0.654 ,  "diameter":53}, 
+                        "H3": {"depth":0.654 ,  "diameter":44}, 
+                        "H4": {"depth":0.654 ,  "diameter":37},
+                        "H5": {"depth":0.654 ,  "diameter":31}
+                        }
 
     @staticmethod
     def _load_phase_positions(phase_positions_json):
+        # all units in micrometers
         with open(phase_positions_json, "r", encoding="utf-8") as file:
             config = json.load(file)
 
         assert len(config) == 10, "There must be 10 phase mask positions"
 
         return config
+
+    def _load_phasemask_parameters(phasemask_properties_json):
+        # all units in micrometers
+        with open(phase_positions_json, "r", encoding="utf-8") as file:
+            config = json.load(file)
+
+        assert len(config) == 10, "There must be 10 phase masks"
+
+        return config
+    
 
     def move_relative(self, new_pos, units=zaber_motion.units.Units.LENGTH_MICROMETRES):
         self.motors["x"].move_relative(new_pos[0], units)
@@ -216,7 +241,6 @@ class BaldrPhaseMask:
 
         if write_file:
             write_current_mask_positions( self , file_name=f'phase_positions_beam_3_{tstamp}.json')
-
 
 
 if __name__ == "__main__":

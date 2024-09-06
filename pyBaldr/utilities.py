@@ -6,7 +6,11 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import datetime
 import time 
 from astropy.io import fits 
+import pandas as pd
+from scipy.interpolate import interp1d
+from scipy.integrate import quad
 from scipy import ndimage
+import scipy.ndimage as ndimage
 from scipy import signal
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
@@ -423,6 +427,238 @@ def pin_outer_actuators_to_inner_diameter(inner_command):
     return command_140_flat.tolist()
 
 
+
+
+def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True,  phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+    """
+    get theoretical reference pupil intensities of ZWFS with / without phasemask 
+    
+
+    Parameters
+    ----------
+    wavelength : TYPE, optional
+        DESCRIPTION. input wavelength The default is 1.65e-6.
+    F_number : TYPE, optional
+        DESCRIPTION. The default is 21.2.
+    mask_diam : phase dot diameter. TYPE, optional
+            if diameter_in_angular_units=True than this has diffraction limit units ( 1.22 * f * lambda/D )
+            if  diameter_in_angular_units=False than this has physical units (m) determined by F_number and wavelength
+        DESCRIPTION. The default is 1.2.
+    diameter_in_angular_units : TYPE, optional
+        DESCRIPTION. The default is True.
+    phaseshift : TYPE, optional
+        DESCRIPTION. phase phase shift imparted on input field (radians). The default is np.pi/2.
+    padding_factor : pad to change the resolution in image plane. TYPE, optional
+        DESCRIPTION. The default is 4.
+    debug : TYPE, optional
+        DESCRIPTION. Do we want to plot some things? The default is True.
+    analytic_solution: TYPE, optional
+        DESCRIPTION. use analytic formula or calculate numerically? The default is True.
+    Returns
+    -------
+    Ic, reference pupil intensity with phasemask in 
+    P, reference pupil intensity with phasemask out 
+
+    """
+    pupil_radius = 1  # Pupil radius in meters
+
+    # Define the grid in the pupil plane
+    N = 2**9 + 1 #256  # Number of grid points (assumed to be square)
+    L_pupil = 2 * pupil_radius  # Pupil plane size (physical dimension)
+    dx_pupil = L_pupil / N  # Sampling interval in the pupil plane
+    x_pupil = np.linspace(-L_pupil/2, L_pupil/2, N)   # Pupil plane coordinates
+    y_pupil = np.linspace(-L_pupil/2, L_pupil/2, N) 
+    X_pupil, Y_pupil = np.meshgrid(x_pupil, y_pupil)
+    
+    
+
+
+    # Define a circular pupil function
+    pupil = np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius
+
+    # Zero padding to increase resolution
+    # Increase the array size by padding (e.g., 4x original size)
+    N_padded = N * padding_factor
+    pupil_padded = np.zeros((N_padded, N_padded))
+    start_idx = (N_padded - N) // 2
+    pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+
+    # Perform the Fourier transform on the padded array (normalizing for the FFT)
+    pupil_ft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)))
+    
+    # Compute the Airy disk scaling factor (1.22 * λ * F)
+    airy_scale = 1.22 * wavelength * F_number
+
+    # Image plane sampling interval (adjusted for padding)
+    L_image = wavelength * F_number / dx_pupil  # Total size in the image plane
+    dx_image_padded = L_image / N_padded  # Sampling interval in the image plane with padding
+    
+    if diameter_in_angular_units:
+        x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale  # Image plane coordinates in Airy units
+        y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale
+    else:
+        x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded)  # Image plane coordinates in Airy units
+        y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) 
+        
+    X_image_padded, Y_image_padded = np.meshgrid(x_image_padded, y_image_padded)
+
+    if diameter_in_angular_units:
+        mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 4
+    else: 
+        mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 4
+        
+    psi_B = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)) )
+                            
+    b = np.fft.fftshift( np.fft.ifft2( mask * psi_B ) ) 
+
+        
+    
+    if debug: 
+        
+        psf = np.abs(pupil_ft)**2  # Get the PSF by taking the square of the absolute value
+        psf /= np.max(psf)  # Normalize PSF intensity
+        
+        if diameter_in_angular_units:
+            zoom_range = 3  # Number of Airy disk radii to zoom in on
+        else:
+            zoom_range = 3 * airy_scale 
+            
+        extent = (-zoom_range, zoom_range, -zoom_range, zoom_range)
+
+        fig,ax = plt.subplots(1,1)
+        ax.imshow(psf, extent=(x_image_padded.min(), x_image_padded.max(), y_image_padded.min(), y_image_padded.max()), cmap='gray')
+        ax.contour(X_image_padded, Y_image_padded, mask, levels=[0.5], colors='red', linewidths=2, label='phasemask')
+        #ax[1].imshow( mask, extent=(x_image_padded.min(), x_image_padded.max(), y_image_padded.min(), y_image_padded.max()), cmap='gray')
+        #for axx in ax.reshape(-1):
+        #    axx.set_xlim(-zoom_range, zoom_range)
+        #    axx.set_ylim(-zoom_range, zoom_range)
+        ax.set_xlim(-zoom_range, zoom_range)
+        ax.set_ylim(-zoom_range, zoom_range)
+        ax.set_title( 'PSF' )
+        ax.legend() 
+        #ax[1].set_title('phasemask')
+
+
+    
+    # if considering complex b 
+    # beta = np.angle(b) # complex argunment of b 
+    # M = b * (np.exp(1J*theta)-1)**0.5
+    
+    # relabelling
+    theta = phaseshift # rad , 
+    P = pupil_padded.copy() 
+    
+    if analytic_solution :
+        
+        M = abs( b ) * np.sqrt((np.cos(theta)-1)**2 + np.sin(theta)**2)
+        mu = np.angle((np.exp(1J*theta)-1) ) # np.arctan( np.sin(theta)/(np.cos(theta)-1) ) #
+        
+        phi = np.zeros( P.shape ) # added aberrations 
+        
+        # out formula ----------
+        Ic = ( P**2 + abs(M)**2 + 2* P* abs(M) * np.cos(phi + mu) ) #+ beta)
+    else:
+        
+        # phasemask filter 
+        
+        T_on = 1
+        T_off = 1
+        H = T_off*(1 + (T_on/T_off * np.exp(1j * theta) - 1) * mask  ) 
+        
+        Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
+        
+    return( P, Ic)
+
+
+def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n, x_c, y_c, new_radius):
+    """
+    Interpolate the pupil onto a new grid, centering the original pupil at (x_c, y_c) 
+    and giving it a specified radius in the new grid.
+    
+    Parameters:
+    - pupil: Original MxN pupil array.
+    - original_image: original image (i.e intensity with phasemask in) corresponding to the pupil (phasemask out)
+    - M, N: Size of the original grid.
+    - n, m: Size of the new grid.
+    - x_c, y_c: Center of the pupil in the new grid (in pixels).
+    - new_radius: The desired radius of the pupil in the new grid (in pixels).
+    
+    Returns:
+    - new_pupil: The pupil interpolated onto the new grid (nxm).
+    """
+    # Original grid coordinates (centered at the middle)
+    x_orig = np.linspace(-M/2, M/2, M)
+    y_orig = np.linspace(-N/2, N/2, N)
+    #X_orig, Y_orig = np.meshgrid(x_orig, y_orig)
+    
+    # Create the new grid coordinates (centered)
+    x_new = np.linspace(-m/2, m/2, m)  # New grid should also be centered
+    y_new = np.linspace(-n/2, n/2, n)
+    X_new, Y_new = np.meshgrid(x_new, y_new)
+
+    # Find the actual radius of the original pupil in terms of grid size (not M/2)
+    orig_radius = np.sum( original_pupil/np.pi )**0.5 #np.sqrt((X_orig**2 + Y_orig**2).max())
+
+    # Map new grid coordinates to the original grid
+    scale_factor = new_radius / orig_radius  # Correct scaling factor based on actual original radius
+    X_new_mapped = (X_new - x_c + m/2) / scale_factor + M/2
+    Y_new_mapped = (Y_new - y_c + n/2) / scale_factor + N/2
+
+    # Perform interpolation using map_coordinates
+    new_pupil = ndimage.map_coordinates(original_image, [Y_new_mapped.ravel(), X_new_mapped.ravel()], order=1, mode='constant', cval=0)
+    
+    # Reshape the interpolated result to the new grid size
+    new_pupil = new_pupil.reshape(n, m)
+
+    return new_pupil
+
+
+# Planck's law function for spectral radiance
+def planck_law(wavelength, T):
+    """Returns spectral radiance (Planck's law) at a given wavelength and temperature."""
+    h = 6.62607015e-34
+    c = 299792458.0
+    k = 1.380649e-23
+    return (2 * h * c**2) / (wavelength**5) / (np.exp(h * c / (wavelength * k * T)) - 1)
+
+# Function to find the weighted average wavelength (central wavelength)
+def find_central_wavelength(lambda_cut_on, lambda_cut_off, T):
+    # Define integrands for energy and weighted wavelength
+    def _integrand_energy(wavelength):
+        return planck_law(wavelength, T)
+
+    def _integrand_weighted(wavelength):
+        return planck_law(wavelength, T) * wavelength
+
+    # Integrate to find total energy and weighted energy
+    total_energy, _ = quad(_integrand_energy, lambda_cut_on, lambda_cut_off)
+    weighted_energy, _ = quad(_integrand_weighted, lambda_cut_on, lambda_cut_off)
+    
+    # Calculate the central wavelength as the weighted average wavelength
+    central_wavelength = weighted_energy / total_energy
+    return central_wavelength
+
+
+def get_phasemask_phaseshift( wvl, depth, dot_material = 'N_1405' ):
+    """
+    wvl is wavelength in micrometers
+    depth is the physical depth of the phasemask in micrometers
+    dot material is the material of phaseshifting object
+
+    it is assumed phasemask is in air (n=1).
+    N_1405 is photoresist used for making phasedots in Sydney
+    """
+    print( 'reminder wvl input should be um!')
+    if dot_material == 'N_1405':
+        # wavelengths in csv file are in nanometers
+        df = pd.read_csv('Exposed_Ma-N_1405_optical_constants.txt', sep='\s+', header=1)
+        f = interp1d(df['Wavelength(nm)'], df['n'], kind='linear',fill_value=np.nan, bounds_error=False)
+        n = f( wvl * 1e3 ) # convert input wavelength um - > nm
+        phaseshift = 2 * np.pi/ wvl  * depth * (n -1)
+        return( phaseshift )
+    
+    else:
+        raise TypeError('No corresponding dot material for given input. Try N_1405.')
 
 
 def spiral_search_TT_coefficients( dr, dtheta, aoi_tp, aoi_tt, num_points, r0=0, theta0=0):
