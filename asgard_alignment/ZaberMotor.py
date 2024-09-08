@@ -12,6 +12,7 @@ import zaber_motion
 import streamlit as st
 from zaber_motion.ascii import Connection
 import time
+import numpy as np
 import datetime
 import json
 

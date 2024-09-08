@@ -3,6 +3,7 @@ import glob
 from astropy.io import fits
 import time
 import os 
+import pandas as pd 
 import matplotlib.pyplot as plt 
 from scipy.optimize import curve_fit
 from scipy.optimize import least_squares
@@ -263,8 +264,39 @@ if pupil_report['pupil_quality_flag'] == 1:
 # get a zernike basis 
 zernike_basis =  util.construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
 
-# reference intensities 
 
+# --- linear ramps 
+# use baldr.
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ); 
+
+recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
+number_images_recorded_per_cmd = 20, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+# recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
+
+M2C = util.construct_command_basis( basis='Zernike', number_of_modes = 5, Nx_act_DM = 12,Nx_act_basis =12, act_offset= (0,0), without_piston=True) 
+active_dm_actuator_filter = (abs(np.sum( M2C, axis=1 )) > 0 ).astype(bool)                           
+
+zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = np.where( zwfs.bad_pixel_filter.reshape(zwfs.I0.shape)),\
+                                                   active_dm_actuator_filter=active_dm_actuator_filter, debug=False, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
+
+# Check still well centered 
+phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
+
+#### TESSTING SINGLE ITERATION 
+# get residuals from 
+#calibrated single pixel to actuator mapping 
+P2C_1x1  = zonal_fits['P2C'].data[0] #
+
+# have a look at the registration in the pixel space 
+plt.figure(figsize=(8,5))
+plt.title( 'P2C\nregistration in pixel space')
+plt.imshow( np.sum( P2C_1x1 ,axis=0).reshape(zwfs.I0.shape) ) 
+#plt.imshow( zwfs.pupil_pixel_filter.reshape(zwfs.I0.shape) * np.sum( P2C_1x1 ,axis=0).reshape(zwfs.I0.shape) ) < - to see a clearer one
+plt.savefig( fig_path + 'delme.png')
+
+
+# reference intensities 
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
 compass = True, compass_origin=None, savefig= fig_path + f'initial_reference_pupils.png' )
 
@@ -285,7 +317,7 @@ central_lambda = util.find_central_wavelength(lambda_cut_on=900e-9, lambda_cut_o
 print(f"The central wavelength is {central_lambda * 1e9:.2f} nm")
 
 
-wvl = 1e6 * central_lambda # 0.900 #1.040 # um  
+wvl = 0.95 # 1e6 * central_lambda # 0.900 #1.040 # um  
 phase_shift = util.get_phasemask_phaseshift( wvl= wvl, depth = phasemask.phasemask_parameters[phasemask_name]['depth'] )
 mask_diam = 1e-6 * phasemask.phasemask_parameters[phasemask_name]['diameter']
 N0_theory0, I0_theory0 = util.get_theoretical_reference_pupils( wavelength = wvl*1e-6 ,F_number = 21.2, mask_diam = mask_diam,\
@@ -320,6 +352,160 @@ util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar
 
 #estimated_strehl = np.max(  I0/np.max(N0) ) / np.max( I0_theory/np.max(N0_theory) )
 #print(  f'estimated strehl at {wvl}= {estimated_strehl}' )
+
+
+
+
+# Final test
+
+
+exper_path = 'newflat_test_3/'
+
+if not os.path.exists(fig_path + exper_path):
+   os.makedirs(fig_path + exper_path)
+
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ); 
+
+phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName = fig_path + 'delme.png')
+
+
+I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig= fig_path + exper_path + f'initial_reference_pupils.png' )
+
+
+#pupil_outer_perim_filter = ( (abs( I0 - N0 ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
+pupil_outer_perim_filter = ( (abs( I0_theory - N0_theory ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
+# seems better to use the theory one
+
+plt.figure()
+plt.imshow( pupil_outer_perim_filter.reshape(zwfs.I0.shape) ) 
+plt.savefig( fig_path + exper_path + 'outer_pupil_filter.png')
+
+rmse_list = [] 
+diff_field_list = []
+cmd_offset_list = []
+cmd_list = []
+I0_a_list = []
+N0_a_list = []
+amp = 0.03 / 4
+cmd_offset = np.zeros( 140 )
+cmd = zwfs.dm_shapes['flat_dm']
+for it in range(10):
+    cmd = cmd + amp * cmd_offset
+
+    zwfs.dm.send_data( cmd )
+    
+    time.sleep(0.1)
+
+    I0_a, N0_a = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+    compass = True, compass_origin=None, savefig= None )
+
+    I0_a_list.append( I0_a )
+    N0_a_list.append( N0_a )
+    residual = I0_theory/N0_theory - I0_a/N0_a #I0_theory/np.max(I0_theory) - I0_a/np.max(I0_a)
+    
+    filt = zwfs.pupil_pixel_filter & np.isfinite(residual.reshape(-1))
+    rmse = np.sqrt( np.mean( residual.reshape(-1)[filt]**2 )) # only look at residuals within pupil (outside they go crazy since N0 -> 0)
+
+    # when using inverse of N0 have to ensure pixels outside registered pupil are zero (otherwise they blow up)
+    cmd_offset = P2C_1x1 @ ( np.nan_to_num( residual.reshape(-1) * filt,0 ) )  
+    
+    # cmd_offset_raw = 
+    # normalize between 0-1
+    ###cmd_offset = (cmd_offset_raw - np.nanmin( cmd_offset_raw ) ) / (np.nanmax(  cmd_offset_raw ) - np.nanmin(  cmd_offset_raw ))
+    #cmd_offset_n = (cmd_offset_raw - np.nanmin( cmd_offset_raw ) ) / (np.nanmax(  cmd_offset_raw ) - np.nanmin(  cmd_offset_raw ))
+
+    #cmd_offset_unNorm = cmd_offset + cmd_offset_n 
+    
+    #cmd_offset = (cmd_offset_unNorm - np.nanmin( cmd_offset_unNorm ) ) / (np.nanmax(  cmd_offset_unNorm ) - np.nanmin(  cmd_offset_unNorm ))
+
+    cmd_offset_list.append( cmd_offset )
+    cmd_list.append( cmd ) 
+
+    im_list = [I0_theory/np.max(I0_theory) , I0_a/np.max(I0_a), residual, util.get_DM_command_in_2D( cmd) ]
+    xlabel_list = [None for _ in im_list]
+    ylabel_list = [None for _ in im_list]
+    title_list = ['theory', 'measured', 'residual', 'command offset']
+    cbar_label_list = [r'normalized intensity',r'normalized intensity', r'normalized intensity', 'mapped to actuators'] 
+    savefig = fig_path +exper_path + f'calibrating_reference_I0_mask-{phasemask_name}_theory_v_meas_it{it}.png' # 'focus_test/' + f'I0_theory_v_meas_focusOffset-{round(i,2)}_mask-{phasemask_name}.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
+
+    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
+
+    rmse_list.append( rmse)
+    # light diffracted outside pupil on edge
+    diff_field_list.append( np.sum( I0_a.reshape(-1)[pupil_outer_perim_filter]) )
+    
+    #_ = input(f'it = {it}, rms = {rmse}, go to next?')
+
+
+
+I0_after, N0_after = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+compass = True, compass_origin=None, savefig= fig_path + exper_path + f'final_reference_pupils.png' )
+
+plt.figure(figsize=(8,5));  
+plt.plot( np.array( diff_field_list)/np.max(diff_field_list), label=r'$\Sigma P_{perim}$')
+plt.plot( np.array(rmse_list)/np.max( rmse_list), label='RMSE')
+plt.xlabel('iterations',fontsize=15)
+plt.ylabel('Normalized metric',fontsize=15)
+plt.legend(fontsize=15)
+plt.gca().tick_params(labelsize=15)
+plt.savefig( fig_path + exper_path + f'convergence_metrics_{phasemask_name}.png')
+
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
+
+# best cmd offset
+best_cmd = cmd_list[np.argmin( rmse_list)] # [ np.argmax( diff_field_list ) ] # zwfs.dm_shapes['flat_dm'] + amp * cmd_offset_list
+pd.Series( best_cmd ).to_csv( fig_path + exper_path + f'calibrated_flat_phasemas-{phasemask_name}.csv' )
+
+write_list = [I0_a_list, N0_a_list, I0_theory, cmd_list, diff_field_list, rmse_list, P2C_1x1,  filt.astype(int), pupil_outer_perim_filter.astype(int)]
+write_list_label = ["I0_a_list", "N0_a_list", "cmd_list", "diff_field_list", "rmse_list", "P2C_1x1", "pupil_filt", "pupil_outer_perim_filter"]
+
+flattening_dm_fits = fits.HDUList( [] )
+for i,lab in zip(write_list, write_list_label):
+    tmp_fits = fits.PrimaryHDU( i )
+    tmp_fits.header.set('EXTNAME',lab)
+    flattening_dm_fits.append( tmp_fits )
+
+flattening_dm_fits.writeto(fig_path + exper_path + f'flattening_DM_{tstamp}.fits') 
+
+
+zwfs.dm_shapes['flat_dm'] = best_cmd
+
+
+# NOW TRY MANUALA ADJUSTMENT for fine adjustment 
+cmd_man_adj = util.shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frames=5, apply_manual_reduction=True,\
+                   theta_degrees=11.8, flip_dm = True, savefig=fig_path + exper_path + 'delme.png') #'manual_adjustment.png')
+
+
+
+
+plt.figure()
+plt.imshow( np.flipud( util.get_DM_command_in_2D( P2C_1x1 @ I0.reshape(-1)/np.max( I0.reshape(-1) )) ))
+plt.title( 'P2C @ I0')
+plt.colorbar() 
+plt.savefig(fig_path + exper_path + f'P2C-I_mask{phasemask_name}.png')
+
+
+
+
+plt.figure()
+plt.imshow( np.flipud( util.get_DM_command_in_2D( P2C_1x1 @ (I0.reshape(-1)/np.max( I0.reshape(-1) ) - I0_theory.reshape(-1)/np.max(I0_theory)) )) )
+plt.title( 'P2C @ (I0-I0_theory)')
+plt.colorbar() 
+plt.savefig(fig_path + exper_path + f'P2C-I_Itheory_mask{phasemask_name}.png')
+
+
+
+
+
+
+
+
+
+
+#%% OLDER STUFF / TESTS BELOW 
 
 
 
@@ -378,26 +564,6 @@ zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] );
 
 
 
-# --- linear ramps 
-# use baldr.
-
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ); 
-
-recon_data = util.GET_BDR_RECON_DATA_INTERNAL(zwfs, number_amp_samples = 20, amp_max = 0.2,\
-number_images_recorded_per_cmd = 5, save_fits = data_path+f'pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
-# recon_data = fits.open( data_path+'recon_data_LARGE_SECONDARY_19-04-2024T12.19.22.fits' )
-
-M2C = util.construct_command_basis( basis='Zernike', number_of_modes = 5, Nx_act_DM = 12,Nx_act_basis =12, act_offset= (0,0), without_piston=True) 
-active_dm_actuator_filter = (abs(np.sum( M2C, axis=1 )) > 0 ).astype(bool)                           
-
-zonal_fits = util.PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=active_dm_actuator_filter, debug=True, fig_path = fig_path , savefits= data_path+f'fitted_pokeramp_data_MASK_{phasemask_name}_sydney_{tstamp}.fits') 
-
-
-#### TESSTING SINGLE ITERATION 
-# get residuals from 
-#calibrated single pixel to actuator mapping 
-P2C_1x1  = zonal_fits['P2C'].data[0] #
-
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
 compass = True, compass_origin=None, savefig= fig_path + f'initial_reference_pupils.png' )
 
@@ -453,53 +619,6 @@ for amp in np.linspace(-0.05, 0.05, 10 ):
 
 
 
-# Final test
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ); 
-
-phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName = fig_path + 'delme.png')
-
-
-I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig= fig_path +'newflat_test/' + f'initial_reference_pupils.png' )
-
-rmse_list = [] 
-amp = 0.03
-cmd_offset = np.zeros( 140 )
-for it in range(10):
-    zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] - amp * cmd_offset); 
-    time.sleep(0.1)
-
-    I0_a, N0_a = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-    compass = True, compass_origin=None, savefig= None )
-
-    residual = I0_theory/np.max(I0_theory) - I0_a/np.max(I0_a)
-    rmse = np.sqrt( np.mean( residual**2 ))
-
-
-    cmd_offset_raw = P2C_1x1 @ residual.reshape(-1) 
-
-    # normalize between 0-1
-    cmd_offset = (cmd_offset_raw - np.nanmin( cmd_offset_raw ) ) / (np.nanmax(  cmd_offset_raw ) - np.nanmin(  cmd_offset_raw ))
-
-    im_list = [I0_theory/np.max(I0_theory) , I0_a/np.max(I0_a), residual, util.get_DM_command_in_2D( cmd_offset) ]
-    xlabel_list = [None for _ in im_list]
-    ylabel_list = [None for _ in im_list]
-    title_list = ['theory', 'measured', 'residual', 'command offset']
-    cbar_label_list = [r'normalized intensity',r'normalized intensity', r'normalized intensity', 'mapped to actuators'] 
-    savefig = fig_path +'newflat_test/' + 'delme.png' # 'focus_test/' + f'I0_theory_v_meas_focusOffset-{round(i,2)}_mask-{phasemask_name}.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
-
-    util.nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list, cbar_label_list, fontsize=15, axis_off=True, cbar_orientation = 'bottom', savefig=savefig)
-
-    rmse_list.append( rmse)
-
-    _ = input(f'it = {it}, rms = {rmse}, go to next?')
-
-
-zwfs.dm.send_data( zwfs.dm_shapes['flat_dm']  ) 
-
-
-
-
 
 # DO it faster without plotting 
 
@@ -515,10 +634,12 @@ compass = True, compass_origin=None, savefig= fig_path +'newflat_test/' + f'init
 #plt.figure(); plt.imshow(( (abs( I0 - N0 ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) ) .reshape(I0.shape) ); plt.savefig(fig_path + 'delme.png')
 #plt.figure(); plt.imshow(( (abs( I0_theory - N0_theory ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) ) .reshape(I0.shape) ); plt.savefig(fig_path + 'delme.png')
 
-pupil_outer_perim_filter = ( (abs( I0 - N0 ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
-pupil_outer_perim_filter2 = ( (abs( I0_theory - N0_theory ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
+#pupil_outer_perim_filter = ( (abs( I0 - N0 ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
+pupil_outer_perim_filter = ( (abs( I0_theory - N0_theory ) > 0.1 ).reshape(-1) * (~zwfs.pupil_pixel_filter) )
+# seems better to use the theory one
 
 rmse_list = [] 
+diff_field_list = []
 amp = 0.03
 cmd_offset = np.zeros( 140 )
 no_its = 20
@@ -534,10 +655,14 @@ for it in range(no_its):
     rmse = np.sqrt( np.mean( residual**2 ))
 
     rmse_list.append( rmse )
+    diff_field_list.append( I0_a.reshape(-1)[pupil_outer_perim_filter])
+    
     cmd_offset_raw = P2C_1x1 @ residual.reshape(-1) 
 
     # normalize between 0-1
-    cmd_offset = (cmd_offset_raw - np.nanmin( cmd_offset_raw ) ) / (np.nanmax(  cmd_offset_raw ) - np.nanmin(  cmd_offset_raw ))
+    cmd_offset_n = (cmd_offset_raw - np.nanmin( cmd_offset_raw ) ) / (np.nanmax(  cmd_offset_raw ) - np.nanmin(  cmd_offset_raw ))
+
+    cmd_offset = cmd_offset + cmd_offset_n 
 
     maxcmd = np.max(abs( cmd_offset * amp ) )
  

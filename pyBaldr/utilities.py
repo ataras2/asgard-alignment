@@ -923,7 +923,7 @@ def get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=2
     return(I0, N0)
         
 
-def shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frames=100, apply_manual_reduction=True, theta_degrees=11.8, savefig=None):
+def shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frames=5, apply_manual_reduction=True, theta_degrees=11.8, flip_dm=True, savefig=None):
     if initial_cmd == None:
         cmd =  zwfs.dm_shapes['flat_dm'].copy()
     else:
@@ -983,11 +983,15 @@ def shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frame
                     new_img = np.mean(zwfs.get_some_frames(number_of_frames = number_of_frames, apply_manual_reduction = apply_manual_reduction ) , axis=0 )
 
                     # plotting results
-                    im_list = [new_img , initial_img ]
-                    xlabel_list = [None, None]
-                    ylabel_list = [None, None]
-                    title_list = [r'current image', r'initial image']
-                    cbar_label_list = ['Intensity (Normalized)', 'Intensity (Normalized)'] 
+                    if flip_dm:
+                        cmd2plot = np.flipud( get_DM_command_in_2D( cmd ) )
+                    else:
+                        cmd2plot = get_DM_command_in_2D( cmd )  
+                    im_list = [cmd2plot ,new_img , initial_img ]
+                    xlabel_list = [None, None, None]
+                    ylabel_list = [None, None, None]
+                    title_list = ['current DM\ncommand',r'current image', r'initial image']
+                    cbar_label_list = ['DM units','Intensity (Normalized)', 'Intensity (Normalized)'] 
                     #fig_path + 'delme.png' #f'mode_reconstruction_images/phase_reconstruction_example_mode-{mode_indx}_basis-{phase_ctrl.config["basis"]}_ctrl_modes-{phase_ctrl.config["number_of_controlled_modes"]}ctrl_act_diam-{phase_ctrl.config["dm_control_diameter"]}_readout_mode-12x12.png'
 
                     n = len(im_list)
@@ -996,8 +1000,22 @@ def shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frame
 
                     for a in range(n) :
                         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
-                        im1 = ax1.imshow(  im_list[a] , vmin = np.min(im_list[-1]), vmax = np.max(im_list[-1]))
-
+                        if a != 0:
+                            im1 = ax1.imshow(  im_list[a] , vmin = np.min(im_list[-1]), vmax = np.max(im_list[-1]))
+                        else: # DM command
+                            im1 = ax1.imshow(  im_list[a]  )
+                            n_rows, n_cols = im_list[a].shape
+                            #Annotate each square with the flattened index
+                            for i in range(n_rows):
+                               for j in range(n_cols):
+                                    # Calculate the flattened index
+                                    
+                                    if flip_dm:
+                                        flattened_index = (n_rows - 1 - i) * n_cols + j
+                                    else:
+                                        flattened_index = i * n_cols + j    
+                                    # Add the flattened index as text in the plot. make index between 1-140 so add 1
+                                    ax1.text(j, i, f'{flattened_index}', va='center', ha='center', color='white')
 
                         ax1.set_title( title_list[a] ,fontsize=fs)
                         ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
@@ -1012,7 +1030,7 @@ def shape_dm_manually(zwfs, compass = True , initial_cmd = None ,number_of_frame
                         cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
                         cbar.ax.tick_params(labelsize=fs)
 
-                        if (a==0) & compass:
+                        if (a==1) & compass:
                             # Convert theta from degrees to radians
                             theta = np.radians(theta_degrees)
                             
@@ -1190,16 +1208,28 @@ def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_l
 
     #plt.show() 
 
-def nice_DM_plot( data, savefig=None ): #for a 140 actuator BMC 3.5 DM
+def nice_DM_plot( data, savefig=None , include_actuator_number = True): #for a 140 actuator BMC 3.5 DM
     fig,ax = plt.subplots(1,1)
     if len( np.array(data).shape ) == 1: 
         ax.imshow( get_DM_command_in_2D(data) )
+        n_rows, n_cols = get_DM_command_in_2D(data).shape
     else: 
         ax.imshow( data )
+        n_rows, n_cols = data.shape
     #ax.set_title('poorly registered actuators')
     ax.grid(True, which='minor',axis='both', linestyle='-', color='k', lw=2 )
     ax.set_xticks( np.arange(12) - 0.5 , minor=True)
     ax.set_yticks( np.arange(12) - 0.5 , minor=True)
+
+    if include_actuator_number:
+        
+        for i in range(n_rows):
+            for j in range(n_cols):
+                # Calculate the flattened index
+                flattened_index = i * n_cols + j
+                # Add the flattened index as text in the plot
+                ax.text(j, i, f'{flattened_index}', va='center', ha='center', color='white')
+
     if savefig!=None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
 
@@ -1672,7 +1702,7 @@ def Ic_model_constrained_3param(x, A,  F, mu):
 
 
 # should this be free standing or a method? ZWFS? controller? - output a report / fits file
-def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=None, debug=True, fig_path = 'tmp/', savefits=None) :
+def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_actuator_filter=None, poke_amplitude_indx=3, debug=True, fig_path = 'tmp/', savefits=None) :
     """
     # calibration of our ZWFS: 
     # this will fit M0, b0, mu, F which can be appended to a phase_controller,
@@ -1733,7 +1763,7 @@ def PROCESS_BDR_RECON_DATA_INTERNAL(recon_data, bad_pixels = ([],[]), active_dm_
         N0 *= bad_pixel_mask
         poke_imgs  = poke_imgs * bad_pixel_mask
 
-    a0 = len(ramp_values)//2 - 2 # which poke value (index) do we want to consider for finding region of influence. Pick a value near the center of the ramp (ramp values are from negative to positive) where we are in a linear regime.
+    a0 = len(ramp_values)//2 - poke_amplitude_indx # which poke value (index) do we want to consider for finding region of influence. Pick a value near the center of the ramp (ramp values are from negative to positive) where we are in a linear regime.
     
     if hasattr(active_dm_actuator_filter,'__len__'):
         #is it some form of boolean type?
