@@ -150,11 +150,25 @@ class LeakyIntegrator:
 # 
 itera = 1 # first try here 
 
+  
+# timestamp
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
+
+fig_path = f'tmp/{tstamp.split("T")[0]}/'
+
 exper_path = f'open_loop_{itera}/'
+
+# setup paths 
+if not os.path.exists(fig_path + exper_path ):
+   os.makedirs(fig_path + exper_path )
+
+"""if not os.path.exists(f'tmp/{tstamp.split("T")[0]}/'):
+   os.makedirs(f'tmp/{tstamp.split("T")[0]}/')
+
 
 if not os.path.exists(fig_path + exper_path):
    os.makedirs(fig_path + exper_path)
-
+"""
 
 """# reco file is with cal dm flat, reco file 2 with bmc cal 
 reco_file = 'tmp/09-09-2024/iter_4_J3/zonal_reconstructor/RECONSTRUCTORS_zonal_0.07pokeamp_in-out_pokes_map_DIT-0.001_gain_high_09-09-2024T08.28.05.fits'
@@ -184,7 +198,7 @@ phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigNam
 
 # BUILD THE RECONSTRUCTOR HERE 
 I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig= fig_path + exper_path + f'FPM-in-out_{phasemask_name}_{label}.png' )
+compass = True, compass_origin=None, savefig= fig_path + exper_path + f'FPM-in-out_{phasemask_name}.png' )
 
 
 modal_basis = util.construct_command_basis('Zonal_pinned_edges')
@@ -239,8 +253,8 @@ def plot_DM( cmd , save_path = fig_path + 'delme.png'):
 
 ## WE CAN DO ALL THIS WITH DIFFERENT PUPIL REGISTRATIONS!!! 
 pupil_pixel_shift=0
-pupil_pixel_filter = numpy.roll(zwfs.pupil_pixel_filter, shift=pupil_pixel_shift, axis=0)
-pupil_pixels = np.where( pupil_pixel_filter )  #pupil_pixels.copy() 
+pupil_pixel_filter = np.roll(zwfs.pupil_pixel_filter, shift=pupil_pixel_shift, axis=0)
+pupil_pixels = np.where( pupil_pixel_filter )[0]  #pupil_pixels.copy() 
 
 
 cmd2opd = 3200 # to go to cmd space to nm OPD 
@@ -256,99 +270,101 @@ if not os.path.exists(current_path ):
 
 U, S, Vt = np.linalg.svd( IM, full_matrices=False)
 
-rmse_list =[]
-c_list =[]
-R_list = []
-residual_list = [] 
 
 Smax_grid = np.arange( 2,100,3)
 
+#m=65 # mode to put on
+for m in [43,55,65,75]:
+    # put on IM signal with a bit of noise (1/2 std )
+    noise_sigma = 0.5 * np.std( IM )
 
-m=65 # mode to put on
-# put on IM signal with a bit of noise (1/2 std )
-noise_sigma = 0.5 * np.std( IM )
+    sig =  IM.T[m] + noise_sigma * np.random.rand( IM.T[m].shape[0] ) 
+    tmp = np.zeros( I0.shape )
+    tmp.reshape(-1)[pupil_pixels] = sig
+    sig_list = [tmp] 
 
-sig =  IM.T[i] + noise_sigma * np.random.rand( IM.T[m].shape[0] ) 
-sig_list = [sig] 
+    disturbance_cmd  =  poke_amp * M2C_0[m]    
+    disturb_list = [disturbance_cmd]
 
-disturbance_cmd  =  poke_amp * M2C_0[m]    
-disturb_list = [disturbance_cmd]
+    rmse_list =[]
+    c_list =[]
+    R_list = []
+    residual_list = [] 
+    for Smax in Smax_grid: 
+        
+        U, S, Vt = np.linalg.svd( IM, full_matrices=False)
 
-for Smax in Smax_grid: 
-    
-    U, S, Vt = np.linalg.svd( IM, full_matrices=False)
+        R  = (Vt.T * [1/ss if i < Smax else 0 for i,ss in enumerate(S)])  @ U.T
+        
+        c = poke_amp * M2C_0.T @ R @ sig.reshape(-1) #dont need pupil filter as its inbuilt in IM 
+        
+        residual =  (disturbance_cmd - c)
 
-    R  = (Vt.T * [1/ss if i < Smax else 0 for i,ss in enumerate(S)])  @ U.T
-    
-    c = poke_amp * M2C_0.T @ R @ sig.reshape(-1) #dont need pupil filter as its inbuilt in IM 
-    
-    residual =  (disturbance_cmd - c)[dm_pupil_filt]
+        rmse = np.nanstd( residual[dm_pupil_filt] )
+        
+        residual_list.append( residual )    
+        rmse_list.append( rmse ) 
+        c_list.append( c )
+        R_list.append( R )
+        
+    best_i = np.argmin( rmse_list )
 
-    rmse = np.nanstd( residual )
-    
-    residual_list.append( residual )    
-    rmse_list.append( rmse ) 
-    c_list.append( c )
-    R_list.append( R )
-    
-best_i = np.argmin( rmse_list )
+    im_list = [ np.flipud(sig_list[0]), cmd2opd * util.get_DM_command_in_2D( disturbance_cmd ) , cmd2opd * util.get_DM_command_in_2D( c_list[best_i] ) , \
+                cmd2opd * util.get_DM_command_in_2D(residual_list[best_i])  ]
+    xlabel_list = ['' for _ in range(len(im_list))]
+    ylabel_list = ['' for _ in range(len(im_list))]
 
-im_list = [ np.flipud(sig), cmd2opd * util.get_DM_command_in_2D( disturbance_cmd ) , cmd2opd * util.get_DM_command_in_2D( c_list[best_i] ) , \
-            cmd2opd * util.get_DM_command_in_2D(residual_list[best_i]) ) ]
-xlabel_list = ['' for _ in range(len(im_list))]
-ylabel_list = ['' for _ in range(len(im_list))]
+    dm_mode = cmd2opd *  util.get_DM_command_in_2D( disturbance_cmd)
 
-dm_mode = cmd2opd *  util.get_DM_command_in_2D( disturbance_cmd)
+    vlims=[[np.min(sig_list[0]),np.max(sig_list[0])]] + [[np.nanmin(dm_mode), np.nanmax(dm_mode)] for _ in im_list[1:]]
+    title_list = ['ZWFS signal', 'DM aberration' , 'DM reconstruction', 'residuals']
+    cbar_label_list = [ 'normalized signal [adu]', 'OPD [nm]', 'OPD [nm]','OPD [nm]']
+    util.nice_heatmap_subplots(im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, vlims=vlims, \
+                            cbar_orientation = 'bottom', axis_off=True, savefig= current_path + f'reco_IM_signal_{m}_mask{phasemask_name}.png')
 
-vlims=[[np.min(sig_list[best_i]),np.max(sig_list[best_i])]] + [[np.nanmin(dm_mode), np.nanmax(dm_mode)] for _ in im_list[1:]]
-title_list = ['ZWFS signal', 'DM aberration' , 'DM reconstruction', 'residuals']
-cbar_label_list = [ 'normalized signal [adu]', 'OPD [nm]', 'OPD [nm]','OPD [nm]']
-util.nice_heatmap_subplots(im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, vlims=vlims, \
-                        cbar_orientation = 'bottom', axis_off=True, savefig= current_path + f'reco_IM_signal_{m}_mask{phasemask_name}.png')
-
-    
-#basis_name = 'fourier' #'zonal'
-plt.figure(figsize=(8,5))
-plt.plot( Smax_grid, 2*np.pi/1050 * cmd2opd * np.array( rmse_list)  )
-#plt.axhline( np.var(test_field.phase[z.wvls[0]][z.pup>0]) , label='initial')
-plt.legend()
-plt.xlabel('Singular value truncation index',fontsize=15)
-plt.ylabel('Reconstructed RMSE [rad]',fontsize=15) 
-plt.gca().tick_params(labelsize=15)   
-plt.savefig(current_path + f'rmse_vs_svd_trunction_measured_IM_signal_{m}_{phasemask_name}.png', bbox_inches='tight', dpi=200)
-
-
-write_dict = {
-"disturbance" : disturb_list,
-"signal" : sig_list,
-"svd_trucation_grid":Smax_grid,
-"reconstructor" :R_list ,
-"reco_cmd":c_list ,
-"cmd_rmse":rmse_list ,
-"cmd_residual":residual_list  
-}
+        
+    #basis_name = 'fourier' #'zonal'
+    plt.figure(figsize=(8,5))
+    plt.plot( Smax_grid, 2*np.pi/1050 * cmd2opd * np.array( rmse_list)  )
+    #plt.axhline( np.var(test_field.phase[z.wvls[0]][z.pup>0]) , label='initial')
+    #plt.legend()
+    plt.xlabel('Singular value truncation index',fontsize=15)
+    plt.ylabel('Reconstructed RMSE [rad]',fontsize=15) 
+    plt.gca().tick_params(labelsize=15)   
+    plt.savefig(current_path + f'rmse_vs_svd_trunction_measured_IM_signal_{m}_{phasemask_name}.png', bbox_inches='tight', dpi=200)
 
 
+    write_dict = {
+    "disturbance" : disturb_list,
+    "signal" : sig_list,
+    "svd_trucation_grid":Smax_grid,
+    "reconstructor" :R_list ,
+    "reco_cmd":c_list ,
+    "cmd_rmse":rmse_list ,
+    "cmd_residual":residual_list  
+    }
 
-# Create a list of HDUs (Header Data Units)
-hdul = fits.HDUList()
 
-# Add each list to the HDU list as a new extension
-for list_name, data_list in write_dict.items():
-    # Convert list to numpy array for FITS compatibility
-    data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
 
-    # Create a new ImageHDU with the data
-    hdu = fits.ImageHDU(data_array)
+    # Create a list of HDUs (Header Data Units)
+    hdul = fits.HDUList()
 
-    # Set the EXTNAME header to the variable name
-    hdu.header['EXTNAME'] = list_name
+    # Add each list to the HDU list as a new extension
+    for list_name, data_list in write_dict.items():
+        # Convert list to numpy array for FITS compatibility
+        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
 
-    # Append the HDU to the HDU list
-    hdul.append(hdu)
+        # Create a new ImageHDU with the data
+        hdu = fits.ImageHDU(data_array)
 
-# Write the HDU list to a FITS file
-hdul.writeto( current_path + f'pt1-reco_IM_signal_telemetry_{phasemask_name}_{tstamp}.fits', overwrite=True)
+        # Set the EXTNAME header to the variable name
+        hdu.header['EXTNAME'] = list_name
+
+        # Append the HDU to the HDU list
+        hdul.append(hdu)
+
+    # Write the HDU list to a FITS file
+    hdul.writeto( current_path + f'pt1-reco_IM_signal_telemetry_act{m}_{phasemask_name}_{tstamp}.fits', overwrite=True)
 
 
 
@@ -442,7 +458,7 @@ best_i = np.argmin( rmse_list )
 
 
 im_list = [ np.flipud(sig), cmd2opd * util.get_DM_command_in_2D( disturbance_cmd ) , cmd2opd * util.get_DM_command_in_2D( c_list[best_i] ) , \
-            cmd2opd * util.get_DM_command_in_2D(residual_list[best_i]) ) ]
+            cmd2opd * util.get_DM_command_in_2D(residual_list[best_i])  ]
            
 xlabel_list = ['' for _ in range(len(im_list))]
 ylabel_list = ['' for _ in range(len(im_list))]
