@@ -8,6 +8,7 @@ import importlib
 #import rtc
 import sys
 import datetime
+import pandas as pd
 sys.path.append('pyBaldr/' )  
 sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
 sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
@@ -106,7 +107,7 @@ if not os.path.exists(fig_path + exper_path):
 
 # ====== hardware variables
 beam = 3
-phasemask_name = 'J3'
+phasemask_name = 'J1'
 phasemask_OUT_offset = [1000, 1000] # relative offset (um) to take phasemask out of beam
 BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
@@ -200,8 +201,8 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 # calibrated new one. Set here 
 new_flat_cmd = pd.read_csv( '/home/heimdallr/Documents/asgard-alignment/tmp/08-09-2024/optimize_ref_int_method_3/newflat_test_3/calibrated_flat_phasemas-J3.csv').values[:,1]
 
-zwfs.dm_shapes['flat_dm_original'] = zwfs.dm_shapes['flat_dm'].copy() # keep the original BMC calibrated flat 
-zwfs.dm_shapes['flat_dm'] = new_flat_cmd  # update to ours! 
+#zwfs.dm_shapes['flat_dm_original'] = zwfs.dm_shapes['flat_dm'].copy() # keep the original BMC calibrated flat 
+#zwfs.dm_shapes['flat_dm'] = new_flat_cmd  # update to ours! 
 
 zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
 zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
@@ -322,15 +323,15 @@ zernike_dict_20_pinv  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'p
 fourier_dict_50 = {'controller': fourier_phase_ctrl_50, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20 = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'fourier_0.2pokeamp_in-out_pokes_map' }
 fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier_0.2pokeamp_in-out_pokes_pinv' }
-fourier_dict_90_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier90_0.2pokeamp_in-out_pokes_pinv' }
+fourier_dict_90_pinv = {'controller': fourier_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier90_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
     'zonal':zonal_dict ,
-    'zernike_20modes_map':zernike_dict_20,
-    'zernike_20modes_pinv':zernike_dict_20_pinv,
-    'fourier_90modes_pinv':fourier_dict_90_pinv,
-    'fourier_20modes_pinv':fourier_dict_20_pinv,
-    'fourier_20modes_map':fourier_dict_20
+    #'zernike_20modes_map':zernike_dict_20,
+    'zernike_90modes_pinv':zernike_dict_90,
+    'fourier_90modes_pinv':fourier_dict_90_pinv
+    #'fourier_20modes_pinv':fourier_dict_20_pinv,
+    #'fourier_20modes_map':fourier_dict_20
 }
 
 # iter 10 , reduced bad pixel mask threshold from 50 - 25 . WORKED FOR TT!! at least in open loop reconstructor
@@ -357,7 +358,14 @@ build_dict = {
 # 10 /9/24
 #itera = 1 # just get a bunch to analyse with new calibrated DM flat 
 #itera = 2 # just get a bunch to analyse with new ORIGINAL calibrated DM flat 
-itera = 3 # back to calibrated flat - including 90 Fourier pinned modes
+#itera = 3 # back to calibrated flat - including 90 Fourier pinned modes
+#itera = 4 # get 90 fourier modes (fix bug) 
+
+itera = 5 # go through different phasemasks 
+
+
+
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ) 
 #subprocess.run()
 # build and write them to fits 
 for basis in  build_dict:
@@ -583,6 +591,8 @@ for basis in build_dict:
     
     plt.close()
 
+    zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
+    
     # save as fits 
     reco_openloop_fits = fits.HDUList( [] )
     for thing, lab in zip( [cmd, imgrid, cmd_TT, cmd_reco_TT, cmd_HO, cmd_reco_HO], ['cmd', 'zwfs_signal', 'cmd_TT', 'cmd_reco_TT', 'cmd_HO', 'cmd_reco_HO']):
