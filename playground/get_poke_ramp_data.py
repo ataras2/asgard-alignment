@@ -115,7 +115,7 @@ if not os.path.exists(fig_path):
 # =====================
 # ====== hardware variables
 beam = 3
-phasemask_name = 'H1'
+phasemask_name = 'J5'
 phasemask_OUT_offset = [1000,1000]  # relative offset (um) to take phasemask out of beam
 BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"

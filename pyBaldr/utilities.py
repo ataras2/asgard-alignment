@@ -11,6 +11,7 @@ from scipy.interpolate import interp1d
 from scipy.integrate import quad
 from scipy import ndimage
 import scipy.ndimage as ndimage
+from scipy.spatial import distance
 from scipy import signal
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
@@ -426,7 +427,52 @@ def pin_outer_actuators_to_inner_diameter(inner_command):
 
     return command_140_flat.tolist()
 
+def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, registered_indices):
+    """
+    Pins non-registered actuators to the closest registered actuator, excluding missing corners.
 
+    Parameters:
+    - dm_shape: Tuple (rows, cols) representing the DM grid, e.g., (12, 12).
+    - missing_corners: List of indices (in the flattened array) of missing corners.
+    - registered_indices: 1D array of indices corresponding to actuators with registered values.
+
+    Returns:
+    - basis: 2D array (dm_shape[0] * dm_shape[1] - len(missing_corners), len(registered_indices))
+             where each non-registered actuator is pinned to its closest registered actuator.
+    """
+    # Create the full DM grid with flattened indices
+    flattened_size = dm_shape[0] * dm_shape[1]
+    
+    # Generate 2D coordinates for each point on the grid
+    grid_coords = np.array(np.unravel_index(np.arange(flattened_size), dm_shape)).T
+    
+    # Remove missing corners from the grid and flatten the remaining actuators
+    valid_indices = np.setdiff1d(np.arange(flattened_size), missing_corners)
+    valid_coords = grid_coords[valid_indices]
+
+    # Extract coordinates of the registered actuators
+    registered_coords = grid_coords[registered_indices]
+    
+    # Initialize the basis matrix for valid actuators
+    basis = np.zeros((len(valid_indices), len(registered_indices)))
+    
+    # For each valid actuator, find the closest registered actuator
+    for idx, valid_idx in enumerate(valid_indices):
+        if valid_idx in registered_indices:
+            # If the actuator is registered, set its basis vector to be identity
+            basis[idx, registered_indices == valid_idx] = 1.0
+        else:
+            # If the actuator is not registered, pin it to the nearest registered actuator
+            distances = distance.cdist([grid_coords[valid_idx]], registered_coords)
+            nearest_idx = np.argmin(distances)
+            # Pin to the nearest registered actuator
+            basis[idx, nearest_idx] = 1.0
+    
+    #<m|m>=1
+    basis_norm = np.array( [b/np.sum(b**2)**0.5 for b in basis.T] ).T
+    
+    
+    return basis_norm
 
 
 def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True,  phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
