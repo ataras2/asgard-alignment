@@ -475,7 +475,7 @@ def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, re
     return basis_norm
 
 
-def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True,  phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
     """
     get theoretical reference pupil intensities of ZWFS with / without phasemask 
     
@@ -492,6 +492,8 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         DESCRIPTION. The default is 1.2.
     diameter_in_angular_units : TYPE, optional
         DESCRIPTION. The default is True.
+    get_individual_terms : Type optional
+        DESCRIPTION : if false (default) with jsut return intensity, otherwise return P^2, abs(M)^2 , phi + mu
     phaseshift : TYPE, optional
         DESCRIPTION. phase phase shift imparted on input field (radians). The default is np.pi/2.
     padding_factor : pad to change the resolution in image plane. TYPE, optional
@@ -557,7 +559,6 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
                             
     b = np.fft.fftshift( np.fft.ifft2( mask * psi_B ) ) 
 
-        
     
     if debug: 
         
@@ -602,7 +603,14 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         phi = np.zeros( P.shape ) # added aberrations 
         
         # out formula ----------
+        #if measured_pupil!=None:
+        #    P = measured_pupil / np.mean( P[P > np.mean(P)] ) # normalize by average value in Pupil
+        
         Ic = ( P**2 + abs(M)**2 + 2* P* abs(M) * np.cos(phi + mu) ) #+ beta)
+        if not get_individual_terms:
+            return( P, Ic )
+        else:
+            return( P, abs(M) , phi+mu )
     else:
         
         # phasemask filter 
@@ -612,8 +620,8 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         H = T_off*(1 + (T_on/T_off * np.exp(1j * theta) - 1) * mask  ) 
         
         Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
-        
-    return( P, Ic)
+    
+        return( P, Ic)
 
 
 def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n, x_c, y_c, new_radius):
@@ -705,6 +713,41 @@ def get_phasemask_phaseshift( wvl, depth, dot_material = 'N_1405' ):
     
     else:
         raise TypeError('No corresponding dot material for given input. Try N_1405.')
+
+
+def square_spiral_scan(starting_point, step_size, search_radius):
+    """
+    Generates a square spiral scan pattern starting from the initial point within a given search radius and step size.
+    
+    Parameters:
+    starting_point (tuple): The initial (x, y) point to start the spiral.
+    step_size (float): The size of each step in the grid.
+    search_radius (float): The maximum radius to scan in both x and y directions.
+
+    Returns:
+    list: A list of tuples where each tuple contains (x_amp, y_amp), the left/right and up/down amplitudes for the scan.
+    """
+    x, y = starting_point  # Start at the given initial point
+    dx, dy = step_size, 0  # Initial movement to the right
+    scan_points = [(x, y)]
+    steps_taken = 0  # Counter for steps taken in the current direction
+    step_limit = 1  # Initial number of steps in each direction
+
+    while max(abs(x - starting_point[0]), abs(y - starting_point[1])) <= search_radius:
+        for _ in range(2):  # Repeat twice: once for horizontal, once for vertical movement
+            for _ in range(step_limit):
+                x, y = x + dx, y + dy
+                if max(abs(x - starting_point[0]), abs(y - starting_point[1])) > search_radius:
+                    return scan_points
+                scan_points.append((x, y))
+            
+            # Rotate direction (right -> up -> left -> down)
+            dx, dy = -dy, dx
+
+        # Increase step limit after a complete cycle (right, up, left, down)
+        step_limit += 1
+
+    return scan_points
 
 
 def spiral_search_TT_coefficients( dr, dtheta, aoi_tp, aoi_tt, num_points, r0=0, theta0=0):

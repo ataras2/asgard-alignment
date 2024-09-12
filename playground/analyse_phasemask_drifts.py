@@ -52,5 +52,5 @@ for label in data:
     
     # Adjust layout and show plot
     plt.tight_layout()
-    plt.savefig(directory+f"/tmp/phasemask_drifts_{label}.png")
+    plt.savefig(directory+f"/tmp/phasemask_drifts_{label}_11-09-2024.png")
     

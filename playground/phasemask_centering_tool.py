@@ -78,6 +78,84 @@ def is_symmetric(image, threshold=0.1):
 
     return symmetric, (dx, dy)
 
+
+
+def square_spiral_scan(starting_point, step_size, search_radius):
+    """
+    Generates a square spiral scan pattern starting from the initial point within a given search radius and step size.
+    
+    Parameters:
+    starting_point (tuple): The initial (x, y) point to start the spiral.
+    step_size (float): The size of each step in the grid.
+    search_radius (float): The maximum radius to scan in both x and y directions.
+
+    Returns:
+    list: A list of tuples where each tuple contains (x_amp, y_amp), the left/right and up/down amplitudes for the scan.
+    """
+    x, y = starting_point  # Start at the given initial point
+    dx, dy = step_size, 0  # Initial movement to the right
+    scan_points = [(x, y)]
+    steps_taken = 0  # Counter for steps taken in the current direction
+    step_limit = 1  # Initial number of steps in each direction
+
+    while max(abs(x - starting_point[0]), abs(y - starting_point[1])) <= search_radius:
+        for _ in range(2):  # Repeat twice: once for horizontal, once for vertical movement
+            for _ in range(step_limit):
+                x, y = x + dx, y + dy
+                if max(abs(x - starting_point[0]), abs(y - starting_point[1])) > search_radius:
+                    return scan_points
+                scan_points.append((x, y))
+            
+            # Rotate direction (right -> up -> left -> down)
+            dx, dy = -dy, dx
+
+        # Increase step limit after a complete cycle (right, up, left, down)
+        step_limit += 1
+
+    return scan_points
+
+
+
+def spiral_square_search_and_save_images(zwfs,  phasemask, starting_point, step_size, search_radius , sleep_time = 0.5):
+    
+    spiral_pattern = square_spiral_scan(starting_point, step_size, search_radius)
+
+    x_points, y_points = zip(*spiral_pattern)  
+    img_dict = {}
+    
+    for i, (x_pos, y_pos) in  enumerate(zip(x_points, y_points)):
+        print( 'at ', x_pos, y_pos)
+        print( f'{100 * i/len(x_points)}% complete')
+        phasemask.move_absolute([x_pos, y_pos])
+        time.sleep( sleep_time)  # wait for the phase mask to move and settle
+        img = np.mean(zwfs.get_some_frames(number_of_frames = 10, apply_manual_reduction = True ) , axis=0 )
+    
+        img_dict[(x_pos,y_pos)] = img        
+
+    """
+
+    #example to analyse results
+        
+    coord = np.array( [k for k,v in search.items()] )
+
+    img_list = np.array( [v for k,v in search.items()] )
+
+    dif_imgs =  np.mean(( img_list[0] - img_list )**2 ,axis=(1,2)) 
+
+    plt.figure(); plt.plot( dif_imgs) ; plt.savefig( fig_path + 'delmen.png')
+
+    candidate_indx = sorted(range(len(dif_imgs)), key=lambda i: dif_imgs[i], reverse=True)
+
+
+    img_candidates = search[ tuple(coord[candidate_indx[i]]) ]    
+
+    i=0
+    plt.figure(); plt.imshow(  img_candidates ); plt.savefig('delmen.png') 
+    """
+
+    return img_dict
+
+
 def spiral_search_and_center(zwfs, phasemask, phasemask_name, search_radius, dr, dtheta, reference_img, fine_tune_threshold=3, savefigName=None, usr_input=True):
 
     phasemask.move_to_mask( phasemask_name ) # move to phasemask   

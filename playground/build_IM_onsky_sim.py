@@ -244,7 +244,7 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
 fig_path = f'tmp/{tstamp.split("T")[0]}/'
 
-exper_path = f'build_IM_onsky_{tstamp}/'
+exper_path = f'build_IM_onsky_with_new_dmflat_{tstamp}/'
 
 # setup paths 
 if not os.path.exists(fig_path + exper_path ):
@@ -351,12 +351,12 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
 # calibrated new one. Set here 
-new_flat_cmd = pd.read_csv( '/home/heimdallr/Documents/asgard-alignment/tmp/08-09-2024/optimize_ref_int_method_3/newflat_test_3/calibrated_flat_phasemas-J3.csv').values[:,1]
+new_flat_cmd = pd.read_csv( '/home/heimdallr/Documents/asgard-alignment/tmp/11-09-2024/optimize_ref_int_method_4/newflat_test_using_measN0_in_theory_3/calibrated_flat_phasemas-J3.csv' ) #'/home/heimdallr/Documents/asgard-alignment/tmp/08-09-2024/optimize_ref_int_method_3/newflat_test_3/calibrated_flat_phasemas-J3.csv').values[:,1]
 
 #zwfs.dm_shapes['flat_dm_original'] = zwfs.dm_shapes['flat_dm'].copy() # keep the original BMC calibrated flat 
 #zwfs.dm_shapes['flat_dm'] = new_flat_cmd  # update to ours! 
 
-zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
+zwfs.deactive_cropping( ) # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
 zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
 zwfs.set_camera_fps( 100 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
@@ -429,11 +429,11 @@ compass = True, compass_origin=None, savefig= fig_path + exper_path + f'FPM-in-o
 """
 
 # get a series of off mask images 
-phasemask.move_relative( [ 100, 0 ] )
+phasemask.move_relative( [ 200, 0 ] )
 
 N0_list = zwfs.get_some_frames(number_of_frames=1000, apply_manual_reduction=True)
 
-phasemask.move_relative( [ -100, 0 ] )
+phasemask.move_relative( [ -200, 0 ] )
 
 basis_name = 'Zonal_pinned_edges'
 modal_basis = util.construct_command_basis( basis=basis_name).T
@@ -442,7 +442,7 @@ flat_dm_cmd = zwfs.dm_shapes['flat_dm'].copy()
 # TO POKE CMDS WHILE ROLLING PHASE SCREEN 
 j=0 # to count when to poke next actuator
 modal_basis = modal_basis  #np.eye(140) # actuator basis 
-scrn_scaling_factor =  0.08 #1.2*( np.random.rand() - 0.5 )
+scrn_scaling_factor =  0.06 #1.2*( np.random.rand() - 0.5 )
 
 kolmogorov_random = []
 
