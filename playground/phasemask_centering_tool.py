@@ -132,28 +132,65 @@ def spiral_square_search_and_save_images(zwfs,  phasemask, starting_point, step_
     
         img_dict[(x_pos,y_pos)] = img        
 
+
+
+    return img_dict
+
+
+
+def analyse_search_results( search , savepath = 'delme.png'):
     """
-
-    #example to analyse results
-        
+    analyse results from spiral_square_search_and_save_images
+    search = img_dict output from spiral_square_search_and_save_images function.
+    """
     coord = np.array( [k for k,v in search.items()] )
-
     img_list = np.array( [v for k,v in search.items()] )
 
     dif_imgs =  np.mean(( img_list[0] - img_list )**2 ,axis=(1,2)) 
 
     plt.figure(); plt.plot( dif_imgs) ; plt.savefig( fig_path + 'delmen.png')
-
+    # order indicies from the best (highest) according to metric dif_imgs
     candidate_indx = sorted(range(len(dif_imgs)), key=lambda i: dif_imgs[i], reverse=True)
 
 
-    img_candidates = search[ tuple(coord[candidate_indx[i]]) ]    
-
     i=0
-    plt.figure(); plt.imshow(  img_candidates ); plt.savefig('delmen.png') 
-    """
+    metric_candidate = dif_imgs[candidate_indx[i]]
+    img_candidate = search[ tuple(coord[candidate_indx[i]]) ]    
 
-    return img_dict
+    prompt = 1
+    i=0
+    while prompt != 'e':
+
+        metric_candidate = dif_imgs[candidate_indx[i]] 
+        img_candidate = search[ tuple(coord[candidate_indx[i]]) ]    
+
+        plt.figure(); 
+        plt.imshow(  img_candidate ); 
+        plt.title(f'position = { coord[candidate_indx[i]]}, metric = {metric_candidate}' )
+        plt.savefig( savepath ) 
+        prompt = input('1 to go to next, 0 to go back, e to exit')
+
+        if prompt == '1':
+            i+=1
+        elif prompt == '0':
+            i-=1
+        elif prompt == 'e':
+            print( f'stoped at index {candidate_indx[i]}, coordinates {coord[candidate_indx[i]]}' )
+            stop_coord = coord[candidate_indx[i]]
+        else:
+            print('invalid input. 1 to go to next, 0 to go back, e to exit')
+
+    # phasemask.move_absolute( stop_coord )
+
+    # phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
+
+    # # TO update positions and write file if needed
+    # phasemask.update_mask_position( phasemask_name )
+    # phasemask.update_all_mask_positions_relative_to_current( phasemask_name, 'phase_positions_beam_3 original_DONT_DELETE.json')
+    # phasemask.write_current_mask_positions()
+
+    return( stop_coord )
+
 
 
 def spiral_search_and_center(zwfs, phasemask, phasemask_name, search_radius, dr, dtheta, reference_img, fine_tune_threshold=3, savefigName=None, usr_input=True):

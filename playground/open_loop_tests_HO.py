@@ -471,7 +471,7 @@ fig_path = f'tmp/{tstamp.split("T")[0]}/'
 
 exper_path = f'open_loop_{itera}/'
 
-current_path = fig_path + exper_path +  "CL_static_5/" 
+current_path = fig_path + exper_path +  "CL_static_5_HOmodes_kolmogorov/" 
 
 # setup paths 
 if not os.path.exists(fig_path + exper_path ):
@@ -771,12 +771,46 @@ M2C_HO = poke_amp *  M2C_0.T @ (U_HO * S_HO) # since pinned need M2C to go back 
 
 
 
+## JUST A TT STATIC DISTURBANCE 
 #disturb_basis = util.construct_command_basis( 'fourier_pinned_edges')
-disturbance_cmd = 0.4 * TT_vectors[:,0] + 0.2 * TT_vectors[:,1] 
+#disturbance_cmd = 0.4 * TT_vectors[:,0] + 0.2 * TT_vectors[:,1] 
 
 #tmp_ab = np.cumsum( np.random.randn( 10000) )
 #(tmp_ab - np.mean( tmp_ab ) ) / 
 # select a region of pupil to put metrics on
+
+
+
+# KOLMOGOROV DISTURBANCE
+
+# Which is truncation is best 
+
+Nx_act = 12 # actuators across DM 
+
+D = 1.8 #m effective diameter of the telescope
+
+screen_pixels = Nx_act*2**3  #pixels inthe inital screen before projection onto DM
+
+corner_indicies = [0, Nx_act-1, Nx_act * (Nx_act-1), -1] 
+
+scrn_scaling_factor =  0.08 
+
+rows_to_jump = 2 # how many rows to jump on initial phase screen for each Baldr loop
+
+distance_per_correction = rows_to_jump * D/screen_pixels # effective distance travelled by turbulence per AO iteration 
+print(f'{rows_to_jump} rows jumped per AO command in initial phase screen of {screen_pixels} pixels. for {D}m mirror this corresponds to a distance_per_correction = {distance_per_correction}m')
+
+scrn = aotools.infinitephasescreen.PhaseScreenVonKarman(nx_size=screen_pixels, pixel_scale=D/screen_pixels,r0=0.1,L0=12)
+
+dist_type = 'kolmogorov' #f'pokemode_{m}_zonal'
+#m = 64
+disturbance_cmd =  np.array( util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scrn_scaling_factor   , drop_indicies = corner_indicies, plot_cmd=False) )
+# M2C[m] 
+zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + dm_pupil_filt * disturbance_cmd )
+
+
+
+
 dm_pupil_filt  = 0 < util.construct_command_basis(without_piston=False )[:,0]
 
 plt.figure(); plt.imshow( util.get_DM_command_in_2D(  dm_pupil_filt )); plt.savefig( current_path + 'dm_pupil_filt.png')
@@ -785,7 +819,7 @@ zwfs.dm.send_data(dm_flat)
 
 now_tmp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 I0_cross, N0_cross = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
-compass = True, compass_origin=None, savefig= fig_path + exper_path + f'DM_centering_crosshairs_{now_tmp}.png' )
+compass = True, compass_origin=None, savefig= fig_path + exper_path + f'REFERENCE_PUPIL_{now_tmp}.png' )
 
 zwfs.dm.send_data(dm_flat+ disturbance_cmd) # only apply in registered pupil 
 time.sleep(0.1)
@@ -794,9 +828,16 @@ time.sleep(0.1)
 
 
 plot_intermediate = False
-for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
-    for kiTT in [0.5]: #[0., 0.1, 0.2, 0.5] : #[0, 0.2, 0.5, 0.9]:
 
+KpTT = 1
+kiTT = 0.5 
+leak_rho = 0.5
+leak_kp = 1
+#for no_modes in [0,1,2,5,10,15,19]:
+no_modes = 20
+for leak_kp in [0.2, 0.5, 1 ]:
+    for leak_rho in [0., 0.2, 0.5, 0.9] : #[0, 0.2, 0.5, 0.9]:
+    #if 1:
         # init our controllers 
 
         rho = 0 * np.ones( I2M_HO.shape[0] )
@@ -818,7 +859,7 @@ for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
         zwfs.dm.send_data(dm_flat+ disturbance_cmd)
 
         now_tmp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
-        explabel = f'LONGG_closed_loop_TT_on_staticTT_telemetry_kp{kpTT}_ki{kiTT}_{now_tmp}'
+        explabel = f'closed_loop_{no_modes}modes_HO_on_rolling_kolmogorov_telemetry_kpTT{kpTT}_kiTT{kiTT}_rhoHO{leak_rho}_kpHO{leak_kp}_{now_tmp}'
 
         i_list = []
         s_list = []
@@ -834,8 +875,8 @@ for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
         flux_outside_pupil_list = []
         residual_list = []
 
-        no_iterations = 2000
-        close_after = 50 
+        no_iterations = 150
+        close_after = 20 
 
         pid.reset() 
         leak.reset()
@@ -849,8 +890,10 @@ for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
                 pid.kp = kpTT * np.array( [1,1] ) # np.ones( I2M_TT.shape[0] )
                 pid.ki = kiTT * np.array( [1,1] ) # np.ones( I2M_TT.shape[0] )
                 
-                #leak.rho[2] = 0.1 #* np.ones( I2M_HO.shape[0] )
-                #leak.kp[2] = 0.5
+                for m in range(no_modes):
+                    leak.rho[2+m] = leak_rho #0.0 #* np.ones( I2M_HO.shape[0] )
+                    leak.kp[2+m] = leak_kp #0.5
+
                 if plot_intermediate :
                     im_list =  [  sig, util.get_DM_command_in_2D( cmd2opd * disturbance_cmd),  util.get_DM_command_in_2D( cmd2opd * c_TT),\
                                 util.get_DM_command_in_2D( cmd2opd * c_HO),  util.get_DM_command_in_2D( cmd2opd * (disturbance_cmd - c_HO - c_TT) )] 
@@ -892,6 +935,8 @@ for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
                 break
             #c = R @ sig
 
+
+
             zwfs.dm.send_data( dm_flat+ disturbance_cmd - c_HO - c_TT ) # same way to rtc PID 
             time.sleep(0.05)  
             # only measure residual in the registered pupil on DM 
@@ -916,6 +961,11 @@ for kpTT in [1]: #[0.1, 0.2, 0.5, 1 ]:
             rmse_list.append( rmse )
             flux_outside_pupil_list.append( np.var( sig.reshape(-1)[pupil_outer_perim_filter] ) )
             print( it, f'rmse = {rmse}, flux outside = {flux_outside_pupil_list[-1]}' )
+
+            ### UPDATE DISTURBANCE 
+            for _ in range(rows_to_jump):
+                scrn.add_row()
+            disturbance_cmd = np.array( util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scrn_scaling_factor   , drop_indicies = corner_indicies, plot_cmd=False) )
 
 
         plt.figure()
