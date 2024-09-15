@@ -391,56 +391,13 @@ print_current_state()
 phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
 
 
-"""zwfs.dm.send_data( dm_flat )
+"""
+# for a good search if far out 
+zwfs.dm.send_data( dm_flat )
 search = phasemask_centering_tool.spiral_square_search_and_save_images( zwfs, phasemask, starting_point = phasemask.get_position(),\
-                                                                        step_size = 20 , search_radius = 400, sleep_time = 0.5)
 
+phasemask_centering_tool.analyse_search_results(search, savepath = fig_path + 'delme.png')                                                                        step_size = 20 , search_radius = 300, sleep_time = 0.5)
 
-coord = np.array( [k for k,v in search.items()] )
-img_list = np.array( [v for k,v in search.items()] )
-
-dif_imgs =  np.mean(( img_list[0] - img_list )**2 ,axis=(1,2)) 
-
-plt.figure(); plt.plot( dif_imgs) ; plt.savefig( fig_path + 'delmen.png')
-# order indicies from the best (highest) according to metric dif_imgs
-candidate_indx = sorted(range(len(dif_imgs)), key=lambda i: dif_imgs[i], reverse=True)
-
-
-i=0
-metric_candidate = dif_imgs[candidate_indx[i]]
-img_candidate = search[ tuple(coord[candidate_indx[i]]) ]    
-
-prompt = 1
-i=0
-while prompt != 'e':
-
-    metric_candidate = dif_imgs[candidate_indx[i]] 
-    img_candidate = search[ tuple(coord[candidate_indx[i]]) ]    
-
-    plt.figure(); 
-    plt.imshow(  img_candidate ); 
-    plt.title(f'position = { coord[candidate_indx[i]]}, metric = {metric_candidate}' )
-    plt.savefig(fig_path + 'delmen.png') 
-    prompt = input('1 to go to next, 0 to go back, e to exit')
-
-    if prompt == '1':
-        i+=1
-    elif prompt == '0':
-        i-=1
-    elif prompt == 'e':
-        print( f'stoped at index {candidate_indx[i]}, coordinates {coord[candidate_indx[i]]}' )
-        stop_coord = coord[candidate_indx[i]]
-    else:
-        print('invalid input. 1 to go to next, 0 to go back, e to exit')
-
-phasemask.move_absolute( stop_coord )
-
-phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
-
-# TO update positions and write file if needed
-phasemask.update_mask_position( phasemask_name )
-phasemask.update_all_mask_positions_relative_to_current( phasemask_name, 'phase_positions_beam_3 original_DONT_DELETE.json')
-phasemask.write_current_mask_positions()
 
 """
 
@@ -462,16 +419,19 @@ phasemask.write_current_mask_positions()
 #itera = 2 # bcm dm flat - see lots of drifts
 #itera = 3 # Bmc flat - try go straight to reco , looked better 
 #itera = 4 # do static tip / tilt with R_TT - adam in lab 
-itera = 5 # close TT on nothing
+#itera = 5 # close TT on nothing
 
+# 15/9/24
+#itera =1 # close HO on large number of modes (not first on with kolmogorov in name is actually state)
+itera = 2 # same but cleaner with labelling etc , also investiagating effect of no_modes (smax) after some optimization
 # timestamp
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
 fig_path = f'tmp/{tstamp.split("T")[0]}/'
 
-exper_path = f'open_loop_{itera}/'
+exper_path = f'close_loop_{itera}/'
 
-current_path = fig_path + exper_path +  "CL_static_5_HOmodes_kolmogorov/" 
+current_path = fig_path + exper_path +  "CL_static_2_HOmodes_staticHO/" 
 
 # setup paths 
 if not os.path.exists(fig_path + exper_path ):
@@ -612,7 +572,7 @@ cmd2opd = 16 * 1100 / (2*np.pi) #3200 # to go to cmd space to nm OPD
 
 
     
-# ---- Static TT start static
+# ---- Static HO start static
 #current_path = 'tmp/13-09-2024/open_loop_5/CL_static_3/'
 if not os.path.exists(current_path ):
    os.makedirs(current_path)
@@ -747,7 +707,7 @@ plt.savefig( current_path + 'outer_pupil_filter.png')
 
 U, S, Vt = np.linalg.svd( IM, full_matrices=False)
 
-Smax = 20
+Smax = 30
 R  = (Vt.T * [1/ss if i < Smax else 0 for i,ss in enumerate(S)])  @ U.T
 
 TT_vectors = util.get_tip_tilt_vectors()
@@ -772,9 +732,10 @@ M2C_HO = poke_amp *  M2C_0.T @ (U_HO * S_HO) # since pinned need M2C to go back 
 
 
 ## JUST A TT STATIC DISTURBANCE 
-#disturb_basis = util.construct_command_basis( 'fourier_pinned_edges')
-#disturbance_cmd = 0.4 * TT_vectors[:,0] + 0.2 * TT_vectors[:,1] 
+disturb_basis = util.construct_command_basis( 'fourier_pinned_edges')
+#disturbance_cmd = 0.4 * TT_vectors[:,0] + 0.2 *disturb_basis[:,6] #0.2 * TT_vectors[:,1] 
 
+#plt.figure(); plt.imshow( util.get_DM_command_in_2D( disturbance_cmd ) ) ;plt.savefig(fig_path +'delme.png')
 #tmp_ab = np.cumsum( np.random.randn( 10000) )
 #(tmp_ab - np.mean( tmp_ab ) ) / 
 # select a region of pupil to put metrics on
@@ -810,7 +771,6 @@ zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] + dm_pupil_filt * disturbance_cmd )
 
 
 
-
 dm_pupil_filt  = 0 < util.construct_command_basis(without_piston=False )[:,0]
 
 plt.figure(); plt.imshow( util.get_DM_command_in_2D(  dm_pupil_filt )); plt.savefig( current_path + 'dm_pupil_filt.png')
@@ -829,15 +789,39 @@ time.sleep(0.1)
 
 plot_intermediate = False
 
-KpTT = 1
+kpTT = 1
 kiTT = 0.5 
-leak_rho = 0.5
-leak_kp = 1
+leak_rho = 0.2
+leak_kp = 0.2
 #for no_modes in [0,1,2,5,10,15,19]:
-no_modes = 20
-for leak_kp in [0.2, 0.5, 1 ]:
-    for leak_rho in [0., 0.2, 0.5, 0.9] : #[0, 0.2, 0.5, 0.9]:
-    #if 1:
+no_modes = Smax
+#for leak_kp in [0.2, 0.5, 1 ]:
+#    for leak_rho in [0., 0.2, 0.5, 0.9] : #[0, 0.2, 0.5, 0.9]:
+for no_modes in [30,40]: #[3,5,10,20,30,40,50,60]:
+
+    U, S, Vt = np.linalg.svd( IM, full_matrices=False)
+
+    Smax = no_modes
+    R  = (Vt.T * [1/ss if i < Smax else 0 for i,ss in enumerate(S)])  @ U.T
+
+    TT_vectors = util.get_tip_tilt_vectors()
+
+    TT_space = M2C_0 @ TT_vectors
+        
+    U_TT, S_TT, Vt_TT = np.linalg.svd( TT_space, full_matrices=False)
+
+    I2M_TT = U_TT.T @ R 
+
+    M2C_TT = poke_amp * M2C_0.T @ U_TT # since pinned need M2C to go back to 140 dimension vector  
+
+    R_HO = (np.eye(U_TT.shape[0])  - U_TT @ U_TT.T) @ R
+
+    # go to Eigenmodes for modal control in higher order reconstructor
+    U_HO, S_HO, Vt_HO = np.linalg.svd( R_HO, full_matrices=False)
+    I2M_HO = Vt_HO  
+    M2C_HO = poke_amp *  M2C_0.T @ (U_HO * S_HO) # since pinned need M2C to go back to 140 dimension vector
+
+    if 1:
         # init our controllers 
 
         rho = 0 * np.ones( I2M_HO.shape[0] )
@@ -859,7 +843,7 @@ for leak_kp in [0.2, 0.5, 1 ]:
         zwfs.dm.send_data(dm_flat+ disturbance_cmd)
 
         now_tmp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
-        explabel = f'closed_loop_{no_modes}modes_HO_on_rolling_kolmogorov_telemetry_kpTT{kpTT}_kiTT{kiTT}_rhoHO{leak_rho}_kpHO{leak_kp}_{now_tmp}'
+        explabel = f'LONGG_closed_loop_{no_modes}modes_HO_static_telemetry_kpTT{kpTT}_kiTT{kiTT}_rhoHO{leak_rho}_kpHO{leak_kp}_{now_tmp}'
 
         i_list = []
         s_list = []
@@ -875,7 +859,7 @@ for leak_kp in [0.2, 0.5, 1 ]:
         flux_outside_pupil_list = []
         residual_list = []
 
-        no_iterations = 150
+        no_iterations = 500
         close_after = 20 
 
         pid.reset() 
@@ -963,14 +947,15 @@ for leak_kp in [0.2, 0.5, 1 ]:
             print( it, f'rmse = {rmse}, flux outside = {flux_outside_pupil_list[-1]}' )
 
             ### UPDATE DISTURBANCE 
-            for _ in range(rows_to_jump):
-                scrn.add_row()
-            disturbance_cmd = np.array( util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scrn_scaling_factor   , drop_indicies = corner_indicies, plot_cmd=False) )
+            if np.mod(it, 3):
+                for _ in range(rows_to_jump):
+                    scrn.add_row()
+                disturbance_cmd = np.array( util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scrn_scaling_factor   , drop_indicies = corner_indicies, plot_cmd=False) )
 
 
         plt.figure()
         plt.plot( e_TT_list )
-        plt.axvline( close_after ,color='k',ls=':',label='close TT')
+        plt.axvline( close_after ,color='k',ls=':',label='close loop')
         plt.legend()
         plt.ylabel('mode error')
         plt.xlabel('iterations')
@@ -980,7 +965,7 @@ for leak_kp in [0.2, 0.5, 1 ]:
 
         plt.figure()
         plt.plot( rmse_list )
-        plt.axvline( close_after ,color='k',ls=':',label='close TT')
+        plt.axvline( close_after ,color='k',ls=':',label='close')
         plt.legend()
         plt.ylabel('RMSE')
         plt.xlabel('iterations')

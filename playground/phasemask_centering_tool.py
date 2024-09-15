@@ -148,7 +148,7 @@ def analyse_search_results( search , savepath = 'delme.png'):
 
     dif_imgs =  np.mean(( img_list[0] - img_list )**2 ,axis=(1,2)) 
 
-    plt.figure(); plt.plot( dif_imgs) ; plt.savefig( fig_path + 'delmen.png')
+    plt.figure(); plt.plot( dif_imgs) ; plt.savefig( savepath )
     # order indicies from the best (highest) according to metric dif_imgs
     candidate_indx = sorted(range(len(dif_imgs)), key=lambda i: dif_imgs[i], reverse=True)
 

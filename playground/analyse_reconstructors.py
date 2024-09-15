@@ -107,7 +107,7 @@ if not os.path.exists(fig_path + exper_path):
 
 # ====== hardware variables
 beam = 3
-phasemask_name = 'J1'
+phasemask_name = 'J3'
 phasemask_OUT_offset = [1000, 1000] # relative offset (um) to take phasemask out of beam
 BFO_pos = 3000 # um (absolute position of detector imgaging lens) 
 dichroic_name = "J"
@@ -191,7 +191,7 @@ dichroic.set_dichroic("J")
 time.sleep(1)
 
 
-pupil_crop_region = [160,220, 110,185] # [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
+pupil_crop_region = [170, 230, 100, 175] #[160,220, 110,185] # [204,268,125, 187] #[None, None, None, None] #[204 -50 ,268+50,125-50, 187+50] 
 
 #init our ZWFS (object that interacts with camera and DM) (old path = home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/)
 zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path = 'DMShapes/', pupil_crop_region=pupil_crop_region ) 
@@ -328,7 +328,7 @@ fourier_dict_90_pinv = {'controller': fourier_phase_ctrl_90, 'poke_amp':0.2, 'po
 build_dict = {
     'zonal':zonal_dict ,
     #'zernike_20modes_map':zernike_dict_20,
-    'zernike_90modes_pinv':zernike_dict_90,
+    #'zernike_90modes_pinv':zernike_dict_90,
     'fourier_90modes_pinv':fourier_dict_90_pinv
     #'fourier_20modes_pinv':fourier_dict_20_pinv,
     #'fourier_20modes_map':fourier_dict_20
@@ -607,6 +607,15 @@ for basis in build_dict:
             reco_openloop_fits.append( tmp_fits )
     
     reco_openloop_fits.writeto( current_path + 'reco_open_loop_test.fits')
+
+
+
+
+
+
+exit_all() 
+
+
 
 """
 ###
