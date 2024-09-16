@@ -7,18 +7,20 @@ import asgard_alignment.Instrument
 
 # st.set_page_config(layout="wide")
 
+config = "motor_info_sydney_subset.json"
+
 st.title("Motor control for Heimdallr alignment")
 
 if "instrument" not in st.session_state:
-    st.session_state.instrument = asgard_alignment.Instrument.Instrument(
-        "motor_info_no_linear_with_zaber.json"
+    st.session_state.instrument = asgard_alignment.MultiDeviceServer.MultiDeviceServer(
+        config
     )
 
 # reset button
 if st.button("Reset"):
     st.session_state.instrument.close_connections()
-    st.session_state.instrument = asgard_alignment.Instrument.Instrument(
-        "motor_info_no_linear_with_zaber.json"
+    st.session_state.instrument = asgard_alignment.MultiDeviceServer.MultiDeviceServer(
+        config
     )
 
 
@@ -27,7 +29,7 @@ col1, col2 = st.columns(2)
 with col1:
     component = st.selectbox(
         "Pick a component",
-        ["HTXP", "HTXI", "BTX", "BDS", "SSS"],
+        ["HTXP", "HFO", "HTXI", "BTX", "BDS", "SSS"],
         key="component",
     )
 
