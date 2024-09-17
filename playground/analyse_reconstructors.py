@@ -199,13 +199,13 @@ zwfs = ZWFS.ZWFS(DM_serial_number=DM_serial_number, cameraIndex=0, DMshapes_path
 # the sydney BMC multi-3.5 calibrated flat seems shit! Try with just a 
 
 # calibrated new one. Set here 
-new_flat_cmd = pd.read_csv( '/home/heimdallr/Documents/asgard-alignment/tmp/08-09-2024/optimize_ref_int_method_3/newflat_test_3/calibrated_flat_phasemas-J3.csv').values[:,1]
+new_flat_cmd = pd.read_csv('/home/heimdallr/Documents/asgard-alignment/DMShapes/BEST_calibrated_DMflat_12-09-2024T10.04.32.csv' ,header=None ).values.ravel() #'/home/heimdallr/Documents/asgard-alignment/tmp/08-09-2024/optimize_ref_int_method_3/newflat_test_3/calibrated_flat_phasemas-J3.csv').values[:,1]
 
 #zwfs.dm_shapes['flat_dm_original'] = zwfs.dm_shapes['flat_dm'].copy() # keep the original BMC calibrated flat 
 #zwfs.dm_shapes['flat_dm'] = new_flat_cmd  # update to ours! 
 
 zwfs.deactive_cropping() # zwfs.set_camera_cropping(r1, r2, c1, c2 ) #<- use this for latency tests , set back after with zwfs.set_camera_cropping(0, 639, 0, 511 ) 
-zwfs.set_camera_dit( 0.001 );time.sleep(0.2)
+zwfs.set_camera_dit( 0.005 );time.sleep(0.2)
 zwfs.set_camera_fps( 100 );time.sleep(0.2)
 zwfs.set_sensitivity('high');time.sleep(0.2)
 zwfs.enable_frame_tag(tag = True);time.sleep(0.2)
@@ -223,7 +223,7 @@ zwfs.start_camera()
 zwfs.build_manual_dark()
 
 # get our bad pixels 
-bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 200, std_threshold = 25 , flatten=False) # std_threshold = 50
+bad_pixels = zwfs.get_bad_pixel_indicies( no_frames = 200, std_threshold = 42 , flatten=False) # std_threshold = 50
 
 # update zwfs bad pixel mask and flattened pixel values 
 zwfs.build_bad_pixel_mask( bad_pixels , set_bad_pixels_to = 0 )
@@ -252,6 +252,7 @@ zwfs.dm.send_data(zwfs.dm_shapes['flat_dm'])
 phasemask_centering_tool.move_relative_and_get_image(zwfs, phasemask, savefigName=fig_path + 'delme.png')
 # if you like the improvement 
 # phasemask.update_mask_position( phasemask_name )
+# phasemask.update_all_mask_positions_relative_to_current( phasemask_name, 'phase_positions_beam_3 original_DONT_DELETE.json')
 # phasemask.write_current_mask_positions()
 
 # == automatic search 
@@ -291,7 +292,7 @@ I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_o
 compass = True, compass_origin=None, savefig=fig_path + f'FPM-in-out_{phasemask_name}.png' )
 
 """zwfs.pupil_pixel_filter =  (N0 > np.mean(N0) + 2 * np.std( N0))
-zwfs.pupil_pixel_filter[0,:]=False # first row has frame counts 
+zwfs.pupil_pixel_filter[0,:] = False # first row has frame counts 
 zwfs.pupil_pixel_filter = zwfs.pupil_pixel_filter.reshape(-1)
 """
 # plot the active pupil region registered 
@@ -316,7 +317,7 @@ fourier_phase_ctrl_90 = phase_control.phase_controller_1(config_file = None, bas
 #phase_ctrl.change_control_basis_parameters( controller_label = ctrl_method_label, number_of_controlled_modes=phase_ctrl.config['number_of_controlled_modes'], basis_name='Zonal' , dm_control_diameter=None, dm_control_center=None)
 
 
-zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.07, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.07pokeamp_in-out_pokes_map' }
+zonal_dict = {'controller': zonal_phase_ctrl, 'poke_amp':0.04, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zonal_0.04pokeamp_in-out_pokes_map' }
 zernike_dict_90 = {'controller': zernike_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
 zernike_dict_20  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'MAP', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
 zernike_dict_20_pinv  = {'controller': zernike_phase_ctrl_20, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'zernike_0.2pokeamp_in-out_pokes_map' }
@@ -326,10 +327,10 @@ fourier_dict_20_pinv = {'controller': fourier_phase_ctrl_20, 'poke_amp':0.2, 'po
 fourier_dict_90_pinv = {'controller': fourier_phase_ctrl_90, 'poke_amp':0.2, 'poke_method':'double_sided_poke', 'inverse_method':'pinv', 'label':'fourier90_0.2pokeamp_in-out_pokes_pinv' }
 
 build_dict = {
-    'zonal':zonal_dict ,
+    'zonal':zonal_dict
     #'zernike_20modes_map':zernike_dict_20,
     #'zernike_90modes_pinv':zernike_dict_90,
-    'fourier_90modes_pinv':fourier_dict_90_pinv
+    #'fourier_90modes_pinv':fourier_dict_90_pinv
     #'fourier_20modes_pinv':fourier_dict_20_pinv,
     #'fourier_20modes_map':fourier_dict_20
 }
@@ -361,9 +362,10 @@ build_dict = {
 #itera = 3 # back to calibrated flat - including 90 Fourier pinned modes
 #itera = 4 # get 90 fourier modes (fix bug) 
 
-itera = 5 # go through different phasemasks 
-
-
+#itera = 5 # go through different phasemasks 
+#itera = 1 #'new_flat'
+#itera = 2 #'smaller poke amp 
+itera = 10 # why not last ones 
 
 zwfs.dm.send_data( zwfs.dm_shapes['flat_dm'] ) 
 #subprocess.run()
@@ -401,7 +403,7 @@ for basis in  build_dict:
     zwfs.write_reco_fits( build_dict[basis]['controller'], label, save_path=current_path, save_label=label)
 
     # get an image associated with file of the pupils.
-    I0, N0 = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
+    I0_now, N0_now = util.get_reference_images(zwfs, phasemask, theta_degrees=11.8, number_of_frames=256, \
 compass = True, compass_origin=None, savefig=current_path + f'FPM-in-out_{phasemask_name}_{label}.png' )
 
 
@@ -454,7 +456,7 @@ for basis in build_dict:
     camera_info_dict = util.get_camera_info(zwfs.camera)
     for k,v in camera_info_dict.items():
         frame_fits.header.set(k,v)
-    frame_fits.writeto( current_path + 'FRAMES_FPM_IN.fits')
+    frame_fits.writeto( current_path + f'FRAMES_FPM_IN_{tstamp}.fits')
 
     img_var = np.var( frames ,axis=0) #zwfs.get_image()
     img_mean = np.mean( frames ,axis=0) #zwfs.get_image()
@@ -606,10 +608,7 @@ for basis in build_dict:
 
             reco_openloop_fits.append( tmp_fits )
     
-    reco_openloop_fits.writeto( current_path + 'reco_open_loop_test.fits')
-
-
-
+    reco_openloop_fits.writeto( current_path + f'reco_open_loop_test_{tstamp}.fits')
 
 
 

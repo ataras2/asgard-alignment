@@ -5878,3 +5878,42 @@ DEBUG - Manufacturer: Cambridge Innovations
 WARN - Error -6 claiming USB interface: Resource busy
 WARN - No USB DM devices were found.
 Killed
+DEBUG - SDK Install Path: /opt/Boston Micromachines
+INFO - Enumerating devices, looking for SN: MULTI00714E
+DEBUG - Product: DM Driver USB Interface
+DEBUG - Manufacturer: Cambridge Innovations
+WARN - Error -6 claiming USB interface: Resource busy
+WARN - No USB DM devices were found.
+Killed
+DEBUG - SDK Install Path: /opt/Boston Micromachines
+INFO - Enumerating devices, looking for SN: MULTI00714E
+DEBUG - Product: DM Driver USB Interface
+DEBUG - Manufacturer: Cambridge Innovations
+WARN - Error -6 claiming USB interface: Resource busy
+WARN - No USB DM devices were found.
+DEBUG - SDK Install Path: /opt/Boston Micromachines
+INFO - Enumerating devices, looking for SN: MULTI00714E
+DEBUG - Product: DM Driver USB Interface
+DEBUG - Manufacturer: Cambridge Innovations
+WARN - Error -6 claiming USB interface: Resource busy
+WARN - No USB DM devices were found.
+Killed
+ THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: 
+     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.
+      - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.
+      - This should only serve as example. must be called from asgard_alignment folder
+     DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY 
+     DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.    
+Traceback (most recent call last):
+  File "/home/heimdallr/Documents/asgard-alignment/playground/phasemask_centering_tool.py", line 481, in <module>
+    connection =  Connection.open_serial_port("/dev/ttyUSB0")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/ascii/connection.py", line 147, in open_serial_port
+    response = call(
+               ^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 69, in call
+    return process_response(response_buffers, make_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/heimdallr/miniconda3/lib/python3.11/site-packages/zaber_motion/call.py", line 189, in process_response
+    raise convert_exception(response_dto.error_type, response_dto.error_message)
+zaber_motion.exceptions.serial_port_busy_exception.SerialPortBusyException: SerialPortBusyException: Cannot open serial port: Port is likely already opened by another application. Please close the application that is using the port.

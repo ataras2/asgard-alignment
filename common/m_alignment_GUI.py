@@ -8,7 +8,7 @@ import asgard_alignment.Instrument
 # st.set_page_config(layout="wide")
 
 st.title("Motor control for Heimdallr alignment")
-
+ 0
 if "instrument" not in st.session_state:
     st.session_state.instrument = asgard_alignment.Instrument.Instrument(
         "motor_info_no_linear_with_zaber.json"
