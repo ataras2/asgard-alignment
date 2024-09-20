@@ -7,9 +7,11 @@ from astropy.io import fits
 import os 
 import json
 import datetime 
+from scipy.interpolate import griddata
 
 # Function to get indices for the inner square on DM, accounting for missing corners
 def get_inner_square_indices(outer_size, inner_offset):
+    
     # Create a 12x12 grid with missing corners marked by NaN
     grid = np.arange(outer_size**2).reshape(outer_size, outer_size).astype(float)
     
@@ -499,6 +501,30 @@ def convert_to_serializable(obj):
         return obj  # Base case: return the object itself if it doesn't need conversion
 
 
+def interpolate_pixel_intensities(image, pixel_coords):
+    """
+    Interpolates pixel intensities from an image onto the specified actuator pixel coordinates.
+    
+    Args:
+        image: 2D array of pixel intensities (image).
+        pixel_coords: 2D array of actuator coordinates in pixel space (from transform_dict['actuator_coord_list_pixel_space']).
+        
+    Returns:
+        Interpolated intensities at the given actuator pixel coordinates.
+    """
+    # Create a grid of original pixel coordinates
+    y, x = np.mgrid[0:image.shape[0], 0:image.shape[1]]
+    
+    # Flatten the image and grid for interpolation
+    points = np.vstack((x.ravel(), y.ravel())).T  # Original pixel coordinates
+    values = image.ravel()  # Corresponding pixel values
+    
+    # Interpolate the pixel values at the actuator pixel coordinates
+    interpolated_intensities = griddata(points, values, pixel_coords, method='cubic')
+    
+    return interpolated_intensities
+
+
 
 def calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debug = False, fig_path= None ):
 
@@ -696,11 +722,26 @@ if __name__=="__main__":
     plt.show()    
 
     # write the transform dict to a json file 
-    
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     serializable_dict = convert_to_serializable(transform_dict)
 
     with open(fig_path + f'DM2img_{tstamp}.json', 'w') as f:
         json.dump(serializable_dict, f)
-
         
+        
+    # example to interpolate the measured intensities onto registered actuators in pixel space 
+    interpolated_intensities_I0 = interpolate_pixel_intensities(image = I0, pixel_coords = transform_dict['actuator_coord_list_pixel_space'])
+    interpolated_intensities_N0 = interpolate_pixel_intensities(image = N0, pixel_coords = transform_dict['actuator_coord_list_pixel_space'])
+
+    plt.figure()
+    plt.title('interpolating I0 onto \nregistered DM actuators')
+    plt.imshow( get_DM_command_in_2D( interpolated_intensities_N0  ) )
+    plt.show() 
+    
+    # example to register "well sensed" actuators 
+    plt.figure()
+    plt.title('interpolating I0 onto \nregistered DM actuators')
+    plt.imshow( get_DM_command_in_2D( interpolated_intensities_N0  ) > 40 )
+    plt.show() 
+
+
