@@ -55,9 +55,50 @@ def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20,
     # DM BMC-3.5 is 12x12 missing corners so 140 actuators , we note down corner indicies of flattened 12x12 array.
     corner_indices = [0, Nx_act_DM-1, Nx_act_DM * (Nx_act_DM-1), -1]
 
-    bmcdm_basis_list = []
+    
+
+    if basis == 'Hadamard':
+        # BMC multi-3.5 DM is 12x12 with missing corners - not multiple of 2 so cannot apply standard method of construction
+        # first 
+        # Define a known 12x12 Hadamard matrix
+        H_12 = np.array([
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1, -1],
+            [1, 1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1],
+            [1, -1, -1, 1, 1, -1, -1, 1, 1, -1, -1, 1],
+            [1, 1, 1, 1, -1, -1, -1, -1, 1, 1, 1, 1],
+            [1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, -1],
+            [1, 1, -1, -1, -1, -1, 1, 1, 1, 1, -1, -1],
+            [1, -1, -1, 1, -1, 1, 1, -1, 1, -1, -1, 1],
+            [1, 1, 1, 1, 1, 1, -1, -1, -1, -1, -1, -1],
+            [1, -1, 1, -1, 1, -1, -1, 1, -1, 1, -1, 1],
+            [1, 1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1],
+            [1, -1, -1, 1, -1, 1, -1, 1, -1, 1, -1, 1]
+        ])
+
+        # Generate a 144x144 Hadamard matrix using Kronecker product
+        H_144 = np.kron(H_12, H_12)
+
+        # Define the mask to remove corners without affecting the 2D structure
+        corner_mask = np.ones((12, 12), dtype=bool)
+        corner_mask[0, 0] = False  # top-left corner
+        corner_mask[0, -1] = False  # top-right corner
+        corner_mask[-1, 0] = False  # bottom-left corner
+        corner_mask[-1, -1] = False  # bottom-right corner
+
+        H_140 = []
+        for h in H_144:
+            H_140.append( h.reshape(12,12)[corner_mask] )
+            
+        if without_piston:
+            M2C = np.array( H_140 )[1:].T #remove piston mode
+        else:
+            M2C = np.array( H_140 ).T # take transpose to make columns the modes in command space.
+
+
     # to deal with
     if basis == 'Zernike':
+        bmcdm_basis_list = []
         if without_piston:
             number_of_modes += 1 # we add one more mode since we dont include piston 
 
@@ -214,7 +255,8 @@ def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20,
 
         M2C = np.array( control_basis ).T
 
-    elif basis == 'KL':         
+    elif basis == 'KL':      
+        bmcdm_basis_list = []   
         if without_piston:
             number_of_modes += 1 # we add one more mode since we dont include piston 
 
