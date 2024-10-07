@@ -1,4 +1,4 @@
-import asgard_alignment.Instrument
+import asgard_alignment.MultiDeviceServer
 
 
 instr = asgard_alignment.MultiDeviceServer.MultiDeviceServer(

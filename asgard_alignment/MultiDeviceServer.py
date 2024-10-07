@@ -148,6 +148,28 @@ class Instrument:
                 motor.initialise()
             return "ACK"
 
+        if message.startswith("move_rel"):
+            # parse message of form  "move_rel <device_name> <value>"
+            parse_results = parse.parse("move_rel {device_name} {value}", message)
+            if parse_results is None:
+                return "Could not parse message"
+            if self.has_motor(parse_results["device_name"]) is False:
+                return f"Could not find motor {parse_results['device_name']}"
+            motor = self._motors[parse_results["device_name"]]
+            motor.move_relative(float(parse_results["value"]))
+            return "ACK"
+        
+        if message.startswith("move_abs"):
+            # parse message of form  "move_abs <device_name> <value>"
+            parse_results = parse.parse("move_abs {device_name} {value}", message)
+            if parse_results is None:
+                return "Could not parse message"
+            if self.has_motor(parse_results["device_name"]) is False:
+                return f"Could not find motor {parse_results['device_name']}"
+            motor = self._motors[parse_results["device_name"]]
+            motor.move_absolute(float(parse_results["value"]))
+            return "ACK"
+
         def validate_message(parsed_message):
             """
             Check if the message is a valid message
