@@ -15,6 +15,15 @@ class MockMDS:
         return "Dummy response"
 
 
+class MockMDS:
+    def __init__(self):
+        pass
+
+    def handle_zmq(self, message):
+        print(f"Received message: {message}")
+        return "Dummy response"
+
+
 class MultiDeviceServer:
     """
     A class to run the Instrument MDS.
@@ -33,7 +42,7 @@ class MultiDeviceServer:
         if config_file == "mock":
             self.mds = MockMDS()
         else:
-            self.mds = asgard_alignment.old_MultiDeviceServer.Instrument(self.config_file)
+            self.mds = asgard_alignment.MultiDeviceServer.Instrument(self.config_file)
 
     def socket_funct(self, s):
         try:

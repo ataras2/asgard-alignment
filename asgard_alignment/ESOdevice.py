@@ -298,7 +298,6 @@ class Motor(ESOdevice):
             #     self._state = IDLE
             #
             #     If motion succeeded, execute the following:
-
             if self.is_motion_done() == True:
                 self.nErrorCode = 0
                 self.nAxisStatus = Motor.Status.MOT_STANDING

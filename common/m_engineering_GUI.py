@@ -39,7 +39,6 @@ if "socket" not in st.session_state:
 
 st.title("Asgard alignment engineering GUI")
 
-
 beam_specific_devices = [
     "HFO",
     "HTXP",
@@ -61,13 +60,35 @@ all_devices = beam_common_devices + beam_specific_devices
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
-    st.session_state["message_history"].append(
-        f":blue[Sending message to server: ] {message}\n"
-    )
+    st.markdown(f":blue[Sending message to server: ] {message}")
     st.session_state["socket"].send_string(message)
     response = st.session_state["socket"].recv_string()
-    if "NACK" in response or "not connected" in response:
+    if "NACK" in response:
         colour = "red"
+    else:
+        colour = "green"
+    st.markdown(f":{colour}[Received response from server: ] {response}")
+
+
+if operating_mode == "Direct write":
+    # create two dropdowns for selecting component and beam number
+    col1, col2 = st.columns(2)
+
+    with col1:
+        component = st.selectbox(
+            "Select Component",
+            all_devices,
+            key="component",
+        )
+
+    if component in beam_specific_devices:
+        with col2:
+            beam_number = st.selectbox(
+                "Select Beam Number",
+                [1, 2, 3, 4],
+                key="beam_number",
+            )
+        target = f"{component}{beam_number}"
     else:
         colour = "green"
     # st.markdown(f":{colour}[Received response from server: ] {response}")
@@ -306,10 +327,36 @@ with col_main:
                 )
 
 
-with col_history:
-    with col_history.container(border=True, height=500):
-        st.subheader("Message History")
-        # join all into a long string with newlines, in reverse order and as a markdown list
-        message_history = st.session_state["message_history"]
-        message_history_str = "\n".join(reversed(message_history))
-        st.markdown(message_history_str)
+elif operating_mode == "Routines":
+    # move pupil and move image go here
+    # also zero all (for alignment stuff)
+
+    # zero_all command button
+    if st.button("Zero All"):
+        message = "zero_all"
+        send_and_get_response(message)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        operating_mode = st.selectbox(
+            "Pick operating_mode",
+            ["move_image", "move_pupil"],
+            key="operating_mode",
+        )
+
+    with col2:
+        beam = st.selectbox(
+            "Pick a beam",
+            list(range(1, 5)),
+            key="beam",
+        )
+
+    with st.form(key="amount"):
+        amount = st.number_input("Amount", key="amount")
+        submit = st.form_submit_button("Send command")
+
+    if submit:
+        if operating_mode == "move_image":
+            asgard_alignment.Engineering.move_image(beam, amount, send_and_get_response)
+        elif operating_mode == "move_pupil":
+            asgard_alignment.Engineering.move_pupil(beam, amount, send_and_get_response)
