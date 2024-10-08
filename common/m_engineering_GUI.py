@@ -58,10 +58,15 @@ operating_mode = st.selectbox(
 
 
 def send_and_get_response(message):
-    st.write(f"Sending message to server: {message}")
-    # st.session_state["socket"].send_string(message)
-    # response = st.session_state["socket"].recv_string()
-    # st.write(response)
+    # st.write(f"Sending message to server: {message}")
+    st.markdown(f":blue[Sending message to server: ] {message}")
+    st.session_state["socket"].send_string(message)
+    response = st.session_state["socket"].recv_string()
+    if "NACK" in response:
+        colour = "red"
+    else:
+        colour = "green"
+    st.markdown(f":{colour}[Received response from server: ] {response}")
 
 
 if operating_mode == "Direct write":
