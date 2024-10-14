@@ -8,7 +8,7 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Fourier Fringes from Images Script")
     parser.add_argument(
-        "--pth", type=str, required=True, help="Path to the image data (type: str)"
+        "--savepath", type=str, required=True, help="Path to the image data (type: str)"
     )
     parser.add_argument(
         "--pswidth",
