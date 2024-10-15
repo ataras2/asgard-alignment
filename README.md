@@ -6,11 +6,13 @@ If you are unsure about any of the commands, you can always run `python <script>
 
 ## Running solarstein aligment
 
-To run the fringe data taking:
+To run the fringe data taking (with SpinView and Zaber launcher closed):
 ```bash
+conda activate spinview
+cd Documents/asgard-alignment
 python solarstein/m_step_and_save.py --savepath data/<DATE>/sol_12_run<X> --bs_num 7 --start 3000 --end 8000 --step 5
 ```
 
 ```bash
-python solarstein/m_fourier_fringes_from_imgs.py --savepath data/<DATE>/sol_12_runX
+python common/m_fourier_fringes_from_imgs.py --savepath data/<DATE>/sol_12_runX
 ```

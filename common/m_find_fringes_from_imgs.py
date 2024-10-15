@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-pth = "data/early_july/heimdallr_34_run1"
+pth = "data/oct15/sol_34_run4"
 # ims = np.load(os.path.join(pth, "img_stack.npy")).astype(float)
 # positions = np.load(os.path.join(pth, "positions.npy"))
 data = np.load(os.path.join(pth, "img_stack.npz"))
