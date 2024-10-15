@@ -856,6 +856,6 @@ if __name__ == "__main__":
 # plt.imshow( get_DM_command_in_2D( b.T[0] ) )
 # plt.show()
 
-#python playground/m_alternate_DM_mode.py -beam 1 -mode 5 -speed 1.0 -strength 0.1 -duration 10 -basis 'fourier_pinned_edges'
+#python common/m_alternate_DM_mode.py -beam 1 -mode 5 -speed 1.0 -strength 0.1 -duration 10 -basis 'fourier_pinned_edges'
 
 #apply_oscillating_mode(beam='1', mode=3, speed=2, strength=0.1, duration=10, basis_name='fourier', plot_shape=False, DMshapes_path = 'DMShapes/')

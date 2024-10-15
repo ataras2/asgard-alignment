@@ -29,6 +29,7 @@ def close_dm():
         dm.close_dm()
     except:
         print( 'Failed to close DM or DM object does not exist' )
+        
 atexit.register(close_dm)
    
 def get_DM_command_in_2D(cmd,Nx_act=12):
