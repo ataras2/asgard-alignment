@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import zmq
 
+import asgard_alignment.Engineering
 
 if "socket" not in st.session_state:
     parser = argparse.ArgumentParser(description="ZeroMQ Client")
@@ -254,6 +255,35 @@ if operating_mode == "Direct write":
 
 
 elif operating_mode == "Routines":
-    pass
     # move pupil and move image go here
     # also zero all (for alignment stuff)
+
+    # zero_all command button
+    if st.button("Zero All"):
+        message = "zero_all"
+        send_and_get_response(message)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        operating_mode = st.selectbox(
+            "Pick operating_mode",
+            ["move_image", "move_pupil"],
+            key="operating_mode",
+        )
+
+    with col2:
+        beam = st.selectbox(
+            "Pick a beam",
+            list(range(1, 5)),
+            key="beam",
+        )
+
+    with st.form(key="amount"):
+        amount = st.number_input("Amount", key="amount")
+        submit = st.form_submit_button("Send command")
+
+    if submit:
+        if operating_mode == "move_image":
+            asgard_alignment.Engineering.move_image(beam, amount, send_and_get_response)
+        elif operating_mode == "move_pupil":
+            asgard_alignment.Engineering.move_pupil(beam, amount, send_and_get_response)

@@ -26,7 +26,8 @@ For example, to get a 1mm motion of the pupil for beam 1, we move the pupil mirr
 0.44 degrees and the image mirror 0.18 degrees.
 """
 
-def move_image(beam_number, amount):
+
+def move_image(beam_number, amount, write_message_fn):
     """
     Move the image to a new location
 
@@ -34,15 +35,16 @@ def move_image(beam_number, amount):
         beam_number (int) : the beam number
         amount (float) : the amount to move the image by, in pixels on the detector
     """
-    components = (motor_orientation_mat[beam_number] @ pup_img_mat[beam_number])[:,1]
+    components = (motor_orientation_mat[beam_number] @ pup_img_mat[beam_number])[:, 1]
 
     scaled_components = components * amount
 
     # echo the move_rel commands
-    print(f"move_rel HTXP{beam_number} {scaled_components[0]}")
-    print(f"move_rel HTXI{beam_number} {scaled_components[1]}")
+    write_message_fn(f"move_rel HTXP{beam_number} {scaled_components[0]}")
+    write_message_fn(f"move_rel HTXI{beam_number} {scaled_components[1]}")
 
-def move_pupil(beam_number, amount):
+
+def move_pupil(beam_number, amount, write_message_fn):
     """
     Move the pupil to a new location
 
@@ -50,13 +52,14 @@ def move_pupil(beam_number, amount):
         beam_number (int) : the beam number
         amount (float) : the amount to move the pupil by, in mm on N1
     """
-    components = (motor_orientation_mat[beam_number] @ pup_img_mat[beam_number])[:,0]
+    components = (motor_orientation_mat[beam_number] @ pup_img_mat[beam_number])[:, 0]
 
     scaled_components = components * amount
 
-    print(f"move_rel HTXP{beam_number} {scaled_components[0]}")
-    print(f"move_rel HTXI{beam_number} {scaled_components[1]}")
+    write_message_fn(f"move_rel HTXP{beam_number} {scaled_components[0]}")
+    write_message_fn(f"move_rel HTXI{beam_number} {scaled_components[1]}")
+
 
 if __name__ == "__main__":
-    move_image(1, 1)
-    move_pupil(1, 1)
+    move_image(1, 1, print)
+    move_pupil(1, 1, print)
