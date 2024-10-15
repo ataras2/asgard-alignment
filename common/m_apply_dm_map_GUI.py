@@ -4,10 +4,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
+import atexit
 
 # Import bmc (Deformable Mirror controller package)
 sys.path.insert(1, '/opt/Boston Micromachines/lib/Python3/site-packages/')
 import bmc
+
+def close_dm():
+    try:
+        dm.close_dm()
+    except:
+        print( 'Failed to close DM or DM object does not exist' )
+        
+atexit.register(close_dm)
 
 # Load predefined shapes and DM serial numbers
 DM_serial_number_dict = {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}

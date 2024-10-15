@@ -8,6 +8,7 @@ import os
 #import bmc
 sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
 import bmc
+import atexit
 # Dynamically add the path to pyBaldr based on the location of this script
 # script_dir = os.path.dirname(os.path.realpath(__file__))
 # pyBaldr_path = os.path.join(script_dir, '../pyBaldr/')
@@ -22,6 +23,14 @@ DMshapes_path = 'DMShapes/'
 crosshair = pd.read_csv(DMshapes_path + 'Crosshair140.csv', header=None)[0].values
 fourTorres = pd.read_csv(DMshapes_path + 'four_torres.csv', header=None)[0].values
 
+
+def close_dm():
+    try:
+        dm.close_dm()
+    except:
+        print( 'Failed to close DM or DM object does not exist' )
+atexit.register(close_dm)
+   
 def get_DM_command_in_2D(cmd,Nx_act=12):
     # function so we can easily plot the DM shape (since DM grid is not perfectly square raw cmds can not be plotted in 2D immediately )
     #puts nan values in cmd positions that don't correspond to actuator on a square grid until cmd length is square number (12x12 for BMC multi-2.5 DM) so can be reshaped to 2D array to see what the command looks like on the DM.

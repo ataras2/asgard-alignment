@@ -9,7 +9,7 @@ import time
 from scipy.ndimage import distance_transform_edt
 from scipy.spatial import distance
 from math import factorial
-
+import atexit
 #import bmc
 sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
 import bmc
@@ -18,6 +18,16 @@ import bmc
 # pyBaldr_path = os.path.join(script_dir, '../')
 # sys.path.append(pyBaldr_path)
 # from pyBaldr import utilities as util
+
+
+def close_dm():
+    try:
+        dm.close_dm()
+    except:
+        print( 'Failed to close DM or DM object does not exist' )
+        
+atexit.register(close_dm)
+
 
 def get_DM_command_in_2D(cmd,Nx_act=12):
     # function so we can easily plot the DM shape (since DM grid is not perfectly square raw cmds can not be plotted in 2D immediately )
@@ -813,6 +823,8 @@ def apply_oscillating_mode(beam,  basis_name,  mode, speed, strength, duration, 
             #plt.show()
         time.sleep(1.0 / (speed * 10))  # Control loop timing for smooth oscillation - designed for slow oscillations! 
 
+    if not SIMULATION:
+        dm.close_dm()
 
 if __name__ == "__main__":
     # Set up argument parser
@@ -833,7 +845,7 @@ if __name__ == "__main__":
     apply_oscillating_mode(args.beam, args.basis, args.mode, args.speed, args.strength,\
         args.duration,  args.plot_shape , args.DMshapes_path )
 
-
+    
 
 # DM_serial_number_dict = {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  # Adjust serial number as needed
 # DMshapes_path = 'DMShapes/'
