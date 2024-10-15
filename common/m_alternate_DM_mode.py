@@ -768,7 +768,7 @@ def apply_oscillating_mode(beam,  basis_name,  mode, speed, strength, duration, 
     # best put all in a standard json file and load it in
     DM_serial_number_dict = {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  
 
-    SIMULATION = True
+    SIMULATION = False
     # Initialize deformable mirror
     if SIMULATION:
         dm = {}#bmc.BmcDm()

@@ -33,10 +33,16 @@ def get_DM_command_in_2D(cmd,Nx_act=12):
 
 
 def main(beam, shape, strength, plot_shape = False):
-    # Initialize deformable mirror
-    dm = bmc.BmcDm()
-    dm_err_flag = dm.open_dm(DM_serial_number_dict[beam])
     
+    SIMULATION = False
+    # Initialize deformable mirror
+    if SIMULATION:
+        dm = {}
+        dm_err_flag = 0
+    else:
+        dm = bmc.BmcDm()
+        dm_err_flag = dm.open_dm(DM_serial_number_dict[beam])
+        
     flatdm = pd.read_csv(DMshapes_path + '{}_FLAT_MAP_COMMANDS.csv'.format(DM_serial_number_dict[beam]), header=None)[0].values
     
     # Define available shapes    
@@ -63,8 +69,8 @@ def main(beam, shape, strength, plot_shape = False):
     else:
         dm_command = flat_shape + strength * selected_shape
      
-    
-    dm.send_data(dm_command)
+    if not SIMULATION:
+        dm.send_data(dm_command)
 
     print(f"Applied {shape} shape with strength {strength} on beam {beam}")
     
