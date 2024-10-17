@@ -1,7 +1,7 @@
-import asgard_alignment.MultiDeviceServer
+import asgard_alignment.old_MultiDeviceServer
 
 
-instr = asgard_alignment.MultiDeviceServer.MultiDeviceServer(
+instr = asgard_alignment.old_MultiDeviceServer.MultiDeviceServer(
     "motor_info_sydney_subset.json"
 )
 

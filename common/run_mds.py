@@ -3,7 +3,7 @@ import zmq
 import sys
 
 import asgard_alignment
-import asgard_alignment.MultiDeviceServer
+import asgard_alignment.old_MultiDeviceServer
 
 
 class MockMDS:
@@ -33,7 +33,7 @@ class MultiDeviceServer:
         if config_file == "mock":
             self.mds = MockMDS()
         else:
-            self.mds = asgard_alignment.MultiDeviceServer.Instrument(self.config_file)
+            self.mds = asgard_alignment.old_MultiDeviceServer.Instrument(self.config_file)
 
     def socket_funct(self, s):
         try:
