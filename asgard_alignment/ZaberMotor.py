@@ -72,10 +72,10 @@ class SourceSelection:
         self.device = device
         self.axis = device.get_axis(1)
         self.sources = {
-            "SRL": 11.018,
-            "SGL": 38.018,
-            "SBB": 65.018,
-            "SLD": 92.018,
+            "SRL": 11.5,
+            "SGL": 38.5,
+            "SBB": 65.5,
+            "SLD": 92.5,
             "none": 0.0,
         }
 
@@ -92,16 +92,18 @@ class SourceSelection:
         if source not in self.sources:
             raise ValueError(f"Position {source} not in {self.sources.keys()}")
 
+        print(f"Moving to {source}")
+
         self.axis.move_absolute(
             self.sources[source],
-            unit=zaber_motion.Units.LENGTH_MICROMETRES,
+            unit=zaber_motion.Units.LENGTH_MILLIMETRES,
             wait_until_idle=True,
         )
         self.current_position = source
 
     def get_source(self):
         """Read the position from the device and check that it is consistent"""
-        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
+        pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
         for key, value in self.sources.items():
             if abs(pos - value) < 0.1:
                 return key

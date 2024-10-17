@@ -272,9 +272,10 @@ class M100D(NewportMotor):
         """
         Validate the config dictionary for the motor
         """
-        if "orientation" not in config:
-            raise KeyError("orientation not in config")
-
+        # if "orientation" not in config:
+        #     raise KeyError("orientation not in config")
+        pass
+    
     @staticmethod
     def setup_individual_config():
         inp = input("is the motor mounted normally with the text right way up? (Y/N)")
