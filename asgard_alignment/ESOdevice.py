@@ -71,7 +71,8 @@ class Motor(ESOdevice):
         STOP = 3
         INIT = 4
 
-    def __init__(self, name, dev_type):
+    def __init__(self, name):
+        dev_type = ESOdevice.DeviceType.MOTOR
         super().__init__(name, dev_type)
 
         self.nCommand = Motor.Command.MOT_NONE
@@ -152,7 +153,7 @@ class Motor(ESOdevice):
         pass
 
     def update_fsm(self):
-        pass
+        raise NotImplementedError
 
     def update_param(self):
         if self.bEnable == True:
@@ -172,7 +173,7 @@ class Motor(ESOdevice):
         if self.is_at_limit():
             self.bEnabled = False
             self.nAxisStatus = Motor.Status.MOT_ERROR
-            self.nErrorCode = MOT_ERROR_LIMIT ???
+            # TODO self.nErrorCode = MOT_ERROR_LIMIT ???
             self._state = Motor.State.IDLE
 
         if self.bStop == True:
@@ -277,7 +278,7 @@ class Motor(ESOdevice):
             else:
                 self.nAxisStatus = Motor.Status.MOT_ERROR
                 self._state = Motor.State.IDLE
-                self.nErrorCode = MOT_ERROR_STOP ???
+                # TODO self.nErrorCode = MOT_ERROR_STOP ???
 
         elif self._state == Motor.State.INIT:
             if self.is_init_success():
@@ -288,7 +289,7 @@ class Motor(ESOdevice):
             else:
                 self.nAxisStatus = Motor.Status.MOT_ERROR
                 self._state = Motor.State.IDLE
-                self.nErrorCode = MOT_ERROR_INIT ???
+                # TODO self.nErrorCode = MOT_ERROR_INIT ???
                 self.bInitialised = False
 
         elif self._state == Motor.State.MOVE:
@@ -312,7 +313,7 @@ class Motor(ESOdevice):
             else:
                 self.nAxisStatus = Motor.Status.MOT_ERROR
                 self._state = Motor.State.IDLE
-                self.nErrorCode = MOT_ERROR_MOVE ???
+                # TODO self.nErrorCode = MOT_ERROR_MOVE ???
 
 
 class Lamp(ESOdevice):
@@ -344,8 +345,8 @@ class Lamp(ESOdevice):
         LMP_NOT_INITIALISED = 10
 
     
-    def __init__(self, name, dev_type):
-        super().__init__(name, dev_type)
+    def __init__(self, name):
+        super().__init__(name, ESOdevice.DeviceType.LAMP)
         
 
         self.bExecute = False
