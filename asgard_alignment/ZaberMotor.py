@@ -50,11 +50,12 @@ class ZaberLinearActuator(ESOdevice.Motor):
         --------
         None
         """
-        self.axis.move_absolute(
-            new_pos,
-            unit=units,
-            wait_until_idle=ZaberLinearActuator.IS_BLOCKING,
-        )
+        if self.LOWER_LIMIT <= new_pos <= self.UPPER_LIMIT:
+            self.axis.move_absolute(
+                new_pos,
+                unit=units,
+                wait_until_idle=ZaberLinearActuator.IS_BLOCKING,
+            )
 
     def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
         """

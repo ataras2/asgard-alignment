@@ -3,6 +3,7 @@ import asgard_alignment
 import argparse
 import sys
 import re
+from parse import parse
 
 import enum
 import asgard_alignment.ESOdevice
@@ -73,6 +74,9 @@ class MultiDeviceServer:
                         s.send_string(response + "\n")
 
     def handle_message(self, message):
+        if "!" in message:
+            return self._handle_custom_command(message)
+
         if ("MAIN" in message) and (message.count(".") > 2):
             valid = True
         else:
@@ -94,7 +98,7 @@ class MultiDeviceServer:
                     parameter = y[3]
                     par_type = y[3][0]
                 if par_type == "b":
-                    value = (read_val == "TRUE")
+                    value = read_val == "TRUE"
                 if par_type == "n":
                     value = int(read_val)
                 if par_type == "l":
@@ -174,6 +178,30 @@ class MultiDeviceServer:
             reply = "????"
             print("OUT>", reply)
             return reply
+
+    def _handle_custom_command(self, message):
+        # this is a custom command, acutally do useful things here lol
+        def read_msg(axis):
+            return str(self.instr.devices[axis].read_position())
+
+        def stop_msg(axis):
+            return str(self.instr.devices[axis].stop())
+
+        def moveabs_msg(axis, position):
+            self.instr.devices[axis].move_abs(float(position))
+            return "ACK"
+
+        patterns = {
+            "!read {}": read_msg,
+            "!stop {}": stop_msg,
+            "!moveabs {} {:f}": moveabs_msg,
+        }
+
+        for pattern, func in patterns.items():
+            result = parse(pattern, message)
+            if result:
+                return func(*result)
+        return "Invalid command"
 
 
 if __name__ == "__main__":
