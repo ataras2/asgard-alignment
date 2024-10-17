@@ -29,8 +29,8 @@ class ZaberLinearActutator(ESOdevice.Motor):
 
     IS_BLOCKING = True
 
-    def __init__(self, name, dev_type, axis) -> None:
-        super().__init__(name, dev_type)
+    def __init__(self, name, axis) -> None:
+        super().__init__(name)
         self.axis = axis
 
         if not self.axis.is_homed:
@@ -183,8 +183,8 @@ class ZaberLinearStage(ESOdevice.Motor):
     Default units are milimetres
     """
 
-    def __init__(self, name, dev_type, device):
-        super().__init__(name, dev_type)
+    def __init__(self, name, device):
+        super().__init__(name)
 
         self.device = device
 
