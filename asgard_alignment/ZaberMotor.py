@@ -16,6 +16,8 @@ import json
 
 import zaber_motion.binary
 
+from asgard_alignment.AsgardDevice import AsgardDevice
+
 
 class BifrostDichroic:
     def __init__(self, device) -> None:
@@ -186,6 +188,38 @@ class BaldrPhaseMask:
 
     def update_mask_position(self, mask_name):
         self.phase_positions[mask_name] = self.get_position()
+
+
+class ZaberLinearStage(AsgardDevice):
+    def __init__(self, axis, units=zaber_motion.Units.LENGTH_MILLIMETRES) -> None:
+        self.axis = axis
+        self.units = units
+
+    def initialise(self):
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=False)
+
+    def set_position(self, position):
+        self.axis.move_absolute(position, wait_until_idle=False, unit=self.units)
+
+    def get_position(self):
+        return self.axis.get_position(unit=self.units)
+
+
+class ZaberLinearActuator:
+    def __init__(self, axis, units=zaber_motion.Units.LENGTH_MICROMETRES) -> None:
+        self.axis = axis
+        self.units = units
+
+    def initalise(self):
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=True)
+        
+    def set_position(self, position):
+        self.axis.move_absolute(position, wait_until_idle=False, unit=self.units)
+
+    def get_position(self):
+        return self.axis.get_position(unit=self.units)
 
 
 if __name__ == "__main__":

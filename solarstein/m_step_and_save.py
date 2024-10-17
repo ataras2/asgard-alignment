@@ -9,19 +9,19 @@ import matplotlib.pyplot as plt
 import os
 import time
 
-pth = "data/may/heimdallr_34_run1"
+pth = "data/Oct15/solarstein_12_run0"
 
-BS_num = 9
+BS_num = 7
 
 if not os.path.exists(pth):
     os.makedirs(pth)
 
-start_pos = 0  # um
-end_pos = 2000  # um
-step_size = 5  # um
-# start_pos = 5000  # um
-# end_pos = 8500  # um
+# start_pos = 0  # um
+# end_pos = 2000  # um
 # step_size = 5  # um
+start_pos = 5000  # um
+end_pos = 8500  # um
+step_size = 5  # um
 
 
 positions = list(range(start_pos, end_pos, step_size))
@@ -41,6 +41,7 @@ else:
 # setup camera
 system = PySpin.System.GetInstance()
 cam_list = system.GetCameras()
+print(f"found {len(cam_list)} cameras")
 cam = cam_list[0]
 
 nodemap_tldevice = cam.GetTLDeviceNodeMap()
@@ -59,7 +60,10 @@ n_positions = len(positions)
 
 img_stack = np.zeros((n_positions, n_imgs, img.shape[0], img.shape[1]), dtype=np.uint8)
 
-with Connection.open_tcp("zaber-120408.local", Connection.TCP_PORT_CHAIN) as connection:
+print("opening zaber...")
+# with Connection.open_tcp("zaber-120408.local", Connection.TCP_PORT_CHAIN) as connection:
+# with Connection.open_tcp("zaber-120408.local", Connection.TCP_PORT_CHAIN) as connection:
+with Connection.open_serial_port("COM26") as connection:
     # setup motion device
     device_list = connection.detect_devices()
     print("Found {} devices".format(len(device_list)))

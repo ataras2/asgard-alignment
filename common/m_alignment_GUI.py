@@ -2,7 +2,7 @@
 import streamlit as st
 
 import asgard_alignment.GUI
-import asgard_alignment.MultiDeviceServer
+import asgard_alignment.Instrument
 
 
 # st.set_page_config(layout="wide")
