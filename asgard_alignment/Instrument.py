@@ -316,3 +316,6 @@ if __name__ == "__main__":
     # config = Instrument._read_motor_config(pth)
 
     instr = Instrument(pth)
+
+    print(instr.devices["HTPP1"].read_position())
+    print(instr.devices["HTTP1"].read_position())

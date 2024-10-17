@@ -11,6 +11,7 @@ import streamlit as st
 import asgard_alignment.GUI
 import time
 
+import parse
 import pyvisa
 import asgard_alignment.ESOdevice as ESOdevice
 
@@ -116,7 +117,7 @@ class M100DAxis(ESOdevice.Motor):
         position: float
             The position to move to
         """
-        self._connection.write_str(f"PA{self.axis}{position:.5f}")
+        self._connection.write_str(f"1PA{self.axis}{position:.5f}")
 
     def move_rel(self, position: float):
         """
@@ -127,7 +128,7 @@ class M100DAxis(ESOdevice.Motor):
         position: float
             The position to move to
         """
-        self._connection.write_str(f"PR{self.axis}{position:.5f}")
+        self._connection.write_str(f"1PR{self.axis}{position:.5f}")
 
     def read_position(self):
         """
@@ -138,8 +139,11 @@ class M100DAxis(ESOdevice.Motor):
         position: float
             The position of the motor
         """
-        position_str = self._connection.query_str(f"TP{self.axis}?")
-        position = float(position_str)
+        reply = self._connection.query_str(f"1TP{self.axis}?")
+        # parse reply of form 1TP{self.axis}{position}
+        parse_results = parse.parse(f"1TP{self.axis}" + "{}", reply)
+
+        position = float(parse_results[0])  
         return position
 
     def is_moving(self):
