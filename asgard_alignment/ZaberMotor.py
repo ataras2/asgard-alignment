@@ -32,7 +32,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         self.axis = axis
 
         if not self.axis.is_homed:
-            self.axis.home(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+            self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
 
     def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
         """
@@ -53,7 +53,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         self.axis.move_absolute(
             new_pos,
             unit=units,
-            wait_until_idle=ZaberLinearActutator.IS_BLOCKING,
+            wait_until_idle=ZaberLinearActuator.IS_BLOCKING,
         )
 
     def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
@@ -75,11 +75,11 @@ class ZaberLinearActuator(ESOdevice.Motor):
         self.axis.move_relative(
             new_pos,
             unit=units,
-            wait_until_idle=ZaberLinearActutator.IS_BLOCKING,
+            wait_until_idle=ZaberLinearActuator.IS_BLOCKING,
         )
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MICROMETRES):
-        return self.axis.read_position(unit=units)
+        return self.axis.get_position(unit=units)
 
     def is_at_limit(self):
         """
@@ -103,7 +103,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         --------
         None
         """
-        self.axis.stop(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+        self.axis.stop(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
 
     def init(self):
         """
@@ -111,7 +111,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         Might need to home after power cycle
         """
         if not self.axis.is_homed:
-            self.axis.home(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+            self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
 
     def move_abs(self, position):
         """

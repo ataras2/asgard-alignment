@@ -76,6 +76,7 @@ class Motor(ESOdevice):
         super().__init__(name, dev_type)
 
         self.nCommand = Motor.Command.MOT_NONE
+        self.nLastCommand = Motor.Command.MOT_NONE
 
         self.bExecute = False
 
@@ -147,9 +148,6 @@ class Motor(ESOdevice):
     @abc.abstractmethod
     def is_motion_done(self):
         pass
-
-    def update_fsm(self):
-        raise NotImplementedError
 
     def update_param(self):
         if self.bEnable == True:
