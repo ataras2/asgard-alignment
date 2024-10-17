@@ -191,17 +191,28 @@ class MultiDeviceServer:
             self.instr.devices[axis].move_abs(float(position))
             return "ACK"
 
+        def connected_msg(axis):
+            return "connected" if axis in self.instr.devices else "not connected"
+
+        def connect_msg(axis):
+            # this is a connection open request
+            self.instr._attempt_to_open(axis, recheck_ports=True)
+
+            return "connected" if axis in self.instr.devices else "not connected"
+
         patterns = {
             "!read {}": read_msg,
             "!stop {}": stop_msg,
             "!moveabs {} {:f}": moveabs_msg,
+            "!connected? {}": connected_msg,
+            "!connect {}": connect_msg,
         }
 
         for pattern, func in patterns.items():
             result = parse(pattern, message)
             if result:
                 return func(*result)
-        return "Invalid command"
+        return "NACK"
 
 
 if __name__ == "__main__":
