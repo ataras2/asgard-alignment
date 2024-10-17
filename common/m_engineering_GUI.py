@@ -113,7 +113,6 @@ with col_main:
 
         # check if component is connected
         is_connected = send_and_get_response(f"!connected? {target}") == "connected"
-        print(is_connected)
         if not is_connected:
             st.write(f"Component {target} is not connected!")
 
