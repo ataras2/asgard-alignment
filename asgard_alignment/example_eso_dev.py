@@ -267,7 +267,7 @@ def update_motor_param(dev):
                 p[dev].lrPosTarget = p[dev].lrPosition + p[dev].lrPosActual
 
                 # *************************************************
-                # ADD HERE CALL TO START MOTOR MOTION TO ABS ENC *
+                # ADD HERE CALL TO START MOTOR MOTION TO REL *
                 # *************************************************
                 p[dev]._state = MOVE
                 # the following line is only used for the built-in SW simulation
