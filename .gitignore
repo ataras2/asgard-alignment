@@ -6,7 +6,7 @@
 *.json
 
 *.pickle
-
+*.log
 *.png
 *.fits
 *.csv
