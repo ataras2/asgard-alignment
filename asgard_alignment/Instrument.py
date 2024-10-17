@@ -55,7 +55,7 @@ class Instrument:
             A dictionary that maps the name of the motor to the motor object
         """
         self._prev_port_mapping = self.compute_serial_to_port_map()
-        self._prev_zaber_port = self.find_zaber_COM()
+        self._prev_zaber_port = self.find_zaber_usb_port()
         for name in self._config_dict:
             res = self._attempt_to_open(name, recheck_ports=False)
             if res:
@@ -153,7 +153,7 @@ class Instrument:
             # this is a zaber connection through USB
             # check what the zaber com port is
             if recheck_ports:
-                self._prev_zaber_port = self.find_zaber_COM()
+                self._prev_zaber_port = self.find_zaber_usb_port()
 
             if self._prev_zaber_port is None:
                 return False
@@ -172,7 +172,7 @@ class Instrument:
                     return True
 
     @staticmethod
-    def find_zaber_COM():
+    def find_zaber_usb_port():
         """
         Find the COM port for the Zaber motor
 
@@ -249,6 +249,15 @@ class Instrument:
 
     @staticmethod
     def compute_serial_to_port_map():
+        """
+        By inspecting the list of usb devices, find the serial number of the
+        motor and the corresponding port (e.g. /dev/ttyUSB0)
+
+        Returns:
+        --------
+        mapping: dict
+            A dictionary that maps the serial number of the motor to the port
+        """
         mapping = {}
 
         ports = serial.tools.list_ports.comports()
