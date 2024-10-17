@@ -6,3 +6,7 @@ instr = asgard_alignment.MultiDeviceServer.MultiDeviceServer(
 )
 
 print("HFO1 in instrument?", "HFO1" in instr._motors)
+
+import pdb
+
+pdb.Pdb()
