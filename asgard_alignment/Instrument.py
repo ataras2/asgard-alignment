@@ -120,7 +120,24 @@ class Instrument:
             "X-LHM100A-SE03",
         ]:
             # this is a zaber connection through USB
-            pass
+            # check what the zaber com port is
+            zaber_com_port = self.find_zaber_COM()
+
+            if zaber_com_port is None:
+                return False
+            
+            if zaber_com_port not in self._controllers:
+                self._controllers[zaber_com_port] = Connection.open_serial_port(
+                    zaber_com_port
+                )
+            
+            for dev in self._controllers[zaber_com_port].detect_devices():
+                if dev.serial_number == self._config_dict[name]["serial_number"]:
+                    self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
+                        name,
+                        dev,
+                    )
+                    return True
 
     @staticmethod
     def find_zaber_COM():
