@@ -134,10 +134,6 @@ class Motor(ESOdevice):
         pass
 
     @abc.abstractmethod
-    def is_reset_success(self):
-        pass
-
-    @abc.abstractmethod
     def is_init_success(self):
         pass
 

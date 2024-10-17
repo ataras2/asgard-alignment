@@ -368,7 +368,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         --------
         None
         """
-        self.device.move_absolute(
+        self.axis.move_absolute(
             new_pos,
             unit=units,
             wait_until_idle=ZaberLinearStage.IS_BLOCKING,
@@ -390,14 +390,14 @@ class ZaberLinearStage(ESOdevice.Motor):
         --------
         None
         """
-        self.device.move_relative(
+        self.axis.move_relative(
             new_pos,
             unit=units,
             wait_until_idle=ZaberLinearStage.IS_BLOCKING,
         )
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
-        return self.device.read_position(unit=units)
+        return self.axis.get_position(unit=units)
 
     def is_at_limit(self):
         """
@@ -421,15 +421,15 @@ class ZaberLinearStage(ESOdevice.Motor):
         --------
         None
         """
-        self.device.stop(wait_until_idle=ZaberLinearStage.IS_BLOCKING)
+        self.axis.stop(wait_until_idle=ZaberLinearStage.IS_BLOCKING)
 
     def init(self):
         """
         Don't do anything, the motor is already initialised by the constructor
         Might need to home after power cycle
         """
-        if not self.device.is_homed:
-            self.device.home(wait_until_idle=ZaberLinearStage.IS_BLOCKING)
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=ZaberLinearStage.IS_BLOCKING)
 
     def move_abs(self, position):
         """
@@ -468,7 +468,7 @@ class ZaberLinearStage(ESOdevice.Motor):
             True if the stop was successful, False otherwise
         """
 
-        return not self.device.is_busy()
+        return not self.axis.is_busy()
 
     def is_init_success(self):
         """
@@ -479,7 +479,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         bool
             True if the initialisation was successful, False otherwise
         """
-        return not self.device.is_busy()
+        return not self.axis.is_busy()
 
     def is_motion_done(self):
         """
@@ -490,7 +490,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         bool
             True if the motion is done, False otherwise
         """
-        return not self.device.is_busy()
+        return not self.axis.is_busy()
 
 
 '''

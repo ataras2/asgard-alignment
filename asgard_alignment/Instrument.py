@@ -116,6 +116,7 @@ class Instrument:
                 self.devices[name] = asgard_alignment.NewportMotor.M100DAxis(
                     self._controllers[port],
                     cfg["motor_config"]["axis"],
+                    name,
                 )
                 return True
             elif self._config_dict[name]["motor_type"] in ["LS16P"]:

@@ -2,16 +2,10 @@
 Module for the newport motors.
 """
 
-from enum import Enum
-import logging
 from typing import Literal
 import parse
 import numpy as np
-import streamlit as st
-import asgard_alignment.GUI
-import time
 
-import parse
 import pyvisa
 import asgard_alignment.ESOdevice as ESOdevice
 
@@ -87,18 +81,40 @@ class M100DAxis(ESOdevice.Motor):
     https://www.newport.com.cn/p/CONEX-AG-M100D
     """
 
+    CONTROLLER_STATES = {
+        "14": "CONFIGURATION",
+        "28": "MOVING CL",
+        "29": "STEPPING OL",
+        "32": "READY from Reset",
+        "33": "READY from MOVING CL",
+        "34": "READY from DISABLE",
+        "35": "READY from JOGGING OL",
+        "36": "READY from STEPPING OL",
+        "3C": "DISABLE from READY OL",
+        "3D": "DISABLE from MOVING CL",
+        "46": "JOGGING OL",
+    }
+
+    UPPER_LIMIT = 0.75
+    LOWER_LIMIT = -0.75
+
     def __init__(
         self,
         connection: NewportConnection,
         axis: Literal["U", "V"],
+        name: str,
     ) -> None:
         """
         A class for the tip or tilt M100D motors
         https://www.newport.com.cn/p/CONEX-AG-M100D
         """
+
+        super().__init__(name=name)
+
         assert axis in ["U", "V"]
         self._connection = connection
         self._axis = axis
+        self._name = name
 
     def _verify_valid_connection(self):
         """
@@ -107,6 +123,21 @@ class M100DAxis(ESOdevice.Motor):
         # Check that the motor is connected
         id_number = self._connection.query("1ID?").strip()
         assert "M100D" in id_number
+
+    def _read_state(self, echo=False):
+        """
+        Read the state of the motor
+        """
+        msg = self._connection.query_str("1TS?")
+        state = msg[8:10]
+        state_str = (
+            self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
+        )
+
+        if echo:
+            print(f"State: {state_str}")
+
+        return state_str
 
     def move_abs(self, position: float):
         """
@@ -155,7 +186,7 @@ class M100DAxis(ESOdevice.Motor):
         is_moving: bool
             True if the motor is moving, False otherwise
         """
-        raise NotImplementedError
+        return self._read_state() in ["MOVING CL", "STEPPING OL", "JOGGING OL"]
 
     def is_reset_success(self):
         """
@@ -188,7 +219,8 @@ class M100DAxis(ESOdevice.Motor):
         bool
             True if the initialisation was successful, False otherwise
         """
-        return not self.is_moving()
+        state = self._read_state()
+        return state in ["READY from Reset"]
 
     def is_motion_done(self):
         """
@@ -214,7 +246,10 @@ class M100DAxis(ESOdevice.Motor):
         bool
             True if the motor is at the limit, False otherwise
         """
-        raise NotImplementedError
+        position = self.read_position()
+        return np.isclose(position, self.UPPER_LIMIT) or np.isclose(
+            position, self.LOWER_LIMIT
+        )
 
     def init(self):
         """
@@ -237,3 +272,111 @@ class M100DAxis(ESOdevice.Motor):
         """
         Initialise the motor
         """
+
+
+class LS16PAxis(ESOdevice.Motor):
+
+    UPPER_LIMIT = 16.0
+    LOWER_LIMIT = 0.0
+
+    ERROR_BITS = {
+        "0010": "Bit motor stall timeout",
+        "0020": "Bit time out motion",
+        "0040": "Bit time out homing",
+        "0080": "Bit bad memory parameters",
+        "0100": "Bit supply voltage too low",
+        "0200": "Bit internal error",
+        "0400": "Bit memory problem",
+        "0800": "Bit over temperature",
+    }
+
+    CONTROLLER_STATES = {
+        "0A": "READY OPEN LOOP: after reset",
+        "0B": "READY OPEN LOOP: after HOMING state",
+        "0C": "READY OPEN LOOP: after STEPPING state",
+        "0D": "READY OPEN LOOP: after CONFIGURATION state",
+        "0E": "READY OPEN LOOP: after with no parameters",
+        "0F": "READY OPEN LOOP: after JOGGING state",
+        "10": "READY OPEN LOOP: after SCANNING state",
+        "11": "READY OPEN LOOP: after READY CLOSED LOOP state",
+        "14": "CONFIGURATION",
+        "1E": "HOMING",
+        "1F": "REFERENCING",
+        "28": "MOVING OPEN LOOP (OL)",
+        "29": "MOVING CLOSED LOOP (CL)",
+        "32": "READY CLOSED LOOP: after HOMING state",
+        "33": "READY CLOSED LOOP: after MOVING CL state",
+        "34": "READY CLOSED LOOP: after DISABLE state",
+        "35": "READY CLOSED LOOP: after REFERENCING state",
+        "36": "READY CLOSED LOOP: after HOLDING state",
+        "3C": "DISABLE: after READY CLOSED LOOP state",
+        "3D": "DISABLE: after MOVING CL state",
+        "46": "JOGGING",
+        "50": "SCANNING",
+        "5A": "HOLDING",
+    }
+
+    def __init__(self, connection, name):
+        super().__init__(name)
+
+        self._connection = connection
+        self._name = name
+
+        self.init()
+
+    def init(self):
+        self._connection.write_str("1OR")
+
+    def move_abs(self, position: float):
+        self._connection.write_str(f"1PA{position:.5f}")
+
+    def read_position(self):
+        reply = self._connection.query_str("1TP?")
+        parse_results = parse.parse("1TP{}", reply)
+        position = float(parse_results[0])
+        return position
+
+    def _read_state(self, echo=False):
+        """
+        Read the state of the motor
+        """
+        msg = self._connection.query("1TS?").strip()
+
+        error_bits = msg[3:8]
+
+        error_str = self.ERROR_BITS[error_bits] if error_bits in self.ERROR_BITS else ""
+        state = msg[8:10]
+        state_str = (
+            self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
+        )
+
+        if echo:
+            print(f"Error: {error_str}, State: {state_str}")
+
+        return error_str, state_str
+
+    def is_moving(self):
+        _, state_str = self._read_state()
+        return state_str in ["MOVING OPEN LOOP (OL)", "MOVING CLOSED LOOP (CL)"]
+
+    def is_reset_success(self):
+        _, state_str = self._read_state()
+        return state_str in ["READY OPEN LOOP: after reset"]
+
+    def is_stop_success(self):
+        _, state_str = self._read_state()
+        return state_str in ["READY OPEN LOOP: after reset"]
+
+    def is_init_success(self):
+        _, state_str = self._read_state()
+        return state_str in ["READY CLOSED LOOP: after HOMING state"]
+
+    def is_motion_done(self):
+        _, state_str = self._read_state()
+        return state_str in ["READY CLOSED LOOP: after MOVING CL state"]
+
+    def is_at_limit(self):
+        position = self.read_position()
+        return np.isclose(position, self.UPPER_LIMIT) or np.isclose(
+            position, self.LOWER_LIMIT
+        )
