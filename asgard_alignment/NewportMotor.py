@@ -12,12 +12,13 @@ import asgard_alignment.GUI
 import time
 
 import pyvisa
-from asgard_alignment.AsgardDevice import AsgardDevice
+import asgard_alignment.ESOdevice as ESOdevice
 
 
-class NewportMotor(AsgardDevice):
+class NewportConnection:
     """
-    Base class for all the newport motors
+    A class to handle the connection to the newport motors
+    One per controller
     """
 
     # The serial config for the newport motors:
@@ -27,14 +28,13 @@ class NewportMotor(AsgardDevice):
     def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
         self._serial_port = serial_port
         self.open_connection(resource_manager)
-        self._verify_valid_connection()
 
     def open_connection(self, resource_manager: pyvisa.ResourceManager):
         """
         resource_manager : pyvisa.ResourceManager object (to avoid constructing it many times)
         """
         self._connection = resource_manager.open_resource(
-            self._serial_port,
+            f"ASRL{self._serial_port}::INSTR",
             # baud_rate=self.SERIAL_BAUD,
             # write_termination=self.SERIAL_TERMIN,
             # read_termination=self.SERIAL_TERMIN,
@@ -50,9 +50,6 @@ class NewportMotor(AsgardDevice):
         """
         self._connection.before_close()
         self._connection.close()
-
-    def _verify_valid_connection(self):
-        raise NotImplementedError()
 
     def write_str(self, str_to_write):
         """
@@ -82,408 +79,140 @@ class NewportMotor(AsgardDevice):
         return_str = self._connection.query(str_to_write).strip()
         return return_str
 
-    def set_to_zero(self):
-        """
-        Set the motor to the zero position
-        """
-        raise NotImplementedError()
 
-    @staticmethod
-    def infer_motor_type(motor_name):
-        """
-        Given the internal name of the motor, attempt to infer the type of the class to instantiate
-
-        Parameters:
-        -----------
-        motor_name: str
-            The internal name of the motor
-
-        Returns:
-        --------
-        motor_type: type
-            The python type of the motor to instantiate
-        """
-
-        motor_type = None
-        ending = motor_name.split("_")[-1]
-        if ending.lower() == "tiptilt" or ending.lower() == "m100d":
-            motor_type = M100D
-        elif ending.lower() == "linear" or ending.lower() == "ls16p":
-            motor_type = LS16P
-
-        if motor_type is None:
-            raise KeyError(f"could not infer motor type from {motor_name}")
-        return motor_type
-
-    @staticmethod
-    def motor_type_to_string(motor_type):
-        """
-        Convert the motor type to a string
-
-        Parameters:
-        -----------
-        motor_type: type
-            The python type of the motor
-
-        Returns:
-        --------
-        motor_str: str
-            The string representation of the motor (to use for e.g. saving to a config file)
-        """
-        m = None
-        if motor_type == M100D:
-            m = "M100D"
-        elif motor_type == LS16P:
-            m = "LS16P"
-
-        if m is None:
-            raise ValueError(f"Could not find motor from {motor_type}")
-
-        return m
-
-    @staticmethod
-    def string_to_motor_type(motor_str):
-        """
-        Convert the motor string to a type
-
-        Parameters:
-        -----------
-        motor_str: str
-            The string representation of the motor (to use for e.g. saving to a config file)
-
-        Returns:
-        --------
-        motor_type: NewportMotor
-            The python type of the motor
-        """
-        m = None
-        if motor_str.lower() == "m100d":
-            m = M100D
-        elif motor_str.lower() == "ls16p":
-            m = LS16P
-
-        if m is None:
-            raise ValueError(f"Could not find motor from {motor_str}")
-
-        return m
-
-
-class M100D(NewportMotor):
+class M100DAxis(ESOdevice.Motor):
     """
-    A tip tilt motor driver class
+    A class for the tip or tilt M100D motors
     https://www.newport.com.cn/p/CONEX-AG-M100D
     """
 
-    AXES = Enum("AXES", ["U", "V"])
-    HW_BOUNDS = {AXES.U: [-0.75, 0.75], AXES.V: [-0.75, 0.75]}
-
     def __init__(
         self,
-        serial_port,
-        resource_manager: pyvisa.ResourceManager,
+        connection: NewportConnection,
+        axis: Literal["U", "V"],
     ) -> None:
         """
-        A class for the tip tile M100D motors
-
-        Parameters:
-        -----------
-        serial_port: str
-            The serial port that the motor is connected to
-        resource_manager: pyvisa.ResourceManager
-            The resource manager that is used to open the serial connection
-        orientation: str
-            The orientation of the motor. Either "normal" or "reversed". In the case of reversed, the U and V axes are
-            swapped, such that asking a function to move the U axis will actually move the V axis and vice versa.
-            This correctly accounts for the flipped sign of the U axis in the reversed orientation.
+        A class for the tip or tilt M100D motors
+        https://www.newport.com.cn/p/CONEX-AG-M100D
         """
-        super().__init__(serial_port, resource_manager)
-
-        # TODO: this needs some thinking about how to implement so that the external interface doesn't notice
-        self._current_pos = {
-            self.AXES.U: self.read_pos(self.AXES.U),
-            self.AXES.V: self.read_pos(self.AXES.V),
-        }
-
-    def initialise(self):
-        # no need to initialise this motor
-        pass 
+        assert axis in ["U", "V"]
+        self._connection = connection
+        self._axis = axis
 
     def _verify_valid_connection(self):
         """
-        Verify that the serial connection opened by the class is indeed to to a NEWPORT M100D
+        Verify that the connection is valid
         """
+        # Check that the motor is connected
         id_number = self._connection.query("1ID?").strip()
         assert "M100D" in id_number
 
-    @property
-    def get_current_pos(self):
+    def move_abs(self, position: float):
         """
-        Return the current position of the motor in degrees
-        """
-        return [self._current_pos[ax] for ax in M100D.AXES]
-
-    def set_to_zero(self):
-        """
-        Set all the motor axes positions to zero
-        """
-        for axis in self.AXES:
-            self.set_absolute_position(0.0, axis)
-
-    @property
-    def status_string(self):
-        """
-        Return the status of the motor, and the position of both axes
-        """
-
-        status = self._connection.query("1TS?").strip()
-        pos_u = self.read_pos(self.AXES.U)
-        pos_v = self.read_pos(self.AXES.V)
-
-        return f"Status: {status}, U: {pos_u}, V: {pos_v}"
-
-    def read_pos(self, axis: AXES) -> float:
-        """
-        Read the position of a given axis.
+        Move the motor to an absolute position
 
         Parameters:
-            axis (M100D.AXES) : the axis to read from
+        -----------
+        position: float
+            The position to move to
+        """
+        self._connection.write_str(f"PA{self.axis}{position:.5f}")
+
+    def move_rel(self, position: float):
+        """
+        Move the motor to a relative position
+
+        Parameters:
+        -----------
+        position: float
+            The position to move to
+        """
+        self._connection.write_str(f"PR{self.axis}{position:.5f}")
+
+    def read_position(self):
+        """
+        Read the position of the motor
 
         Returns:
-            position (float) : the position of the axis in degrees
+        --------
+        position: float
+            The position of the motor
         """
+        position_str = self._connection.query_str(f"TP{self.axis}?")
+        position = float(position_str)
+        return position
 
-        return_str = self._connection.query(f"1TP{axis.name}").strip()
-        subset = parse.parse("{}" + f"TP{axis.name}" + "{}", return_str)
-
-        if subset is not None:
-            return float(subset[1])
-        raise ValueError(f"Could not parse {return_str}")
-
-    def set_absolute_position(self, value: float, axis: AXES):
+    def is_moving(self):
         """
-        Set the absolute position of the motor in a given axis
-
-        Parameters:
-            value (float) : The new position in degrees
-            axis (M100D.AXES) : the axis to set
-        """
-        str_to_write = f"1PA{axis.name}{value}"
-        logging.info(f"sending {str_to_write}")
-        self._connection.write(str_to_write)
-        self._current_pos[axis] = value
-
-    @classmethod
-    def validate_config(cls, config):
-        """
-        Validate the config dictionary for the motor
-        """
-        if "orientation" not in config:
-            raise KeyError("orientation not in config")
-
-    @staticmethod
-    def setup_individual_config():
-        inp = input("is the motor mounted normally with the text right way up? (Y/N)")
-        orientation = None
-        if inp.lower() == "y":
-            orientation = "normal"
-        elif inp.lower() == "n":
-            orientation = "reverse"
-
-        if orientation is None:
-            raise ValueError(f"invalid input {inp}")
-        return {"orientation": orientation}
-
-    def _get_callback(self, axis: AXES):
-        """
-        Get the callback function for the GUI
-        """
-        if axis == self.AXES.U:
-
-            def callback():
-                self.set_absolute_position(st.session_state.U, axis)
-
-        elif axis == self.AXES.V:
-
-            def callback():
-                self.set_absolute_position(st.session_state.V, axis)
-
-        else:
-            raise ValueError(f"invalid axis {axis}")
-
-        return callback
-
-    def GUI(self):
-        """
-        A GUI to control the motor
-        """
-        st.header("M100D motor")
-        asgard_alignment.GUI.CustomNumeric.variable_increment(
-            keys=["U", "V"],
-            callback_fns=[
-                self._get_callback(self.AXES.U),
-                self._get_callback(self.AXES.V),
-            ],
-            values=[self.get_current_pos[0], self.get_current_pos[1]],
-            main_bounds=[-0.75, 0.75],
-        )
-
-
-class LS16P(NewportMotor):
-    """
-    A linear motor driver class
-    https://www.newport.com/p/CONEX-SAG-LS16P
-    """
-
-    HW_BOUNDS = [-8.0, 8.0]
-
-    ERROR_BITS = {
-        "0010": "Bit motor stall timeout",
-        "0020": "Bit time out motion",
-        "0040": "Bit time out homing",
-        "0080": "Bit bad memory parameters",
-        "0100": "Bit supply voltage too low",
-        "0200": "Bit internal error",
-        "0400": "Bit memory problem",
-        "0800": "Bit over temperature",
-    }
-
-    CONTROLLER_STATES = {
-        "0A": "READY OPEN LOOP: after reset",
-        "0B": "READY OPEN LOOP: after HOMING state",
-        "0C": "READY OPEN LOOP: after STEPPING state",
-        "0D": "READY OPEN LOOP: after CONFIGURATION state",
-        "0E": "READY OPEN LOOP: after with no parameters",
-        "0F": "READY OPEN LOOP: after JOGGING state",
-        "10": "READY OPEN LOOP: after SCANNING state",
-        "11": "READY OPEN LOOP: after READY CLOSED LOOP state",
-        "14": "CONFIGURATION",
-        "1E": "HOMING",
-        "1F": "REFERENCING",
-        "28": "MOVING OPEN LOOP (OL)",
-        "29": "MOVING CLOSED LOOP (CL)",
-        "32": "READY CLOSED LOOP: after HOMING state",
-        "33": "READY CLOSED LOOP: after MOVING CL state",
-        "34": "READY CLOSED LOOP: after DISABLE state",
-        "35": "READY CLOSED LOOP: after REFERENCING state",
-        "36": "READY CLOSED LOOP: after HOLDING state",
-        "3C": "DISABLE: after READY CLOSED LOOP state",
-        "3D": "DISABLE: after MOVING CL state",
-        "46": "JOGGING",
-        "50": "SCANNING",
-        "5A": "HOLDING",
-    }
-
-    def __init__(self, serial_port: str, resource_manager: pyvisa.ResourceManager):
-        super().__init__(serial_port, resource_manager)
-
-        # self.set_absolute_position(8.0)
-
-    def initialise(self):
-        self._current_pos = 0.0
-
-        # we always set the motor to the closed loop mode
-        self._connection.write("OR")
-        time.sleep(2.0)
-        self._connection.write("RFP")
-
-    @classmethod
-    def connect_and_get_SA(cls, port):
-        """
-        Connect to the motor and check the SA
-        """
-        rm = pyvisa.ResourceManager()
-
-        connection = rm.open_resource(
-            port,
-            baud_rate=cls.SERIAL_BAUD,
-            write_termination=cls.SERIAL_TERMIN,
-            read_termination=cls.SERIAL_TERMIN,
-        )
-
-        sa = connection.query("SA?").strip()
-
-        connection.before_close()
-        connection.close()
-
-        return sa
-
-    def read_state(self, echo=False):
-        """
-        Read the state of the motor
-        """
-        msg = self._connection.query("1TS?").strip()
-
-        error_bits = msg[3:8]
-
-        error_str = self.ERROR_BITS[error_bits] if error_bits in self.ERROR_BITS else ""
-        state = msg[8:10]
-        state_str = (
-            self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
-        )
-
-        if echo:
-            print(f"Error: {error_str}, State: {state_str}")
-
-        return error_str, state_str
-
-    def _verify_valid_connection(self):
-        """
-        Verify that the serial connection opened by the class is indeed to to a NEWPORT LS16P
-        """
-        id_number = self._connection.query("1ID?").strip()
-        assert "LS16P" in id_number
-
-    def set_absolute_position(self, value: float):
-        """
-        Set the absolute position of the motor
-
-        Parameters:
-            value (float) : The new position in mm
-        """
-        str_to_write = f"1PA{value}"
-        self._connection.write(str_to_write)
-        self._current_pos = value
-
-    def read_pos(self) -> float:
-        """
-        Set the absolute position of the motor
+        Check if the motor is moving
 
         Returns:
-            value (float) : The new position in mm
+        --------
+        is_moving: bool
+            True if the motor is moving, False otherwise
         """
-        return_str = self._connection.query("1TP").strip()
-        subset = parse.parse("{}TP{}", return_str)
-        if subset is not None:
-            return float(subset[1])
-        raise ValueError(f"Could not parse {return_str}")
+        raise NotImplementedError
 
-    def set_to_zero(self):
+    def is_reset_success(self):
         """
-        Set the motor to the zero position
+        Check if the reset was successful
+
+        Returns:
+        --------
+        bool
+            True if the reset was successful, False otherwise
         """
-        self.set_absolute_position(0.0)
+        return self._verify_valid_connection()
+
+    def is_stop_success(self):
+        """
+        Check if the stop was successful
+
+        Returns:
+        --------
+        bool
+            True if the stop was successful, False otherwise
+        """
+        return not self.is_moving()
+
+    def is_init_success(self):
+        """
+        Check if the initialisation was successful
+
+        Returns:
+        --------
+        bool
+            True if the initialisation was successful, False otherwise
+        """
+        return not self.is_moving()
+
+    def is_motion_done(self):
+        """
+        Check if the motion is done
+
+        Returns:
+        --------
+        bool
+            True if the motion is done, False otherwise
+        """
+        return not self.is_moving()
 
     @property
-    def get_current_pos(self):
-        """
-        Return the software internal position of the motor
-        """
-        return self._current_pos
+    def axis(self):
+        return self._axis
 
-    def GUI(self):
+    def is_at_limit(self):
         """
-        A GUI to control the motor
+        Check if the motor is at the limit
+
+        Returns:
+        --------
+        bool
+            True if the motor is at the limit, False otherwise
         """
-        st.header("LS16P motor")
+        raise NotImplementedError
 
-        def callback():
-            self.set_absolute_position(st.session_state.pos)
-
-        asgard_alignment.GUI.CustomNumeric.variable_increment(
-            keys=["pos"],
-            callback_fns=[
-                callback,
-            ],
-            values=[self.get_current_pos],
-            main_bounds=[0.0, 16.0],
-        )
+    def init(self):
+        """
+        Initialise the motor
+        """

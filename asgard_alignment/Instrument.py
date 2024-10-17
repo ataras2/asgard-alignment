@@ -7,6 +7,7 @@ import sys
 from zaber_motion.ascii import Connection
 
 import asgard_alignment.ESOdevice
+import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 
 
@@ -26,6 +27,9 @@ class Instrument:
 
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
+
+        self._prev_port_mapping = None
+        self._prev_zaber_port = None
 
         self._rm = pyvisa.ResourceManager()
 
@@ -50,8 +54,10 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
+        self._prev_port_mapping = self.compute_serial_to_port_map()
+        self._prev_zaber_port = self.find_zaber_COM()
         for name in self._config_dict:
-            res = self._attempt_to_open(name)
+            res = self._attempt_to_open(name, recheck_ports=False)
             if res:
                 print(f"Successfully connected to {name}")
             else:
@@ -67,7 +73,7 @@ class Instrument:
         Create the connections to the shutters
         """
 
-    def _attempt_to_open(self, name):
+    def _attempt_to_open(self, name, recheck_ports=False):
         """
         Attempt to open a connection to a device.
         First, check if the controller is already in the connections
@@ -89,7 +95,32 @@ class Instrument:
         if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
             # this is a newport motor USB connection, create a newport motor
             # object
-            pass
+            cfg = self._config_dict[name]
+
+            if recheck_ports:
+                self._prev_port_mapping = self.compute_serial_to_port_map()
+
+            if cfg["serial_number"] not in self._prev_port_mapping:
+                return False
+
+            port = self._prev_port_mapping[cfg["serial_number"]]
+            if port not in self._controllers:
+                self._controllers[port] = (
+                    asgard_alignment.NewportMotor.NewportConnection(
+                        port,
+                        self._rm,
+                    )
+                )
+
+            if self._config_dict[name]["motor_type"] in ["M100D"]:
+                self.devices[name] = asgard_alignment.NewportMotor.M100DAxis(
+                    self._controllers[port],
+                    cfg["motor_config"]["axis"],
+                )
+                return True
+            elif self._config_dict[name]["motor_type"] in ["LS16P"]:
+                return False
+
         elif self._config_dict[name]["motor_type"] in ["LAC10A-T4A"]:
             # this is a zaber motor, create a ZaberLinearActuator object
             # through the X-MCC
@@ -108,7 +139,7 @@ class Instrument:
 
             if "FZ" in axis.warnings.get_flags():
                 return False
-            
+
             self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                 name,
                 axis,
@@ -121,17 +152,18 @@ class Instrument:
         ]:
             # this is a zaber connection through USB
             # check what the zaber com port is
-            zaber_com_port = self.find_zaber_COM()
+            if recheck_ports:
+                self._prev_zaber_port = self.find_zaber_COM()
 
-            if zaber_com_port is None:
+            if self._prev_zaber_port is None:
                 return False
-            
-            if zaber_com_port not in self._controllers:
-                self._controllers[zaber_com_port] = Connection.open_serial_port(
-                    zaber_com_port
+
+            if self._prev_zaber_port not in self._controllers:
+                self._controllers[self._prev_zaber_port] = Connection.open_serial_port(
+                    self._prev_zaber_port
                 )
-            
-            for dev in self._controllers[zaber_com_port].detect_devices():
+
+            for dev in self._controllers[self._prev_zaber_port].detect_devices():
                 if dev.serial_number == self._config_dict[name]["serial_number"]:
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
                         name,
@@ -239,9 +271,9 @@ class Instrument:
 
             connection = rm.open_resource(
                 port,
-                baud_rate=asgard_alignment.NewportMotor.LS16P.SERIAL_BAUD,
-                write_termination=asgard_alignment.NewportMotor.LS16P.SERIAL_TERMIN,
-                read_termination=asgard_alignment.NewportMotor.LS16P.SERIAL_TERMIN,
+                baud_rate=asgard_alignment.NewportMotor.NewportConnection.SERIAL_BAUD,
+                write_termination=asgard_alignment.NewportMotor.NewportConnection.SERIAL_TERMIN,
+                read_termination=asgard_alignment.NewportMotor.NewportConnection.SERIAL_TERMIN,
             )
             sa = connection.query("SA?").strip()
             connection.before_close()
