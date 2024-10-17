@@ -13,12 +13,140 @@ import streamlit as st
 from zaber_motion.ascii import Connection
 import time
 import json
+import numpy as np
 
 import zaber_motion.binary
 
 from asgard_alignment.AsgardDevice import AsgardDevice
 
 
+import asgard_alignment.ESOdevice as ESOdevice
+
+
+class ZaberLinearActutator(ESOdevice.Motor):
+    UPPER_LIMIT = 10_000  # um
+    LOWER_LIMIT = 0  # um
+
+    IS_BLOCKING = True
+
+    def __init__(self, axis) -> None:
+        self.axis = axis
+
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+
+    def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
+        self.axis.move_absolute(
+            new_pos,
+            unit=units,
+            wait_until_idle=ZaberLinearActutator.IS_BLOCKING,
+        )
+
+    def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
+        self.axis.move_relative(
+            new_pos,
+            unit=units,
+            wait_until_idle=ZaberLinearActutator.IS_BLOCKING,
+        )
+
+    def read_position(self, units=zaber_motion.Units.LENGTH_MICROMETRES):
+        return self.axis.read_position(unit=units)
+
+    def is_at_limit(self):
+        """
+        Check if the motor is at the limit
+
+        Returns:
+        --------
+        bool
+            True if the motor is at the limit, False otherwise
+        """
+        # us np.isclose to avoid floating point errors
+        return np.isclose(self.read_position(), self.UPPER_LIMIT) or np.isclose(
+            self.read_position(), self.LOWER_LIMIT
+        )
+
+    def stop_now(self):
+        """
+        Stop the motor immediately
+
+        Returns:
+        --------
+        None
+        """
+        self.axis.stop(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+
+    def init(self):
+        """
+        Don't do anything, the motor is already initialised by the constructor
+        Might need to home after power cycle
+        """
+        if not self.axis.is_homed:
+            self.axis.home(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
+
+    def move_abs(self, position):
+        """
+        Move the motor to the absolute position
+
+        Parameters:
+        -----------
+        position: float
+            The position to move to
+
+        Returns:
+        --------
+        None
+        """
+        self.move_absolute(position)
+
+    def is_reset_success(self):
+        """
+        Check if the reset was successful
+
+        Returns:
+        --------
+        bool
+            True if the reset was successful, False otherwise
+        """
+
+        return True  # TODO: Implement?
+
+    def is_stop_success(self):
+        """
+        Check if the stop was successful
+
+        Returns:
+        --------
+        bool
+            True if the stop was successful, False otherwise
+        """
+
+        return not self.axis.is_busy()
+
+    def is_init_success(self):
+        """
+        Check if the initialisation was successful
+
+        Returns:
+        --------
+        bool
+            True if the initialisation was successful, False otherwise
+        """
+        return not self.axis.is_busy()
+
+    def is_motion_done(self):
+        """
+        Check if the motion is done
+
+        Returns:
+        --------
+        bool
+            True if the motion is done, False otherwise
+        """
+        return not self.axis.is_busy()
+
+
+'''
 class BifrostDichroic:
     def __init__(self, device) -> None:
         self.device = device
@@ -281,3 +409,4 @@ if __name__ == "__main__":
     print(source_selection.get_source())
 
     connection.close()
+'''
