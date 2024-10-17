@@ -36,6 +36,21 @@ class ZaberLinearActutator(ESOdevice.Motor):
             self.axis.home(wait_until_idle=ZaberLinearActutator.IS_BLOCKING)
 
     def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
+        """
+        Move the motor to the absolute position
+
+        Parameters:
+        -----------
+        new_pos: float
+            The position to move to
+
+        units: zaber_motion.Units
+            The units of the position, default is micrometres
+
+        Returns:
+        --------
+        None
+        """
         self.axis.move_absolute(
             new_pos,
             unit=units,
@@ -43,6 +58,21 @@ class ZaberLinearActutator(ESOdevice.Motor):
         )
 
     def move_relative(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
+        """
+        Move the motor to the relative position
+
+        Parameters:
+        -----------
+        new_pos: float
+            The position to move to, relative to the current position
+
+        units: zaber_motion.Units
+            The units of the position, default is micrometres
+
+        Returns:
+        --------
+        None
+        """
         self.axis.move_relative(
             new_pos,
             unit=units,
