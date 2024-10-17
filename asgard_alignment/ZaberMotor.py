@@ -21,14 +21,17 @@ import zaber_motion.binary
 import asgard_alignment.ESOdevice as ESOdevice
 
 
+import asgard_alignment.ESOdevice as ESOdevice
+
+
 class ZaberLinearActuator(ESOdevice.Motor):
     UPPER_LIMIT = 10_000  # um
     LOWER_LIMIT = 0  # um
 
     IS_BLOCKING = True
 
-    def __init__(self, name, axis) -> None:
-        super().__init__(name)
+    def __init__(self, name, dev_type, axis) -> None:
+        super().__init__(name, dev_type)
         self.axis = axis
 
         if not self.axis.is_homed:
