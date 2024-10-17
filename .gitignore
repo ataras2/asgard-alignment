@@ -11,5 +11,6 @@
 *.fits
 *.csv
 *.txt
+*.austin
 
 asgard_alignment.egg-info
