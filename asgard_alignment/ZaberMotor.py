@@ -17,13 +17,12 @@ import numpy as np
 
 import zaber_motion.binary
 
-from asgard_alignment.AsgardDevice import AsgardDevice
 
 
 import asgard_alignment.ESOdevice as ESOdevice
 
 
-class ZaberLinearActutator(ESOdevice.Motor):
+class ZaberLinearActuator(ESOdevice.Motor):
     UPPER_LIMIT = 10_000  # um
     LOWER_LIMIT = 0  # um
 

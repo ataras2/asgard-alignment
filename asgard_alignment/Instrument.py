@@ -50,6 +50,12 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
+        for name in self._config_dict:
+            res = self._attempt_to_open(name)
+            if res:
+                print(f"Successfully connected to {name}")
+            else:
+                print(f"Could not connect to {name}")
 
     def _create_lamps(self):
         """
@@ -66,35 +72,53 @@ class Instrument:
         Attempt to open a connection to a device.
         First, check if the controller is already in the connections
         dictionary.
+
+        Parameters:
+        -----------
+        name: str
+            The name of the device to connect to
+
+        Returns:
+        --------
+        bool
+            True if the connection was successful, False otherwise
         """
         if name not in self._config_dict:
             raise ValueError(f"{name} is not in the config file")
 
-        if self._config[name]["motor_type"] in ["M100D", "LS16P"]:
+        if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
             # this is a newport motor USB connection, create a newport motor
             # object
             pass
-        elif self._config[name]["motor_type"] in ["LAC10A-T4A"]:
+        elif self._config_dict[name]["motor_type"] in ["LAC10A-T4A"]:
             # this is a zaber motor, create a ZaberLinearActuator object
             # through the X-MCC
-            cfg = self._config[name]
+            cfg = self._config_dict[name]
             if cfg["x_mcc_ip_address"] not in self._controllers:
                 self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
                     cfg["x_mcc_ip_address"]
                 )
+                self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
 
             axis = (
                 self._controllers[cfg["x_mcc_ip_address"]]
-                .get_device(0)
+                .get_device(1)
                 .get_axis(cfg["axis_number"])
             )
 
+            if "FZ" in axis.warnings.get_flags():
+                return False
+            
             self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                 name,
                 axis,
             )
+            return True
 
-        elif self._config[name]["motor_type"] in ["X-LSM150A-SE03", "X-LHM100A-SE03"]:
+        elif self._config_dict[name]["motor_type"] in [
+            "X-LSM150A-SE03",
+            "X-LHM100A-SE03",
+        ]:
             # this is a zaber connection through USB
             pass
 
@@ -236,8 +260,10 @@ class Instrument:
 
 if __name__ == "__main__":
     pth = "motor_info_full_system.json"
-    Instrument._validate_config_file(pth)
+    # Instrument._validate_config_file(pth)
 
-    print(Instrument.compute_serial_to_port_map())
+    # print(Instrument.compute_serial_to_port_map())
 
-    config = Instrument._read_motor_config(pth)
+    # config = Instrument._read_motor_config(pth)
+
+    instr = Instrument(pth)

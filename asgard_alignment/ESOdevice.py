@@ -23,7 +23,7 @@ class ESOdevice(abc.ABC):
 
         self.name = name
         self._dev_type = dev_type
-        
+
         # status parameters (all devices)
         self.bLocal = False
         self.bInitialised = False
@@ -114,10 +114,6 @@ class Motor(ESOdevice):
 
     @abc.abstractmethod
     def is_at_limit(self):
-        pass
-
-    @abc.abstractmethod
-    def stop_none(self):
         pass
 
     @abc.abstractmethod
@@ -272,7 +268,7 @@ class Motor(ESOdevice):
 
         elif self._state == Motor.State.STOP:
             if self.is_stop_success():
-                self.nErrorCode = 0 
+                self.nErrorCode = 0
                 self.nAxisStatus = Motor.Status.MOT_STANDING
                 self._state = Motor.State.IDLE
             else:
@@ -304,7 +300,7 @@ class Motor(ESOdevice):
             #     self._state = IDLE
             #
             #     If motion succeeded, execute the following:
-            
+
             if self.is_motion_done() == True:
                 self.nErrorCode = 0
                 self.nAxisStatus = Motor.Status.MOT_STANDING
@@ -324,14 +320,14 @@ class Lamp(ESOdevice):
         LMP_ISON = 2
         LMP_COOLING_DOWN = 3
         LMP_ERROR = 4
-    
+
     # Lamp commands
     class Command(Enum):
         LMP_NONE = 0
         LMP_INITIALISE = 1
         LMP_OFF = 2
         LMP_ON = 3
-    
+
     # Lamp error codes
     class ErrorCode(Enum):
         LMP_OK = 0
@@ -344,26 +340,23 @@ class Lamp(ESOdevice):
         LMP_NO_FEEDBACK_SIG = 7
         LMP_NOT_INITIALISED = 10
 
-    
     def __init__(self, name):
         super().__init__(name, ESOdevice.DeviceType.LAMP)
-        
 
         self.bExecute = False
-        
+
         self.nCommand = Lamp.Status.LMP_NONE
 
         self.lrIntensity = 100.0
         self.nTimeOff = 0  # time in seconds since lamp was turned off
         self.nTimeOn = 0  # time in seconds since lamp was turned on
 
-        
         self.nCooldown = (
             5  # time in seconds to wait before turning lamp on again, can be 0
         )
         self.nWarmup = 5  # time in seconds to wait before lamp is fully on
         self.nMaxOn = 4000
-    
+
     @abc.abstractmethod
     def turn_on(self):
         pass
