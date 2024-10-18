@@ -139,7 +139,6 @@ class Instrument:
 
             if "FZ" in axis.warnings.get_flags():
                 return False
-
             self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                 name,
                 axis,

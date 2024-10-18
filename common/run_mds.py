@@ -42,7 +42,9 @@ class MultiDeviceServer:
         if config_file == "mock":
             self.mds = MockMDS()
         else:
-            self.mds = asgard_alignment.MultiDeviceServer.Instrument(self.config_file)
+            self.mds = asgard_alignment.old_MultiDeviceServer.Instrument(
+                self.config_file
+            )
 
     def socket_funct(self, s):
         try:
