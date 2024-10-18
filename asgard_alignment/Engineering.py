@@ -40,8 +40,10 @@ def move_image(beam_number, amount, write_message_fn):
     scaled_components = components * amount
 
     # echo the move_rel commands
-    write_message_fn(f"move_rel HTXP{beam_number} {scaled_components[0]}")
-    write_message_fn(f"move_rel HTXI{beam_number} {scaled_components[1]}")
+    write_message_fn(f"!moverel HTTP{beam_number} {scaled_components[0][0]}")
+    write_message_fn(f"!moverel HTPP{beam_number} {scaled_components[0][1]}")
+    write_message_fn(f"!moverel HTTI{beam_number} {scaled_components[1][0]}")
+    write_message_fn(f"!moverel HTPI{beam_number} {scaled_components[1][1]}")
 
 
 def move_pupil(beam_number, amount, write_message_fn):
@@ -56,8 +58,10 @@ def move_pupil(beam_number, amount, write_message_fn):
 
     scaled_components = components * amount
 
-    write_message_fn(f"move_rel HTXP{beam_number} {scaled_components[0]}")
-    write_message_fn(f"move_rel HTXI{beam_number} {scaled_components[1]}")
+    write_message_fn(f"!moverel HTTP{beam_number} {scaled_components[0][0]}")
+    write_message_fn(f"!moverel HTPP{beam_number} {scaled_components[0][1]}")
+    write_message_fn(f"!moverel HTTI{beam_number} {scaled_components[1][0]}")
+    write_message_fn(f"!moverel HTPI{beam_number} {scaled_components[1][1]}")
 
 
 if __name__ == "__main__":

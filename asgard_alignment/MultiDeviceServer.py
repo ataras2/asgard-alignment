@@ -204,10 +204,13 @@ class MultiDeviceServer:
             "!moverel {} {:f}": moverel_msg,
         }
 
-        for pattern, func in patterns.items():
-            result = parse(pattern, message)
-            if result:
-                return func(*result)
+        try:
+            for pattern, func in patterns.items():
+                result = parse(pattern, message)
+                if result:
+                    return func(*result)
+        except Exception as e:
+            return f"NACK: {e}"
         return "NACK: Unkown custom command"
 
 

@@ -163,8 +163,16 @@ with col_main:
                     message = f"!connect {target}"
                     send_and_get_response(message)
 
-        if component not in ["HTXP", "HTXI", "BTX"]:
+        if (
+            component not in ["HTXP", "HTXI", "BTX"]
+            and component in beam_specific_devices
+        ):
             target = f"{component}{beam_number}"
+        if (
+            component not in ["HTXP", "HTXI", "BTX"]
+            and component in beam_common_devices
+        ):
+            target = component
 
         if component in ["BDS", "SSS"]:
             # linear stage interface
@@ -249,11 +257,14 @@ with col_main:
                 for target in targets:
                     message = f"!read {target}"
                     res = send_and_get_response(message)
+                    if "NACK" in res:
+                        st.write(f"Error reading position for {target}")
+                        break
                     positions.append(float(res))
-
-                st.write(
-                    f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
-                )
+                else:
+                    st.write(
+                        f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
+                    )
 
             # absolute move option for input with button to move
             st.write("Move absolute")
