@@ -78,7 +78,7 @@ def send_and_get_response(message):
     return response.strip()
 
 
-col_main, col_history = st.columns([3, 1])
+col_main, col_history = st.columns([2, 1])
 
 
 with col_main:
@@ -138,6 +138,10 @@ with col_main:
                     key="beam_number",
                 )
             target = f"{component}{beam_number}"
+
+            if component in ["HTXP", "HTXI", "BTX"]:
+                # replace the X in target with P
+                target = target.replace("X", "P")
         else:
             beam_number = None
             target = component
@@ -168,9 +172,8 @@ with col_main:
 
             with s_col1:
                 if st.button("Home"):
-                    st.write("Not implemented yet!")
-                    # message = f"!home {target}"
-                    # send_and_get_response(message)
+                    message = f"!init {target}"
+                    send_and_get_response(message)
             with s_col2:
                 if st.button("Read Position"):
                     message = f"!read {target}"
@@ -202,8 +205,7 @@ with col_main:
                 submit = st.form_submit_button("Move")
 
             if submit:
-                message = f"!move_rel {target} {relative_move}"
-                st.write(f"Sending message to server: {message}")
+                message = f"!moverel {target} {relative_move}"
                 send_and_get_response(message)
 
         elif component in ["HTXP", "HTXI", "BTX"]:
@@ -218,24 +220,13 @@ with col_main:
                 message = f"!read_pos {target}"
                 send_and_get_response(message)
 
-            move_mode = st.selectbox(
-                "Select Move Mode",
-                ["Absolute Move", "Relative Move"],
-                key="move_mode",
-            )
-
-            mode_to_command = {
-                "Absolute Move": "move_abs",
-                "Relative Move": "move_rel",
-            }
-
             # absolute move option for input with button to move
-            st.write(move_mode)
+            st.write("Move absolute")
             with st.form(key="absolute_move"):
                 s_col1, s_col2 = st.columns(2)
                 with s_col1:
                     u_position = st.number_input(
-                        "U Position (mm)",
+                        "U Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
                         step=0.05,
@@ -244,12 +235,15 @@ with col_main:
                     submit = st.form_submit_button("Move U")
 
                 if submit:
-                    message = f"!{mode_to_command[move_mode]} {target} U {u_position}"
+                    # replace the x in target with U
+                    target = f"{component}{beam_number}"
+                    target = target.replace("X", "T")
+                    message = f"!moveabs {target} {u_position}"
                     send_and_get_response(message)
 
                 with s_col2:
                     v_position = st.number_input(
-                        "V Position (mm)",
+                        "V Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
                         step=0.05,
@@ -258,7 +252,9 @@ with col_main:
                     submit2 = st.form_submit_button("Move V")
 
                 if submit2:
-                    message = f"!{mode_to_command[move_mode]} {target} V {v_position}"
+                    target = f"{component}{beam_number}"
+                    target = target.replace("X", "P")
+                    message = f"!moveabs {target} {v_position}"
                     send_and_get_response(message)
 
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO"]:

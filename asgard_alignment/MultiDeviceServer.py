@@ -110,20 +110,6 @@ class MultiDeviceServer:
                     setattr(self.instr.devices[device], parameter, value)
 
                     self.instr.devices[device].update_param()
-                    # if (
-                    #     self.instr.devices[device]._dev_type
-                    #     == asgard_alignment.ESOdevice.Motor
-                    # ):
-                    #     self.instr.devices[device].update_param()
-                    # elif self.instr.devices[device]._dev_type == asgard_alignment.ESOdevice.Lamp:
-                    #     update_lamp_param(d)
-                    # """
-                    # elif p[d]._devType == SHUTTER:
-                    #     update_shutter_params(p[d])
-                    # elif p[d]._devType == SENSOR:
-                    #     update_sensor_params(p[d])
-                    # """
-                    # Send back acknowledgement to client
                     print("Updated parameter", parameter, "of", device, "to", value)
                 return "ACK"
             else:
@@ -200,12 +186,22 @@ class MultiDeviceServer:
 
             return "connected" if axis in self.instr.devices else "not connected"
 
+        def init_msg(axis):
+            self.instr.devices[axis].init()
+            return "ACK"
+
+        def moverel_msg(axis, position):
+            self.instr.devices[axis].move_relative(float(position))
+            return "ACK"
+
         patterns = {
             "!read {}": read_msg,
             "!stop {}": stop_msg,
             "!moveabs {} {:f}": moveabs_msg,
             "!connected? {}": connected_msg,
             "!connect {}": connect_msg,
+            "!init {}": init_msg,
+            "!moverel {} {:f}": moverel_msg,
         }
 
         for pattern, func in patterns.items():

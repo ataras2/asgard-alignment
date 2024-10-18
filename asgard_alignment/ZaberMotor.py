@@ -34,7 +34,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         super().__init__(name)
         self.axis = axis
 
-        if not self.axis.is_homed:
+        if not self.axis.is_homed():
             self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
 
     def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MICROMETRES):
@@ -114,7 +114,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         Don't do anything, the motor is already initialised by the constructor
         Might need to home after power cycle
         """
-        if not self.axis.is_homed:
+        if not self.axis.is_homed():
             self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
 
     def move_abs(self, position):
@@ -202,6 +202,8 @@ class ZaberLinearStage(ESOdevice.Motor):
         else:
             raise ValueError(f"Unknown device {self.device.name}")
 
+        self.init()
+
     def move_absolute(self, new_pos, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         """
         Move the motor to the absolute position
@@ -278,7 +280,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         Don't do anything, the motor is already initialised by the constructor
         Might need to home after power cycle
         """
-        if not self.axis.is_homed:
+        if not self.axis.is_homed():
             self.axis.home(wait_until_idle=ZaberLinearStage.IS_BLOCKING)
 
     def move_abs(self, position):

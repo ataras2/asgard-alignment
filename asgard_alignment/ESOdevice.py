@@ -75,8 +75,8 @@ class Motor(ESOdevice):
         dev_type = ESOdevice.DeviceType.MOTOR
         super().__init__(name, dev_type)
 
-        self.nCommand = Motor.Command.MOT_NONE
-        self.nLastCommand = Motor.Command.MOT_NONE
+        self.nCommand = Motor.Command.MOT_NONE.value
+        self.nLastCommand = Motor.Command.MOT_NONE.value
 
         self.bExecute = False
 
@@ -93,7 +93,7 @@ class Motor(ESOdevice):
         self.lrPosTarget = 10.0
         self.lrPosActual = 0.0
         self.lrBacklash = 0.0
-        self.nAxisStatus = Motor.Status.MOT_STANDING
+        self.nAxisStatus = Motor.Status.MOT_STANDING.value
         self.nBacklashStep = 2
         self.nInfoData1 = 0
         self.nInfoData2 = 0
@@ -152,7 +152,6 @@ class Motor(ESOdevice):
         if self.bDisable == True:
             self.bEnabled = False
             self.bDisable = False
-        #    if m.bEnabled == True and m.bInitialized == True:
 
         # ***********************************************
         # * ADD HERE CALL TO CHECK IF MOTOR IS AT LIMIT *
@@ -162,9 +161,9 @@ class Motor(ESOdevice):
 
         if self.is_at_limit():
             self.bEnabled = False
-            self.nAxisStatus = Motor.Status.MOT_ERROR
+            self.nAxisStatus = Motor.Status.MOT_ERROR.value
             # TODO self.nErrorCode = MOT_ERROR_LIMIT ???
-            self._state = Motor.State.IDLE
+            self._state = Motor.State.IDLE.value
 
         if self.bStop == True:
             self.bStop = False
@@ -172,7 +171,7 @@ class Motor(ESOdevice):
             # * ADD HERE CALL TO STOP MOTOR (PANIC STOP) *
             # *********************************************
 
-            self._state = Motor.State.STOP
+            self._state = Motor.State.STOP.value
 
         if (
             self.bResetError == True
@@ -182,29 +181,29 @@ class Motor(ESOdevice):
             self.bStop = False
             self.bInitialised = False
             self.nErrorCode = 0
-            self._state = Motor.State.RESET_AXIS
+            self._state = Motor.State.RESET_AXIS.value
 
         if self.bExecute == True:
             print("Executing command...")
             # Execute the last command received (as a parameter)
             self.nLastCommand = self.nCommand
             self.bExecute = False
-            self.nCommand = Motor.Command.MOT_NONE
+            self.nCommand = Motor.Command.MOT_NONE.value
             if not self.bEnabled or (
-                self.nLastCommand != Motor.Command.MOT_INITIALISE
+                self.nLastCommand != Motor.Command.MOT_INITIALISE.value
                 and not self.bInitialised
             ):
                 print("Error: motor not initialised")
                 # Error: motor not initialised
-                self.nAxisStatus = Motor.Status.MOT_ERROR
+                self.nAxisStatus = Motor.Status.MOT_ERROR.value
                 self.nErrorCode = 1000
-                self._state = Motor.State.IDLE
+                self._state = Motor.State.IDLE.value
             else:
-                if self.nLastCommand == Motor.Command.MOT_INITIALISE:
+                if self.nLastCommand == Motor.Command.MOT_INITIALISE.value:
                     # Initialise motor
                     self.bInitialised = False
                     self.nErrorCode = 0
-                    self.nAxisStatus = Motor.Status.MOT_INITIALISING
+                    self.nAxisStatus = Motor.Status.MOT_INITIALISING.value
                     print("Initialising")
 
                     # ***********************************************
@@ -216,11 +215,11 @@ class Motor(ESOdevice):
                     # ***********************************************
                     self.init()
 
-                    self._state = Motor.State.INIT
-                if self.nLastCommand == Motor.Command.MOT_MOVEABS:
+                    self._state = Motor.State.INIT.value
+                if self.nLastCommand == Motor.Command.MOT_MOVEABS.value:
                     # Move motor to absolute position
                     self.nErrorCode = 0
-                    self.nAxisStatus = Motor.Status.MOT_MOVING
+                    self.nAxisStatus = Motor.Status.MOT_MOVING.value
                     self.lrPosTarget = self.lrPosition
 
                     # *************************************************
@@ -228,12 +227,12 @@ class Motor(ESOdevice):
                     # *************************************************
                     self.move_abs(self.lrPosTarget)
 
-                    self._state = Motor.State.MOVE
+                    self._state = Motor.State.MOVE.value
 
-                if self.nLastCommand == Motor.Command.MOT_MOVEREL:
+                if self.nLastCommand == Motor.Command.MOT_MOVEREL.value:
                     # Move motor to relative position
                     self.nErrorCode = 0
-                    self.nAxisStatus = Motor.Status.MOT_MOVING
+                    self.nAxisStatus = Motor.Status.MOT_MOVING.value
                     # Convert relative move to absolute move
                     self.lrPosTarget = self.lrPosition + self.lrPosActual
 
@@ -242,47 +241,47 @@ class Motor(ESOdevice):
                     # *************************************************
                     self.move_abs(self.lrPosTarget)
 
-                    self._state = Motor.State.MOVE
+                    self._state = Motor.State.MOVE.value
                     # the following line is only used for the built-in SW simulation
                     self._t_last = math.floor(datetime.timestamp(datetime.now()))
 
     def update_fsm(self):
-        if self._state == Motor.State.IDLE:
+        if self._state == Motor.State.IDLE.value:
             self.bResetError = False
             self.bStop = False
 
-        elif self._state == Motor.State.RESET_AXIS:
+        elif self._state == Motor.State.RESET_AXIS.value:
             if self.is_reset_success():
                 self.nErrorCode = 0
-                self.nAxisStatus = Motor.Status.MOT_STANDING
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_STANDING.value
+                self._state = Motor.State.IDLE.value
             else:
-                self.nAxisStatus = Motor.Status.MOT_ERROR
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_ERROR.value
+                self._state = Motor.State.IDLE.value
 
-        elif self._state == Motor.State.STOP:
+        elif self._state == Motor.State.STOP.value:
             if self.is_stop_success():
                 self.nErrorCode = 0
-                self.nAxisStatus = Motor.Status.MOT_STANDING
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_STANDING.value
+                self._state = Motor.State.IDLE.value
             else:
-                self.nAxisStatus = Motor.Status.MOT_ERROR
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_ERROR.value
+                self._state = Motor.State.IDLE.value
                 # TODO self.nErrorCode = MOT_ERROR_STOP ???
 
-        elif self._state == Motor.State.INIT:
+        elif self._state == Motor.State.INIT.value:
             if self.is_init_success():
                 self.nErrorCode = 0
-                self.nAxisStatus = Motor.Status.MOT_STANDING
+                self.nAxisStatus = Motor.Status.MOT_STANDING.value
                 self.bInitialised = True
-                self._state = Motor.State.IDLE
+                self._state = Motor.State.IDLE.value
             else:
-                self.nAxisStatus = Motor.Status.MOT_ERROR
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_ERROR.value
+                self._state = Motor.State.IDLE.value
                 # TODO self.nErrorCode = MOT_ERROR_INIT ???
                 self.bInitialised = False
 
-        elif self._state == Motor.State.MOVE:
+        elif self._state == Motor.State.MOVE.value:
             self.lrPosActual = self.read_position()
 
             # *********************************************
@@ -296,12 +295,12 @@ class Motor(ESOdevice):
             #     If motion succeeded, execute the following:
             if self.is_motion_done() == True:
                 self.nErrorCode = 0
-                self.nAxisStatus = Motor.Status.MOT_STANDING
+                self.nAxisStatus = Motor.Status.MOT_STANDING.value
                 self.bInitialised = True
-                self._state = Motor.State.IDLE
+                self._state = Motor.State.IDLE.value
             else:
-                self.nAxisStatus = Motor.Status.MOT_ERROR
-                self._state = Motor.State.IDLE
+                self.nAxisStatus = Motor.Status.MOT_ERROR.value
+                self._state = Motor.State.IDLE.value
                 # TODO self.nErrorCode = MOT_ERROR_MOVE ???
 
 
