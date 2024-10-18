@@ -347,40 +347,61 @@ with col_main:
         # move pupil and move image go here
         # also zero all (for alignment stuff)
 
-        # zero_all command button
-        if st.button("Zero All"):
-            message = "zero_all"
-            send_and_get_response(message)
+        routine_options = st.selectbox(
+            "Select Routine",
+            ["Quick buttons", "Move image/pupil", "Save states"],
+            key="routine_options",
+        )
 
-        col1, col2 = st.columns(2)
-        with col1:
-            move_what = st.selectbox(
-                "Pick operating_mode",
-                ["move_image", "move_pupil"],
-                key="move_what",
-            )
+        if routine_options == "Quick buttons":
+            # zero_all command button
+            st.write("Nothing here (yet)")
 
-        with col2:
-            beam = st.selectbox(
-                "Pick a beam",
-                list(range(1, 5)),
-                key="beam",
-            )
-
-        with st.form(key="amount"):
-            amount = st.number_input("Amount", key="amount")
-            submit = st.form_submit_button("Send command")
-
-        if submit:
-            if move_what == "move_image":
-                asgard_alignment.Engineering.move_image(
-                    beam, amount, send_and_get_response
-                )
-            elif move_what == "move_pupil":
-                asgard_alignment.Engineering.move_pupil(
-                    beam, amount, send_and_get_response
+        if routine_options == "Move image/pupil":
+            col1, col2 = st.columns(2)
+            with col1:
+                move_what = st.selectbox(
+                    "Pick operating_mode",
+                    ["move_image", "move_pupil"],
+                    key="move_what",
                 )
 
+            with col2:
+                beam = st.selectbox(
+                    "Pick a beam",
+                    list(range(1, 5)),
+                    key="beam",
+                )
+
+            with st.form(key="amount"):
+                amount = st.number_input("Amount", key="amount")
+                submit = st.form_submit_button("Send command")
+
+            if submit:
+                if move_what == "move_image":
+                    asgard_alignment.Engineering.move_image(
+                        beam, amount, send_and_get_response
+                    )
+                elif move_what == "move_pupil":
+                    asgard_alignment.Engineering.move_pupil(
+                        beam, amount, send_and_get_response
+                    )
+
+        if routine_options == "Save states":
+
+            instruments = ["Heimdallr", "Baldr", "Solarstein"]
+            # grid of 3 rows, 2 cols, with first col being the save location
+            # and second col being the save button
+            for i in range(3):
+                col1, col2 = st.columns(2)
+                with col1:
+                    save_location = st.text_input(
+                        f"Save {instruments[i]}", key=f"save_location_{i}"
+                    )
+                with col2:
+                    if st.button(f"Save {instruments[i]}"):
+                        message = f"!save {save_location}"
+                        send_and_get_response(message)
 
 with col_history:
     with col_history.container(border=True, height=500):
