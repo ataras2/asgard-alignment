@@ -325,7 +325,8 @@ class LS16PAxis(ESOdevice.Motor):
         self.init()
 
     def init(self):
-        self._connection.write_str("1OR")
+        self._connection.write_str("OR")
+        self._connection.write_str("RFP")
 
     def move_abs(self, position: float):
         self._connection.write_str(f"1PA{position:.5f}")

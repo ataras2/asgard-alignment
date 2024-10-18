@@ -28,7 +28,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
     UPPER_LIMIT = 10_000  # um
     LOWER_LIMIT = 0  # um
 
-    IS_BLOCKING = True
+    IS_BLOCKING = False
 
     def __init__(self, name, axis) -> None:
         super().__init__(name)
@@ -185,7 +185,7 @@ class ZaberLinearStage(ESOdevice.Motor):
     Default units are milimetres
     """
 
-    IS_BLOCKING = True
+    IS_BLOCKING = False
 
     def __init__(self, name, device):
         super().__init__(name)

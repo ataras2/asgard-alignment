@@ -119,8 +119,17 @@ class Instrument:
                     name,
                 )
                 return True
-            elif self._config_dict[name]["motor_type"] in ["LS16P"]:
-                return False
+
+            if self._config_dict[name]["motor_type"] in ["LS16P"]:
+                self.devices[name] = asgard_alignment.NewportMotor.LS16PAxis(
+                    self._controllers[port],
+                    name,
+                )
+                return True
+
+            raise ValueError(
+                f"Unknown motor type {self._config_dict[name]['motor_type']}"
+            )
 
         elif self._config_dict[name]["motor_type"] in ["LAC10A-T4A"]:
             # this is a zaber motor, create a ZaberLinearActuator object

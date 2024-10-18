@@ -137,26 +137,34 @@ with col_main:
                     [1, 2, 3, 4],
                     key="beam_number",
                 )
-            target = f"{component}{beam_number}"
+            targets = [f"{component}{beam_number}"]
 
             if component in ["HTXP", "HTXI", "BTX"]:
                 # replace the X in target with P
-                target = target.replace("X", "P")
+                target = f"{component}{beam_number}"
+                targets = [target.replace("X", "P"), target.replace("X", "T")]
         else:
             beam_number = None
-            target = component
+            targets = [component]
 
         # check if component is connected
-        is_connected = send_and_get_response(f"!connected? {target}") == "connected"
+        is_connected = all(
+            send_and_get_response(f"!connected? {target}") == "connected"
+            for target in targets
+        )
         if not is_connected:
-            st.write(f"Component {target} is not connected!")
+            st.write(f"Component(s) {targets} is/are not connected!")
 
             with st.form(key="connect_request"):
                 submit = st.form_submit_button("Connect")
 
             if submit:
-                message = f"!connect {target}"
-                send_and_get_response(message)
+                for target in targets:
+                    message = f"!connect {target}"
+                    send_and_get_response(message)
+
+        if component not in ["HTXP", "HTXI", "BTX"]:
+            target = f"{component}{beam_number}"
 
         if component in ["BDS", "SSS"]:
             # linear stage interface
@@ -164,32 +172,52 @@ with col_main:
 
             if component == "BDS":
                 valid_positions = ["H", "J", "empty"]
+
+                mapping = {
+                    "H": 133.07,  # (white target)
+                    "J": 63.07,  # (mirror)
+                    "out": 0.0,
+                }
+
             elif component == "SSS":
                 valid_positions = ["SRL", "SGL", "SLD/SSP", "SBB"]
+                mapping = {
+                    "SRL": 11.5,
+                    "SGL": 38.5,
+                    "SLD/SSP": 92.5,
+                    "SBB": 65.5,
+                }
 
             # add two buttons, one for homing and one for reading position
             s_col1, s_col2 = st.columns(2)
 
             with s_col1:
-                if st.button("Home"):
+                if st.button("Home (if needed)"):
                     message = f"!init {target}"
                     send_and_get_response(message)
             with s_col2:
                 if st.button("Read Position"):
                     message = f"!read {target}"
-                    send_and_get_response(message)
+                    res = send_and_get_response(message)
+                    # check if close to any preset position
+                    for pos, val in mapping.items():
+                        if np.isclose(float(res), val, atol=0.1):
+                            st.write(f"Current position: {float(res):.2f} mm ({pos})")
+                            break
+                    else:
+                        st.write(f"Current position: {float(res):.2f} mm")
 
             st.write("Preset positions selection")
             with st.form(key="valid_positions"):
-                position = st.selectbox(
+                preset_position = st.selectbox(
                     "Select Position",
                     valid_positions,
-                    key="position",
+                    key="preset_position",
                 )
                 submit = st.form_submit_button("Move")
 
             if submit:
-                message = f"!move_preset {target} {position}"
+                message = f"!moveabs {target} {mapping[preset_position]}"
                 send_and_get_response(message)
 
             # relative move option for input with button to move
@@ -217,8 +245,15 @@ with col_main:
 
             # read position button
             if st.button("Read Position"):
-                message = f"!read_pos {target}"
-                send_and_get_response(message)
+                positions = []
+                for target in targets:
+                    message = f"!read {target}"
+                    res = send_and_get_response(message)
+                    positions.append(float(res))
+
+                st.write(
+                    f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
+                )
 
             # absolute move option for input with button to move
             st.write("Move absolute")
@@ -237,7 +272,7 @@ with col_main:
                 if submit:
                     # replace the x in target with U
                     target = f"{component}{beam_number}"
-                    target = target.replace("X", "T")
+                    target = target.replace("X", "P")
                     message = f"!moveabs {target} {u_position}"
                     send_and_get_response(message)
 
@@ -253,7 +288,7 @@ with col_main:
 
                 if submit2:
                     target = f"{component}{beam_number}"
-                    target = target.replace("X", "P")
+                    target = target.replace("X", "T")
                     message = f"!moveabs {target} {v_position}"
                     send_and_get_response(message)
 
@@ -290,6 +325,9 @@ with col_main:
                 )
                 submit = st.form_submit_button("Move")
 
+            if component == "HFO":
+                position = position * 1e-3
+
             if submit:
                 message = f"!moveabs {target} {position}"
                 send_and_get_response(message)
@@ -305,10 +343,10 @@ with col_main:
 
         col1, col2 = st.columns(2)
         with col1:
-            operating_mode = st.selectbox(
+            move_what = st.selectbox(
                 "Pick operating_mode",
                 ["move_image", "move_pupil"],
-                key="operating_mode",
+                key="move_what",
             )
 
         with col2:
@@ -323,11 +361,11 @@ with col_main:
             submit = st.form_submit_button("Send command")
 
         if submit:
-            if operating_mode == "move_image":
+            if move_what == "move_image":
                 asgard_alignment.Engineering.move_image(
                     beam, amount, send_and_get_response
                 )
-            elif operating_mode == "move_pupil":
+            elif move_what == "move_pupil":
                 asgard_alignment.Engineering.move_pupil(
                     beam, amount, send_and_get_response
                 )
