@@ -7,17 +7,51 @@ import scipy
 from PIL import Image, ImageTk
 import scipy.ndimage
 from scipy.interpolate import RegularGridInterpolator
+import argparse
 
 
-wvl = 0.635e-6  # laser wavelength
-D = 12e-3  # mm
-# f = 254e-3  # mm
-f = 2.0
-pixel_scale = 3.45e-6  # on point grey
+parser = argparse.ArgumentParser(description="Strehl Ratio GUI")
+# input arguments, mandatory: focal length, beam diameter
+parser.add_argument(
+    "--focal_length",
+    type=float,
+    default=254e-3,
+    help="Focal length of the lens in meters",
+)
+parser.add_argument(
+    "--beam_diameter",
+    type=float,
+    default=12e-3,
+    help="Diameter of the beam in meters",
+)
+# optional: wavelength, pixel scale, spot size factor, method
+parser.add_argument(
+    "--wavelength",
+    type=float,
+    default=0.635e-6,
+    help="Wavelength of the laser in meters",
+)
+parser.add_argument(
+    "--pixel_scale",
+    type=float,
+    default=3.45e-6,
+    help="Pixel scale of the camera in meters",
+)
+parser.add_argument(
+    "--width_to_spot_size_ratio",
+    type=float,
+    default=2.0,
+    help="The ratio of the width of the region of interest to the spot size",
+)
+parser.add_argument(
+    "--method",
+    type=str,
+    default="gauss_diff",
+    help="The method to use for finding the maximum value, one of naive, smoothed, gauss_diff",
+    choices=["naive", "smoothed", "gauss_diff"],
+)
 
-# width = 35
-spot_size = 2.44 * wvl / D * f / pixel_scale
-width = int(2 * spot_size)
+args = parser.parse_args()
 
 
 def naive_max_find(img):
@@ -39,9 +73,20 @@ def max_find_gauss_diff(img, scale):
     return max_loc
 
 
-# one of: naive_max_find, max_find_smoothed, max_find_gauss_diff
-max_find_method = lambda img: max_find_gauss_diff(img, spot_size)
-# max_find_method = lambda img: max_find_smoothed(img, spot_size)
+# set the parameters
+wvl = args.wavelength
+D = args.beam_diameter
+f = args.focal_length
+pixel_scale = args.pixel_scale
+spot_size = 2.44 * wvl / D * f / pixel_scale
+width = int(args.width_to_spot_size_ratio * spot_size)
+
+if args.method == "naive":
+    max_find_method = naive_max_find
+elif args.method == "smoothed":
+    max_find_method = lambda img: max_find_smoothed(img, spot_size)
+elif args.method == "gauss_diff":
+    max_find_method = lambda img: max_find_gauss_diff(img, spot_size)
 
 
 pointgrey_grid_x_um = np.linspace(
