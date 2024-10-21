@@ -5,6 +5,9 @@
 
 *.json
 
+*.png
+*.austin
+
 *.pickle
 
 
