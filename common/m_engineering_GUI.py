@@ -268,14 +268,16 @@ with col_main:
 
             # absolute move option for input with button to move
             st.write("Move absolute")
-            with st.form(key="absolute_move"):
-                s_col1, s_col2 = st.columns(2)
-                with s_col1:
+            s_col1, s_col2 = st.columns(2)
+            with s_col1:
+                with st.form(key="absolute_move_u"):
                     u_position = st.number_input(
                         "U Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
                         step=0.05,
+                        value=None,
+                        format="%.4f",
                         key="u_position",
                     )
                     submit = st.form_submit_button("Move U")
@@ -287,11 +289,14 @@ with col_main:
                     message = f"!moveabs {target} {u_position}"
                     send_and_get_response(message)
 
-                with s_col2:
+            with s_col2:
+                with st.form(key="absolute_move_v"):
                     v_position = st.number_input(
                         "V Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
+                        value=None,
+                        format="%.4f",
                         step=0.05,
                         key="v_position",
                     )
