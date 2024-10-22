@@ -10,6 +10,11 @@
 *.austin
 
 *.pickle
-
+*.log
+*.png
+*.fits
+*.csv
+*.txt
+*.austin
 
 asgard_alignment.egg-info
