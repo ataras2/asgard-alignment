@@ -19,8 +19,8 @@ parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
 )
-parser.add_argument("--start_pos", type=float, default=6, help="Start position in mm")
-parser.add_argument("--end_pos", type=float, default=10, help="End position in mm")
+parser.add_argument("--start", type=float, default=6, help="Start position in mm")
+parser.add_argument("--stop", type=float, default=10, help="End position in mm")
 parser.add_argument("--step_size", type=float, default=0.010, help="Step size in mm")
 parser.add_argument(
     "--n_imgs", type=int, default=3, help="Number of images to average per position"
@@ -50,16 +50,24 @@ def set_motor_position(socket, beam_number, position):
     return response
 
 
-pth = "data/Oct22/heimdallr_13_run0_sld"
+# pth = "data/Oct22/heimdallr_13_run0_sld"
+pth = args.path
 
-beam = 2
+# beam = 2
 
-middle = 8.0
+# middle = 8.0
 
 
-start_pos = middle - 2  # mm
-end_pos = middle + 2  # mm
-step_size = 10e-3  # mm
+# start_pos = middle - 2  # mm
+# end_pos = middle + 2  # mm
+# step_size = 10e-3  # mm
+
+start_pos = args.start  # mm
+end_pos = args.stop  # mm
+step_size = args.step_size  # mm
+beam = args.beam
+
+
 # step_size = 0.9  # mm
 # start_pos = 5000  # um
 # end_pos = 8500  # um
