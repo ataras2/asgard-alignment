@@ -119,16 +119,20 @@ n_positions = len(positions)
 
 img_stack = np.zeros((n_positions, n_imgs, img.shape[0], img.shape[1]), dtype=np.uint8)
 
+if img.shape[0] > 550:
+    # raise warning about large image size
+    print("Warning: Image size is large, consider reducing the ROI size")
+
 
 for i, pos in enumerate(positions):
     print(f"\rMoving to {pos} um ({i+1}/{len(positions)})", end="")
     # axis.move_absolute(pos, Units.LENGTH_MICROMETRES)
     set_motor_position(socket, beam, pos)
 
-    time.sleep(0.2)
+    time.sleep(0.5)
 
-    image_result = cam.GetNextImage(2000)
-    image_result.Release()
+    # image_result = cam.GetNextImage(2000)
+    # image_result.Release()
 
     for j in range(n_imgs):
         image_result = cam.GetNextImage(2000)
