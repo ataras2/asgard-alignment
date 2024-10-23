@@ -79,6 +79,274 @@ def send_and_get_response(message):
     return response.strip()
 
 
+def handle_linear_stage():
+    # linear stage interface
+    st.subheader("Linear Stage Interface")
+
+    if component == "BDS":
+        valid_positions = ["H", "J", "empty"]
+
+        fixed_mapping = {
+            "H": 133.07,  # (white target)
+            "J": 63.07,  # (mirror)
+            "out": 0.0,
+        }
+        offset = 0.0
+
+    elif component == "SSS":
+        valid_positions = ["SRL", "SGL", "SLD/SSP", "SBB"]
+        fixed_mapping = {
+            "SRL": 11.5,
+            "SGL": 38.5,
+            "SLD/SSP": 92.5,
+            "SBB": 65.5,
+        }
+        offset = 0.0
+
+    mapping = {k: v + offset for k, v in fixed_mapping.items()}
+
+    # add two buttons, one for homing and one for reading position
+    s_col1, s_col2 = st.columns(2)
+
+    with s_col1:
+        if st.button("Home (if needed)"):
+            message = f"!init {target}"
+            send_and_get_response(message)
+    with s_col2:
+        if st.button("Read Position"):
+            message = f"!read {target}"
+            res = send_and_get_response(message)
+            # check if close to any preset position
+            for pos, val in mapping.items():
+                if np.isclose(float(res), val, atol=0.1):
+                    st.write(f"Current position: {float(res):.2f} mm ({pos})")
+                    break
+            else:
+                st.write(f"Current position: {float(res):.2f} mm")
+
+    ss_col1, ss_col2 = st.columns(2)
+
+    with ss_col1:
+        st.write("Preset positions selection")
+        with st.form(key="valid_positions"):
+            preset_position = st.selectbox(
+                "Select Position",
+                valid_positions,
+                key="preset_position",
+            )
+            submit = st.form_submit_button("Move")
+
+        if submit:
+            message = f"!moveabs {target} {mapping[preset_position]}"
+            send_and_get_response(message)
+
+    with ss_col2:
+        # relative move option for input with button to move
+        st.write("Relative Move")
+        with st.form(key="relative_move"):
+            relative_move = st.number_input(
+                "Relative Move (mm)",
+                min_value=-100.0,
+                max_value=100.0,
+                step=0.1,
+                value=0.0,
+                key="relative_move",
+            )
+            submit = st.form_submit_button("Move")
+
+        if submit:
+            message = f"!moverel {target} {relative_move}"
+            send_and_get_response(message)
+
+    # add a button to update the preset positions
+    st.subheader("Updating positions")
+    st.write(f"Current mapping is: {mapping}")
+    button_col = st.columns(3)
+    with button_col[0]:
+        if st.button(f"Update only {preset_position}"):
+            current_position = send_and_get_response(f"!read {target}")
+            mapping[preset_position] = float(current_position)
+    with button_col[1]:
+        if st.button("Update all"):
+            current_position = send_and_get_response(f"!read {target}")
+            offset = float(current_position) - mapping[preset_position]
+    with button_col[2]:
+        if st.button("Reset to original"):
+            offset = 0.0
+
+
+def handle_tt_motor():
+    # TT motor interface
+    # no homing, read position should be an option
+    # also two fields for absolute value of each axis
+
+    st.subheader("TT Motor Interface")
+
+    # read position button
+    if st.button("Read Position"):
+        positions = []
+        for target in targets:
+            message = f"!read {target}"
+            res = send_and_get_response(message)
+            if "NACK" in res:
+                st.write(f"Error reading position for {target}")
+                break
+            positions.append(float(res))
+        else:
+            st.write(
+                f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
+            )
+
+    positions = []
+    for target in targets:
+        message = f"!read {target}"
+        res = send_and_get_response(message)
+        if "NACK" in res:
+            st.write(f"Error reading position for {target}")
+            break
+        positions.append(float(res))
+
+    ss_col1, ss_col2 = st.columns(2)
+    with ss_col1:
+        inc = st.number_input(
+            "Step size",
+            value=0.01,
+            min_value=0.0,
+            max_value=0.1,
+            key=f"TT_increment",
+            step=0.005,
+            format="%.3f",
+        )
+
+    with ss_col2:
+        use_button_to_move = st.checkbox("Use button to move")
+        delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
+
+    # absolute move option for input with button to move
+    st.write("Move absolute")
+    s_col1, s_col2 = st.columns(2)
+    if use_button_to_move:
+        with s_col1:
+            with st.form(key="absolute_move_u"):
+                u_position = st.number_input(
+                    "U Position (degrees)",
+                    min_value=-0.750,
+                    max_value=0.75,
+                    step=inc,
+                    value=positions[0],
+                    format="%.4f",
+                    key="u_position",
+                )
+                submit = st.form_submit_button("Move U")
+
+            if submit:
+                # replace the x in target with U
+                target = f"{component}{beam_number}"
+                target = target.replace("X", "P")
+                message = f"!moveabs {target} {u_position}"
+                send_and_get_response(message)
+
+        with s_col2:
+            with st.form(key="absolute_move_v"):
+                v_position = st.number_input(
+                    "V Position (degrees)",
+                    min_value=-0.750,
+                    max_value=0.75,
+                    value=positions[1],
+                    format="%.4f",
+                    step=inc,
+                    key="v_position",
+                )
+                submit2 = st.form_submit_button("Move V")
+
+            if submit2:
+                target = f"{component}{beam_number}"
+                target = target.replace("X", "T")
+                message = f"!moveabs {target} {v_position}"
+                send_and_get_response(message)
+    else:
+
+        def get_onchange_fn(axis, key):
+            def onchange_fn():
+                target = f"{component}{beam_number}"
+                target = target.replace("X", axis)
+                message = f"!moveabs {target} {st.session_state[key]}"
+                print(f"sending message: {message}")
+                response = send_and_get_response(message)
+                if delay_on_moves:
+                    time.sleep(1.0)
+                print(response)
+
+            return onchange_fn
+
+        sub_col1, sub_col2 = st.columns(2)
+
+        with sub_col1:
+            u_position = st.number_input(
+                "U Position (degrees)",
+                min_value=-0.750,
+                max_value=0.75,
+                step=inc,
+                value=positions[0],
+                format="%.4f",
+                key="u_position",
+                on_change=get_onchange_fn("P", "u_position"),
+            )
+
+        with sub_col2:
+            v_position = st.number_input(
+                "V Position (degrees)",
+                min_value=-0.750,
+                max_value=0.75,
+                step=inc,
+                value=positions[1],
+                format="%.4f",
+                key="v_position",
+                on_change=get_onchange_fn("T", "v_position"),
+            )
+
+
+def handle_linear_actuator():
+    # Linear actuator interface
+    # all units in um
+
+    if component == "HFO":
+        bounds = (0.0, 16e3)
+    else:
+        bounds = (0.0, 10e3)
+
+    st.subheader("Linear Actuator Interface")
+
+    # read position button
+    if st.button("Read Position"):
+        message = f"!read {target}"
+        send_and_get_response(message)
+
+    mode_bounds = {
+        "Absolute Move": bounds,
+        "Relative Move": (-1e3, 1e3),
+    }
+
+    # absolute move option for input with button to move
+    st.write("Absolute Move")
+    with st.form(key="absolute_move"):
+        position = st.number_input(
+            "Position (um)",
+            min_value=bounds[0],
+            max_value=bounds[1],
+            step=100.0,
+            key="position",
+        )
+        submit = st.form_submit_button("Move")
+
+    if component == "HFO":
+        position = position * 1e-3
+
+    if submit:
+        message = f"!moveabs {target} {position}"
+        send_and_get_response(message)
+
+
 col_main, col_history = st.columns([2, 1])
 
 
@@ -145,269 +413,13 @@ with col_main:
             target = component
 
         if component in ["BDS", "SSS"]:
-            # linear stage interface
-            st.subheader("Linear Stage Interface")
-
-            if component == "BDS":
-                valid_positions = ["H", "J", "empty"]
-
-                fixed_mapping = {
-                    "H": 133.07,  # (white target)
-                    "J": 63.07,  # (mirror)
-                    "out": 0.0,
-                }
-                offset = 0.0
-
-            elif component == "SSS":
-                valid_positions = ["SRL", "SGL", "SLD/SSP", "SBB"]
-                fixed_mapping = {
-                    "SRL": 11.5,
-                    "SGL": 38.5,
-                    "SLD/SSP": 92.5,
-                    "SBB": 65.5,
-                }
-                offset = 0.0
-
-            mapping = {k: v + offset for k, v in fixed_mapping.items()}
-
-            # add two buttons, one for homing and one for reading position
-            s_col1, s_col2 = st.columns(2)
-
-            with s_col1:
-                if st.button("Home (if needed)"):
-                    message = f"!init {target}"
-                    send_and_get_response(message)
-            with s_col2:
-                if st.button("Read Position"):
-                    message = f"!read {target}"
-                    res = send_and_get_response(message)
-                    # check if close to any preset position
-                    for pos, val in mapping.items():
-                        if np.isclose(float(res), val, atol=0.1):
-                            st.write(f"Current position: {float(res):.2f} mm ({pos})")
-                            break
-                    else:
-                        st.write(f"Current position: {float(res):.2f} mm")
-
-            ss_col1, ss_col2 = st.columns(2)
-
-            with ss_col1:
-                st.write("Preset positions selection")
-                with st.form(key="valid_positions"):
-                    preset_position = st.selectbox(
-                        "Select Position",
-                        valid_positions,
-                        key="preset_position",
-                    )
-                    submit = st.form_submit_button("Move")
-
-                if submit:
-                    message = f"!moveabs {target} {mapping[preset_position]}"
-                    send_and_get_response(message)
-
-            with ss_col2:
-                # relative move option for input with button to move
-                st.write("Relative Move")
-                with st.form(key="relative_move"):
-                    relative_move = st.number_input(
-                        "Relative Move (mm)",
-                        min_value=-100.0,
-                        max_value=100.0,
-                        step=0.1,
-                        value=0.0,
-                        key="relative_move",
-                    )
-                    submit = st.form_submit_button("Move")
-
-                if submit:
-                    message = f"!moverel {target} {relative_move}"
-                    send_and_get_response(message)
-
-            # add a button to update the preset positions
-            st.subheader("Updating positions")
-            st.write(f"Current mapping is: {mapping}")
-            button_col = st.columns(3)
-            with button_col[0]:
-                if st.button(f"Update only {preset_position}"):
-                    current_position = send_and_get_response(f"!read {target}")
-                    mapping[preset_position] = float(current_position)
-            with button_col[1]:
-                if st.button("Update all"):
-                    current_position = send_and_get_response(f"!read {target}")
-                    offset = float(current_position) - mapping[preset_position]
-            with button_col[2]:
-                if st.button("Reset to original"):
-                    offset = 0.0
+            handle_linear_stage()
 
         elif component in ["HTXP", "HTXI", "BTX"]:
-            # TT motor interface
-            # no homing, read position should be an option
-            # also two fields for absolute value of each axis
-
-            st.subheader("TT Motor Interface")
-
-            # read position button
-            if st.button("Read Position"):
-                positions = []
-                for target in targets:
-                    message = f"!read {target}"
-                    res = send_and_get_response(message)
-                    if "NACK" in res:
-                        st.write(f"Error reading position for {target}")
-                        break
-                    positions.append(float(res))
-                else:
-                    st.write(
-                        f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
-                    )
-
-            positions = []
-            for target in targets:
-                message = f"!read {target}"
-                res = send_and_get_response(message)
-                if "NACK" in res:
-                    st.write(f"Error reading position for {target}")
-                    break
-                positions.append(float(res))
-
-            ss_col1, ss_col2 = st.columns(2)
-            with ss_col1:
-                inc = st.number_input(
-                    "Step size",
-                    value=0.01,
-                    min_value=0.0,
-                    max_value=0.1,
-                    key=f"TT_increment",
-                    step=0.005,
-                    format="%.3f",
-                )
-
-            with ss_col2:
-                use_button_to_move = st.checkbox("Use button to move")
-                delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
-
-            # absolute move option for input with button to move
-            st.write("Move absolute")
-            s_col1, s_col2 = st.columns(2)
-            if use_button_to_move:
-                with s_col1:
-                    with st.form(key="absolute_move_u"):
-                        u_position = st.number_input(
-                            "U Position (degrees)",
-                            min_value=-0.750,
-                            max_value=0.75,
-                            step=inc,
-                            value=positions[0],
-                            format="%.4f",
-                            key="u_position",
-                        )
-                        submit = st.form_submit_button("Move U")
-
-                    if submit:
-                        # replace the x in target with U
-                        target = f"{component}{beam_number}"
-                        target = target.replace("X", "P")
-                        message = f"!moveabs {target} {u_position}"
-                        send_and_get_response(message)
-
-                with s_col2:
-                    with st.form(key="absolute_move_v"):
-                        v_position = st.number_input(
-                            "V Position (degrees)",
-                            min_value=-0.750,
-                            max_value=0.75,
-                            value=positions[1],
-                            format="%.4f",
-                            step=inc,
-                            key="v_position",
-                        )
-                        submit2 = st.form_submit_button("Move V")
-
-                    if submit2:
-                        target = f"{component}{beam_number}"
-                        target = target.replace("X", "T")
-                        message = f"!moveabs {target} {v_position}"
-                        send_and_get_response(message)
-            else:
-
-                def get_onchange_fn(axis, key):
-                    def onchange_fn():
-                        target = f"{component}{beam_number}"
-                        target = target.replace("X", axis)
-                        message = f"!moveabs {target} {st.session_state[key]}"
-                        print(f"sending message: {message}")
-                        response = send_and_get_response(message)
-                        if delay_on_moves:
-                            time.sleep(1.0)
-                        print(response)
-
-                    return onchange_fn
-
-                sub_col1, sub_col2 = st.columns(2)
-
-                with sub_col1:
-                    u_position = st.number_input(
-                        "U Position (degrees)",
-                        min_value=-0.750,
-                        max_value=0.75,
-                        step=inc,
-                        value=positions[0],
-                        format="%.4f",
-                        key="u_position",
-                        on_change=get_onchange_fn("P", "u_position"),
-                    )
-
-                with sub_col2:
-                    v_position = st.number_input(
-                        "V Position (degrees)",
-                        min_value=-0.750,
-                        max_value=0.75,
-                        step=inc,
-                        value=positions[1],
-                        format="%.4f",
-                        key="v_position",
-                        on_change=get_onchange_fn("T", "v_position"),
-                    )
+            handle_tt_motor()
 
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO"]:
-            # Linear actuator interface
-            # all units in um
-
-            if component == "HFO":
-                bounds = (0.0, 16e3)
-            else:
-                bounds = (0.0, 10e3)
-
-            st.subheader("Linear Actuator Interface")
-
-            # read position button
-            if st.button("Read Position"):
-                message = f"!read {target}"
-                send_and_get_response(message)
-
-            mode_bounds = {
-                "Absolute Move": bounds,
-                "Relative Move": (-1e3, 1e3),
-            }
-
-            # absolute move option for input with button to move
-            st.write("Absolute Move")
-            with st.form(key="absolute_move"):
-                position = st.number_input(
-                    "Position (um)",
-                    min_value=bounds[0],
-                    max_value=bounds[1],
-                    step=100.0,
-                    key="position",
-                )
-                submit = st.form_submit_button("Move")
-
-            if component == "HFO":
-                position = position * 1e-3
-
-            if submit:
-                message = f"!moveabs {target} {position}"
-                send_and_get_response(message)
+            handle_linear_actuator()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
