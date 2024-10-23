@@ -85,26 +85,31 @@ def handle_linear_stage():
     st.subheader("Linear Stage Interface")
 
     if component == "BDS":
-        valid_positions = ["H", "J", "empty"]
+        valid_pos = ["H", "J", "empty"]
 
-        fixed_mapping = {
-            "H": 133.07,  # (white target)
-            "J": 63.07,  # (mirror)
-            "out": 0.0,
-        }
-        offset = 0.0
+        if f"BDS{beam_number}_fixed_mapping" not in st.session_state:
+            st.session_state[f"BDS{beam_number}_fixed_mapping"] = {
+                "H": 133.07,  # (white target)
+                "J": 63.07,  # (mirror)
+                "out": 0.0,
+            }
+            st.session_state[f"BDS{beam_number}_offset"] = 0.0
 
     elif component == "SSS":
-        valid_positions = ["SRL", "SGL", "SLD/SSP", "SBB"]
-        fixed_mapping = {
-            "SRL": 11.5,
-            "SGL": 38.5,
-            "SLD/SSP": 92.5,
-            "SBB": 65.5,
-        }
-        offset = 0.0
+        valid_pos = ["SRL", "SGL", "SLD/SSP", "SBB"]
+        if "SSS_fixed_mapping" not in st.session_state:
+            st.session_state[f"SSS_fixed_mapping"] = {
+                "SRL": 11.5,
+                "SGL": 38.5,
+                "SLD/SSP": 92.5,
+                "SBB": 65.5,
+            }
+            st.session_state[f"SSS_offset"] = 0.0
 
-    mapping = {k: v + offset for k, v in fixed_mapping.items()}
+    mapping = {
+        k: v + st.session_state[f"{target}_offset"]
+        for k, v in st.session_state[f"{target}_fixed_mapping"].items()
+    }
 
     # add two buttons, one for homing and one for reading position
     s_col1, s_col2 = st.columns(2)
@@ -132,7 +137,7 @@ def handle_linear_stage():
         with st.form(key="valid_positions"):
             preset_position = st.selectbox(
                 "Select Position",
-                valid_positions,
+                valid_pos,
                 key="preset_position",
             )
             submit = st.form_submit_button("Move")
@@ -162,18 +167,26 @@ def handle_linear_stage():
     # add a button to update the preset positions
     st.subheader("Updating positions")
     st.write(f"Current mapping is: {mapping}")
-    button_col = st.columns(3)
-    with button_col[0]:
+    button_cols = st.columns(3)
+    with button_cols[0]:
         if st.button(f"Update only {preset_position}"):
             current_position = send_and_get_response(f"!read {target}")
-            mapping[preset_position] = float(current_position)
-    with button_col[1]:
+            st.session_state[f"{target}_fixed_mapping"][preset_position] = float(
+                current_position
+            )
+            st.rerun()
+    with button_cols[1]:
         if st.button("Update all"):
             current_position = send_and_get_response(f"!read {target}")
-            offset = float(current_position) - mapping[preset_position]
-    with button_col[2]:
+            st.session_state[f"{target}_offset"] = (
+                float(current_position) - mapping[preset_position]
+            )
+            st.rerun()
+    with button_cols[2]:
         if st.button("Reset to original"):
-            offset = 0.0
+            st.session_state[f"{target}_offset"] = 0.0
+            del st.session_state[f"{target}_fixed_mapping"]
+            st.rerun()
 
 
 def handle_tt_motor():
