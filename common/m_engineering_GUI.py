@@ -426,7 +426,7 @@ with col_main:
 
         routine_options = st.selectbox(
             "Select Routine",
-            ["Quick buttons", "Move image/pupil", "Save states", "Load_state"],
+            ["Quick buttons", "Move image/pupil", "Save state", "Load state"],
             key="routine_options",
         )
 
@@ -464,7 +464,7 @@ with col_main:
                         beam, amount, send_and_get_response
                     )
 
-        if routine_options == "Save states":
+        if routine_options == "Save state":
 
             instruments = ["Heimdallr", "Baldr", "Solarstein"]
             # grid of 3 rows, 2 cols, with first col being the save location
@@ -530,7 +530,7 @@ with col_main:
                         with open("instr_states/" + save_location + ".json", "w") as f:
                             json.dump(states, f, indent=4)
 
-        if routine_options == "Load_state":
+        if routine_options == "Load state":
             # text box and reading of the json
             text_col, button_col = st.columns(2)
 
