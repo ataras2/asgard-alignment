@@ -151,20 +151,24 @@ with col_main:
             if component == "BDS":
                 valid_positions = ["H", "J", "empty"]
 
-                mapping = {
+                fixed_mapping = {
                     "H": 133.07,  # (white target)
                     "J": 63.07,  # (mirror)
                     "out": 0.0,
                 }
+                offset = 0.0
 
             elif component == "SSS":
                 valid_positions = ["SRL", "SGL", "SLD/SSP", "SBB"]
-                mapping = {
+                fixed_mapping = {
                     "SRL": 11.5,
                     "SGL": 38.5,
                     "SLD/SSP": 92.5,
                     "SBB": 65.5,
                 }
+                offset = 0.0
+
+            mapping = {k: v + offset for k, v in fixed_mapping.items()}
 
             # add two buttons, one for homing and one for reading position
             s_col1, s_col2 = st.columns(2)
@@ -185,34 +189,55 @@ with col_main:
                     else:
                         st.write(f"Current position: {float(res):.2f} mm")
 
-            st.write("Preset positions selection")
-            with st.form(key="valid_positions"):
-                preset_position = st.selectbox(
-                    "Select Position",
-                    valid_positions,
-                    key="preset_position",
-                )
-                submit = st.form_submit_button("Move")
+            ss_col1, ss_col2 = st.columns(2)
 
-            if submit:
-                message = f"!moveabs {target} {mapping[preset_position]}"
-                send_and_get_response(message)
+            with ss_col1:
+                st.write("Preset positions selection")
+                with st.form(key="valid_positions"):
+                    preset_position = st.selectbox(
+                        "Select Position",
+                        valid_positions,
+                        key="preset_position",
+                    )
+                    submit = st.form_submit_button("Move")
 
-            # relative move option for input with button to move
-            st.write("Relative Move")
-            with st.form(key="relative_move"):
-                relative_move = st.number_input(
-                    "Relative Move (mm)",
-                    min_value=-100.0,
-                    max_value=100.0,
-                    step=0.1,
-                    key="relative_move",
-                )
-                submit = st.form_submit_button("Move")
+                if submit:
+                    message = f"!moveabs {target} {mapping[preset_position]}"
+                    send_and_get_response(message)
 
-            if submit:
-                message = f"!moverel {target} {relative_move}"
-                send_and_get_response(message)
+            with ss_col2:
+                # relative move option for input with button to move
+                st.write("Relative Move")
+                with st.form(key="relative_move"):
+                    relative_move = st.number_input(
+                        "Relative Move (mm)",
+                        min_value=-100.0,
+                        max_value=100.0,
+                        step=0.1,
+                        value=0.0,
+                        key="relative_move",
+                    )
+                    submit = st.form_submit_button("Move")
+
+                if submit:
+                    message = f"!moverel {target} {relative_move}"
+                    send_and_get_response(message)
+
+            # add a button to update the preset positions
+            st.subheader("Updating positions")
+            st.write(f"Current mapping is: {mapping}")
+            button_col = st.columns(3)
+            with button_col[0]:
+                if st.button(f"Update only {preset_position}"):
+                    current_position = send_and_get_response(f"!read {target}")
+                    mapping[preset_position] = float(current_position)
+            with button_col[1]:
+                if st.button("Update all"):
+                    current_position = send_and_get_response(f"!read {target}")
+                    offset = float(current_position) - mapping[preset_position]
+            with button_col[2]:
+                if st.button("Reset to original"):
+                    offset = 0.0
 
         elif component in ["HTXP", "HTXI", "BTX"]:
             # TT motor interface
