@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import argparse
 import zmq
+import time
 
 import asgard_alignment.Engineering
 
@@ -244,47 +245,104 @@ with col_main:
                     break
                 positions.append(float(res))
 
+            ss_col1, ss_col2 = st.columns(2)
+            with ss_col1:
+                inc = st.number_input(
+                    "Step size",
+                    value=0.01,
+                    min_value=0.0,
+                    max_value=0.1,
+                    key=f"TT_increment",
+                    step=0.005,
+                    format="%.3f",
+                )
+
+            with ss_col2:
+                use_button_to_move = st.checkbox("Use button to move")
+                delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
+
             # absolute move option for input with button to move
             st.write("Move absolute")
             s_col1, s_col2 = st.columns(2)
-            with s_col1:
-                with st.form(key="absolute_move_u"):
+            if use_button_to_move:
+                with s_col1:
+                    with st.form(key="absolute_move_u"):
+                        u_position = st.number_input(
+                            "U Position (degrees)",
+                            min_value=-0.750,
+                            max_value=0.75,
+                            step=inc,
+                            value=positions[0],
+                            format="%.4f",
+                            key="u_position",
+                        )
+                        submit = st.form_submit_button("Move U")
+
+                    if submit:
+                        # replace the x in target with U
+                        target = f"{component}{beam_number}"
+                        target = target.replace("X", "P")
+                        message = f"!moveabs {target} {u_position}"
+                        send_and_get_response(message)
+
+                with s_col2:
+                    with st.form(key="absolute_move_v"):
+                        v_position = st.number_input(
+                            "V Position (degrees)",
+                            min_value=-0.750,
+                            max_value=0.75,
+                            value=positions[1],
+                            format="%.4f",
+                            step=inc,
+                            key="v_position",
+                        )
+                        submit2 = st.form_submit_button("Move V")
+
+                    if submit2:
+                        target = f"{component}{beam_number}"
+                        target = target.replace("X", "T")
+                        message = f"!moveabs {target} {v_position}"
+                        send_and_get_response(message)
+            else:
+
+                def get_onchange_fn(axis, key):
+                    def onchange_fn():
+                        target = f"{component}{beam_number}"
+                        target = target.replace("X", axis)
+                        message = f"!moveabs {target} {st.session_state[key]}"
+                        print(f"sending message: {message}")
+                        response = send_and_get_response(message)
+                        if delay_on_moves:
+                            time.sleep(1.0)
+                        print(response)
+
+                    return onchange_fn
+
+                sub_col1, sub_col2 = st.columns(2)
+
+                with sub_col1:
                     u_position = st.number_input(
                         "U Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
-                        step=0.05,
+                        step=inc,
                         value=positions[0],
                         format="%.4f",
                         key="u_position",
+                        on_change=get_onchange_fn("P", "u_position"),
                     )
-                    submit = st.form_submit_button("Move U")
 
-                if submit:
-                    # replace the x in target with U
-                    target = f"{component}{beam_number}"
-                    target = target.replace("X", "P")
-                    message = f"!moveabs {target} {u_position}"
-                    send_and_get_response(message)
-
-            with s_col2:
-                with st.form(key="absolute_move_v"):
+                with sub_col2:
                     v_position = st.number_input(
                         "V Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
+                        step=inc,
                         value=positions[1],
                         format="%.4f",
-                        step=0.05,
                         key="v_position",
+                        on_change=get_onchange_fn("T", "v_position"),
                     )
-                    submit2 = st.form_submit_button("Move V")
-
-                if submit2:
-                    target = f"{component}{beam_number}"
-                    target = target.replace("X", "T")
-                    message = f"!moveabs {target} {v_position}"
-                    send_and_get_response(message)
 
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO"]:
             # Linear actuator interface
@@ -391,5 +449,5 @@ with col_history:
         st.subheader("Message History")
         # join all into a long string with newlines, in reverse order and as a markdown list
         message_history = st.session_state["message_history"]
-        message_history_str = "\n".join(reversed(message_history))
+        message_history_str = "\n".join(reversed(message_history[-200:]))
         st.markdown(message_history_str)
