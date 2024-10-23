@@ -73,6 +73,7 @@ def main():
         max_pwr[i] = np.max(imps_smoothed)
 
     max_pwr = np.reshape(max_pwr, (nsets, ims_per_set))
+    # print(f"Found max power at {np.argmax(max_pwr)}")
 
     plt.figure(1)
     plt.plot(positions, np.sum(max_pwr, axis=1))
@@ -94,6 +95,10 @@ def main():
     plt.imshow(ims[np.argmax(max_pwr)])
 
     plt.savefig(os.path.join(pth, "max_power_image.png"))
+
+    import pdb
+
+    pdb.set_trace()
 
 
 if __name__ == "__main__":

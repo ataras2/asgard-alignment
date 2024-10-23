@@ -1,309 +1,201 @@
-"""
-Classes for Instruments
-"""
-
-import logging
+import asgard_alignment
 import json
-from typing import Any
 import pyvisa
 import serial.tools.list_ports
 import sys
 
-
 from zaber_motion.ascii import Connection
 
-from asgard_alignment.NewportMotor import NewportMotor, LS16P, M100D
-from asgard_alignment.ZaberMotor import (
-    SourceSelection,
-    BifrostDichroic,
-    LAC10AT4A,
-    BaldrPhaseMask,
-)
-
-# from NewportMotor import NewportMotor, LS16P, M100D
-
-
-def compute_serial_to_port_map():
-    mapping = {}
-
-    ports = serial.tools.list_ports.comports()
-    # check if windows:
-    if sys.platform.startswith("win"):
-        for port, desc, hwid in sorted(ports):
-            if "Newport" in desc and "SER=" in hwid:
-                serial_number = hwid.split("SER=")[-1]
-                mapping[serial_number] = port
-    else:
-        for port, desc, hwid in sorted(ports):
-            if "CONEX" in desc and "SER=" in hwid:
-                serial_number = hwid.split("SER=")[-1].split("LOC")[0].strip() + "A"
-                mapping[serial_number] = port
-
-    # now for the checking of LS16P devices, which are extra weird since they don't
-    # present a serial number
-
-    if sys.platform.startswith("win"):
-        pass
-    else:
-        # list all ttyACM devices
-        rm = pyvisa.ResourceManager()
-
-        for device in rm.list_resources():
-            if "ttyACM" in device:
-                try:
-                    pass
-                    # connect to the motor and query SA
-                    # mapping["SA1"] = port kind of thing
-                    sa = LS16P.connect_and_get_SA(device)
-                    if sa is not None:
-                        mapping[sa] = device
-
-                except Exception as e:
-                    logging.warning(f"Could not connect to {device}: {e}")
-
-    return mapping
-
-
-def find_zaber_COM():
-    """
-    Find the COM port for the Zaber motor
-
-    Returns:
-    --------
-    str
-        The COM port for the Zaber motor
-    """
-    ports = serial.tools.list_ports.comports()
-
-    for port, _, hwid in sorted(ports):
-        if "VID:PID=0403:6001" in hwid:
-            return port
-    return None
+import asgard_alignment.ESOdevice
+import asgard_alignment.NewportMotor
+import asgard_alignment.ZaberMotor
 
 
 class Instrument:
     """
-    A class to represent a collection of motors that are connected to the same device
+    A class that creates connections to controllers, ESOdevice instances,
+    and provides a means for the MDS to communicate with the Instrument.
     """
 
-    def __init__(self, config_path) -> None:
+    def __init__(self, config_pth) -> None:
+        self.config_pth = config_pth
+
+        # Validate the config file
+        self._validate_config_file(config_pth)
+        self._config = self._read_motor_config(config_pth)
+        self._config_dict = {component["name"]: component for component in self._config}
+
+        self._controllers = {}
+        self._devices = {}  # str of name : ESOdevice
+
+        self._prev_port_mapping = None
+        self._prev_zaber_port = None
+
+        self._rm = pyvisa.ResourceManager()
+
+        # Create the connections to the controllers
+        self._create_controllers_and_motors()
+        self._create_lamps()
+        self._create_shutters()
+
+    @property
+    def devices(self):
         """
-        Construct an instrument as a collection of motors
-
-        Created by reading in a configuration file that has the following format:
-        [
-            {
-                "name": "Spherical_1_TipTilt",      // internal name
-                "motor_type": "M100D",              // the python type/name of the class
-                "motor_config": {                   // optional args for motor constructor
-                    "orientation": "reverse"
-                },
-                "serial_number": "A67BVBOJ"         // the serial number of the motor
-            },
-            ...
-        ]
-
-
-        Parameters:
-        -----------
-        config_path: str
-            The path to the config file for the instrument
+        A dictionary of devices with the device name as the key
         """
-        Instrument._validate_config_file(config_path)
-        self._config = Instrument._read_motor_config(config_path)
-        self._name_to_port_mapping = self._name_to_port()
-        self._motors = self._open_conncetions()
+        return self._devices
 
-    def has_motor(self, name: str) -> bool:
+    def _create_controllers_and_motors(self):
         """
-        Check if the instrument has a motor with the given name
+        Create the connections to the controllers and motors
+
+        Returns:
+        --------
+        motors: dict
+            A dictionary that maps the name of the motor to the motor object
+        """
+        self._prev_port_mapping = self.compute_serial_to_port_map()
+        self._prev_zaber_port = self.find_zaber_usb_port()
+        for name in self._config_dict:
+            res = self._attempt_to_open(name, recheck_ports=False)
+            if res:
+                print(f"Successfully connected to {name}")
+            else:
+                print(f"Could not connect to {name}")
+
+    def _create_lamps(self):
+        """
+        Create the connections to the lamps
+        """
+
+    def _create_shutters(self):
+        """
+        Create the connections to the shutters
+        """
+
+    def _attempt_to_open(self, name, recheck_ports=False):
+        """
+        Attempt to open a connection to a device.
+        First, check if the controller is already in the connections
+        dictionary.
 
         Parameters:
         -----------
         name: str
-            The name of the motor
+            The name of the device to connect to
 
         Returns:
         --------
         bool
-            True if the motor is in the instrument, False otherwise
+            True if the connection was successful, False otherwise
         """
-        return name in self._motors
+        if name not in self._config_dict:
+            raise ValueError(f"{name} is not in the config file")
 
-    def zero_all(self):
-        """
-        Zero all the motors
-        """
-        for _, motor in self._motors.items():
-            motor.set_to_zero()
+        if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
+            # this is a newport motor USB connection, create a newport motor
+            # object
+            cfg = self._config_dict[name]
 
-    def print_all_positions(self):
-        """
-        Print the current position of all the motors
-        """
-        for name, motor in self._motors.items():
-            print(f"{name} (COM{self.name_to_port[name]}): {motor.status_string}")
+            if recheck_ports:
+                self._prev_port_mapping = self.compute_serial_to_port_map()
 
-    def _name_to_port(self):
-        """
-        compute the mapping from the name to the port the motor is connected on
-        e.g. spherical_tip_tilt -> /dev/ttyUSB0
+            if cfg["serial_number"] not in self._prev_port_mapping:
+                return False
 
-        Returns:
-        --------
-        name_to_port: dict
-            A dictionary that maps the name of the motor to the port it is connected to
-        """
-        serial_to_port = compute_serial_to_port_map()
-        name_to_port = {}
-        for mapping in self._config:
-            serial = mapping["serial_number"]
-            logging.info(f"Searching for serial number {serial}")
-            try:
-                name = mapping["name"]
-                port = serial_to_port[serial]
-                # check if windows and if so, remove "COM"
-                if sys.platform.startswith("win"):
-                    port = port[3:]
-                name_to_port[name] = port
-            except KeyError:
-                logging.warning(f" Could not find serial number {serial} in the USBs")
-        return name_to_port
-
-    @property
-    def name_to_port(self):
-        """
-        The dictionary that maps the name of the motor to the port it is connected to
-        """
-        return self._name_to_port_mapping
-
-    def __getitem__(self, key):
-        """
-        Get a motor by name
-        """
-        if key not in self._motors:
-            raise KeyError(f"Could not find motor {key}")
-        return self._motors[key]
-
-    @property
-    def motors(self):
-        """
-        the motors dictionary
-        """
-        return self._motors
-
-    def _open_conncetions(self):
-        """
-        Open all the connections to the motors
-
-        Returns:
-        --------
-        motors: dict
-            A dictionary that maps the name of the motor to the motor object
-        """
-        # merge both newport and zaber connections
-        newport_motors = self._open_newport_conncetions()
-        zaber_motors = self._open_zaber_conncetions()
-
-        return {**newport_motors, **zaber_motors}
-
-    def _open_zaber_conncetions(self):
-        motors = {}
-
-        # first deal with the USB
-        zaber_port = find_zaber_COM()
-        if zaber_port is not None:
-            self.zaber_com_connection = Connection.open_serial_port(zaber_port)
-            self.zaber_com_connection.enable_alerts()
-
-            device_list = self.zaber_com_connection.detect_devices()
-            print("Found {} devices".format(len(device_list)))
-
-            for dev in device_list:
-                for motor_config in self._config:
-                    if dev.serial_number == motor_config["serial_number"]:
-                        if dev.name == "X-LSM150A-SE03":
-                            motors[motor_config["name"]] = BifrostDichroic(dev)
-                        elif dev.name == "X-LHM100A-SE03":
-                            motors[motor_config["name"]] = SourceSelection(dev)
-
-            print(motors)
-
-        return motors  # TODO: remove this
-
-        # now deal with all the networked motors
-        self.zaber_ip_connections = {}  # IP address, connection
-        for component in self._config:
-            if component["motor_type"] not in ["LAC10A-T4A"]:
-                continue
-            if component["name"] not in self._name_to_port_mapping:
-                continue
-
-            if component["x_mcc_ip_address"] not in self.zaber_ip_connections:
-                self.zaber_ip_connections[component["x_mcc_ip_address"]] = (
-                    Connection.open_tcp(component["x_mcc_ip_address"])
+            port = self._prev_port_mapping[cfg["serial_number"]]
+            if port not in self._controllers:
+                self._controllers[port] = (
+                    asgard_alignment.NewportMotor.NewportConnection(
+                        port,
+                        self._rm,
+                    )
                 )
+
+            if self._config_dict[name]["motor_type"] in ["M100D"]:
+                self.devices[name] = asgard_alignment.NewportMotor.M100DAxis(
+                    self._controllers[port],
+                    cfg["motor_config"]["axis"],
+                    name,
+                )
+                return True
+
+            if self._config_dict[name]["motor_type"] in ["LS16P"]:
+                self.devices[name] = asgard_alignment.NewportMotor.LS16PAxis(
+                    self._controllers[port],
+                    name,
+                )
+                return True
+
+            raise ValueError(
+                f"Unknown motor type {self._config_dict[name]['motor_type']}"
+            )
+
+        elif self._config_dict[name]["motor_type"] in ["LAC10A-T4A"]:
+            # this is a zaber motor, create a ZaberLinearActuator object
+            # through the X-MCC
+            cfg = self._config_dict[name]
+            if cfg["x_mcc_ip_address"] not in self._controllers:
+                self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
+                    cfg["x_mcc_ip_address"]
+                )
+                self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
 
             axis = (
-                self.zaber_ip_connections[component["x_mcc_ip_address"]]
-                .get_device(0)
-                .get_axis(component["axis_number"])
+                self._controllers[cfg["x_mcc_ip_address"]]
+                .get_device(1)
+                .get_axis(cfg["axis_number"])
             )
 
-            motors[component["name"]] = LAC10AT4A(axis)
+            if "FZ" in axis.warnings.get_flags():
+                return False
+            self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
+                name,
+                axis,
+            )
+            return True
 
-        # now make the pairs that are avaialble into phase mask objects
+        elif self._config_dict[name]["motor_type"] in [
+            "X-LSM150A-SE03",
+            "X-LHM100A-SE03",
+        ]:
+            # this is a zaber connection through USB
+            # check what the zaber com port is
+            if recheck_ports:
+                self._prev_zaber_port = self.find_zaber_usb_port()
 
-        for beam_number in [1, 2, 3, 4]:
-            x_motor_name = f"BMX{beam_number}"
-            y_motor_name = f"BMY{beam_number}"
+            if self._prev_zaber_port is None:
+                return False
 
-            if x_motor_name in motors and y_motor_name in motors:
-                motors[f"Baldr_phase_beam_{beam_number}"] = BaldrPhaseMask(
-                    motors[x_motor_name],
-                    motors[y_motor_name],
-                    f"phase_positions_beam_{beam_number}.json",
+            if self._prev_zaber_port not in self._controllers:
+                self._controllers[self._prev_zaber_port] = Connection.open_serial_port(
+                    self._prev_zaber_port
                 )
 
-        return motors
+            for dev in self._controllers[self._prev_zaber_port].detect_devices():
+                if dev.serial_number == self._config_dict[name]["serial_number"]:
+                    self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
+                        name,
+                        dev,
+                    )
+                    return True
 
-    def _open_newport_conncetions(self):
+    @staticmethod
+    def find_zaber_usb_port():
         """
-        For each instrument in the config file, open all the connections and create relevant
-        motor objects
+        Find the COM port for the Zaber motor
 
         Returns:
         --------
-        motors: dict
-            A dictionary that maps the name of the motor to the motor object
+        str
+            The COM port for the Zaber motor
         """
-        resource_manager = pyvisa.ResourceManager()
+        ports = serial.tools.list_ports.comports()
 
-        motors = {}
-
-        for component in self._config:
-            if component["motor_type"] not in ["M100D", "LS16P"]:
-                continue
-            if component["name"] not in self._name_to_port_mapping:
-                continue
-            visa_port = f"ASRL{self._name_to_port_mapping[component['name']]}::INSTR"
-            motor_class = NewportMotor.string_to_motor_type(component["motor_type"])
-
-            motors[component["name"]] = motor_class(
-                visa_port, resource_manager, **component["motor_config"]
-            )
-        return motors
-
-    def close_connections(self):
-        """
-        Close all the connections to the motors
-        """
-        self.zaber_com_connection.close()
-
-        for motor in self._motors.values():
-            # check if newport motor
-            if isinstance(motor, NewportMotor):
-                motor.close_connection()
+        for port, _, hwid in sorted(ports):
+            if "VID:PID=0403:6001" in hwid:
+                return port
+        return None
 
     @staticmethod
     def _read_motor_config(config_path):
@@ -345,21 +237,103 @@ class Instrument:
             if "motor_type" not in component:
                 raise ValueError("Each component must have a motor type")
 
-            if component["motor_type"] in ["M100D"]:
-                M100D.validate_config(component["motor_config"])
-
         # check that all component names are unique:
         names = [component["name"] for component in config]
         if len(names) != len(set(names)):
             raise ValueError("All component names must be unique")
 
+        # check that all combinations of ip address + axis number
+        # are unique
+        ip_with_axis = []
+        for component in config:
+            if "x_mcc_ip_address" in component:
+                ip_with_axis.append(
+                    (component["x_mcc_ip_address"], component["axis_number"])
+                )
+
+        if len(ip_with_axis) != len(set(ip_with_axis)):
+            raise ValueError(
+                "All combinations of ip address and axis number must be unique"
+            )
+
+    @staticmethod
+    def compute_serial_to_port_map():
+        """
+        By inspecting the list of usb devices, find the serial number of the
+        motor and the corresponding port (e.g. /dev/ttyUSB0)
+
+        Returns:
+        --------
+        mapping: dict
+            A dictionary that maps the serial number of the motor to the port
+        """
+        mapping = {}
+
+        ports = serial.tools.list_ports.comports()
+        # check if windows:
+        if sys.platform.startswith("win"):
+            for port, desc, hwid in sorted(ports):
+                if "Newport" in desc and "SER=" in hwid:
+                    serial_number = hwid.split("SER=")[-1]
+                    mapping[serial_number] = port
+        else:
+            for port, desc, hwid in sorted(ports):
+                if "CONEX" in desc and "SER=" in hwid:
+                    serial_number = hwid.split("SER=")[-1].split("LOC")[0].strip() + "A"
+                    mapping[serial_number] = port
+
+        def connect_and_get_SA(rm, port):
+            """
+            Connect to the motor and check the SA
+            """
+
+            connection = rm.open_resource(
+                port,
+                baud_rate=asgard_alignment.NewportMotor.NewportConnection.SERIAL_BAUD,
+                write_termination=asgard_alignment.NewportMotor.NewportConnection.SERIAL_TERMIN,
+                read_termination=asgard_alignment.NewportMotor.NewportConnection.SERIAL_TERMIN,
+            )
+            sa = connection.query("SA?").strip()
+            connection.before_close()
+            connection.close()
+            return sa
+
+        rm = pyvisa.ResourceManager()
+        # now for the checking of LS16P devices, which are extra weird since they don't
+        # present a serial number
+        if sys.platform.startswith("win"):
+            raise NotImplementedError("Windows not supported")
+
+        # list all ttyACM devices
+        rm = pyvisa.ResourceManager()
+
+        for device in rm.list_resources():
+            if "ttyACM" in device:
+                try:
+                    # connect to the motor and query SA
+                    # mapping["SA1"] = port kind of thing
+                    sa = connect_and_get_SA(rm, device)
+                    if sa is not None:
+                        # device is of  the form ASRL/dev/ttyACM1::INSTR
+                        # want just the /dev/ttyACM1 part
+                        port = device.split("::")[0][4:]
+                        mapping[sa] = port
+
+                except Exception as e:
+                    print(f"Could not connect to {device}: {e}")
+
+        return mapping
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    mapping = compute_serial_to_port_map()
+    pth = "motor_info_full_system.json"
+    # Instrument._validate_config_file(pth)
 
-    print(mapping)
+    # print(Instrument.compute_serial_to_port_map())
 
-    instrument = Instrument("motor_info_no_linear.json")
+    # config = Instrument._read_motor_config(pth)
 
-    instrument.print_all_positions()
+    instr = Instrument(pth)
+
+    print(instr.devices["HTPP1"].read_position())
+    print(instr.devices["HTTP1"].read_position())

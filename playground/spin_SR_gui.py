@@ -5,17 +5,88 @@ import tkinter as tk
 from tkinter import ttk
 import scipy
 from PIL import Image, ImageTk
+import scipy.ndimage
 from scipy.interpolate import RegularGridInterpolator
+import argparse
 
 
-wvl = 0.635e-6  # laser wavelength
-D = 12e-3  # mm
-f = 254e-3  # mm
-# f = 400e-3  # mm
-# N = f/D #
-pixel_scale = 3.45e-6  # on point grey
+parser = argparse.ArgumentParser(description="Strehl Ratio GUI")
+# input arguments, mandatory: focal length, beam diameter
+parser.add_argument(
+    "--focal_length",
+    type=float,
+    default=254e-3,
+    help="Focal length of the lens in meters",
+)
+parser.add_argument(
+    "--beam_diameter",
+    type=float,
+    default=12e-3,
+    help="Diameter of the beam in meters",
+)
+# optional: wavelength, pixel scale, spot size factor, method
+parser.add_argument(
+    "--wavelength",
+    type=float,
+    default=0.635e-6,
+    help="Wavelength of the laser in meters",
+)
+parser.add_argument(
+    "--pixel_scale",
+    type=float,
+    default=3.45e-6,
+    help="Pixel scale of the camera in meters",
+)
+parser.add_argument(
+    "--width_to_spot_size_ratio",
+    type=float,
+    default=2.0,
+    help="The ratio of the width of the region of interest to the spot size",
+)
+parser.add_argument(
+    "--method",
+    type=str,
+    default="gauss_diff",
+    help="The method to use for finding the maximum value, one of naive, smoothed, gauss_diff",
+    choices=["naive", "smoothed", "gauss_diff"],
+)
 
-width = 35
+args = parser.parse_args()
+
+
+def naive_max_find(img):
+    max_loc = np.unravel_index(np.argmax(img), img.shape)
+    return max_loc
+
+
+def max_find_smoothed(img, scale):
+    img_smooth = scipy.ndimage.gaussian_filter(img, scale)
+    max_loc = np.unravel_index(np.argmax(img_smooth), img_smooth.shape)
+    return max_loc
+
+
+def max_find_gauss_diff(img, scale):
+    img_smooth = scipy.ndimage.gaussian_filter(img.astype(float), scale / 2**0.25)
+    img_smooth2 = scipy.ndimage.gaussian_filter(img.astype(float), scale * 2**0.25)
+    img_diff = img_smooth - img_smooth2
+    max_loc = np.unravel_index(np.argmax(img_diff), img_diff.shape)
+    return max_loc
+
+
+# set the parameters
+wvl = args.wavelength
+D = args.beam_diameter
+f = args.focal_length
+pixel_scale = args.pixel_scale
+spot_size = 2.44 * wvl / D * f / pixel_scale
+width = int(args.width_to_spot_size_ratio * spot_size)
+
+if args.method == "naive":
+    max_find_method = naive_max_find
+elif args.method == "smoothed":
+    max_find_method = lambda img: max_find_smoothed(img, spot_size)
+elif args.method == "gauss_diff":
+    max_find_method = lambda img: max_find_gauss_diff(img, spot_size)
 
 
 pointgrey_grid_x_um = np.linspace(
@@ -48,42 +119,39 @@ display_airy_2D = (airy_2D / np.max(airy_2D) * 255).astype(np.uint8)
 
 
 def compute_strehl(img):
-    xc, yc = np.unravel_index(np.argmax(img), img.shape)
 
+    max_loc = max_find_method(img)
+
+    xc, yc = max_loc
     ext = width
     img_psf_region = img[xc - ext : xc + ext, yc - ext : yc + ext]
     # convert to float
     img_psf_region = img_psf_region.astype(float)
-    img_bkg = img[:, 300:]  # background
 
     # subtract background
-    img_psf_region -= np.mean(img_bkg)
+    # img_psf_region -= np.median(img)
+    bkg_width = ext
+    xx, yy = np.meshgrid(np.arange(img.shape[0]), np.arange(img.shape[1]))
+    mask = np.logical_and(
+        ext**2 < (xx - xc) ** 2 + (yy - yc) ** 2,
+        (xx - xc) ** 2 + (yy - yc) ** 2 < (ext + bkg_width) ** 2,
+    )
+    mask = mask.T
+
+    ad = np.abs(img[mask] - np.median(img[mask]))
+    mad = np.median(ad)
+    if np.isclose(mad, 0):
+        mad = 1 / 6.0
+    print(f"mad: {mad}")
+
+    # filter at 5 sigma
+    valid_bkg = img[mask][ad <= 6 * mad]
+
+    print(f"bkg mean: {np.mean(valid_bkg)}")
+
+    img_psf_region -= np.mean(valid_bkg)
 
     return np.max(img_psf_region) / np.sum(img_psf_region) / np.max(airy_2D)
-
-    # create interpolator function now to put onto finner grid
-    interp = RegularGridInterpolator(
-        (pointgrey_grid_x_um, pointgrey_grid_y_um), img_psf_region, method="cubic"
-    )
-
-    # Define the finer grid (2x sampling)
-    finer_x_um = np.linspace(
-        pointgrey_grid_x_um[0], pointgrey_grid_x_um[-1], img_psf_region.shape[0] * 2
-    )
-    finer_y_um = np.linspace(
-        pointgrey_grid_y_um[0], pointgrey_grid_y_um[-1], img_psf_region.shape[1] * 2
-    )
-
-    # Create a meshgrid for the finer coordinates
-    finer_x, finer_y = np.meshgrid(finer_x_um, finer_y_um, indexing="ij")
-
-    # Interpolate the data onto the finer grid
-    points = np.array([finer_x.ravel(), finer_y.ravel()]).T
-
-    # Final interpolated PSF
-    psf_interp = interp(points).reshape(finer_x.shape)
-
-    return np.max(psf_interp / np.sum(psf_interp)) / np.max(airy_2D)
 
 
 class CameraStream:
@@ -96,7 +164,7 @@ class CameraStream:
 
         self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-        self.cam.Gain.SetValue(0)
+        self.cam.Gain.SetValue(0.00)
         self.cam.BeginAcquisition()
 
     def get_frame(self):
@@ -205,17 +273,20 @@ class App:
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(disp_img)
         # convert to bgr
         disp_img = cv2.cvtColor(disp_img, cv2.COLOR_BGR2RGB)
-        # add red rectangle around brightest spot
-        # cv2.rectangle(
-        #     disp_img,
-        #     (max_loc[0] - width, max_loc[1] - width),
-        #     (max_loc[0] + width, max_loc[1] + width),
-        #     (255, 0, 0),
-        #     2,
-        # )
 
         gray = frame
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(gray)
+
+        # save the image to a file
+        cv2.imwrite("hard_case2.png", gray)
+
+        # print(gray.shape)
+        # img_smooth = scipy.ndimage.gaussian_filter(gray, 10)
+        # max_loc = np.unravel_index(np.argmax(img_smooth), img_smooth.shape)
+        max_loc = max_find_method(gray)
+
+        max_val = gray[max_loc[0], max_loc[1]]
+        # swap around
+        max_loc = (max_loc[1], max_loc[0])
 
         # Zoomed-in region
         zoomed_region = gray[
@@ -225,7 +296,7 @@ class App:
         try:
             strehl_ratio = compute_strehl(frame)
         except:
-            strehl_ratio = 0
+            strehl_ratio = -1.0
         self.strehl_bar["value"] = strehl_ratio
         self.strehl_value_label.config(text=f"{strehl_ratio:.2f}")
 
@@ -246,13 +317,6 @@ class App:
         self.max_value_value_label.config(text=f"{max_val}")
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # rect = cv2.rectangle(
-        #     np.zeros_like(disp_img),
-        #     (max_loc[0] - width, max_loc[1] - width),
-        #     (max_loc[0] + width, max_loc[1] + width),
-        #     (255, 0, 0),
-        #     2,
-        # )
         disp_img = cv2.applyColorMap(disp_img, cv2.COLORMAP_VIRIDIS)
 
         cv2.rectangle(
@@ -269,9 +333,6 @@ class App:
             2,
         )
         disp_img = disp_img[:, :, ::-1]
-
-        # my own rectangle drawing
-        # disp_img[:,30] = [255,0,0]
 
         img = ImageTk.PhotoImage(image=Image.fromarray(disp_img))
         self.camera_label.config(image=img)
