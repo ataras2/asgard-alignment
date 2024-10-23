@@ -98,37 +98,6 @@ with col_main:
                 all_devices,
                 key="component",
             )
-        target = f"{component}{beam_number}"
-    else:
-        colour = "green"
-    # st.markdown(f":{colour}[Received response from server: ] {response}")
-    st.session_state["message_history"].append(
-        f":{colour}[Received response from server: ] {response}\n"
-    )
-
-    return response.strip()
-
-
-col_main, col_history = st.columns([3, 1])
-
-
-with col_main:
-    operating_mode = st.selectbox(
-        "Select Operating Mode",
-        ["Direct write", "Routines"],
-        key="operating_mode",
-    )
-
-    if operating_mode == "Direct write":
-        # create two dropdowns for selecting component and beam number
-        col1, col2 = st.columns(2)
-
-        with col1:
-            component = st.selectbox(
-                "Select Component",
-                all_devices,
-                key="component",
-            )
 
         if component in beam_specific_devices:
             with col2:
@@ -266,6 +235,15 @@ with col_main:
                         f"Current positions: U={positions[0]:.3f} V={positions[1]:.3f} (degrees)"
                     )
 
+            positions = []
+            for target in targets:
+                message = f"!read {target}"
+                res = send_and_get_response(message)
+                if "NACK" in res:
+                    st.write(f"Error reading position for {target}")
+                    break
+                positions.append(float(res))
+
             # absolute move option for input with button to move
             st.write("Move absolute")
             s_col1, s_col2 = st.columns(2)
@@ -276,7 +254,7 @@ with col_main:
                         min_value=-0.750,
                         max_value=0.75,
                         step=0.05,
-                        value=None,
+                        value=positions[0],
                         format="%.4f",
                         key="u_position",
                     )
@@ -295,7 +273,7 @@ with col_main:
                         "V Position (degrees)",
                         min_value=-0.750,
                         max_value=0.75,
-                        value=None,
+                        value=positions[1],
                         format="%.4f",
                         step=0.05,
                         key="v_position",
