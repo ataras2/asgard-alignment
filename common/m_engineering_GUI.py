@@ -3,6 +3,7 @@ import numpy as np
 import argparse
 import zmq
 import time
+import json
 
 import asgard_alignment.Engineering
 
@@ -271,11 +272,9 @@ def handle_tt_motor():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", axis)
                 message = f"!moveabs {target} {st.session_state[key]}"
-                print(f"sending message: {message}")
-                response = send_and_get_response(message)
+                send_and_get_response(message)
                 if delay_on_moves:
                     time.sleep(1.0)
-                print(response)
 
             return onchange_fn
 
@@ -427,7 +426,7 @@ with col_main:
 
         routine_options = st.selectbox(
             "Select Routine",
-            ["Quick buttons", "Move image/pupil", "Save states"],
+            ["Quick buttons", "Move image/pupil", "Save states", "Load_state"],
             key="routine_options",
         )
 
@@ -478,8 +477,75 @@ with col_main:
                     )
                 with col2:
                     if st.button(f"Save {instruments[i]}"):
-                        message = f"!save {save_location}"
-                        send_and_get_response(message)
+                        if instruments[i] == "Solarstein":
+                            motor_names = ["SDLA", "SDL12", "SDL34", "SSS"]
+                        elif instruments[i] == "Heimdallr":
+                            motor_names_no_beams = [
+                                "HFO",
+                                "HTPP",
+                                "HTPI",
+                                "HTTP",
+                                "HTTI",
+                            ]
+
+                            motor_names = []
+                            for motor in motor_names_no_beams:
+                                for beam_number in range(1, 5):
+                                    motor_names.append(f"{motor}{beam_number}")
+                        elif instruments[i] == "Baldr":
+                            motor_names = ["BFO"]
+
+                            motor_names_no_beams = [
+                                "BDS",
+                                "BTT",
+                                "BTP",
+                                "BMX",
+                                "BMY",
+                            ]
+
+                            for motor in motor_names_no_beams:
+                                for beam_number in range(1, 5):
+                                    motor_names.append(f"{motor}{beam_number}")
+
+                        states = []
+                        for name in motor_names:
+                            message = f"!read {name}"
+                            res = send_and_get_response(message)
+
+                            if "NACK" in res:
+                                is_connected = False
+                            else:
+                                is_connected = True
+
+                            state = {
+                                "name": name,
+                                "is_connected": is_connected,
+                            }
+                            if is_connected:
+                                state["position"] = float(res)
+
+                            states.append(state)
+
+                        # save to json at location
+                        with open("instr_states/" + save_location + ".json", "w") as f:
+                            json.dump(states, f, indent=4)
+
+        if routine_options == "Load_state":
+            # text box and reading of the json
+            text_col, button_col = st.columns(2)
+
+            with text_col:
+                load_location = st.text_input("Load location", key="load_location")
+
+            with button_col:
+                if st.button("Load"):
+                    with open("instr_states/" + load_location + ".json", "r") as f:
+                        states = json.load(f)
+
+                    for state in states:
+                        if state["is_connected"]:
+                            message = f"!moveabs {state['name']} {state['position']}"
+                            send_and_get_response(message)
 
 with col_history:
     with col_history.container(border=True, height=500):
