@@ -360,13 +360,13 @@ def handle_linear_actuator():
             message = f"!state {target}"
             res = send_and_get_response(message)
             st.write(res)
-    
+
     with c3:
         # init button
         if st.button("Home (if needed)"):
             message = f"!init {target}"
             send_and_get_response(message)
-            
+
     def get_onchange_fn(key, target):
         def onchange_fn():
             if "HFO" in target:
@@ -542,6 +542,18 @@ with col_main:
                     asgard_alignment.Engineering.move_pupil(
                         beam, delx, dely, send_and_get_response, config
                     )
+
+            if move_what == "move_image":
+                if config == "c_red_one_focus":
+                    st.write("No image (yet)")
+                elif config == "intermediate_focus":
+                    st.image("figs/image_plane_intermediate.png")
+            
+            if move_what == "move_pupil":
+                if config == "c_red_one_focus":
+                    st.write("No pupil (yet)")
+                elif config == "intermediate_focus":
+                    st.image("figs/pupil_plane_KE.png")
 
         if routine_options == "Save state":
 
