@@ -6,6 +6,7 @@ from typing import Literal
 import parse
 import numpy as np
 
+import time
 import pyvisa
 import asgard_alignment.ESOdevice as ESOdevice
 
@@ -150,7 +151,7 @@ class M100DAxis(ESOdevice.Motor):
         """
         self._connection.write_str(f"1PA{self.axis}{position:.5f}")
 
-    def move_rel(self, position: float):
+    def move_relative(self, position: float):
         """
         Move the motor to a relative position
 
