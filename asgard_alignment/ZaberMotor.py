@@ -99,6 +99,17 @@ class ZaberLinearActuator(ESOdevice.Motor):
             self.read_position(), self.LOWER_LIMIT
         )
 
+    def read_state(self):
+        """
+        Read the state of the motor
+
+        Returns:
+        --------
+        str
+            The state of the motor
+        """
+        return self.axis.get_state()
+
     def stop_now(self):
         """
         Stop the motor immediately
@@ -247,6 +258,17 @@ class ZaberLinearStage(ESOdevice.Motor):
             unit=units,
             wait_until_idle=ZaberLinearStage.IS_BLOCKING,
         )
+
+    def read_state(self):
+        """
+        Read the state of the motor
+
+        Returns:
+        --------
+        str
+            The state of the motor
+        """
+        return self.axis.get_state()
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         return self.axis.get_position(unit=units)

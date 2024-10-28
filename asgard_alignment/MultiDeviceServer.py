@@ -11,6 +11,7 @@ import asgard_alignment.ESOdevice
 import asgard_alignment.Instrument
 import asgard_alignment.MultiDeviceServer
 import asgard_alignment.Engineering
+import asgard_alignment.NewportMotor
 
 
 class MockMDS:
@@ -196,6 +197,9 @@ class MultiDeviceServer:
             self.instr.devices[axis].move_relative(float(position))
             return "ACK"
 
+        def state_msg(axis):
+            return self.instr.devices[axis].read_state()
+
         patterns = {
             "!read {}": read_msg,
             "!stop {}": stop_msg,
@@ -204,6 +208,7 @@ class MultiDeviceServer:
             "!connect {}": connect_msg,
             "!init {}": init_msg,
             "!moverel {} {:f}": moverel_msg,
+            "!state {}": state_msg,
         }
 
         try:

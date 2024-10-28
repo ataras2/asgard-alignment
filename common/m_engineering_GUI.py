@@ -114,7 +114,7 @@ def handle_linear_stage():
     }
 
     # add two buttons, one for homing and one for reading position
-    s_col1, s_col2 = st.columns(2)
+    s_col1, s_col2, col3 = st.columns(2)
 
     with s_col1:
         if st.button("Home (if needed)"):
@@ -131,6 +131,12 @@ def handle_linear_stage():
                     break
             else:
                 st.write(f"Current position: {float(res):.2f} mm")
+    with col3:
+        # read state button
+        if st.button("Read State"):
+            message = f"!state {target}"
+            res = send_and_get_response(message)
+            st.write(res)
 
     ss_col1, ss_col2 = st.columns(2)
 
@@ -334,18 +340,33 @@ def handle_linear_actuator():
 
     st.subheader("Linear Actuator Interface")
 
-    # read position button
-    if st.button("Read Position"):
-        message = f"!read {target}"
-        res = send_and_get_response(message)
-        if "NACK" in res:
-            st.write(f"Error reading position for {target}")
-        else:
-            pos = float(res)
-            if "HFO" in target:
-                pos *= 1e3
-            st.write(f"Current position: {pos:.2f} um")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        # read position button
+        if st.button("Read Position"):
+            message = f"!read {target}"
+            res = send_and_get_response(message)
+            if "NACK" in res:
+                st.write(f"Error reading position for {target}")
+            else:
+                pos = float(res)
+                if "HFO" in target:
+                    pos *= 1e3
+                st.write(f"Current position: {pos:.2f} um")
 
+    with c2:
+        # read state button
+        if st.button("Read State"):
+            message = f"!state {target}"
+            res = send_and_get_response(message)
+            st.write(res)
+    
+    with c3:
+        # init button
+        if st.button("Home (if needed)"):
+            message = f"!init {target}"
+            send_and_get_response(message)
+            
     def get_onchange_fn(key, target):
         def onchange_fn():
             if "HFO" in target:

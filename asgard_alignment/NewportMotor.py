@@ -125,7 +125,7 @@ class M100DAxis(ESOdevice.Motor):
         id_number = self._connection.query("1ID?").strip()
         assert "M100D" in id_number
 
-    def _read_state(self, echo=False):
+    def read_state(self, echo=False):
         """
         Read the state of the motor
         """
@@ -187,7 +187,7 @@ class M100DAxis(ESOdevice.Motor):
         is_moving: bool
             True if the motor is moving, False otherwise
         """
-        return self._read_state() in ["MOVING CL", "STEPPING OL", "JOGGING OL"]
+        return self.read_state() in ["MOVING CL", "STEPPING OL", "JOGGING OL"]
 
     def is_reset_success(self):
         """
@@ -220,7 +220,7 @@ class M100DAxis(ESOdevice.Motor):
         bool
             True if the initialisation was successful, False otherwise
         """
-        state = self._read_state()
+        state = self.read_state()
         return state in ["READY from Reset"]
 
     def is_motion_done(self):
@@ -340,7 +340,7 @@ class LS16PAxis(ESOdevice.Motor):
         position = float(parse_results[0])
         return position
 
-    def _read_state(self, echo=False):
+    def read_state(self, echo=False):
         """
         Read the state of the motor
         """
@@ -360,23 +360,23 @@ class LS16PAxis(ESOdevice.Motor):
         return error_str, state_str
 
     def is_moving(self):
-        _, state_str = self._read_state()
+        _, state_str = self.read_state()
         return state_str in ["MOVING OPEN LOOP (OL)", "MOVING CLOSED LOOP (CL)"]
 
     def is_reset_success(self):
-        _, state_str = self._read_state()
+        _, state_str = self.read_state()
         return state_str in ["READY OPEN LOOP: after reset"]
 
     def is_stop_success(self):
-        _, state_str = self._read_state()
+        _, state_str = self.read_state()
         return state_str in ["READY OPEN LOOP: after reset"]
 
     def is_init_success(self):
-        _, state_str = self._read_state()
+        _, state_str = self.read_state()
         return state_str in ["READY CLOSED LOOP: after HOMING state"]
 
     def is_motion_done(self):
-        _, state_str = self._read_state()
+        _, state_str = self.read_state()
         return state_str in ["READY CLOSED LOOP: after MOVING CL state"]
 
     def is_at_limit(self):
