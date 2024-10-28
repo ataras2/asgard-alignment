@@ -341,17 +341,20 @@ def handle_linear_actuator():
         if "NACK" in res:
             st.write(f"Error reading position for {target}")
         else:
-            st.write(f"Current position: {float(res)*1e3:.2f} um")
+            pos = float(res)
+            if "HFO" in target:
+                pos *= 1e3
+            st.write(f"Current position: {pos:.2f} um")
 
     def get_onchange_fn(key, target):
-        if "HFO" in target:
-            position = st.session_state[key] * 1e-3
-        else:
-            position = st.session_state[key]
-
         def onchange_fn():
-            message = f"!moveabs {target} {position}"
+            if "HFO" in target:
+                desired_position = st.session_state[key] * 1e-3
+            else:
+                desired_position = st.session_state[key]
+            message = f"!moveabs {target} {desired_position}"
             send_and_get_response(message)
+            time.sleep(1.0)
 
         return onchange_fn
 
@@ -369,11 +372,11 @@ def handle_linear_actuator():
 
     inc = st.number_input(
         "Step size",
-        value=0.01,
+        value=10.0,
         min_value=0.0,
-        max_value=0.1,
+        max_value=500.0,
         key=f"lin_increment",
-        step=0.005,
+        step=2.0,
         format="%.3f",
     )
 
@@ -383,8 +386,8 @@ def handle_linear_actuator():
         max_value=bounds[1],
         step=inc,
         value=cur_pos,
-        key="position",
-        on_change=get_onchange_fn("position", target),
+        key="lin_position",
+        on_change=get_onchange_fn("lin_position", target),
     )
 
 
