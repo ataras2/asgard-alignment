@@ -48,6 +48,8 @@ beam_specific_devices = [
     "HTXI",
     "BTX",
     "BDS",
+    "BMX",
+    "BMY",
 ]
 
 beam_common_devices = [
@@ -430,7 +432,7 @@ with col_main:
         elif component in ["HTXP", "HTXI", "BTX"]:
             handle_tt_motor()
 
-        elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO"]:
+        elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
             handle_linear_actuator()
 
     elif operating_mode == "Routines":
@@ -456,6 +458,11 @@ with col_main:
                     key="move_what",
                 )
 
+            if move_what == "move_image":
+                units = "pixels"
+            else:
+                units = "mm"
+
             with col2:
                 beam = st.selectbox(
                     "Pick a beam",
@@ -464,17 +471,18 @@ with col_main:
                 )
 
             with st.form(key="amount"):
-                amount = st.number_input("Amount", key="amount")
+                delx = st.number_input(f"delta x {units}", key="delx")
+                dely = st.number_input(f"delta y {units}", key="dely")
                 submit = st.form_submit_button("Send command")
 
             if submit:
                 if move_what == "move_image":
                     asgard_alignment.Engineering.move_image(
-                        beam, amount, send_and_get_response
+                        beam, delx, dely, send_and_get_response
                     )
                 elif move_what == "move_pupil":
                     asgard_alignment.Engineering.move_pupil(
-                        beam, amount, send_and_get_response
+                        beam, delx, dely, send_and_get_response
                     )
 
         if routine_options == "Save state":
