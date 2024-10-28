@@ -236,7 +236,10 @@ def handle_tt_motor():
 
     with ss_col2:
         use_button_to_move = st.checkbox("Use button to move")
-        delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
+        if use_button_to_move:
+            delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
+        else:
+            delay_on_moves = False
 
     # absolute move option for input with button to move
     st.write("Move absolute")
@@ -340,25 +343,49 @@ def handle_linear_actuator():
         else:
             st.write(f"Current position: {float(res)*1e3:.2f} um")
 
+    def get_onchange_fn(key, target):
+        if "HFO" in target:
+            position = st.session_state[key] * 1e-3
+        else:
+            position = st.session_state[key]
+
+        def onchange_fn():
+            message = f"!moveabs {target} {position}"
+            send_and_get_response(message)
+
+        return onchange_fn
+
+    message = f"!read {target}"
+    res = send_and_get_response(message)
+    if "NACK" in res:
+        st.write(f"Error reading position for {target}")
+    cur_pos = float(res)
+
+    if "HFO" in target:
+        cur_pos *= 1e3
 
     # absolute move option for input with button to move
     st.write("Absolute Move")
-    with st.form(key="absolute_move"):
-        position = st.number_input(
-            "Position (um)",
-            min_value=bounds[0],
-            max_value=bounds[1],
-            step=100.0,
-            key="position",
-        )
-        submit = st.form_submit_button("Move")
 
-    if component == "HFO":
-        position = position * 1e-3
+    inc = st.number_input(
+        "Step size",
+        value=0.01,
+        min_value=0.0,
+        max_value=0.1,
+        key=f"lin_increment",
+        step=0.005,
+        format="%.3f",
+    )
 
-    if submit:
-        message = f"!moveabs {target} {position}"
-        send_and_get_response(message)
+    position = st.number_input(
+        "Position (um)",
+        min_value=bounds[0],
+        max_value=bounds[1],
+        step=inc,
+        value=cur_pos,
+        key="position",
+        on_change=get_onchange_fn("position", target),
+    )
 
 
 col_main, col_history = st.columns([2, 1])
@@ -458,7 +485,7 @@ with col_main:
                     key="move_what",
                 )
 
-            with col2: 
+            with col2:
                 config = st.selectbox(
                     "Pick a config",
                     ["c_red_one_focus", "intermediate_focus"],
