@@ -6,12 +6,15 @@
 *.json
 *.log
 
+*.svg
 *.png
+!figs/image_plane_intermediate.png
+!figs/pupil_plane_KE.png
+
 *.austin
 
 *.pickle
 *.log
-*.png
 *.fits
 *.csv
 *.txt
