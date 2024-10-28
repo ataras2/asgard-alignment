@@ -824,6 +824,7 @@ def apply_oscillating_mode(beam,  basis_name,  mode, speed, strength, duration, 
         time.sleep(1.0 / (speed * 10))  # Control loop timing for smooth oscillation - designed for slow oscillations! 
 
     if not SIMULATION:
+        dm.send_data(flatdm)
         dm.close_dm()
 
 if __name__ == "__main__":
