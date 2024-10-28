@@ -350,7 +350,6 @@ class LS16PAxis(ESOdevice.Motor):
         error_bits = msg[3:7]
         state = msg[7:9]
 
-        print(msg)
         error_str = self.ERROR_BITS[error_bits] if error_bits in self.ERROR_BITS else ""
         state_str = (
             self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
