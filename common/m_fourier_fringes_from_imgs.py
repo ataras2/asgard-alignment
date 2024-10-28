@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 import os
 import scipy.ndimage as nd
 
+from tqdm import tqdm
+
 
 def main():
     # Parse command line arguments
@@ -64,8 +66,8 @@ def main():
 
     im_av = np.zeros_like(ims)
     print()
-    for i in range(nsets * ims_per_set):
-        print(f"Processing image {i} of {nsets * ims_per_set}\r", end="")
+    for i in tqdm(range(nsets * ims_per_set)):
+        # print(f"Processing image {i} of {nsets * ims_per_set}\r", end="")
         imps = np.abs(np.fft.rfft2(ims[i])) ** 2
         imps[:pswidth, :pswidth] = 0
         imps[-pswidth:, :pswidth] = 0

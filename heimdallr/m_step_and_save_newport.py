@@ -7,7 +7,7 @@ import os
 import time
 import argparse
 import zmq
-
+from tqdm import tqdm
 
 parser = argparse.ArgumentParser(description="ZeroMQ Client")
 parser.add_argument("--path", type=str, help="Path to save images and data")
@@ -43,10 +43,10 @@ socket.connect(server_address)
 
 def set_motor_position(socket, beam_number, position):
     message = f"!moveabs HFO{beam_number} {position}"
-    print(f"Sending message to server: {message}")
+    # print(f"Sending message to server: {message}")
     socket.send_string(message)
     response = socket.recv_string()
-    print(f"Received response from server: {response}")
+    # print(f"Received response from server: {response}")
     return response
 
 
@@ -124,12 +124,12 @@ if img.shape[0] > 550:
     print("Warning: Image size is large, consider reducing the ROI size")
 
 
-for i, pos in enumerate(positions):
-    print(f"\rMoving to {pos} um ({i+1}/{len(positions)})", end="")
+for i, pos in enumerate(tqdm(positions)):
+    # print(f"\rMoving to {pos} um ({i+1}/{len(positions)})", end="")
     # axis.move_absolute(pos, Units.LENGTH_MICROMETRES)
     set_motor_position(socket, beam, pos)
 
-    time.sleep(0.5)
+    time.sleep(0.3)
 
     # image_result = cam.GetNextImage(2000)
     # image_result.Release()
