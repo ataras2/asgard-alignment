@@ -98,9 +98,9 @@ def main():
 
     plt.savefig(os.path.join(pth, "max_power_image.png"))
 
-    import pdb
+    #import pdb
 
-    pdb.set_trace()
+    #pdb.set_trace()
 
 
 if __name__ == "__main__":
