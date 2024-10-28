@@ -450,7 +450,7 @@ with col_main:
             st.write("Nothing here (yet)")
 
         if routine_options == "Move image/pupil":
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 move_what = st.selectbox(
                     "Pick operating_mode",
@@ -458,12 +458,19 @@ with col_main:
                     key="move_what",
                 )
 
+            with col2: 
+                config = st.selectbox(
+                    "Pick a config",
+                    ["c_red_one_focus", "intermediate_focus"],
+                    key="config",
+                )
+
             if move_what == "move_image":
                 units = "pixels"
             else:
                 units = "mm"
 
-            with col2:
+            with col3:
                 beam = st.selectbox(
                     "Pick a beam",
                     list(range(1, 5)),
@@ -478,11 +485,11 @@ with col_main:
             if submit:
                 if move_what == "move_image":
                     asgard_alignment.Engineering.move_image(
-                        beam, delx, dely, send_and_get_response
+                        beam, delx, dely, send_and_get_response, config
                     )
                 elif move_what == "move_pupil":
                     asgard_alignment.Engineering.move_pupil(
-                        beam, delx, dely, send_and_get_response
+                        beam, delx, dely, send_and_get_response, config
                     )
 
         if routine_options == "Save state":

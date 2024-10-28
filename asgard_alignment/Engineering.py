@@ -8,48 +8,47 @@ Includes functions for:
 import numpy as np
 import time
 
-# this is the N0, Cred one matrix:
-# the first row is the pupil mirror, the second is the image mirror
-pup_img_mat = {
-    1: np.array([[0.44157, -0.002], [-0.18453, 0.00132]]),
-    2: np.array([[0.49721, -0.00225], [-0.24038, 0.00157]]),
-    3: np.array([[0.55664, -0.00252], [-0.30004, 0.00184]]),
-    4: np.array([[0.63688, -0.00289], [-0.38058, 0.00221]]),
-}
 
-# this is the intermediate focus, pointgrey camera matrix:
-# the first row is the pupil mirror, the second is the image mirror
-pup_img_mat = {
-    1: np.array([[-0.07586, 0.00018], [0.03167, -0.00002]]),
-    2: np.array([[-0.08547, 0.0002], [0.04128, -0.00005]]),
-    3: np.array([[-0.09575, 0.00022], [0.05156, -0.00007]]),
-    4: np.array([[-0.10965, 0.00026], [0.06546, -0.0001]]),
-}
+def get_matricies(config):
+    if config == "c_red_one_focus":
+        # this is the N0, Cred one matrix:
+        # the first row is the pupil mirror, the second is the image mirror
+        pup_img_mat = {
+            1: np.array([[0.44157, -0.002], [-0.18453, 0.00132]]),
+            2: np.array([[0.49721, -0.00225], [-0.24038, 0.00157]]),
+            3: np.array([[0.55664, -0.00252], [-0.30004, 0.00184]]),
+            4: np.array([[0.63688, -0.00289], [-0.38058, 0.00221]]),
+        }
 
-# v2 using more decimals!
-pup_img_mat = {
-    1: np.array([[-0.07467856, 0.00017185], [0.03166371, -0.00002345]]),
-    2: np.array([[-0.08426023, 0.0001939], [0.04124538, -0.00004549]]),
-    3: np.array([[-0.09453813, 0.00021755], [0.05152328, -0.00006915]]),
-    4: np.array([[-0.10848638, 0.00024964], [0.06547153, -0.00010124]]),
-}
+    elif config == "intermediate_focus":
+        # v2 using more decimals!
+        pup_img_mat = {
+            1: np.array([[-0.07467856, 0.00017185], [0.03166371, -0.00002345]]),
+            2: np.array([[-0.08426023, 0.0001939], [0.04124538, -0.00004549]]),
+            3: np.array([[-0.09453813, 0.00021755], [0.05152328, -0.00006915]]),
+            4: np.array([[-0.10848638, 0.00024964], [0.06547153, -0.00010124]]),
+        }
+    else:
+        raise ValueError("Invalid configuration")
 
+    # amount in degrees needed to move a mirror by 1mm on N1
+    pupil_move_matricies = {
+        1: pup_img_mat[1][:, 0],
+        2: pup_img_mat[2][:, 0],
+        3: pup_img_mat[3][:, 0],
+        4: pup_img_mat[4][:, 0],
+    }
 
-# amount in degrees needed to move a mirror by 1mm on N1
-pupil_move_matricies = {
-    1: pup_img_mat[1][:, 0],
-    2: pup_img_mat[2][:, 0],
-    3: pup_img_mat[3][:, 0],
-    4: pup_img_mat[4][:, 0],
-}
+    # amount in degrees needed to move by 1 pixel at the focus
+    image_move_matricies = {
+        1: pup_img_mat[1][:, 1],
+        2: pup_img_mat[2][:, 1],
+        3: pup_img_mat[3][:, 1],
+        4: pup_img_mat[4][:, 1],
+    }
 
-# amount in degrees needed to move by 1 pixel at the focus
-image_move_matricies = {
-    1: pup_img_mat[1][:, 1],
-    2: pup_img_mat[2][:, 1],
-    3: pup_img_mat[3][:, 1],
-    4: pup_img_mat[4][:, 1],
-}
+    return pupil_move_matricies, image_move_matricies
+
 
 # matricies for the M100D, that solve [beamx, beamy] = matrix @ [u, v]
 RH_motor = np.array(
@@ -93,12 +92,14 @@ knife_edge_orientation_matricies = {
 }
 
 
-def move_image(beam_number, x, y, send_command):
+def move_image(beam_number, x, y, send_command, config):
     """
     Move an image to a new location
     x,y are in pixels
     """
     desired_deviation = np.array([[x], [y]])
+
+    _, image_move_matricies = get_matricies(config)
 
     M_I = image_move_matricies[beam_number]
     M_I_pupil = M_I[0]
@@ -145,12 +146,14 @@ def move_image(beam_number, x, y, send_command):
     return uv_commands, axis_list
 
 
-def move_pupil(beam_number, x, y, send_command):
+def move_pupil(beam_number, x, y, send_command, config):
     """
     Move the pupil to a new location
     x,y are in mm
     """
     desired_deviation = np.array([[x], [y]])
+
+    pupil_move_matricies, _ = get_matricies(config)
 
     M_P = pupil_move_matricies[beam_number]
     M_P_pupil = M_P[0]
@@ -199,9 +202,10 @@ def move_pupil(beam_number, x, y, send_command):
 if __name__ == "__main__":
     # print(move_image(1, 50, 50, print))
     # print(move_pupil(1, 1, 1, print))
-    print(move_image(1, 50, 0, print))
-    print(move_image(1, 0, 50, print))
+    config = "intermediate_focus"
+    print(move_image(1, 50, 0, print, config))
+    print(move_image(1, 0, 50, print, config))
 
-    print(move_image(4, 50, 0, print))
-    print(move_image(4, 0, 50, print))
+    print(move_image(4, 50, 0, print, config))
+    print(move_image(4, 0, 50, print, config))
     # print(move_pupil(1, 1, 1, print))
