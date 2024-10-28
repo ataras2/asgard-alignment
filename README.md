@@ -11,6 +11,11 @@ If you are unsure about any of the commands, you can always run `python <script>
 python asgard-alignment/MultiDeviceServer.py -c <config file name>
 ```
 
+Typically we use config file "motor_info_full_system.json", so this is
+```bash
+python asgard-alignment/MultiDeviceServer.py -c motor_info_full_system.json
+```
+
 
 ## Running the engineering GUI
 ```bash

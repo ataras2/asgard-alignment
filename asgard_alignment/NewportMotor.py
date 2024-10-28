@@ -281,6 +281,7 @@ class LS16PAxis(ESOdevice.Motor):
     LOWER_LIMIT = 0.0
 
     ERROR_BITS = {
+        "0000": "No error",
         "0010": "Bit motor stall timeout",
         "0020": "Bit time out motion",
         "0040": "Bit time out homing",
@@ -344,12 +345,13 @@ class LS16PAxis(ESOdevice.Motor):
         """
         Read the state of the motor
         """
-        msg = self._connection.query("1TS?").strip()
+        msg = self._connection.query_str("1TS?").strip()
 
-        error_bits = msg[3:8]
+        error_bits = msg[3:7]
+        state = msg[7:9]
 
+        print(msg)
         error_str = self.ERROR_BITS[error_bits] if error_bits in self.ERROR_BITS else ""
-        state = msg[8:10]
         state_str = (
             self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
         )
@@ -357,7 +359,7 @@ class LS16PAxis(ESOdevice.Motor):
         if echo:
             print(f"Error: {error_str}, State: {state_str}")
 
-        return error_str, state_str
+        return f"{error_str}\n {state_str}"
 
     def is_moving(self):
         _, state_str = self.read_state()
