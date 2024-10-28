@@ -334,12 +334,12 @@ def handle_linear_actuator():
     # read position button
     if st.button("Read Position"):
         message = f"!read {target}"
-        send_and_get_response(message)
+        res = send_and_get_response(message)
+        if "NACK" in res:
+            st.write(f"Error reading position for {target}")
+        else:
+            st.write(f"Current position: {float(res)*1e3:.2f} um")
 
-    mode_bounds = {
-        "Absolute Move": bounds,
-        "Relative Move": (-1e3, 1e3),
-    }
 
     # absolute move option for input with button to move
     st.write("Absolute Move")
