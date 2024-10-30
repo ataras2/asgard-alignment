@@ -529,20 +529,85 @@ with col_main:
                     key="beam",
                 )
 
-            with st.form(key="amount"):
-                delx = st.number_input(f"delta x {units}", key="delx")
-                dely = st.number_input(f"delta y {units}", key="dely")
-                submit = st.form_submit_button("Send command")
+            # tickbox for button only mode
+            button_only = st.checkbox("Use button to move", value=True)
 
-            if submit:
+            if not button_only:
+                with st.form(key="amount"):
+                    delx = st.number_input(f"delta x {units}", key="delx")
+                    dely = st.number_input(f"delta y {units}", key="dely")
+                    submit = st.form_submit_button("Send command")
+
+                if submit:
+                    if move_what == "move_image":
+                        asgard_alignment.Engineering.move_image(
+                            beam, delx, dely, send_and_get_response, config
+                        )
+                    elif move_what == "move_pupil":
+                        asgard_alignment.Engineering.move_pupil(
+                            beam, delx, dely, send_and_get_response, config
+                        )
+            else:
+                # increment selection for each case
                 if move_what == "move_image":
-                    asgard_alignment.Engineering.move_image(
-                        beam, delx, dely, send_and_get_response, config
+                    increment = st.number_input(
+                        "Increment (pixels)",
+                        min_value=0,
+                        max_value=100,
+                        step=5,
+                        key="increment",
                     )
-                elif move_what == "move_pupil":
-                    asgard_alignment.Engineering.move_pupil(
-                        beam, delx, dely, send_and_get_response, config
+                else:
+                    increment = st.number_input(
+                        "Increment (mm)",
+                        min_value=0.0,
+                        max_value=1.0,
+                        step=0.05,
+                        key="increment",
                     )
+
+                # four buttons in a 2x2 grid for each direction
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(f"Up {increment:.2f}"):
+                        if move_what == "move_image":
+                            asgard_alignment.Engineering.move_image(
+                                beam, 0, increment, send_and_get_response, config
+                            )
+                        elif move_what == "move_pupil":
+                            asgard_alignment.Engineering.move_pupil(
+                                beam, 0, increment, send_and_get_response, config
+                            )
+
+                    if st.button(f"Down {increment:.2f}"):
+                        if move_what == "move_image":
+                            asgard_alignment.Engineering.move_image(
+                                beam, 0, -increment, send_and_get_response, config
+                            )
+                        elif move_what == "move_pupil":
+                            asgard_alignment.Engineering.move_pupil(
+                                beam, 0, -increment, send_and_get_response, config
+                            )
+
+                with col2:
+                    if st.button(f"Left {increment:.2f}"):
+                        if move_what == "move_image":
+                            asgard_alignment.Engineering.move_image(
+                                beam, -increment, 0, send_and_get_response, config
+                            )
+                        elif move_what == "move_pupil":
+                            asgard_alignment.Engineering.move_pupil(
+                                beam, -increment, 0, send_and_get_response, config
+                            )
+                    if st.button(f"Right {increment:.2f}"):
+                        if move_what == "move_image":
+                            asgard_alignment.Engineering.move_image(
+                                beam, increment, 0, send_and_get_response, config
+                            )
+                        elif move_what == "move_pupil":
+                            asgard_alignment.Engineering.move_pupil(
+                                beam, increment, 0, send_and_get_response, config
+                            )
 
             if move_what == "move_image":
                 if config == "c_red_one_focus":
