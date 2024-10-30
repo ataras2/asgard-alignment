@@ -93,7 +93,7 @@ def handle_linear_stage():
             st.session_state[f"BDS{beam_number}_fixed_mapping"] = {
                 "H": 133.07,  # (white target)
                 "J": 63.07,  # (mirror)
-                "out": 0.0,
+                "empty": 0.0,
             }
             st.session_state[f"BDS{beam_number}_offset"] = 0.0
 
