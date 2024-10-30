@@ -114,13 +114,9 @@ def handle_linear_stage():
     }
 
     # add two buttons, one for homing and one for reading position
-    s_col1, s_col2, col3 = st.columns(2)
+    s_col1, s_col2, s_col3 = st.columns(3)
 
     with s_col1:
-        if st.button("Home (if needed)"):
-            message = f"!init {target}"
-            send_and_get_response(message)
-    with s_col2:
         if st.button("Read Position"):
             message = f"!read {target}"
             res = send_and_get_response(message)
@@ -131,12 +127,17 @@ def handle_linear_stage():
                     break
             else:
                 st.write(f"Current position: {float(res):.2f} mm")
-    with col3:
+    with s_col2:
         # read state button
         if st.button("Read State"):
             message = f"!state {target}"
             res = send_and_get_response(message)
             st.write(res)
+
+    with s_col3:
+        if st.button("Home (if needed)"):
+            message = f"!init {target}"
+            send_and_get_response(message)
 
     ss_col1, ss_col2 = st.columns(2)
 
@@ -548,7 +549,7 @@ with col_main:
                     st.write("No image (yet)")
                 elif config == "intermediate_focus":
                     st.image("figs/image_plane_intermediate.png")
-            
+
             if move_what == "move_pupil":
                 if config == "c_red_one_focus":
                     st.write("No pupil (yet)")
