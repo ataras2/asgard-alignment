@@ -11,6 +11,8 @@
 !figs/image_plane_intermediate.png
 !figs/pupil_plane_KE.png
 
+phasemask_centering_tool.log
+
 *.austin
 
 *.pickle
