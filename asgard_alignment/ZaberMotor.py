@@ -14,6 +14,7 @@ from zaber_motion.ascii import Connection
 import time
 import json
 import numpy as np
+import ast
 
 import zaber_motion.binary
 
@@ -108,7 +109,8 @@ class ZaberLinearActuator(ESOdevice.Motor):
         str
             The state of the motor
         """
-        return self.axis.get_state()
+        # return self.axis.get_state()
+        return f"Warnings/errors: {self.axis.warnings.get_flags()}"
 
     def stop_now(self):
         """
@@ -268,7 +270,8 @@ class ZaberLinearStage(ESOdevice.Motor):
         str
             The state of the motor
         """
-        return self.axis.get_state()
+        # return ast.literal_eval(self.device.get_state())
+        return f"Warnings/errors: {self.device.warnings.get_flags()}"
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         return self.axis.get_position(unit=units)
