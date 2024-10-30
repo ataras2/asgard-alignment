@@ -12,12 +12,12 @@ cd Documents/asgard-alignment
 
 ## Running the MDS
 ```bash
-python asgard-alignment/MultiDeviceServer.py -c <config file name>
+python asgard_alignment/MultiDeviceServer.py -c <config file name>
 ```
 
 Typically we use config file "motor_info_full_system.json", so this is
 ```bash
-python asgard-alignment/MultiDeviceServer.py -c motor_info_full_system.json
+python asgard_alignment/MultiDeviceServer.py -c motor_info_full_system.json
 ```
 
 
