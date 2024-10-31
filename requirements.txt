@@ -14,3 +14,5 @@ zaber_motion==7.1.2
 myst-parser
 sphinx_design
 sphinx-automodapi
+sphinx_togglebutton
+sphinx_copybutton
