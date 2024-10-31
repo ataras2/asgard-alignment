@@ -10,6 +10,21 @@ import time
 
 
 def get_matricies(config):
+    """
+    Get the matricies for moving the pupil and imagem, depending on the configuration
+
+    Parameters
+    ----------
+    config : str
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+    Returns
+    -------
+    pupil_move_matricies : dict
+        A dictionary of matricies for moving the pupil
+    image_move_matricies : dict
+        A dictionary of matricies for moving the image
+    """
     if config == "c_red_one_focus":
         # this is the N0, Cred one matrix:
         # the first row is the pupil mirror, the second is the image mirror
@@ -94,8 +109,28 @@ knife_edge_orientation_matricies = {
 
 def move_image(beam_number, x, y, send_command, config):
     """
-    Move an image to a new location
+    Move image to a new location (relative motion)
     x,y are in pixels
+
+    Parameters
+    ----------
+    beam_number : int
+        The beam number to move
+    x : float
+        The x coordinate to move to, in pixels
+    y : float
+        The y coordinate to move to, in pixels
+    send_command : function
+        A function to send commands to the motors
+    config : str
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+    Returns
+    -------
+    uv_commands : np.array
+        The u,v commands sent to the motors
+    axis_list : list
+        The list of axis names
     """
     desired_deviation = np.array([[x], [y]])
 
@@ -150,6 +185,27 @@ def move_pupil(beam_number, x, y, send_command, config):
     """
     Move the pupil to a new location
     x,y are in mm
+
+    Parameters
+    ----------
+    beam_number : int
+        The beam number to move
+    x : float
+        The x coordinate to move to
+    y : float
+        The y coordinate to move to
+    send_command : function
+        A function to send commands to the motors
+    config : str
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+
+    Returns
+    -------
+    uv_commands : np.array
+        The u,v commands sent to the motors
+    axis_list : list
+        The list of axis names
     """
     desired_deviation = np.array([[x], [y]])
 

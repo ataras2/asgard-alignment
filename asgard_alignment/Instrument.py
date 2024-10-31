@@ -15,6 +15,31 @@ class Instrument:
     """
     A class that creates connections to controllers, ESOdevice instances,
     and provides a means for the MDS to communicate with the Instrument.
+    Open an instrument with a configuration file.
+    The configuration file must be a JSON file with the following format:
+
+    .. code-block:: json
+
+        [
+            {
+                "name": "HTPP1",
+                "serial_number": "123456",
+                "motor_type": "M100D",
+                "motor_config": {}
+            },
+        ]
+
+    The Instrument will attempt to connect to each device in the config file, opening and
+    saving connections to the controllers and devices.
+
+    Parameters
+    ----------
+    config_pth : str
+        The path to the configuration file for the instrument
+
+    Returns
+    -------
+    None
     """
 
     def __init__(self, config_pth) -> None:
@@ -262,7 +287,7 @@ class Instrument:
         By inspecting the list of usb devices, find the serial number of the
         motor and the corresponding port (e.g. /dev/ttyUSB0)
 
-        Returns:
+        Returns
         --------
         mapping: dict
             A dictionary that maps the serial number of the motor to the port
