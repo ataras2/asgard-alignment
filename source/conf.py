@@ -15,6 +15,19 @@ release = "0.5"
 import os
 import sys
 
+from unittest.mock import MagicMock
+
+
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        return MagicMock()
+
+
+MOCK_MODULES = ["spinnaker_python"]
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
+
 sys.path.insert(0, os.path.abspath("../asgard_alignment"))
 
 # -- General configuration ---------------------------------------------------
@@ -58,7 +71,6 @@ myst_enable_extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 
 autodoc_default_options = {
     "members": True,
