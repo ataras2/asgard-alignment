@@ -108,16 +108,19 @@ This script is used to control the motor position and capture images using a cam
 **Example Usage:**
 
 A minimal usage of the args:
+
 .. code-block:: bash
 
     python heimdallr/m_step_and_save_newport.py --path ./data --beam 2
 
 A typical usage of most args:
+
 .. code-block:: bash
 
     python heimdallr/m_step_and_save_newport.py --path ./data --beam 2 --start 6 --stop 10 --step_size 0.010
 
 A usage of all args:
+
 .. code-block:: bash
 
     python heimdallr/m_step_and_save_newport.py --path ./data --beam 2 --host 192.168.1.1 --port 5555 --timeout 5000 --start 6 --stop 10 --step_size 0.010 --n_imgs 3
