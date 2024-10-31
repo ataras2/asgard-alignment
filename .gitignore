@@ -22,6 +22,7 @@ phasemask_centering_tool.log
 *.fits
 *.csv
 *.txt
+!requirements.txt
 *.austin
 
 asgard_alignment.egg-info
