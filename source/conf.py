@@ -50,7 +50,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx_automodapi.automodapi",
-    "sphinxarg.ext",
+    # "sphinxarg.ext",
 ]
 
 myst_enable_extensions = [

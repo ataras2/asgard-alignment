@@ -16,4 +16,3 @@ sphinx_design
 sphinx-automodapi
 sphinx_togglebutton
 sphinx_copybutton
-sphinxarg
