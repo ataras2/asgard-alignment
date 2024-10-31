@@ -12,3 +12,5 @@ streamlit==1.39.0
 tqdm==4.66.6
 zaber_motion==7.1.2
 myst-parser
+sphinx_design
+sphinx-automodapi
