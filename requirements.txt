@@ -1,0 +1,21 @@
+bmc==0.0.4
+matplotlib==3.9.2
+numpy==2.1.2
+pandas==2.2.3
+parse==1.20.2
+Pillow>=8,<11  # Adjusted to be compatible with both matplotlib and streamlit
+pyserial==3.5
+PySpin==1.1.1
+PyVISA==1.14.1
+scipy==1.14.1
+streamlit==1.39.0
+tqdm==4.66.6
+zaber_motion==7.1.2
+zmq==0.0.0
+pyzmq==26.2.0
+myst-parser
+sphinx_design
+sphinx-automodapi
+sphinx_togglebutton
+sphinx_copybutton
+furo

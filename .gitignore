@@ -6,6 +6,8 @@
 *.json
 *.log
 
+build
+
 *.svg
 *.png
 !figs/image_plane_intermediate.png
@@ -20,6 +22,7 @@ phasemask_centering_tool.log
 *.fits
 *.csv
 *.txt
+!requirements.txt
 *.austin
 
 asgard_alignment.egg-info
