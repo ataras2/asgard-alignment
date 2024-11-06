@@ -4,6 +4,7 @@ Scripts For Alignment
 If you are unsure about any of the commands, you can always run `python <script> --help` to get more information, where `<script>` is the name of the script you want to run.
 
 All scripts are run from the root directory of the repository:
+
 .. code-block:: bash
     
     cd Documents/asgard-alignment
@@ -141,16 +142,19 @@ This script runs the Strehl Ratio GUI for various optical setups.
 **Example Usage:**
 
 To run the Strehl ratio GUI for OAP1:
+
 .. code-block:: bash
 
     python playground/spin_SR_gui.py --focal_length 681e-3 --beam_diameter 18e-3 --wavelength 635e-9 --pixel_scale 3.45e-6 --width_to_spot_size_ratio 3.0 --method gauss_diff
 
 To run the Strehl ratio GUI for the spherical mirror:
+
 .. code-block:: bash
 
     python playground/spin_SR_gui.py --focal_length 2.0 --beam_diameter 12e-3 --wavelength 635e-9 --pixel_scale 3.45e-6 --width_to_spot_size_ratio 3.0 --method gauss_diff
 
 To run the Strehl ratio GUI for Baldr OAP:
+
 .. code-block:: bash
 
     python playground/spin_SR_gui.py --focal_length 254e-3 --beam_diameter 12e-3 --wavelength 535e-9 --pixel_scale 3.45e-6 --width_to_spot_size_ratio 3.0 --method gauss_diff
