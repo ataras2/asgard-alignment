@@ -24,5 +24,7 @@ for i, dp in enumerate(dps):
     T = (
         np.array([[pp, ip], [pi, ii]]) * 2
     )  # *2 converting to beam angle from mirror angle
+
+    print(T)
     print(f"Pupil and Image Matrix for beam {i+1}")
     print(np.linalg.inv(T))
