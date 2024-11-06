@@ -3,6 +3,22 @@ import PySpin
 
 
 class PointGrey:
+
+    PARAMS = [
+        "AcquisitionFrameRate",
+        "ExposureTime",
+        "Gain",
+        "Height",
+        "Width",
+        "PixelFormat",
+        "ExposureAuto",
+        "GainAuto",
+        "AcquisitionMode",
+        "ExposureMode",
+        "OffsetX",
+        "OffsetY",
+    ]
+
     def __init__(self, cam_index=0):
         self.system = PySpin.System.GetInstance()
         self.cam_list = self.system.GetCameras()
@@ -30,8 +46,8 @@ class PointGrey:
         self.cam.Width.SetValue(self.cam.Width.GetMax())
         self.cam.Height.SetValue(self.cam.Height.GetMax())
 
-        # frame rate
-        self.cam.AcquisitionFrameRateEnable.SetValue(True)
+        # frame rate stuff
+        # self.cam.AcquisitionFrameRateEnable.SetValue(True)
         self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
@@ -41,10 +57,35 @@ class PointGrey:
         self.cam.EndAcquisition()
 
     def get_frame(self):
-        frame = self.cam.GetNextImage()
-        image = frame.GetNDArray()
-        frame.Release()
-        return image
+        img = self.cam.GetNextImage()
+        img = img.GetNDArray()
+        return img
+
+    def __setattr__(self, name, value):
+        if name not in self.PARAMS:
+            super().__setattr__(name, value)
+            return
+
+        if value == "max":
+            value = getattr(self.cam, name).GetMax()
+        elif value == "min":
+            value = getattr(self.cam, name).GetMin()
+        getattr(self.cam, name).SetValue(value)
+
+    def __getitem__(self, key):
+        if key not in self.PARAMS:
+            raise KeyError(f"Invalid key {key}")
+        return getattr(self.cam, key).GetValue()
+
+    def __setitem__(self, key, value):
+        if key not in self.PARAMS:
+            raise KeyError(f"Invalid key {key}")
+
+        if value == "max":
+            value = getattr(self.cam, key).GetMax()
+        elif value == "min":
+            value = getattr(self.cam, key).GetMin()
+        getattr(self.cam, key).SetValue(value)
 
     def release(self):
         self.cam.DeInit()
@@ -52,68 +93,63 @@ class PointGrey:
         self.cam_list.Clear()
         self.system.ReleaseInstance()
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if value in ["max", "min"]:
-            if value == "max":
-                value = self[name].GetMax()
-            else:
-                value = self[name].GetMin()
-
-        self.cam.__getattribute__(name).SetValue(value)
-
-    def __getattr__(self, name: str) -> Any:
-        return self.cam.__getattribute__(name)
-
     @property
     def camera(self):
         return self.cam
 
     @property
     def img_size(self):
-        return (self.cam.Width.GetValue(), self.cam.Height.GetValue())
+        return (self.cam.Height.GetValue(), self.cam.Width.GetValue())
 
 
 if __name__ == "__main__":
     # run some tests quickly
 
-    cam = PointGrey()
+    c = PointGrey()
 
-    cam.start_stream()
-    img = cam.get_frame()
-    cam.stop_stream()
+    c.start_stream()
+    img = c.get_frame()
+    c.stop_stream()
 
-    assert img.shape == cam.img_size
+    assert img.shape == c.img_size
 
     # try setting exposure, gain, offset and frame rate
-    cur_exposure_time = cam["ExpousreTime"]
+    cur_exposure_time = c["ExposureTime"]
 
-    cam["ExposureTime"] = cur_exposure_time + 1000
+    c["ExposureTime"] = cur_exposure_time + 1000
 
-    assert cam["ExposureTime"] >= cur_exposure_time
+    assert c["ExposureTime"] >= cur_exposure_time
 
-    cam["Gain"] = "max"
-    cur_gain = cam["Gain"]
-    cam["Gain"] = "min"
+    c["Gain"] = "max"
+    cur_gain = c["Gain"]
+    c["Gain"] = "min"
 
-    assert cam["Gain"] <= cur_gain
+    assert c["Gain"] <= cur_gain
 
     # height and width
-    cur_width = cam["Width"]
-    cur_height = cam["Height"]
+    cur_width = c["Width"]
+    cur_height = c["Height"]
 
-    cam["Width"] = cur_width // 2
-    cam["Height"] = cur_height // 2
+    c["Width"] = cur_width // 2
+    c["Height"] = cur_height // 2
 
     # should be about half the size (up to discreitation, no larger than 5 pixels diff)
-    assert abs(cam["Width"] - cur_width // 2) <= 5
-    assert abs(cam["Height"] - cur_height // 2) <= 5
+    assert abs(c["Width"] - cur_width // 2) <= 5
+    assert abs(c["Height"] - cur_height // 2) <= 5
+
+    # check the image size has actually changed
+    c.start_stream()
+    img = c.get_frame()
+    c.stop_stream()
+
+    assert img.shape == c.img_size
 
     # frame rate
-    cur_frame_rate = cam["AcquisitionFrameRate"]
-    cam["AcquisitionFrameRate"] = "min"
+    cur_frame_rate = c["AcquisitionFrameRate"]
+    c["AcquisitionFrameRate"] = "min"
 
-    assert cam["AcquisitionFrameRate"] <= cur_frame_rate
+    assert c["AcquisitionFrameRate"] <= cur_frame_rate
 
-    cam["AcquisitionFrameRate"] = "max"
+    c["AcquisitionFrameRate"] = "max"
 
-    cam.release()
+    c.release()
