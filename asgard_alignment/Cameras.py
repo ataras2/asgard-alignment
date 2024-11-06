@@ -21,6 +21,9 @@ class PointGrey:
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
         self.cam.Gain.SetValue(0)
 
+        # pixel format
+        self.cam.PixelFormat.SetValue(PySpin.PixelFormat_Mono8)
+
         # remove offsets, restore full frame size
         self.cam.OffsetX.SetValue(0)
         self.cam.OffsetY.SetValue(0)
