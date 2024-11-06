@@ -159,10 +159,16 @@ class CameraStream:
         self.system = PySpin.System.GetInstance()
         self.cam_list = self.system.GetCameras()
         self.cam = self.cam_list.GetByIndex(0)
-        self.cam.Init()
-        self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
 
+        self.cam.Init()
+        self.cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
+        self.cam.UserSetLoad()
+        self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
+        self.cam.ExposureMode.SetValue(
+            PySpin.ExposureMode_Timed
+        )  # Timed or TriggerWidth (must comment out trigger parameters other that Line)
+
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
         self.cam.Gain.SetValue(0.00)
         self.cam.BeginAcquisition()
@@ -181,7 +187,7 @@ class CameraStream:
 
     def get_exposure_time(self):
         try:
-            return self.cam.ExpsoureTime.GetValue()
+            return self.cam.ExposureTime.GetValue()
         except:
             return -1
 
