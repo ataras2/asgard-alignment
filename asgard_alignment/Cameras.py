@@ -83,8 +83,9 @@ class PointGrey:
             The next image frame as a numpy array.
         """
         img = self.cam.GetNextImage()
-        img = img.GetNDArray()
-        return img
+        img_numpy = img.GetNDArray().copy()
+        img.Release()
+        return img_numpy
 
     def __setattr__(self, name, value):
         """
@@ -154,6 +155,29 @@ class PointGrey:
         elif value == "min":
             value = getattr(self.cam, key).GetMin()
         getattr(self.cam, key).SetValue(value)
+
+    def set_region_from_corners(self, x1, y1, x2, y2):
+        """
+        Set the region of interest from the top left and bottom right corners.
+
+        Parameters
+        ----------
+        x1 : int
+            The x coordinate of the top left corner.
+        y1 : int
+            The y coordinate of the top left corner.
+        x2 : int
+            The x coordinate of the bottom right corner.
+        y2 : int
+            The y coordinate of the bottom right corner.
+        """
+        x1, x2 = sorted([x1, x2])
+        y1, y2 = sorted([y1, y2])
+
+        self["Width"] = x2 - x1
+        self["Height"] = y2 - y1
+        self["OffsetX"] = x1
+        self["OffsetY"] = y1
 
     def release(self):
         """

@@ -1,7 +1,5 @@
-import PySpin
-
 import numpy as np
-
+import asgard_alignment
 import matplotlib.pyplot as plt
 import os
 import time
@@ -99,22 +97,32 @@ n_imgs = 3
 
 
 # setup camera
-system = PySpin.System.GetInstance()
-cam_list = system.GetCameras()
-cam = cam_list[0]
+cam = asgard_alignment.Cameras.PointGrey()
 
-nodemap_tldevice = cam.GetTLDeviceNodeMap()
+# take a photo and ask the user to crop the image using ginput
+cam.start_stream()
+img = cam.get_frame()
+cam.stop_stream()
 
-# Initialize camera
-cam.Init()
+plt.imshow(img, cmap="gray")
+plt.title("Click on the top left and bottom right of the region of interest")
 
-# Retrieve GenICam nodemap
-nodemap = cam.GetNodeMap()
-cam.BeginAcquisition()
-image_result = cam.GetNextImage(5000)
-image_result.Release()
+pts = plt.ginput(2)
+plt.close()
 
-img = image_result.GetNDArray()
+x1, y1 = pts[0]
+x2, y2 = pts[1]
+
+x1, x2 = sorted([x1, x2])
+y1, y2 = sorted([y1, y2])
+
+cam.set_region_from_corners(int(x1), int(y1), int(x2), int(y2))
+
+cam.start_stream()
+img = cam.get_frame()
+cam.stop_stream()
+
+
 n_positions = len(positions)
 
 img_stack = np.zeros((n_positions, n_imgs, img.shape[0], img.shape[1]), dtype=np.uint8)
@@ -123,6 +131,11 @@ if img.shape[0] > 550:
     # raise warning about large image size
     print("Warning: Image size is large, consider reducing the ROI size")
 
+if img.shape[0] < 100:
+    # raise warning about small image size
+    print("Warning: Image size is small, consider increasing the ROI size")
+
+cam.start_stream()
 
 for i, pos in enumerate(tqdm(positions)):
     # print(f"\rMoving to {pos} um ({i+1}/{len(positions)})", end="")
@@ -135,17 +148,8 @@ for i, pos in enumerate(tqdm(positions)):
     # image_result.Release()
 
     for j in range(n_imgs):
-        image_result = cam.GetNextImage(2000)
-
-        if image_result.IsIncomplete():
-            print(
-                "Image incomplete with image status %d ..."
-                % image_result.GetImageStatus()
-            )
-
-        img = image_result.GetNDArray()
+        img = cam.get_frame()
         img_stack[i, j] = img
-        image_result.Release()
 
     plt.imsave(
         os.path.join(pth, f"img_{pos:.4f}.png"),
@@ -155,7 +159,7 @@ for i, pos in enumerate(tqdm(positions)):
         cmap="gray",
     )
 
-cam.EndAcquisition()
+cam.stop_stream()
 
 np.savez(
     os.path.join(pth, "img_stack.npz"),
@@ -164,7 +168,4 @@ np.savez(
     n_imgs=n_imgs,
 )
 
-# np.save(os.path.join(pth, "img_stack.npy"), img_stack)
-del cam
-cam_list.Clear()
-system.ReleaseInstance()
+cam.release()
