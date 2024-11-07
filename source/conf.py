@@ -24,7 +24,7 @@ class Mock(MagicMock):
         return MagicMock()
 
 
-MOCK_MODULES = ["spinnaker_python"]
+MOCK_MODULES = ["spinnaker_python", "PySpin"]
 sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 
 
