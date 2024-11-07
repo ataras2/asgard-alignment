@@ -65,6 +65,7 @@ class PointGrey:
         """
         Start the camera acquisition stream.
         """
+        self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
         self.cam.BeginAcquisition()
 
     def stop_stream(self):

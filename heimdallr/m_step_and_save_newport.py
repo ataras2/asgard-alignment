@@ -135,6 +135,8 @@ if img.shape[0] < 100:
     # raise warning about small image size
     print("Warning: Image size is small, consider increasing the ROI size")
 
+print(f"Running at {cam["Width"]}x{cam["Height"]}, {cam['AcquisitionFrameRate']}fps")
+
 cam.start_stream()
 
 for i, pos in enumerate(tqdm(positions)):
