@@ -1,4 +1,5 @@
 import PySpin
+import numpy as np
 
 
 class PointGrey:
@@ -82,10 +83,13 @@ class PointGrey:
         numpy.ndarray
             The next image frame as a numpy array.
         """
-        img = self.cam.GetNextImage()
-        img_numpy = img.GetNDArray().copy()
-        img.Release()
-        return img_numpy
+        image_result = self.cam.GetNextImage()
+        frame = np.array(image_result.GetData(), dtype="uint8").reshape(
+            (image_result.GetHeight(), image_result.GetWidth())
+        )
+        image_result.Release()
+
+        return frame
 
     def __setattr__(self, name, value):
         """

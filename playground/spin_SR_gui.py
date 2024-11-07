@@ -1,12 +1,11 @@
 import cv2
 import numpy as np
-import PySpin
+import asgard_alignment
 import tkinter as tk
 from tkinter import ttk
 import scipy
 from PIL import Image, ImageTk
 import scipy.ndimage
-from scipy.interpolate import RegularGridInterpolator
 import argparse
 
 
@@ -154,50 +153,6 @@ def compute_strehl(img):
     return np.max(img_psf_region) / np.sum(img_psf_region) / np.max(airy_2D)
 
 
-class CameraStream:
-    def __init__(self):
-        self.system = PySpin.System.GetInstance()
-        self.cam_list = self.system.GetCameras()
-        self.cam = self.cam_list.GetByIndex(0)
-
-        self.cam.Init()
-        self.cam.UserSetSelector.SetValue(PySpin.UserSetSelector_Default)
-        self.cam.UserSetLoad()
-        self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
-        self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-        self.cam.ExposureMode.SetValue(
-            PySpin.ExposureMode_Timed
-        )  # Timed or TriggerWidth (must comment out trigger parameters other that Line)
-
-        self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-        self.cam.Gain.SetValue(0.00)
-        self.cam.BeginAcquisition()
-
-    def get_frame(self):
-        image_result = self.cam.GetNextImage()
-        frame = np.array(image_result.GetData(), dtype="uint8").reshape(
-            (image_result.GetHeight(), image_result.GetWidth())
-        )
-        image_result.Release()
-
-        return frame
-
-    def set_exposure_time(self, new_time):
-        self.cam.ExposureTime.SetValue(new_time)
-
-    def get_exposure_time(self):
-        try:
-            return self.cam.ExposureTime.GetValue()
-        except:
-            return -1
-
-    def release(self):
-        self.cam.EndAcquisition()
-        self.cam.DeInit()
-        self.cam_list.Clear()
-        self.system.ReleaseInstance()
-
-
 class App:
     def __init__(self, root):
         self.root = root
@@ -206,7 +161,7 @@ class App:
         # Live Camera Stream
         self.camera_label = tk.Label(root)
         self.camera_label.grid(row=0, column=0)
-        self.cap = CameraStream()
+        self.cap = asgard_alignment.Cameras.PointGrey()
 
         # Zoomed-in Window
         self.zoomed_label = tk.Label(root)
@@ -264,9 +219,9 @@ class App:
     def update_exposure_time(self, event):
         try:
             new_exposure_time = float(self.exposure_entry.get())
-            self.cap.set_exposure_time(new_exposure_time)
+            self.cap["ExposureTime"] = new_exposure_time
             self.current_exposure_label.config(
-                text=f"Current Exposure Time: {self.cap.get_exposure_time()}"
+                text=f"Current Exposure Time: {self.cap['ExposureTime']}"
             )
         except ValueError:
             print("Invalid exposure time entered")
