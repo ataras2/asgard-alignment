@@ -1,7 +1,7 @@
 import PySpin
 import numpy as np
-import cv2  # OpenCV for image processing
 import random
+import matplotlib.pyplot as plt
 
 
 class PointGrey:
@@ -247,7 +247,7 @@ class MockPointGrey:
         noise_level : float, optional
             Standard deviation of Gaussian noise to add, by default 0.01.
         """
-        self.image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        self.image = plt.imread(image_path)
         if self.image is None:
             raise ValueError("Image not found or unable to read.")
         self.n_samples = n_samples
@@ -479,7 +479,6 @@ if __name__ == "__main__":
         c["AcquisitionFrameRate"] = "max"
 
         # now test cropping using ginput clicks
-        import matplotlib.pyplot as plt
 
         c["OffsetX"] = 0
         c["OffsetY"] = 0
@@ -515,7 +514,6 @@ if __name__ == "__main__":
         c.release()
 
     elif testing_what == "MockPointGrey":
-        import matplotlib.pyplot as plt
 
         # Demonstrate MockPointGrey
         mock_cam = MockPointGrey(
