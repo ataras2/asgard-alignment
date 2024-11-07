@@ -8,6 +8,8 @@ from PIL import Image, ImageTk
 import scipy.ndimage
 import argparse
 
+import asgard_alignment.Cameras
+
 
 parser = argparse.ArgumentParser(description="Strehl Ratio GUI")
 # input arguments, mandatory: focal length, beam diameter
@@ -49,6 +51,18 @@ parser.add_argument(
     help="The method to use for finding the maximum value, one of naive, smoothed, gauss_diff",
     choices=["naive", "smoothed", "gauss_diff"],
 )
+parser.add_argument(
+    "--simulation",
+    type=bool,
+    default=False,
+    help="Whether to use simulation mode, with a mocked camera",
+)
+parser.add_argument(
+    "--sim_fname",
+    type=str,
+    default="",
+    help="The filename of the simulated image, for simulation mode",
+)
 
 args = parser.parse_args()
 
@@ -64,11 +78,22 @@ def max_find_smoothed(img, scale):
     return max_loc
 
 
-def max_find_gauss_diff(img, scale):
+def max_find_gauss_diff(img, scale, downsample=2):
+    # downsample the image
+    img = img[::downsample, ::downsample]
+    scale /= downsample
+
+    # inp_img = np.fft.fft2(img.astype(float))
+    # img_smooth = np.fft.ifft2(scipy.ndimage.fourier_gaussian(inp_img, scale / 2**0.25))
+    # img_smooth2 = np.fft.ifft2(scipy.ndimage.fourier_gaussian(inp_img, scale * 2**0.25))
+
     img_smooth = scipy.ndimage.gaussian_filter(img.astype(float), scale / 2**0.25)
     img_smooth2 = scipy.ndimage.gaussian_filter(img.astype(float), scale * 2**0.25)
     img_diff = img_smooth - img_smooth2
     max_loc = np.unravel_index(np.argmax(img_diff), img_diff.shape)
+
+    # upsample the location
+    max_loc = np.array(max_loc) * downsample
     return max_loc
 
 
@@ -79,6 +104,17 @@ f = args.focal_length
 pixel_scale = args.pixel_scale
 spot_size = 2.44 * wvl / D * f / pixel_scale
 width = int(args.width_to_spot_size_ratio * spot_size)
+
+if args.simulation:
+    make_cam = asgard_alignment.Cameras.MockPointGrey(
+        args.sim_fname,
+        100,
+        # "random",
+        "linear",
+        noise_level=0.0,
+    )
+else:
+    make_cam = asgard_alignment.Cameras.PointGrey()
 
 if args.method == "naive":
     max_find_method = naive_max_find
@@ -113,11 +149,18 @@ airy_2D = (
 ) ** 2
 airy_2D *= 1 / np.sum(airy_2D)
 
+airy_max = np.max(airy_2D)
 # normalise and uint8
 display_airy_2D = (airy_2D / np.max(airy_2D) * 255).astype(np.uint8)
 
+img_shape = (make_cam.img_size[0], make_cam.img_size[1])
+
+xx, yy = np.meshgrid(np.arange(img_shape[0]), np.arange(img_shape[1]))
+
 
 def compute_strehl(img):
+    # convert to float
+    img = img.astype(float)
 
     max_loc = max_find_method(img)
 
@@ -129,28 +172,81 @@ def compute_strehl(img):
 
     # subtract background
     # img_psf_region -= np.median(img)
-    bkg_width = ext
-    xx, yy = np.meshgrid(np.arange(img.shape[0]), np.arange(img.shape[1]))
-    mask = np.logical_and(
-        ext**2 < (xx - xc) ** 2 + (yy - yc) ** 2,
-        (xx - xc) ** 2 + (yy - yc) ** 2 < (ext + bkg_width) ** 2,
-    )
-    mask = mask.T
 
-    ad = np.abs(img[mask] - np.median(img[mask]))
+    # bkg_width = ext
+    # dist = np.hypot(xx - xc, yy - yc)
+    # mask = np.logical_and(
+    #     ext < dist,
+    #     dist < (ext + bkg_width),
+    # )
+    # mask = mask.T
+
+    bkg_width = 2 * ext
+    mask = np.zeros_like(xx.T, dtype=bool)
+    mask[xc - bkg_width : xc + bkg_width, yc - bkg_width : yc + bkg_width] = True
+    mask[xc - ext : xc + ext, yc - ext : yc + ext] = False
+
+    masked_img = img[mask]
+
+    ad = np.abs(masked_img - np.median(masked_img))
     mad = np.median(ad)
     if np.isclose(mad, 0):
         mad = 1 / 6.0
-    print(f"mad: {mad}")
+    # print(f"mad: {mad}")
 
     # filter at 5 sigma
-    valid_bkg = img[mask][ad <= 6 * mad]
+    valid_bkg = masked_img[ad <= 6 * mad]
 
-    print(f"bkg mean: {np.mean(valid_bkg)}")
+    # print(f"bkg mean: {np.mean(valid_bkg)}")
 
     img_psf_region -= np.mean(valid_bkg)
 
-    return np.max(img_psf_region) / np.sum(img_psf_region) / np.max(airy_2D)
+    print(f"Max loc: {max_loc}", end=", ")
+    try:
+        strehl = np.max(img_psf_region) / np.sum(img_psf_region) / airy_max
+    except:
+        strehl = -1.0
+
+    if np.isnan(strehl):
+        strehl = -1.0
+    print(f"Strehl: {strehl:.2f}")
+
+    return strehl, max_loc
+
+    # max_loc = max_find_method(img)
+
+    # xc, yc = max_loc
+    # ext = width
+    # img_psf_region = img[xc - ext : xc + ext, yc - ext : yc + ext]
+    # # convert to float
+    # img_psf_region = img_psf_region.astype(float)
+
+    # # subtract background
+    # # img_psf_region -= np.median(img)
+    # bkg_width = ext
+    # xx, yy = np.meshgrid(np.arange(img.shape[0]), np.arange(img.shape[1]))
+    # mask = np.logical_and(
+    #     ext**2 < (xx - xc) ** 2 + (yy - yc) ** 2,
+    #     (xx - xc) ** 2 + (yy - yc) ** 2 < (ext + bkg_width) ** 2,
+    # )
+    # mask = mask.T
+
+    # ad = np.abs(img[mask] - np.median(img[mask]))
+    # mad = np.median(ad)
+    # if np.isclose(mad, 0):
+    #     mad = 1 / 6.0
+    # print(f"mad: {mad}")
+
+    # # filter at 5 sigma
+    # valid_bkg = img[mask][ad <= 6 * mad]
+
+    # print(f"bkg mean: {np.mean(valid_bkg)}")
+
+    # img_psf_region -= np.mean(valid_bkg)
+
+    # strehl = np.max(img_psf_region) / np.sum(img_psf_region) / np.max(airy_2D)
+
+    # return strehl, max_loc
 
 
 class App:
@@ -161,7 +257,7 @@ class App:
         # Live Camera Stream
         self.camera_label = tk.Label(root)
         self.camera_label.grid(row=0, column=0)
-        self.cap = asgard_alignment.Cameras.PointGrey()
+        self.cap = make_cam
 
         # Zoomed-in Window
         self.zoomed_label = tk.Label(root)
@@ -237,29 +333,22 @@ class App:
 
         gray = frame
 
-        # save the image to a file
-        cv2.imwrite("hard_case2.png", gray)
+        # try:
+        strehl_ratio, max_loc = compute_strehl(frame)
+        # except:
+        #     strehl_ratio = -1.0
+        #     max_loc = (self.cap.img_size[0] // 2, self.cap.img_size[1] // 2)
 
-        # print(gray.shape)
-        # img_smooth = scipy.ndimage.gaussian_filter(gray, 10)
-        # max_loc = np.unravel_index(np.argmax(img_smooth), img_smooth.shape)
-        max_loc = max_find_method(gray)
-
-        max_val = gray[max_loc[0], max_loc[1]]
-        # swap around
-        max_loc = (max_loc[1], max_loc[0])
+        self.strehl_bar["value"] = strehl_ratio
+        self.strehl_value_label.config(text=f"{strehl_ratio:.2f}")
 
         # Zoomed-in region
         zoomed_region = gray[
-            max(0, max_loc[1] - width) : min(gray.shape[0], max_loc[1] + width),
-            max(0, max_loc[0] - width) : min(gray.shape[1], max_loc[0] + width),
+            max(0, max_loc[0] - width) : min(gray.shape[0], max_loc[0] + width),
+            max(0, max_loc[1] - width) : min(gray.shape[1], max_loc[1] + width),
         ]
-        try:
-            strehl_ratio = compute_strehl(frame)
-        except:
-            strehl_ratio = -1.0
-        self.strehl_bar["value"] = strehl_ratio
-        self.strehl_value_label.config(text=f"{strehl_ratio:.2f}")
+
+        max_val = np.max(zoomed_region)
 
         zoomed_image = cv2.applyColorMap(zoomed_region, cv2.COLORMAP_VIRIDIS)[
             :, :, ::-1
@@ -283,12 +372,12 @@ class App:
         cv2.rectangle(
             disp_img,
             (
-                int((max_loc[0] - width) * scaling_factor),
                 int((max_loc[1] - width) * scaling_factor),
+                int((max_loc[0] - width) * scaling_factor),
             ),
             (
-                int((max_loc[0] + width) * scaling_factor),
                 int((max_loc[1] + width) * scaling_factor),
+                int((max_loc[0] + width) * scaling_factor),
             ),
             (255, 255, 255),
             2,

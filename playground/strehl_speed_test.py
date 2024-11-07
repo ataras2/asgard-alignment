@@ -39,9 +39,9 @@ parser.add_argument(
 parser.add_argument(
     "--method",
     type=str,
-    # default="gauss_diff",
+    default="gauss_diff",
     # default="naive",
-    default="smoothed",
+    # default="smoothed",
     help="The method to use for finding the maximum value, one of naive, smoothed, gauss_diff",
     choices=["naive", "smoothed", "gauss_diff"],
 )
