@@ -225,6 +225,8 @@ class MockPointGrey:
         "OffsetY",
         "Height",
         "Width",
+        "ExposureTime",
+        "Gain",
     ]
 
     def __init__(self, image_path, n_samples, shift_type="random", noise_level=0.01):
@@ -254,6 +256,8 @@ class MockPointGrey:
         self.OffsetY = 0
         self.Width = self.image.shape[1]
         self.Height = self.image.shape[0]
+        self.ExposureTime = 1000
+        self.Gain = 0
 
     def _generate_samples(self):
         """
@@ -320,7 +324,13 @@ class MockPointGrey:
         frame = self.samples[self._current_index]
         self._current_index = (self._current_index + 1) % self.n_samples
 
-        cropped_frame = frame[
+        # Adjust for exposure time and gain
+        exposure_factor = self.ExposureTime / 1000
+        gain_factor = 10 ** (self.Gain / 20)
+        adjusted_frame = frame * exposure_factor * gain_factor
+        adjusted_frame = np.clip(adjusted_frame, 0, 255).astype(np.uint8)
+
+        cropped_frame = adjusted_frame[
             self.OffsetY : self.OffsetY + self.Height,
             self.OffsetX : self.OffsetX + self.Width,
         ]
@@ -338,6 +348,10 @@ class MockPointGrey:
         value : Any
             The value to set the attribute to.
         """
+        if name == "ExposureTime":
+            value = max(200, min(50000, value))
+        elif name == "Gain":
+            value = max(0, min(48, value))
         if name not in self.EDITABLE_PARAMS:
             super().__setattr__(name, value)
             return
