@@ -264,4 +264,38 @@ if __name__ == "__main__":
 
     c["AcquisitionFrameRate"] = "max"
 
+    # now test cropping using ginput clicks
+    import matplotlib.pyplot as plt
+
+    c["OffsetX"] = 0
+    c["OffsetY"] = 0
+    c["Width"] = "max"
+    c["Height"] = "max"
+
+    c.start_stream()
+    img = c.get_frame()
+    c.stop_stream()
+
+    plt.imshow(img, cmap="gray")
+    plt.title("Click on the top left and bottom right of the region of interest")
+
+    pts = plt.ginput(2)
+    plt.close()
+
+    x1, y1 = pts[0]
+    x2, y2 = pts[1]
+
+    c.set_region_from_corners(int(x1), int(y1), int(x2), int(y2))
+
+    c.start_stream()
+    img = c.get_frame()
+    c.stop_stream()
+
+    # should be close to targets to within 5 pixels
+    assert abs(c["Width"] - int(x2 - x1)) <= 5
+    assert abs(c["Height"] - int(y2 - y1)) <= 5
+
+    assert abs(c["OffsetX"] - int(x1)) <= 5
+    assert abs(c["OffsetY"] - int(y1)) <= 5
+
     c.release()
