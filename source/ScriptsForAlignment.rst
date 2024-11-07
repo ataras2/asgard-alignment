@@ -159,4 +159,8 @@ To run the Strehl ratio GUI for Baldr OAP:
 
     python playground/spin_SR_gui.py --focal_length 254e-3 --beam_diameter 12e-3 --wavelength 535e-9 --pixel_scale 3.45e-6 --width_to_spot_size_ratio 3.0 --method gauss_diff
 
+To run it in SIMULATION MODE:
 
+.. code-block:: bash
+
+    python /playground/spin_SR_gui.py --focal_length 254e-3 --beam_diameter 12e-3 --wavelength 635e-9 --pixel_scale 3.45e-6 --width_to_spot_size_ratio 3.0 --method gauss_diff --simulation True --sim_fname data/lab_imgs/beam_4_f400_laser_top_level_nd3.png

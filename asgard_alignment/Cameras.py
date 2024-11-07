@@ -5,6 +5,9 @@ import random
 
 
 class PointGrey:
+    """
+    :no-index:
+    """
 
     EDITABLE_PARAMS = [
         "AcquisitionFrameRate",
