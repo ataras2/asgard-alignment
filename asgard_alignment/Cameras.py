@@ -4,7 +4,7 @@ import PySpin
 
 class PointGrey:
 
-    PARAMS = [
+    EDITABLE_PARAMS = [
         "AcquisitionFrameRate",
         "ExposureTime",
         "Gain",
@@ -99,7 +99,7 @@ class PointGrey:
         value : Any
             The value to set the attribute to.
         """
-        if name not in self.PARAMS:
+        if name not in self.EDITABLE_PARAMS:
             super().__setattr__(name, value)
             return
 
@@ -128,7 +128,7 @@ class PointGrey:
         KeyError
             If the key is not a valid parameter.
         """
-        if key not in self.PARAMS:
+        if key not in self.EDITABLE_PARAMS:
             raise KeyError(f"Invalid key {key}")
         return getattr(self.cam, key).GetValue()
 
@@ -148,7 +148,7 @@ class PointGrey:
         KeyError
             If the key is not a valid parameter.
         """
-        if key not in self.PARAMS:
+        if key not in self.EDITABLE_PARAMS:
             raise KeyError(f"Invalid key {key}")
 
         if value == "max":
