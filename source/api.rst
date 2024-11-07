@@ -22,6 +22,9 @@ API
 .. automodapi:: asgard_alignment.ZaberMotor
     :no-inheritance-diagram:
 
+.. automodapi:: asgard_alignment.Cameras
+    :no-inheritance-diagram:
+
 ..    :maxdepth: 4
 ..    :caption: Contents:
 

@@ -20,6 +20,14 @@ class PointGrey:
     ]
 
     def __init__(self, cam_index=0):
+        """
+        Initialize the PointGrey camera.
+
+        Parameters
+        ----------
+        cam_index : int, optional
+            Index of the camera to initialize, by default 0
+        """
         self.system = PySpin.System.GetInstance()
         self.cam_list = self.system.GetCameras()
         self.cam = self.cam_list.GetByIndex(cam_index)
@@ -28,6 +36,9 @@ class PointGrey:
         self._set_default_configs()
 
     def _set_default_configs(self):
+        """
+        Set the default configurations for the camera.
+        """
         self.cam.AcquisitionMode.SetValue(PySpin.AcquisitionMode_Continuous)
         self.cam.ExposureMode.SetValue(PySpin.ExposureMode_Timed)
 
@@ -51,17 +62,41 @@ class PointGrey:
         self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
+        """
+        Start the camera acquisition stream.
+        """
         self.cam.BeginAcquisition()
 
     def stop_stream(self):
+        """
+        Stop the camera acquisition stream.
+        """
         self.cam.EndAcquisition()
 
     def get_frame(self):
+        """
+        Get the next image frame from the camera.
+
+        Returns
+        -------
+        numpy.ndarray
+            The next image frame as a numpy array.
+        """
         img = self.cam.GetNextImage()
         img = img.GetNDArray()
         return img
 
     def __setattr__(self, name, value):
+        """
+        Set the attribute of the camera.
+
+        Parameters
+        ----------
+        name : str
+            The name of the attribute to set.
+        value : Any
+            The value to set the attribute to.
+        """
         if name not in self.PARAMS:
             super().__setattr__(name, value)
             return
@@ -73,11 +108,44 @@ class PointGrey:
         getattr(self.cam, name).SetValue(value)
 
     def __getitem__(self, key):
+        """
+        Get the value of a camera parameter.
+
+        Parameters
+        ----------
+        key : str
+            The name of the parameter to get.
+
+        Returns
+        -------
+        Any
+            The value of the parameter.
+
+        Raises
+        ------
+        KeyError
+            If the key is not a valid parameter.
+        """
         if key not in self.PARAMS:
             raise KeyError(f"Invalid key {key}")
         return getattr(self.cam, key).GetValue()
 
     def __setitem__(self, key, value):
+        """
+        Set the value of a camera parameter.
+
+        Parameters
+        ----------
+        key : str
+            The name of the parameter to set.
+        value : Any
+            The value to set the parameter to.
+
+        Raises
+        ------
+        KeyError
+            If the key is not a valid parameter.
+        """
         if key not in self.PARAMS:
             raise KeyError(f"Invalid key {key}")
 
@@ -88,6 +156,9 @@ class PointGrey:
         getattr(self.cam, key).SetValue(value)
 
     def release(self):
+        """
+        Release the camera resources.
+        """
         self.cam.DeInit()
         del self.cam
         self.cam_list.Clear()
@@ -95,10 +166,26 @@ class PointGrey:
 
     @property
     def camera(self):
+        """
+        Get the camera instance.
+
+        Returns
+        -------
+        PySpin.Camera
+            The camera instance.
+        """
         return self.cam
 
     @property
     def img_size(self):
+        """
+        Get the image size.
+
+        Returns
+        -------
+        tuple
+            The height and width of the image.
+        """
         return (self.cam.Height.GetValue(), self.cam.Width.GetValue())
 
 
