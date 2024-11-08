@@ -108,10 +108,10 @@ width = int(args.width_to_spot_size_ratio * spot_size)
 if args.simulation:
     make_cam = asgard_alignment.Cameras.MockPointGrey(
         args.sim_fname,
-        100,
-        # "random",
-        "linear",
-        noise_level=0.0,
+        10,
+        "random",
+        # "linear",
+        noise_level=0.05,
     )
 else:
     make_cam = asgard_alignment.Cameras.PointGrey()
@@ -254,61 +254,92 @@ class App:
         self.root = root
         self.root.title("Strehl Ratio GUI")
 
+        font_large = ("Helvetica", 14)
+
         # Live Camera Stream
         self.camera_label = tk.Label(root)
-        self.camera_label.grid(row=0, column=0)
+        self.camera_label.grid(row=0, column=0, padx=10, pady=10)
         self.cap = make_cam
 
         # Zoomed-in Window
         self.zoomed_label = tk.Label(root)
-        self.zoomed_label.grid(row=0, column=1)
+        self.zoomed_label.grid(row=0, column=1, padx=10, pady=10)
 
         # Static Ideal Image
         self.ideal_label = tk.Label(root)
-        self.ideal_label.grid(row=0, column=2)
+        self.ideal_label.grid(row=0, column=2, padx=10, pady=10)
 
         # Strehl Ratio Label
-        self.strehl_label = tk.Label(root, text="Strehl Ratio (0 to 1)")
-        self.strehl_label.grid(row=1, column=0, columnspan=2)
+        self.strehl_label = tk.Label(
+            root, text="Strehl Ratio (0 to 1)", font=font_large
+        )
+        self.strehl_label.grid(row=1, column=0, columnspan=2, padx=10, pady=10)
 
         # Strehl Ratio Value
-        self.strehl_value_label = tk.Label(root, text="0.0")
-        self.strehl_value_label.grid(row=1, column=2)
+        self.strehl_value_label = tk.Label(root, text="0.0", font=font_large)
+        self.strehl_value_label.grid(row=1, column=2, padx=10, pady=10)
 
         # Strehl Ratio Bar
         self.strehl_bar = ttk.Progressbar(
             root, orient="horizontal", length=200, mode="determinate", maximum=1
         )
-        self.strehl_bar.grid(row=2, column=0, columnspan=2)
+        self.strehl_bar.grid(row=2, column=0, columnspan=3, padx=10, pady=10)
 
         # Max Value Label
-        self.max_value_label = tk.Label(root, text="Max Value (0 to 255)")
-        self.max_value_label.grid(row=3, column=0, columnspan=2)
+        self.max_value_label = tk.Label(
+            root, text="Max Value (0 to 255)", font=font_large
+        )
+        self.max_value_label.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
 
         # Max Value Value
-        self.max_value_value_label = tk.Label(root, text="0")
-        self.max_value_value_label.grid(row=3, column=2)
+        self.max_value_value_label = tk.Label(root, text="0", font=font_large)
+        self.max_value_value_label.grid(row=3, column=2, padx=10, pady=10)
 
         # Max Value Bar
         self.max_value_bar = ttk.Progressbar(
             root, orient="horizontal", length=200, mode="determinate", maximum=255
         )
-        self.max_value_bar.grid(row=4, column=0, columnspan=2)
+        self.max_value_bar.grid(row=4, column=0, columnspan=3, padx=10, pady=10)
 
         # Exposure Time Label
-        self.exposure_label = tk.Label(root, text="Exposure Time:")
-        self.exposure_label.grid(row=2, column=0)
+        self.exposure_label = tk.Label(root, text="Exposure Time:", font=font_large)
+        self.exposure_label.grid(row=5, column=0, padx=10, pady=10)
 
         # Exposure Time Entry
-        self.exposure_entry = tk.Entry(root)
-        self.exposure_entry.grid(row=2, column=1)
+        self.exposure_entry = tk.Entry(root, font=font_large)
+        self.exposure_entry.grid(row=5, column=1, padx=10, pady=10)
         self.exposure_entry.bind("<Return>", self.update_exposure_time)
 
         # Current Exposure Time Label
         self.current_exposure_label = tk.Label(
-            root, text=f"Current Exposure Time: {-2}"
+            root, text=f"Current Exposure Time: {-2}", font=font_large
         )
-        self.current_exposure_label.grid(row=2, column=2)
+        self.current_exposure_label.grid(row=5, column=2, padx=10, pady=10)
+
+        # Gain Label
+        self.gain_label = tk.Label(root, text="Gain:", font=font_large)
+        self.gain_label.grid(row=6, column=0, padx=10, pady=10)
+
+        # Gain Entry
+        self.gain_entry = tk.Entry(root, font=font_large)
+        self.gain_entry.grid(row=6, column=1, padx=10, pady=10)
+        self.gain_entry.bind("<Return>", self.update_gain)
+
+        # Current Gain Label
+        self.current_gain_label = tk.Label(
+            root, text=f"Current Gain: {self.cap['Gain']}", font=font_large
+        )
+        self.current_gain_label.grid(row=6, column=2, padx=10, pady=10)
+
+        # Rolling Average Checkbox
+        self.rolling_avg_var = tk.BooleanVar()
+        self.rolling_avg_check = tk.Checkbutton(
+            root, text="Rolling Average", variable=self.rolling_avg_var, font=font_large
+        )
+        self.rolling_avg_check.grid(row=7, column=0, columnspan=3, padx=10, pady=10)
+
+        self.strehl_values = []
+        self.max_values = []
 
         self.update()
 
@@ -322,6 +353,14 @@ class App:
         except ValueError:
             print("Invalid exposure time entered")
 
+    def update_gain(self, event):
+        try:
+            new_gain = float(self.gain_entry.get())
+            self.cap["Gain"] = new_gain
+            self.current_gain_label.config(text=f"Current Gain: {self.cap['Gain']}")
+        except ValueError:
+            print("Invalid gain entered")
+
     def update(self):
         scaling_factor = 0.2  # Adjust this factor to make the image smaller or larger
         frame = self.cap.get_frame()
@@ -333,11 +372,19 @@ class App:
 
         gray = frame
 
-        # try:
         strehl_ratio, max_loc = compute_strehl(frame)
-        # except:
-        #     strehl_ratio = -1.0
-        #     max_loc = (self.cap.img_size[0] // 2, self.cap.img_size[1] // 2)
+
+        if self.rolling_avg_var.get():
+            self.strehl_values.append(strehl_ratio)
+            self.max_values.append(max_val)
+
+            if len(self.strehl_values) > 10:
+                self.strehl_values.pop(0)
+            if len(self.max_values) > 10:
+                self.max_values.pop(0)
+
+            strehl_ratio = np.mean(self.strehl_values)
+            max_val = np.mean(self.max_values)
 
         self.strehl_bar["value"] = strehl_ratio
         self.strehl_value_label.config(text=f"{strehl_ratio:.2f}")
