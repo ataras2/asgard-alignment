@@ -248,6 +248,11 @@ class MockPointGrey:
             Standard deviation of Gaussian noise to add, by default 0.01.
         """
         self.image = plt.imread(image_path)
+        # normalise and convert to uint8
+        self.image = (self.image - self.image.min()) / (
+            self.image.max() - self.image.min()
+        )
+        self.image = (self.image * 255).astype(np.uint8)
         if self.image is None:
             raise ValueError("Image not found or unable to read.")
         self.n_samples = n_samples
