@@ -1,4 +1,7 @@
 
+# Documentation
+
+The documentation can be found at [https://asgard-alignment.readthedocs.io/en/latest/](https://asgard-alignment.readthedocs.io/en/latest/). In particular the `Script For Alignment` section is useful for running the scripts in this repository.
 
 # Useful commands
 
