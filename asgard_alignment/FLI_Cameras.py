@@ -2,7 +2,13 @@ import numpy as np
 import time
 import datetime
 import sys
+from pathlib import Path
+import os 
 from astropy.io import fits
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+
 sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
 import FliSdk_V2
 import FliCredOne
@@ -205,8 +211,19 @@ cred3_command_dict = {}
 
 class fli( ):
 
-    def __init__(self, cameraIndex=0 , roi=[None, None, None, None]):
+    def __init__(self, cameraIndex=0 , roi=[None, None, None, None], config_file_path = None):
         self.camera = FliSdk_V2.Init() # init camera object
+
+        if config_file_path is None:
+            # default
+            config_file_path = "config_files"
+             # get project root in way that also works in interactive shell (cannot use __file__)
+            project_root = Path.cwd()
+            while not (project_root / ".git").is_dir() and project_root != project_root.parent:
+                project_root = project_root.parent
+            self.config_file_path  = os.path.join( project_root,  config_file_path )
+        else:
+            self.config_file_path = config_file_path 
         self.dark = [] 
         self.bias = []
         self.flat = []
@@ -267,7 +284,7 @@ class fli( ):
         return val 
     
 
-    def display_camera_commands(self):
+    def print_camera_commands(self):
         """Prints all available commands and their descriptions in a readable format."""
         print('Available Camera Commands with "send_fli_cmd()" method:')
         print("=" * 30)
@@ -275,6 +292,24 @@ class fli( ):
             print(f"{command}: {description}")
         print("=" * 30)
 
+
+    def configure_camera( self, config_file , sleep_time = 0.2):
+        """
+        config_file must be json and follow convention
+        that the cameras firmware CLI accepts the command
+        > "set {k} {v}"
+        where k is the config file key and v is the value
+        """
+        with open( config_file, "r") as file:
+            camera_config = json.load(file)  # Parses the JSON content into a Python dictionary
+
+        for k, v in camera_config.items():
+            time.sleep( sleep_time )
+            ok , _  = self.send_fli_cmd( f"set {k} {v}")
+            if not ok :
+                print( f"FAILED FOR set {k} {v}")
+
+        
     # basic wrapper functions
     def start_camera(self):
         ok = FliSdk_V2.Start(self.camera)
@@ -292,18 +327,28 @@ class fli( ):
     
 
     def get_camera_config(self):
-        config_dict = {
-            'mode':self.send_fli_cmd('mode raw' )[1], 
-            'fps': self.send_fli_cmd('fps raw' )[1],
-            'gain': self.send_fli_cmd('gain raw' )[1],
-            "cropping_state": self.send_fli_cmd('cropping raw' )[1],
-            "reset_width":self.send_fli_cmd('resetwidth raw' )[1],
-            "aduoffset":self.send_fli_cmd( 'aduoffset raw' )[1],
-            "resetwidth":self.send_fli_cmd( "resetwidth raw")[1]
-        } 
-        return( config_dict  )
+        # config_dict = {
+        #     'mode':self.send_fli_cmd('mode raw' )[1], 
+        #     'fps': self.send_fli_cmd('fps raw' )[1],
+        #     'gain': self.send_fli_cmd('gain raw' )[1],
+        #     "cropping_state": self.send_fli_cmd('cropping raw' )[1],
+        #     "reset_width":self.send_fli_cmd('resetwidth raw' )[1],
+        #     "aduoffset":self.send_fli_cmd( 'aduoffset raw' )[1],
+        #     "resetwidth":self.send_fli_cmd( "resetwidth raw")[1]
+        # } 
 
+        # read in default_cred1_config
 
+         
+        # open the default config file to get the keys 
+        with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
+            default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
+
+        config_dict = {}
+        for k, v in default_cred1_config.items():
+            config_dict[k] = self.send_fli_cmd( f"{k} raw" )[1].strip() # reads the state
+        return( config_dict )
+     
 
     # some custom functions
 
@@ -314,7 +359,7 @@ class fli( ):
         fps = float( self.send_fli_cmd( "fps")[1] )
         #dark_fullframe_list = []
         dark_list = []
-        for _ in range(no_frame):
+        for _ in range(no_frames):
             time.sleep(1/fps)
             dark_list.append( self.get_image(apply_manual_reduction  = False) )
             #dark_fullframe_list.append( self.get_image_in_another_region() ) 
@@ -442,7 +487,7 @@ class fli( ):
                 timeout_flag = 1 
                 raise TypeError('timeout! timeout_counter > 10000')
 
-            full_img = self.get_image_in_another_region() # we can also specify region (#zwfs.get_image_in_another_region([0,1,0,4]))
+            full_img = self.get_image_in_another_region() # empty argunment for full frame
             current_frame_number = full_img[0][0] #previous_frame_number
             if i==0:
                 previous_frame_number = current_frame_number
@@ -463,10 +508,11 @@ class fli( ):
         print('to do - many ways to do this')
 
 
-    # ensures we exit safely
+    # ensures we exit safely and set gain to unity
     def __del__(self):
         # Cleanup when object is deleted
         if hasattr(self, 'camera') and self.camera is not None:
+            self.send_fli_cmd( "set gain 1" )
             FliSdk_V2.Exit(self.camera)
             print("Camera SDK exited cleanly.")
 
@@ -483,7 +529,7 @@ if __name__ == "__main__":
     #    - rolling versions of these modes (set mode rollingresetsingle)
     # see section 7. Camera Operating Modes from C-RED 1 user manual
     """
-    data_path = '~/Downloads/'
+    data_path = '/home/heimdallr/Downloads/'
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     roi = [None, None, None, None] # No region of interest
     
@@ -491,47 +537,29 @@ if __name__ == "__main__":
     c = fli(cameraIndex=0, roi=roi)
 
     # print the camera commands available in send_fli_cmd method
-    c.display_camera_commands()
+    c.print_camera_commands()
 
     # set up 
-    setup_cmd_list = [
-        "set mode globalresetsingle"
-        "set cropping off",
-        "set imagetag on",
-        "set fps 100",
-        "set gain 1",
-        "set bias off",
-        "set flat off",
-        "set testpattern off"
-        "set rawimages on"
-    ]
+    config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
+    c.configure_camera( config_file_name )
 
-    for cmd in setup_cmd_list:
-        print( f'setting {cmd}')
-        ok , _ = c.send_fli_cmd( cmd )
-        time.sleep(0.5)
-        if not ok : 
-            print( f'failed setup command {cmd}')
+    #FliSdk_V2.Update(c.camera)
 
-    FliSdk_V2.Update(c.camera)
-    print( c.send_fli_cmd( "status" ) )
-
+    # start
     ok = c.start_camera()
 
-    FliSdk_V2.GetRawImageAsNumpyArray( c.camera , -1)
-    
-    # don't seem to be recieving frames..
-    print( FliSdk_V2.GetImageReceivedRate(c.camera) )
-    # why?
-    print( c.send_fli_cmd(  "resetwidth" ) )
+    print( c.send_fli_cmd( "status" ) )
+    print("GetImageReceivedRate:", FliSdk_V2.GetImageReceivedRate(c.camera) )
 
 
     dark_dict = {}
-    gain_grid = np.linspace(1, 20, 5)
+    gain_grid = np.linspace(1, 100, 5)
     fps_grid = np.logspace(2, 3.5, 5)
     number_of_frames = 500
-    for gain in gain_grid:
-                
+    for cnt, gain in enumerate( gain_grid ):
+        
+        print( f"{cnt / len( gain_grid )}% complete" )
+
         c.send_fli_cmd( f"set gain {gain}" )
         time.sleep(0.2)
 
@@ -544,16 +572,72 @@ if __name__ == "__main__":
 
             dark_dict[gain][fps] =  c.get_some_frames(number_of_frames=number_of_frames,\
                                                         apply_manual_reduction=False, timeout_limit = 20000)  
+    ok = c.start_camera()
 
-    #FliSdk_V2.GetRawImageAsNumpyArray( c.camera , -1)
+
+    #################
+    # Plots
+    #################
+
+    # Initialize lists to store results for plotting
+    mean_pixel_values = {}
+    std_pixel_values = {}
+
+    # Extract mean and standard deviation for each gain and fps setup
+    for gain, fps_dict in dark_dict.items():
+        mean_pixel_values[gain] = []
+        std_pixel_values[gain] = []
+        
+        for fps, frames in fps_dict.items():
+            # Compute mean pixel value across all frames and store
+            mean_pixel = np.mean([np.mean(frame) for frame in frames])
+            mean_pixel_values[gain].append((fps, mean_pixel))
+            
+            # Compute standard deviation across all frames and store
+            std_pixel = np.mean([np.std(frame) for frame in frames])
+            std_pixel_values[gain].append((fps, std_pixel))
+
+    # plot 0: check an image 
+    plt.figure()
+    gain = gain_grid[-1]
+    fps = fps_grid[0]
+    plt.imshow( np.mean( dark_dict[gain][fps] ,axis=0 ) )
+    plt.colorbar()
+    plt.savefig('delme.png')
+
+    # Plot 1: Mean pixel value vs. frame rate for different gain settings
+    plt.figure(figsize=(10, 6))
+    for gain, values in mean_pixel_values.items():
+        fps_values, mean_values = zip(*values)
+        plt.plot(fps_values, mean_values, marker='o', label=f'Gain {gain}')
+    plt.xscale('log')
+    plt.xlabel('Frame Rate (fps)')
+    plt.ylabel('Mean Pixel Value')
+    plt.title('Mean Pixel Value vs Frame Rate for Different Gains')
+    plt.legend()
+    plt.savefig('delme.png')
+
+    # Plot 2: Standard deviation of pixel values vs. frame rate for different gain settings
+    plt.figure(figsize=(10, 6))
+    for gain, values in std_pixel_values.items():
+        fps_values, std_values = zip(*values)
+        plt.plot(fps_values, std_values, marker='o', label=f'Gain {gain}')
+    plt.xscale('log')
+    plt.xlabel('Frame Rate (fps)')
+    plt.ylabel('Standard Deviation of Pixel Value')
+    plt.title('Pixel Value Standard Deviation vs Frame Rate for Different Gains')
+    plt.legend()
+    plt.savefig('delme.png')
 
     #################
     # Save
     #################
-    hdulist = fits.HDUList([])
+
     for gain, nested_dict in dark_dict.items():
-        
-        for fps, frames in nested_dict:
+        print( gain )
+
+        for fps, frames in nested_dict.items():
+            hdulist = fits.HDUList([])
             # Convert list to numpy array for FITS compatibility
             data_array = np.array(frames, dtype=float)  # Ensure it is a float array or any appropriate type
 
@@ -564,10 +648,12 @@ if __name__ == "__main__":
             hdu.header['EXTNAME'] = f'FPS-{round(fps,1)}_GAIN-{round(gain,1)}'
             hdu.header['fps'] = fps
             hdu.header['gain'] = gain
+            hdu.header['config'] = config_file_name
             # Append the HDU to the HDU list
             hdulist.append(hdu)
 
-    hdulist.writeto(data_path + f'dark_series_{tstamp}.fits', overwrite=True)
+            # 
+            hdulist.writeto(data_path + f'dark_FPS-{round(fps,1)}__GAIN-{round(gain,1)}_{tstamp}.fits', overwrite=True)
 
 
 
