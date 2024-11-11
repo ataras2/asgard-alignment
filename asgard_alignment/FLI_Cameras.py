@@ -21,6 +21,30 @@ from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage
 from astropy.io import fits
 
+"""
+FLI_Cameras Module
+
+This module provides an wrapped interface for controlling First Light Imaging (FLI) cameras,
+The module supports multiple FLI camera types, including C-RED One, Two, and Three, and
+offers methods for camera configuration, command execution, and image acquisition.
+
+Example Usage:
+```python
+from FLI_Cameras import fli
+
+# Initialize and configure the camera
+camera = fli(cameraIndex=0)
+camera.configure_camera("path/to/config.json")
+camera.start_camera()
+
+# Capture an image with reductions applied
+image = camera.get_image(apply_manual_reduction=True)
+
+# Save frames to a FITS file
+camera.save_fits("output.fits", number_of_frames=10)
+"""
+
+
 #list of vailable commands for the 
 #send_fli_cmd() method based on C-RED One User Manual_20170116v0.2
 cred1_command_dict = {
