@@ -9,11 +9,17 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
 import FliSdk_V2
 import FliCredOne
 import FliCredTwo
 import FliCredThree
+
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
+from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QPixmap, QImage
+from astropy.io import fits
 
 #list of vailable commands for the 
 #send_fli_cmd() method based on C-RED One User Manual_20170116v0.2
@@ -224,11 +230,11 @@ class fli( ):
             self.config_file_path  = os.path.join( project_root,  config_file_path )
         else:
             self.config_file_path = config_file_path 
-        self.dark = [] 
-        self.bias = []
-        self.flat = []
-        self.reduction_dict = {'bias':[], 'dark':[],'flat':[]}
-        self.bad_pixel_mask = []
+        #self.dark = [] 
+        #self.bias = []
+        #self.flat = []
+        self.reduction_dict = {'bias':[], 'dark':[],'flat':[],'bad_pixel_mask':[]}
+        #self.bad_pixel_mask = []
         self.pupil_crop_region = roi # region of interest where we crop (post readout)
 
         listOfGrabbers = FliSdk_V2.DetectGrabbers(self.camera)
@@ -303,8 +309,26 @@ class fli( ):
         with open( config_file, "r") as file:
             camera_config = json.load(file)  # Parses the JSON content into a Python dictionary
 
+        # check if in standby 
+        if self.send_fli_cmd( 'standby raw' )[1] == 'on':
+            try :
+                self.send_fli_cmd( f"set standby on" )
+            except:
+                raise UserWarning( "---\ncamera in standby mode and the fli command 'set standby off' failed\n " )
+        
         for k, v in camera_config.items():
             time.sleep( sleep_time )
+
+            # for some reason set stanby mode timesout
+            # if setting to the same state - so we manually check
+            # before sending the command
+            if 'standby' in k:
+                if v != self.send_fli_cmd( 'standby raw' )[1]:
+                    ok , _  = self.send_fli_cmd( f"set {k} {v}")
+                    if not ok :
+                        print( f"FAILED FOR set {k} {v}")
+
+
             ok , _  = self.send_fli_cmd( f"set {k} {v}")
             if not ok :
                 print( f"FAILED FOR set {k} {v}")
@@ -356,46 +380,52 @@ class fli( ):
         
         # full frame variables here were used in previous rtc. 
         # maybe redundant now. 
-        fps = float( self.send_fli_cmd( "fps")[1] )
+        #fps = float( self.send_fli_cmd( "fps")[1] )
         #dark_fullframe_list = []
-        dark_list = []
-        for _ in range(no_frames):
-            time.sleep(1/fps)
-            dark_list.append( self.get_image(apply_manual_reduction  = False) )
-            #dark_fullframe_list.append( self.get_image_in_another_region() ) 
-
+        
+        #dark_list = []
+        #for _ in range(no_frames):
+        #    time.sleep(1/fps)
+        #    dark_list.append( self.get_image(apply_manual_reduction  = False) )
+        #    #dark_fullframe_list.append( self.get_image_in_another_region() ) 
+        print('...getting frames')
+        dark_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
+        print('...aggregating frames')
         dark = np.median(dark_list ,axis = 0).astype(int)
         # dark_fullframe = np.median( dark_fullframe_list , axis=0).astype(int)
 
         if len( self.reduction_dict['bias'] ) > 0:
+            print('...applying bias')
             dark -= self.reduction_dict['bias'][0]
 
         #if len( self.reduction_dict['bias_fullframe']) > 0 :
         #    dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
-        #self.reduction_dict['dark'].append( dark )
+        print('...appending dark')
+        self.reduction_dict['dark'].append( dark )
         #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
 
 
 
-    def get_bad_pixel_indicies( self, no_frames = 1000, std_threshold = 100 , flatten=False):
+    def get_bad_pixel_indicies( self, no_frames = 100, std_threshold = 100 , flatten=False):
         # To get bad pixels we just take a bunch of images and look at pixel variance 
-        self.enable_frame_tag( True )
+        #self.enable_frame_tag( True )
         time.sleep(0.5)
         #zwfs.get_image_in_another_region([0,1,0,4])
-        i=0
-        dark_list = []
-        while len( dark_list ) < no_frames: # poll 1000 individual images
-            full_img = self.get_image_in_another_region() # we can also specify region (#zwfs.get_image_in_another_region([0,1,0,4]))
-            current_frame_number = full_img[0][0] #previous_frame_number
-            if i==0:
-                previous_frame_number = current_frame_number
-            if current_frame_number > previous_frame_number:
-                if current_frame_number == 65535:
-                    previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
-                else:
-                    previous_frame_number = current_frame_number 
-                    dark_list.append( self.get_image( apply_manual_reduction  = False) )
-            i+=1
+        
+        dark_list = self.get_some_frames( number_of_frames = no_frames , apply_manual_reduction  = False  ) #[]
+        #i=0
+        # while len( dark_list ) < no_frames: # poll 1000 individual images
+        #     full_img = self.get_image_in_another_region() # we can also specify region (#zwfs.get_image_in_another_region([0,1,0,4]))
+        #     current_frame_number = full_img[0][0] #previous_frame_number
+        #     if i==0:
+        #         previous_frame_number = current_frame_number
+        #     if current_frame_number > previous_frame_number:
+        #         if current_frame_number == 65535:
+        #             previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
+        #         else:
+        #             previous_frame_number = current_frame_number 
+        #             dark_list.append( self.get_image( apply_manual_reduction  = False) )
+        #     i+=1
         dark_std = np.std( dark_list ,axis=0)
         # define our bad pixels where std > 100 or zero variance
         #if not flatten:
@@ -504,8 +534,40 @@ class fli( ):
         return( ref_img_list )  
 
 
-    def save_fits() :
-        print('to do - many ways to do this')
+    def save_fits( self , fname ,  number_of_frames=10, apply_manual_reduction=True ):
+
+        hdulist = fits.HDUList([])
+
+        frames = self.get_some_frames( number_of_frames=number_of_frames, apply_manual_reduction=apply_manual_reduction,timeout_limit=20000)
+        
+        # Convert list to numpy array for FITS compatibility
+        data_array = np.array(frames, dtype=float)  # Ensure it is a float array or any appropriate type
+
+        # Create a new ImageHDU with the data
+        hdu = fits.ImageHDU( np.array(frames) )
+
+        # Set the EXTNAME header to the variable name
+        hdu.header['EXTNAME'] = 'FRAMES'
+        #hdu.header['config'] = config_file_name
+
+        config_tmp = self.get_camera_config()
+        for k, v in config_tmp.items():
+            hdu.header[k] = v
+        # Append the HDU to the HDU list
+        hdulist.append(hdu)
+
+        # append reduction info
+        for k, v in self.reduction_dict.items():
+            if len(v) > 0 :
+                hdu = fits.ImageHDU( v[-1] )
+                hdu.header['EXTNAME'] = k
+                hdulist.append(hdu)
+            else: # we just append empty list to show that its empty!
+                hdu = fits.ImageHDU( v )
+                hdu.header['EXTNAME'] = k
+                hdulist.append(hdu)
+
+        hdulist.writeto(fname, overwrite=True)
 
 
     # ensures we exit safely and set gain to unity
@@ -518,8 +580,9 @@ class fli( ):
 
 
 
+
 if __name__ == "__main__":
-    """
+    
     # example to get series of darks in different modes
     # and save as fits 
     # camera operating modes are 
@@ -528,13 +591,13 @@ if __name__ == "__main__":
     #    - multiple non-destructive reads (set mode globalresetbursts)
     #    - rolling versions of these modes (set mode rollingresetsingle)
     # see section 7. Camera Operating Modes from C-RED 1 user manual
-    """
+    
     data_path = '/home/heimdallr/Downloads/'
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     roi = [None, None, None, None] # No region of interest
-    
+    aduoffset = 100 # to avoid overflow with negative
     # init camera
-    c = fli(cameraIndex=0, roi=roi)
+    c = fli(cameraIndex=0, roi=[100,200,100,200])
 
     # print the camera commands available in send_fli_cmd method
     c.print_camera_commands()
@@ -542,7 +605,7 @@ if __name__ == "__main__":
     # set up 
     config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
     c.configure_camera( config_file_name )
-
+    c.send_fli_cmd( "set aduoffset 100")
     #FliSdk_V2.Update(c.camera)
 
     # start
@@ -551,6 +614,9 @@ if __name__ == "__main__":
     print( c.send_fli_cmd( "status" ) )
     print("GetImageReceivedRate:", FliSdk_V2.GetImageReceivedRate(c.camera) )
 
+    # c.build_manual_dark()
+    #f = c.get_some_frames( number_of_frames=10, apply_manual_reduction=True)
+    #c.save_fits('/home/heimdallr/Downloads/test_imgs.fits', number_of_frames=10, apply_manual_reduction=True )
 
     dark_dict = {}
     gain_grid = np.linspace(1, 100, 5)
@@ -637,6 +703,8 @@ if __name__ == "__main__":
         print( gain )
 
         for fps, frames in nested_dict.items():
+
+            # do one at a time (seems to die if I append too much!)
             hdulist = fits.HDUList([])
             # Convert list to numpy array for FITS compatibility
             data_array = np.array(frames, dtype=float)  # Ensure it is a float array or any appropriate type
@@ -646,15 +714,15 @@ if __name__ == "__main__":
 
             # Set the EXTNAME header to the variable name
             hdu.header['EXTNAME'] = f'FPS-{round(fps,1)}_GAIN-{round(gain,1)}'
-            hdu.header['fps'] = fps
-            hdu.header['gain'] = gain
             hdu.header['config'] = config_file_name
+
+            config_tmp = c.get_camera_config()
+            for k, v in config_tmp.items():
+                hdu.header[k] = v
             # Append the HDU to the HDU list
             hdulist.append(hdu)
 
             # 
             hdulist.writeto(data_path + f'dark_FPS-{round(fps,1)}__GAIN-{round(gain,1)}_{tstamp}.fits', overwrite=True)
-
-
 
 
