@@ -219,7 +219,7 @@ class AOControlApp(QtWidgets.QWidget):
                 self.prompt_history.append("Image cut ranges updated based on current image.")
             else:
                 response = self.camera.send_fli_cmd(command)
-                self.prompt_history.append("Command executed.")
+                self.prompt_history.append(f"Command executed. Reply:\n{response}")
         except Exception as e:
             self.prompt_history.append(f"Error: {str(e)}")
     
