@@ -615,6 +615,8 @@ if __name__ == "__main__":
     print("GetImageReceivedRate:", FliSdk_V2.GetImageReceivedRate(c.camera) )
 
     # c.build_manual_dark()
+    #bp = c.get_bad_pixel_indicies( no_frames = 100, std_threshold = 100 , flatten=False)
+    # c.a
     #f = c.get_some_frames( number_of_frames=10, apply_manual_reduction=True)
     #c.save_fits('/home/heimdallr/Downloads/test_imgs.fits', number_of_frames=10, apply_manual_reduction=True )
 
@@ -724,5 +726,6 @@ if __name__ == "__main__":
 
             # 
             hdulist.writeto(data_path + f'dark_FPS-{round(fps,1)}__GAIN-{round(gain,1)}_{tstamp}.fits', overwrite=True)
+
 
 

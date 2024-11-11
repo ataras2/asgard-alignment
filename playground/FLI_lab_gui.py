@@ -252,6 +252,7 @@ class AOControlApp(QtWidgets.QWidget):
 
     def save_images(self):
         self.timer.stop()
+        self.camera.start_camera() # gui freezes if camera is off 
         apply_manual_reduction = self.reduce_image_checkbox.isChecked()
         file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Images", "", "Image Files (*.fits)")
         self.camera.save_fits(fname=file_name, number_of_frames=10, apply_manual_reduction=apply_manual_reduction)
@@ -259,11 +260,13 @@ class AOControlApp(QtWidgets.QWidget):
 
     def build_dark(self):
         self.timer.stop()
+        self.camera.start_camera() # gui freezes if camera is off 
         self.camera.build_manual_dark(no_frames=100)
         self.timer.start(100)
 
     def get_bad_pixels(self):
         self.timer.stop()
+        self.camera.start_camera() # gui freezes if camera is off 
         bad_pixels = self.camera.get_bad_pixel_indicies(no_frames=100, std_threshold=100, flatten=False)
         self.camera.build_bad_pixel_mask(bad_pixels=bad_pixels, set_bad_pixels_to=0)
         self.timer.start(100)
