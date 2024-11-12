@@ -1,15 +1,19 @@
 import asgard_alignment
 import json
+import sys
 import pyvisa
 import serial.tools.list_ports
 import sys
-
+import pandas as pd 
 from zaber_motion.ascii import Connection
 
 import asgard_alignment.ESOdevice
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 
+# SDK for DM 
+sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
+import bmc
 
 class Instrument:
     """
@@ -116,6 +120,20 @@ class Instrument:
         """
         if name not in self._config_dict:
             raise ValueError(f"{name} is not in the config file")
+        
+        if self._config_dict[name]["motor_type"] == "deformable_mirror":
+            serial_number = self._config_dict[name].get("serial_number")
+
+            # Load flat map and initialize DM
+            dm = bmc.BmcDm()
+            if dm.open_dm(serial_number) != 0:
+                print(f"Failed to connect to DM with serial number {serial_number}")
+                return False
+            flat_map_file = self._config_dict[name]["flat_map_file"]
+            flat_map = pd.read_csv(flat_map_file, header=None)[0].values
+            self._devices[name] = {"dm": dm, "flat_map": flat_map}
+            #print(f"Connected to {name} with serial {serial_number}")
+            return True
 
         if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
             # this is a newport motor USB connection, create a newport motor

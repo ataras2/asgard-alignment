@@ -50,6 +50,7 @@ beam_specific_devices = [
     "BDS",
     "BMX",
     "BMY",
+    "DM",
 ]
 
 beam_common_devices = [
@@ -61,6 +62,28 @@ beam_common_devices = [
 ]
 
 all_devices = beam_common_devices + beam_specific_devices
+
+
+def handle_deformable_mirror():
+    # Add a subheader for Deformable Mirror (DM) control
+    st.subheader("Deformable Mirror (DM) Control")
+
+    # Dropdown for selecting the DM
+    # dm_name = st.selectbox(
+    #     "Select DM",
+    #     ["DM1", "DM2", "DM3", "DM4"],  # Assuming DM names from your config
+    #     key="dm_name",
+    # )
+
+    # Button to apply the flat map to the selected DM
+    if st.button("Apply Flat Map"):
+        for target in targets:
+            message = f"!dmapplyflat {target}"
+            response = send_and_get_response(message)
+            if "ACK" in response:
+                st.success(f"Flat map successfully applied to {target}")
+            else:
+                st.error(f"Failed to apply flat map to {target}. Response: {response}")
 
 
 def send_and_get_response(message):
@@ -486,6 +509,9 @@ with col_main:
 
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
             handle_linear_actuator()
+
+        elif component in ['DM1', 'DM2', 'DM3', 'DM4']:
+            handle_deformable_mirror()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here

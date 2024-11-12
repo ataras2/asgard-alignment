@@ -17,7 +17,7 @@ import atexit
 
 # Load predefined shapes and DM serial numbers
 ## >>>> ADAM - YOU WILL NEED TO UPDATE THIS DICTIONARY WITH THE CORRECT SERIAL NUMBERS FOR YOUR DMs <<<<<< 
-DM_serial_number_dict = {'1':'17DW019#113', '2': '17DW019#053', '3': '17DW019#122', '4':'17DW019#122'}# {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  
+DM_serial_number_dict = {"1": "17DW019#113", "2": "17DW019#053", "3": "17DW019#093","4": "17DW019#122"}# {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  
 DMshapes_path = 'DMShapes/'
 
 crosshair = pd.read_csv(DMshapes_path + 'Crosshair140.csv', header=None)[0].values

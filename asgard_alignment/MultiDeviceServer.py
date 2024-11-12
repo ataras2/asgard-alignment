@@ -200,6 +200,23 @@ class MultiDeviceServer:
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
 
+        def apply_flat_msg(dm_name):
+            if dm_name not in self.instr.devices:
+                return f"NACK: DM {dm_name} not found"
+
+            # Retrieve the DM instance and its flat map
+            dm_device = self.instr.devices[dm_name]
+            #dm = dm_device["dm"]
+            #flat_map = dm_device["flat_map"]
+
+            # Apply the flat map to the DM
+            dm_device["dm"].send_data(dm_device["flat_map"])
+
+            print(f"Flat map applied to {dm_name}")
+            return f"ACK: Flat map applied to {dm_name}"
+
+
+
         patterns = {
             "!read {}": read_msg,
             "!stop {}": stop_msg,
@@ -209,6 +226,7 @@ class MultiDeviceServer:
             "!init {}": init_msg,
             "!moverel {} {:f}": moverel_msg,
             "!state {}": state_msg,
+            "!dmapplyflat {}": apply_flat_msg,
         }
 
         try:
