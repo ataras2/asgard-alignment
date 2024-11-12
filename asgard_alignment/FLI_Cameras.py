@@ -493,10 +493,12 @@ class fli( ):
         # I do not check if the camera is running. Users should check this 
         # gets the last image in the buffer
         if not apply_manual_reduction:
-            img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         else :
-            img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
 
             if len( self.reduction_dict['bias'] ) > 0:
@@ -518,7 +520,8 @@ class fli( ):
         # useful if we want to look outside of the region of interest 
         # defined by self.pupil_crop_region
 
-        img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+        #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+        img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
         cropped_img = img[crop_region[0]:crop_region[1],crop_region[2]: crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         
         #if type( self.pixelation_factor ) == int : 
