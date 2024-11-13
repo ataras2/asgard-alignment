@@ -69,7 +69,7 @@ c.configure_camera( config_file_name )
 # define our data grid 
 mode_grid = ['globalresetsingle', 'globalresetcds']#, 'globalresetbursts','rollingresetsingle','rollingresetcds','rollingresetnro']
 fps_grid = [25, 50, 100, 1000, 3000]
-gain_grid = [1,10,20,40]
+gain_grid = [1,5,10,20] #,40]
 
 #################
 # Run 
