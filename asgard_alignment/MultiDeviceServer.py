@@ -236,7 +236,7 @@ class MultiDeviceServer:
                     return func(*result)
         except Exception as e:
             return f"NACK: {e}"
-        return "NACK: Unkown custom command"
+        return "NACK: Unknown custom command"
 
 
 if __name__ == "__main__":
