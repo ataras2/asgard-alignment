@@ -64,28 +64,6 @@ beam_common_devices = [
 all_devices = beam_common_devices + beam_specific_devices
 
 
-def handle_deformable_mirror():
-    # Add a subheader for Deformable Mirror (DM) control
-    st.subheader("Deformable Mirror (DM) Control")
-
-    # Dropdown for selecting the DM
-    # dm_name = st.selectbox(
-    #     "Select DM",
-    #     ["DM1", "DM2", "DM3", "DM4"],  # Assuming DM names from your config
-    #     key="dm_name",
-    # )
-
-    # Button to apply the flat map to the selected DM
-    if st.button("Apply Flat Map"):
-        for target in targets:
-            message = f"!dmapplyflat {target}"
-            response = send_and_get_response(message)
-            if "ACK" in response:
-                st.success(f"Flat map successfully applied to {target}")
-            else:
-                st.error(f"Failed to apply flat map to {target}. Response: {response}")
-
-
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
     st.session_state["message_history"].append(
@@ -103,6 +81,57 @@ def send_and_get_response(message):
     )
 
     return response.strip()
+
+
+def handle_deformable_mirror():
+
+    if "dm_targets" not in st.session_state:
+        if not targets:
+            st.session_state["dm_targets"] = []
+        else:
+            st.session_state["dm_targets"] = [target for target in targets]  
+
+    if "dm_last_command" not in st.session_state:
+        st.session_state["dm_last_command"] = None  # To store the last DM command
+
+    if "dm_apply_flat_map" not in st.session_state:
+        st.session_state["dm_apply_flat_map"] = False  # Track if Flat Map is applied
+
+
+    # Add a subheader for Deformable Mirror (DM) control
+    st.subheader("Deformable Mirror (DM) Control")
+
+    # Dropdown for selecting the DM
+    # dm_name = st.selectbox(
+    #     "Select DM",
+    #     ["DM1", "DM2", "DM3", "DM4"],  # Assuming DM names from your config
+    #     key="dm_name",
+    # )
+
+    # Button to apply the flat map to the selected DM
+    # s_col1, s_col2, s_col3 = st.columns(3)
+
+    # with s_col1:
+    # st.button("Apply Flat Map")
+    if st.button("Apply Flat Map"):
+        st.session_state["dm_apply_flat_map"] = True
+        
+        if not targets:
+            st.error("No targets specified.")
+
+        for target in targets:
+            message = f"!dmapplyflat {target}"
+            response = send_and_get_response(message)
+            if "ACK" in response:
+                st.success(f"Flat map successfully applied to {target}")
+            else:
+                st.error(f"Failed to apply flat map to {target}. Response: {response}")
+    
+        st.session_state["dm_last_command"] = "Apply Flat Map"
+    # with s_col2:
+    #     pass
+    # with s_col3:
+    #     pass
 
 
 def handle_linear_stage():
@@ -510,7 +539,7 @@ with col_main:
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
             handle_linear_actuator()
 
-        elif component in ['DM1', 'DM2', 'DM3', 'DM4']:
+        elif component in ["DM"]:#  , "DM2", "DM3", "DM4"]:
             handle_deformable_mirror()
 
     elif operating_mode == "Routines":
