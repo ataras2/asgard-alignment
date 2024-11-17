@@ -10,6 +10,7 @@ from zaber_motion.ascii import Connection
 import asgard_alignment.ESOdevice
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
+import asgard_alignment.Baldr_phasemask
 
 # SDK for DM 
 sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
@@ -54,6 +55,8 @@ class Instrument:
         self._config = self._read_motor_config(config_pth)
         self._config_dict = {component["name"]: component for component in self._config}
 
+
+        
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
 
@@ -73,6 +76,40 @@ class Instrument:
         A dictionary of devices with the device name as the key
         """
         return self._devices
+
+
+    def _create_phasemask_wrapper(self):
+        """
+        wraps the phasemask x,y motors into a specific Baldr_phasemask class that has 
+        unique read/write update commands to update all phasemask positions
+        based on the current one
+        """
+        for beam in [1,2,3,4]:
+            if (f'BMX{beam}' not in self.devices) or (f'BMY{beam}' not in self.devices) :
+                print( f"don't have both phasemasks: (BMX in devices = {(f'BMX{beam}' not in self.devices)}, BMY in devices = {(f'BMX{beam}' not in self.devices)}")
+                # Prompt the user for input
+                user_input = input("Type 'y' to continue, or 'n' to stop the program: ").strip().lower()
+                
+                if user_input == 'n':
+                    print("Stopping the program as requested.")
+                    sys.exit(0)  # Exit the program
+                elif user_input == 'y':
+                    print("Continuing the program...")
+                else:
+                    print("Invalid input. Assuming continuation.")
+            else:
+                # try to find if configuration file provided in config file
+
+                # if not try find the most recent in a predefined folder
+
+                # otherwise raise error - we do not want to deal with case where we don't have on 
+
+                self.devices['phasemask{beam}'] = asgard_alignment.Baldr_phasemask( 
+                    self.devices['BMX{beam}'],
+                    self.devices['BMY{beam}'],
+                    phase_positions_json = 
+                    
+                )
 
     def _create_controllers_and_motors(self):
         """
