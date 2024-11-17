@@ -620,48 +620,58 @@ with col_main:
                         key="increment",
                     )
 
-                # four buttons in a 2x2 grid for each direction
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Up {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, 0, increment, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, 0, increment, send_and_get_response, config
-                            )
+                if move_what == "move_image":
+                    move_function = asgard_alignment.Engineering.move_image
+                elif move_what == "move_pupil":
+                    move_function = asgard_alignment.Engineering.move_pupil
+                else:
+                    raise ValueError("Invalid move_what")
 
-                    if st.button(f"Down {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, 0, -increment, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, 0, -increment, send_and_get_response, config
-                            )
+                pos_x = lambda: move_function(
+                    beam, increment, 0, send_and_get_response, config
+                )
+                pos_y = lambda: move_function(
+                    beam, 0, increment, send_and_get_response, config
+                )
+                neg_x = lambda: move_function(
+                    beam, -increment, 0, send_and_get_response, config
+                )
+                neg_y = lambda: move_function(
+                    beam, 0, -increment, send_and_get_response, config
+                )
 
-                with col2:
-                    if st.button(f"Left {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, -increment, 0, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, -increment, 0, send_and_get_response, config
-                            )
-                    if st.button(f"Right {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, increment, 0, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, increment, 0, send_and_get_response, config
-                            )
+                # make a 3x3 grid but only use the up, down, left and right
+
+                ul, um, ur = st.columns(3)
+                ml, mm, mr = st.columns(3)
+                ll, lm, lr = st.columns(3)
+
+                if move_what == "move_image":
+                    with um:
+                        if st.button(f"-y: {increment:.2f}"):
+                            neg_y()
+                    with lm:
+                        if st.button(f"+y: {increment:.2f}"):
+                            neg_y()
+                    with ml:
+                        if st.button(f"-x: {increment:.2f}"):
+                            neg_x()
+                    with mr:
+                        if st.button(f"+x: {increment:.2f}"):
+                            pos_x()
+                elif move_what == "move_pupil":
+                    with um:
+                        if st.button(f"+y: {increment:.2f}"):
+                            neg_y()
+                    with lm:
+                        if st.button(f"-y: {increment:.2f}"):
+                            neg_y()
+                    with ml:
+                        if st.button(f"-x: {increment:.2f}"):
+                            neg_x()
+                    with mr:
+                        if st.button(f"+x: {increment:.2f}"):
+                            pos_x()
 
             if move_what == "move_image":
                 if config == "c_red_one_focus":
