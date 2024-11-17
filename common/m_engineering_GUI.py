@@ -673,6 +673,13 @@ with col_main:
                         if st.button(f"+x: {increment:.2f}"):
                             pos_x()
 
+            # also show the state of all of the motors involved
+            axes = [f"HTTP{beam}", f"HTIP{beam}",f"HTTI{beam}" f"HTTI{beam}"]
+
+            for axis in axes:
+                pos = send_and_get_response(f"!read {axis}")
+                st.write(f"axis: {pos}")
+
             if move_what == "move_image":
                 if config == "c_red_one_focus":
                     st.write("No image (yet)")
