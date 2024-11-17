@@ -1,5 +1,5 @@
 import numpy as np
-import asgard_alignment
+import asgard_alignment.Cameras
 import matplotlib.pyplot as plt
 import os
 import time
@@ -135,7 +135,7 @@ if img.shape[0] < 100:
     # raise warning about small image size
     print("Warning: Image size is small, consider increasing the ROI size")
 
-#print(f"Running at {cam["Width"]}x{cam["Height"]}, {cam['AcquisitionFrameRate']}fps")
+# print(f"Running at {cam["Width"]}x{cam["Height"]}, {cam['AcquisitionFrameRate']}fps")
 
 cam.start_stream()
 
