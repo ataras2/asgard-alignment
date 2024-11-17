@@ -89,14 +89,13 @@ def handle_deformable_mirror():
         if not targets:
             st.session_state["dm_targets"] = []
         else:
-            st.session_state["dm_targets"] = [target for target in targets]  
+            st.session_state["dm_targets"] = [target for target in targets]
 
     if "dm_last_command" not in st.session_state:
         st.session_state["dm_last_command"] = None  # To store the last DM command
 
     if "dm_apply_flat_map" not in st.session_state:
         st.session_state["dm_apply_flat_map"] = False  # Track if Flat Map is applied
-
 
     # Add a subheader for Deformable Mirror (DM) control
     st.subheader("Deformable Mirror (DM) Control")
@@ -115,7 +114,7 @@ def handle_deformable_mirror():
     # st.button("Apply Flat Map")
     if st.button("Apply Flat Map"):
         st.session_state["dm_apply_flat_map"] = True
-        
+
         if not targets:
             st.error("No targets specified.")
 
@@ -126,7 +125,7 @@ def handle_deformable_mirror():
                 st.success(f"Flat map successfully applied to {target}")
             else:
                 st.error(f"Failed to apply flat map to {target}. Response: {response}")
-    
+
         st.session_state["dm_last_command"] = "Apply Flat Map"
     # with s_col2:
     #     pass
@@ -539,7 +538,7 @@ with col_main:
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
             handle_linear_actuator()
 
-        elif component in ["DM"]:#  , "DM2", "DM3", "DM4"]:
+        elif component in ["DM"]:  #  , "DM2", "DM3", "DM4"]:
             handle_deformable_mirror()
 
     elif operating_mode == "Routines":
@@ -608,7 +607,7 @@ with col_main:
                     increment = st.number_input(
                         "Increment (pixels)",
                         min_value=0,
-                        max_value=100,
+                        max_value=5000,
                         step=5,
                         key="increment",
                     )
@@ -616,7 +615,7 @@ with col_main:
                     increment = st.number_input(
                         "Increment (mm)",
                         min_value=0.0,
-                        max_value=1.0,
+                        max_value=5.0,
                         step=0.05,
                         key="increment",
                     )
