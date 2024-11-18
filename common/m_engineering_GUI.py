@@ -124,6 +124,7 @@ def handle_deformable_mirror():
             st.session_state["dm_targets"] = []
         else:
             st.session_state["dm_targets"] = [target for target in targets]
+            st.session_state["dm_targets"] = [target for target in targets]
 
     if "dm_last_command" not in st.session_state:
         st.session_state["dm_last_command"] = None  # To store the last DM command
@@ -149,6 +150,7 @@ def handle_deformable_mirror():
     if st.button("Apply Flat Map"):
         st.session_state["dm_apply_flat_map"] = True
 
+
         if not targets:
             st.error("No targets specified.")
 
@@ -159,6 +161,7 @@ def handle_deformable_mirror():
                 st.success(f"Flat map successfully applied to {target}")
             else:
                 st.error(f"Failed to apply flat map to {target}. Response: {response}")
+
 
         st.session_state["dm_last_command"] = "Apply Flat Map"
     # with s_col2:
@@ -644,7 +647,7 @@ with col_main:
                     increment = st.number_input(
                         "Increment (pixels)",
                         min_value=0,
-                        max_value=100,
+                        max_value=5000,
                         step=5,
                         key="increment",
                     )
@@ -652,53 +655,70 @@ with col_main:
                     increment = st.number_input(
                         "Increment (mm)",
                         min_value=0.0,
-                        max_value=1.0,
+                        max_value=5.0,
                         step=0.05,
                         key="increment",
                     )
 
-                # four buttons in a 2x2 grid for each direction
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button(f"Up {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, 0, increment, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, 0, increment, send_and_get_response, config
-                            )
+                if move_what == "move_image":
+                    move_function = asgard_alignment.Engineering.move_image
+                elif move_what == "move_pupil":
+                    move_function = asgard_alignment.Engineering.move_pupil
+                else:
+                    raise ValueError("Invalid move_what")
 
-                    if st.button(f"Down {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, 0, -increment, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, 0, -increment, send_and_get_response, config
-                            )
+                pos_x = lambda: move_function(
+                    beam, increment, 0, send_and_get_response, config
+                )
+                pos_y = lambda: move_function(
+                    beam, 0, increment, send_and_get_response, config
+                )
+                neg_x = lambda: move_function(
+                    beam, -increment, 0, send_and_get_response, config
+                )
+                neg_y = lambda: move_function(
+                    beam, 0, -increment, send_and_get_response, config
+                )
 
-                with col2:
-                    if st.button(f"Left {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, -increment, 0, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, -increment, 0, send_and_get_response, config
-                            )
-                    if st.button(f"Right {increment:.2f}"):
-                        if move_what == "move_image":
-                            asgard_alignment.Engineering.move_image(
-                                beam, increment, 0, send_and_get_response, config
-                            )
-                        elif move_what == "move_pupil":
-                            asgard_alignment.Engineering.move_pupil(
-                                beam, increment, 0, send_and_get_response, config
-                            )
+                # make a 3x3 grid but only use the up, down, left and right
+
+                ul, um, ur = st.columns(3)
+                ml, mm, mr = st.columns(3)
+                ll, lm, lr = st.columns(3)
+
+                if move_what == "move_image":
+                    with um:
+                        if st.button(f"-y: {increment:.2f}"):
+                            neg_y()
+                    with lm:
+                        if st.button(f"+y: {increment:.2f}"):
+                            neg_y()
+                    with ml:
+                        if st.button(f"-x: {increment:.2f}"):
+                            neg_x()
+                    with mr:
+                        if st.button(f"+x: {increment:.2f}"):
+                            pos_x()
+                elif move_what == "move_pupil":
+                    with um:
+                        if st.button(f"+y: {increment:.2f}"):
+                            neg_y()
+                    with lm:
+                        if st.button(f"-y: {increment:.2f}"):
+                            neg_y()
+                    with ml:
+                        if st.button(f"-x: {increment:.2f}"):
+                            neg_x()
+                    with mr:
+                        if st.button(f"+x: {increment:.2f}"):
+                            pos_x()
+
+            # also show the state of all of the motors involved
+            axes = [f"HTTP{beam}", f"HTIP{beam}",f"HTTI{beam}" f"HTTI{beam}"]
+
+            for axis in axes:
+                pos = send_and_get_response(f"!read {axis}")
+                st.write(f"axis: {pos}")
 
             if move_what == "move_image":
                 if config == "c_red_one_focus":

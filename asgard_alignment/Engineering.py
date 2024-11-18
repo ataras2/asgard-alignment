@@ -177,6 +177,7 @@ def move_image(beam_number, x, y, send_command, config):
     time.sleep(0.5)
     send_command(commands[1])
     send_command(commands[3])
+    time.sleep(0.5)
 
     return uv_commands, axis_list
 
@@ -251,6 +252,7 @@ def move_pupil(beam_number, x, y, send_command, config):
     time.sleep(0.5)
     send_command(commands[1])
     send_command(commands[3])
+    time.sleep(0.5)
 
     return uv_commands, axis_list
 
