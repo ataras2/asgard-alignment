@@ -2,9 +2,10 @@ import asgard_alignment
 import json
 import sys
 import pyvisa
+from pathlib import Path
 import serial.tools.list_ports
 import sys
-import pandas as pd 
+import pandas as pd
 from zaber_motion.ascii import Connection
 
 import asgard_alignment.ESOdevice
@@ -12,9 +13,15 @@ import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
 
-# SDK for DM 
-sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
+# SDK for DM
+sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
+
+
+phasemask_position_directory = Path(
+    "/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions"
+)
+
 
 class Instrument:
     """
@@ -55,8 +62,6 @@ class Instrument:
         self._config = self._read_motor_config(config_pth)
         self._config_dict = {component["name"]: component for component in self._config}
 
-
-        
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
 
@@ -70,6 +75,9 @@ class Instrument:
         self._create_lamps()
         self._create_shutters()
 
+        # finally do phasemask objects (the respective motors need to be in devices first)
+        self._create_phasemask_wrapper()
+
     @property
     def devices(self):
         """
@@ -77,38 +85,60 @@ class Instrument:
         """
         return self._devices
 
-
     def _create_phasemask_wrapper(self):
         """
-        wraps the phasemask x,y motors into a specific Baldr_phasemask class that has 
+        wraps the phasemask x,y motors into a specific Baldr_phasemask class that has
         unique read/write update commands to update all phasemask positions
-        based on the current one
+        based on the current one. This class is also required as input to phasemask alignment tools.
         """
-        for beam in [1,2,3,4]:
-            if (f'BMX{beam}' not in self.devices) or (f'BMY{beam}' not in self.devices) :
-                print( f"don't have both phasemasks: (BMX in devices = {(f'BMX{beam}' not in self.devices)}, BMY in devices = {(f'BMX{beam}' not in self.devices)}")
+        for beam in [1, 2, 3, 4]:
+            if (f"BMX{beam}" not in self.devices) or (f"BMY{beam}" not in self.devices):
+                print(
+                    f"don't have both phasemasks: (BMX in devices = {(f'BMX{beam}' not in self.devices)}, BMY in devices = {(f'BMX{beam}' not in self.devices)}"
+                )
                 # Prompt the user for input
-                user_input = input("Type 'y' to continue, or 'n' to stop the program: ").strip().lower()
-                
-                if user_input == 'n':
+                user_input = (
+                    input("Type 'y' to continue, or 'n' to stop the program: ")
+                    .strip()
+                    .lower()
+                )
+
+                if user_input == "n":
                     print("Stopping the program as requested.")
                     sys.exit(0)  # Exit the program
-                elif user_input == 'y':
+                elif user_input == "y":
                     print("Continuing the program...")
                 else:
                     print("Invalid input. Assuming continuation.")
             else:
                 # try to find if configuration file provided in config file
-
+                pth = phasemask_position_directory.joinpath(Path(f"beam{beam}/"))
                 # if not try find the most recent in a predefined folder
+                files = list(
+                    pth.glob("*.json")
+                )  # [file for file in pth.iterdir() if file.is_file()]
+                # most recent
+                if files:
+                    phase_positions_json = max(
+                        files, key=lambda file: file.stat().st_mtime, default=None
+                    )
+                    print(
+                        f"using most recent file for beam {beam}: {phase_positions_json}"
+                    )
+                else:
+                    raise UserWarning(
+                        f"no phasemask configuration files found in {pth}"
+                    )
+                # otherwise raise error - we do not want to deal with case where we don't have on
 
-                # otherwise raise error - we do not want to deal with case where we don't have on 
-
-                self.devices['phasemask{beam}'] = asgard_alignment.Baldr_phasemask( 
-                    self.devices['BMX{beam}'],
-                    self.devices['BMY{beam}'],
-                    phase_positions_json = 
-                    
+                # do I need to update the self._config dictionaries?
+                self.devices[f"phasemask{beam}"] = (
+                    asgard_alignment.Baldr_phasemask.BaldrPhaseMask(
+                        beam=beam,
+                        x_axis_motor=self.devices[f"BMX{beam}"],
+                        y_axis_motor=self.devices[f"BMY{beam}"],
+                        phase_positions_json=phase_positions_json,
+                    )
                 )
 
     def _create_controllers_and_motors(self):
@@ -157,7 +187,7 @@ class Instrument:
         """
         if name not in self._config_dict:
             raise ValueError(f"{name} is not in the config file")
-        
+
         if self._config_dict[name]["motor_type"] == "deformable_mirror":
             serial_number = self._config_dict[name].get("serial_number")
 
@@ -169,7 +199,7 @@ class Instrument:
             flat_map_file = self._config_dict[name]["flat_map_file"]
             flat_map = pd.read_csv(flat_map_file, header=None)[0].values
             self._devices[name] = {"dm": dm, "flat_map": flat_map}
-            #print(f"Connected to {name} with serial {serial_number}")
+            # print(f"Connected to {name} with serial {serial_number}")
             return True
 
         if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
