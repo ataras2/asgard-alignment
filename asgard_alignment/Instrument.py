@@ -189,6 +189,9 @@ class Instrument:
             raise ValueError(f"{name} is not in the config file")
 
         if self._config_dict[name]["motor_type"] == "deformable_mirror":
+            # using shared memory (set up server such that DM is running and always looking to the shared memory)
+
+            # otherwise we are connecting directly here to the DM
             serial_number = self._config_dict[name].get("serial_number")
 
             # Load flat map and initialize DM
@@ -198,7 +201,12 @@ class Instrument:
                 return False
             flat_map_file = self._config_dict[name]["flat_map_file"]
             flat_map = pd.read_csv(flat_map_file, header=None)[0].values
-            self._devices[name] = {"dm": dm, "flat_map": flat_map}
+            cross_map = pd.read_csv("DMShapes/Crosshair140.csv", header=None)[0].values
+            self._devices[name] = {
+                "dm": dm,
+                "flat_map": flat_map,
+                "cross_map": cross_map,
+            }
             # print(f"Connected to {name} with serial {serial_number}")
             return True
 

@@ -86,6 +86,8 @@ def send_and_get_response(message):
 
 def handle_phasemask():
 
+    # need to add session_state for the phasemask
+
     valid_pos = ["J1", "J2", "J3", "J4", "J5", "H1", "H2", "H3", "H4", "H5", "empty"]
 
     # phasemask interface
@@ -132,6 +134,9 @@ def handle_deformable_mirror():
     if "dm_apply_flat_map" not in st.session_state:
         st.session_state["dm_apply_flat_map"] = False  # Track if Flat Map is applied
 
+    if "dm_apply_cross" not in st.session_state:
+        st.session_state["dm_apply_cross"] = False  # Track if Flat Map is applied
+
     # Add a subheader for Deformable Mirror (DM) control
     st.subheader("Deformable Mirror (DM) Control")
 
@@ -150,7 +155,6 @@ def handle_deformable_mirror():
     if st.button("Apply Flat Map"):
         st.session_state["dm_apply_flat_map"] = True
 
-
         if not targets:
             st.error("No targets specified.")
 
@@ -162,8 +166,23 @@ def handle_deformable_mirror():
             else:
                 st.error(f"Failed to apply flat map to {target}. Response: {response}")
 
-
         st.session_state["dm_last_command"] = "Apply Flat Map"
+
+    if st.button("Apply Cross"):
+        st.session_state["dm_apply_cross"] = True
+
+        if not targets:
+            st.error("No targets specified.")
+
+        for target in targets:
+            message = f"!dmapplycross {target}"
+            response = send_and_get_response(message)
+            if "ACK" in response:
+                st.success(f"Cross map successfully applied to {target}")
+            else:
+                st.error(f"Failed to apply cross map to {target}. Response: {response}")
+
+        st.session_state["dm_last_command"] = "Apply Cross Map"
     # with s_col2:
     #     pass
     # with s_col3:
@@ -692,7 +711,7 @@ with col_main:
                             neg_y()
                     with lm:
                         if st.button(f"+y: {increment:.2f}"):
-                            neg_y()
+                            pos_y()
                     with ml:
                         if st.button(f"-x: {increment:.2f}"):
                             neg_x()
@@ -702,7 +721,7 @@ with col_main:
                 elif move_what == "move_pupil":
                     with um:
                         if st.button(f"+y: {increment:.2f}"):
-                            neg_y()
+                            pos_y()
                     with lm:
                         if st.button(f"-y: {increment:.2f}"):
                             neg_y()
@@ -714,7 +733,7 @@ with col_main:
                             pos_x()
 
             # also show the state of all of the motors involved
-            axes = [f"HTTP{beam}", f"HTIP{beam}",f"HTTI{beam}" f"HTTI{beam}"]
+            axes = [f"HTTP{beam}", f"HTIP{beam}", f"HTTI{beam}" f"HTTI{beam}"]
 
             for axis in axes:
                 pos = send_and_get_response(f"!read {axis}")

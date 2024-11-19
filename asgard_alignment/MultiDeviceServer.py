@@ -215,6 +215,23 @@ class MultiDeviceServer:
             print(f"Flat map applied to {dm_name}")
             return f"ACK: Flat map applied to {dm_name}"
 
+        def apply_cross_msg(dm_name):
+            if dm_name not in self.instr.devices:
+                return f"NACK: DM {dm_name} not found"
+
+            # Retrieve the DM instance and its flat map
+            dm_device = self.instr.devices[dm_name]
+            # dm = dm_device["dm"]
+            # flat_map = dm_device["flat_map"]
+
+            # Apply the flat map to the DM
+            dm_device["dm"].send_data(
+                dm_device["flat_map"] + 0.3 * dm_device["cross_map"]
+            )
+
+            print(f"Cross map applied to {dm_name}")
+            return f"ACK: Cross map applied to  {dm_name}"
+
         def move_to_phasemask_msg(axis, maskname):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -232,6 +249,7 @@ class MultiDeviceServer:
             "!moverel {} {:f}": moverel_msg,
             "!state {}": state_msg,
             "!dmapplyflat {}": apply_flat_msg,
+            "!dmapplycross {}": apply_cross_msg,
             "!movetomask {} {}": move_to_phasemask_msg,
         }
 
