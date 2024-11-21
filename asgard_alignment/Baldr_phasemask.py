@@ -2,6 +2,7 @@ import json
 import zaber_motion  # .binary
 import numpy as np
 import datetime
+import os
 
 # import argparse
 # import zmq
@@ -17,6 +18,15 @@ class BaldrPhaseMask:
             "x": x_axis_motor,
             "y": y_axis_motor,
         }
+
+        cnt_pth = os.path.dirname(os.path.abspath(__file__))
+        save_path = cnt_pth + os.path.dirname("/../config_files/phasemask_positions/")
+
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+
+        self.savepath = save_path  # where we save updated position json files
+
         self.beam = beam
         self.phase_positions = self._load_phase_positions(phase_positions_json)
 
@@ -53,7 +63,7 @@ class BaldrPhaseMask:
 
         return config
 
-    def move_relative(self, new_pos):  
+    def move_relative(self, new_pos):
         self.motors["x"].move_relative(
             new_pos[0], units=zaber_motion.units.Units.LENGTH_MICROMETRES
         )  # moverel_msg(float(new_pos[0])), #
@@ -61,7 +71,7 @@ class BaldrPhaseMask:
             new_pos[1], units=zaber_motion.units.Units.LENGTH_MICROMETRES
         )  # moverel_msg(float(new_pos[1])) #
 
-    def move_absolute(self, new_pos):  
+    def move_absolute(self, new_pos):
         self.motors["x"].move_absolute(
             new_pos[0], units=zaber_motion.units.Units.LENGTH_MICROMETRES
         )  # moveabs_msg(float(new_pos[0]))#
@@ -71,10 +81,10 @@ class BaldrPhaseMask:
 
     def read_position(self):  # , units=zaber_motion.units.Units.LENGTH_MICROMETRES):
         return [
-            self.motors["x"].get_position(
+            self.motors["x"].read_position(
                 units=zaber_motion.units.Units.LENGTH_MICROMETRES
             ),  # read_msg(), #
-            self.motors["y"].get_position(
+            self.motors["y"].read_position(
                 units=zaber_motion.units.Units.LENGTH_MICROMETRES
             ),  # read_msg(),
         ]
@@ -83,11 +93,16 @@ class BaldrPhaseMask:
         self.move_absolute(self.phase_positions[mask_name])
 
     def update_mask_position(self, mask_name):
-        self.phase_positions[mask_name] = self.get_position()
+        self.phase_positions[mask_name] = self.read_position()
 
     def write_current_mask_positions(self):
         tstamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-        file_name = f"phase_positions_beam_{self.beam}_{tstamp}.json"
+
+        file_name = (
+            self.savepath
+            + f"/beam{self.beam}/phase_positions_beam{self.beam}_{tstamp}.json"
+        )
+
         with open(file_name, "w") as f:
             json.dump(self.phase_positions, f, indent=4)
 
@@ -110,14 +125,15 @@ class BaldrPhaseMask:
             offsets[mask_name] = np.array(mask_position) - np.array(new_origin)
 
         # apply offsets relative to the actual current motor position
-        current_position = np.array(self.get_position())
+        current_position = np.array(self.read_position())
         for mask_name, offset in offsets.items():
             self.phase_positions[mask_name] = list(current_position + offset)
 
         if write_file:
             tstamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             self.write_current_mask_positions(
-                file_name=f"phase_positions_beam_{self.beam}_{tstamp}.json"
+                file_name=self.savepath
+                + f"phase_positions_beam_{self.beam}_{tstamp}.json"
             )
 
 

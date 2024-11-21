@@ -232,11 +232,68 @@ class MultiDeviceServer:
             print(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
-        def move_to_phasemask_msg(axis, maskname):
+        def fpm_get_savepath_msg(axis):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                return self.instr.devices[axis].savepath
+
+        def fpm_mask_positions_msg(axis):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                return self.instr.devices[axis].mask_positions
+
+        def fpm_move_to_phasemask_msg(axis, maskname):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
             else:
                 self.instr.devices[axis].move_to_mask(maskname)
+                return "ACK"
+
+        def fpm_move_relative_msg(axis, new_pos):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].move_relative(new_pos)
+                return "ACK"
+
+        def fpm_move_absolute_msg(axis, new_pos):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].move_absolute(new_pos)
+                return "ACK"
+
+        def fpm_read_position_msg(axis):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                return self.instr.devices[axis].read_position()
+
+        def fpm_update_mask_position_msg(axis, mask_name):
+            if axis not in self.instr.devices:
+                return f"NACK: Mask {mask_name} not found"
+            else:
+                self.instr.devices[axis].update_mask_position(mask_name)
+                return "ACK"
+
+        def fpm_write_mask_positions_msg(axis):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].write_current_mask_positions()
+                return "ACK"
+
+        def fpm_update_all_mask_positions_relative_to_current_msg(
+            axis, current_mask_name, reference_mask_position_file
+        ):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].update_all_mask_positions_relative_to_current(
+                    current_mask_name, reference_mask_position_file, write_file = False
+                )
                 return "ACK"
 
         patterns = {
@@ -250,7 +307,15 @@ class MultiDeviceServer:
             "!state {}": state_msg,
             "!dmapplyflat {}": apply_flat_msg,
             "!dmapplycross {}": apply_cross_msg,
-            "!movetomask {} {}": move_to_phasemask_msg,
+            "!fpm_getsavepath {}": fpm_get_savepath_msg,
+            "!fpm_maskpositions {}": fpm_mask_positions_msg,
+            "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
+            "!fpm_moverel {} {}": fpm_move_relative_msg,
+            "!fpm_moveabs {} {}": fpm_move_absolute_msg,
+            "!fpm_readpos {}": fpm_read_position_msg,
+            "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
+            "!fpm_writemaskpos {}": fpm_write_mask_positions_msg,
+            "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
         }
 
         try:
