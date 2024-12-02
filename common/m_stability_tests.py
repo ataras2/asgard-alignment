@@ -13,6 +13,8 @@ import zmq
 
 from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
+import common.phasescreens as ps
+import pyBaldr.utilities as util
 
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
@@ -445,7 +447,7 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
 # should_we_record_images = True
 take_mean_of_images = True
 save_dm_cmds = True
-save_fits = data_path + f"stability_tests_{tstamp}.fits"
+save_fits = data_path + f"calibration_{tstamp}.fits"
 # save_file_name = data_path + f"stability_tests_{tstamp}.fits"
 # if should_we_record_images:
 # cmd2pix_registration
@@ -512,32 +514,159 @@ if save_fits != None:
         )
 
 
+##########
+# close the data 
+data.close() 
+
+
+
+
+########################################
+## Now check Kolmogorov screen on DM
+
+D = 1.8
+act_per_it = 0.5 # how many actuators does the screen pass per iteration 
+V = 10 / act_per_it  / D #m/s (10 actuators across pupil on DM)
+scaling_factor = 0.05
+I0_indicies = 10 # how many reference pupils do we get?
+
+#scrn = aotools.infinitephasescreen.PhaseScreenVonKarman(nx_size= int( 12 / act_per_it ) , pixel_scale= zwfs_ns.grid.D / zwfs_ns.grid.N , r0=0.1, L0=12)
+scrn = ps.PhaseScreenVonKarman(nx_size= int( 12 / act_per_it ) , pixel_scale= D / 12, r0=0.1, L0=12)
+corner_indicies = [0, 11, 11 * 12, -1] # DM corner indidices
+
+
+DM_command_sequence = [np.zeros(140) for _ in range(I0_indicies)]
+for i in range(1000):
+    scrn.add_row()
+    # bin phase screen onto DM space 
+    dm_scrn = util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scaling_factor, drop_indicies = [0, 11, 11 * 12, -1] , plot_cmd=False)
+    # update DM command 
+    #plt.figure(i)
+    #plt.imshow(  util.get_DM_command_in_2D(dm_scrn) )
+    #plt.colorbar()
+
+    DM_command_sequence.append( dm_scrn )
+
+
+
+
+# --- additional labels to append to fits file to keep information about the sequence applied
+additional_header_labels = [
+    ("cp_x1", roi[0]),
+    ("cp_x2", roi[1]),
+    ("cp_y1", roi[2]),
+    ("cp_y2", roi[3]),
+    ('I0_indicies','0-10'),
+    ('act_per_it',act_per_it),
+    ('D',D),
+    ('V',V),
+    ('scaling_factor', scaling_factor),
+    ("Nmodes_poked", len(modal_basis)),
+    ("Nact", 140)
+]
+# ("in-poke max amp", np.max(ramp_values)),
+# ("out-poke max amp", np.min(ramp_values)),
+# ("#ramp steps", number_amp_samples),
+# ("seq0", "flatdm"),
+# ("reshape", f"{number_amp_samples}-{modal_basis.shape[0]}-{modal_basis.shape[1]}"),
+
+sleeptime_between_commands = 0.05
+image_list = []
+for cmd_indx, cmd in enumerate(DM_command_sequence):
+    print(f"executing cmd_indx {cmd_indx} / {len(DM_command_sequence)}")
+    # wait a sec
+    time.sleep(sleeptime_between_commands)
+    # ok, now apply command
+    for b in dm:
+        dm[b].send_data(flatdm[b] + cmd)
+
+    # wait a sec
+    time.sleep(sleeptime_between_commands)
+
+    # get the image
+    ims_tmp = [
+        np.mean(
+            c.get_some_frames(
+                number_of_frames=number_images_recorded_per_cmd,
+                apply_manual_reduction=True,
+            ),
+            axis=0,
+        )
+    ]  # [np.median([zwfs.get_image() for _ in range(number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_mean_of_images=False
+    image_list.append(ims_tmp)
+
+
+# init fits files if necessary
+# should_we_record_images = True
+take_mean_of_images = True
+save_dm_cmds = True
+save_fits = data_path + f"kolmogorov_calibration_{tstamp}.fits"
+# save_file_name = data_path + f"stability_tests_{tstamp}.fits"
+# if should_we_record_images:
+# cmd2pix_registration
+data = fits.HDUList([])  # init main fits file to append things to
+
+# Camera data
+cam_fits = fits.PrimaryHDU(image_list)
+
+cam_fits.header.set("EXTNAME", "SEQUENCE_IMGS")
+
+cam_config_dict = c.get_camera_config()
+for k, v in cam_config_dict.items():
+    cam_fits.header.set(k, v)
+
+cam_fits.header.set("#images per DM command", number_images_recorded_per_cmd)
+cam_fits.header.set("take_mean_of_images", take_mean_of_images)
+
+# cam_fits.header.set('cropping_corners_r1', zwfs.pupil_crop_region[0] )
+# cam_fits.header.set('cropping_corners_r2', zwfs.pupil_crop_region[1] )
+# cam_fits.header.set('cropping_corners_c1', zwfs.pupil_crop_region[2] )
+# cam_fits.header.set('cropping_corners_c2', zwfs.pupil_crop_region[3] )
+
+# if user specifies additional headers using additional_header_labels
+if additional_header_labels != None:
+    if type(additional_header_labels) == list:
+        for i, h in enumerate(additional_header_labels):
+            cam_fits.header.set(h[0], h[1])
+    else:
+        cam_fits.header.set(additional_header_labels[0], additional_header_labels[1])
+
+
+# if save_dm_cmds:
+# put commands in fits format
+dm_fits = fits.PrimaryHDU(DM_command_sequence)
+# DM headers
+dm_fits.header.set("timestamp", str(datetime.datetime.now()))
+dm_fits.header.set("EXTNAME", "DM_CMD_SEQUENCE")
+# dm_fits.header.set('DM', DM.... )
+# dm_fits.header.set('#actuators', DM.... )
+
+
+flat_DM_fits = fits.PrimaryHDU([flatdm[b] for b in dm])
+flat_DM_fits.header.set("EXTNAME", "FLAT_DM_CMD")
+
+
+for b in dm:
+    dm[b].send_data(flatdm[b])
+
+# append to the data
+data.append(cam_fits)
+data.append(dm_fits)
+data.append(flat_DM_fits)
+data.append(I0_fits)
+data.append(N0_fits)
+data.append(DARK_fits)
+
+
+if save_fits != None:
+    if type(save_fits) == str:
+        data.writeto(save_fits)
+    else:
+        raise TypeError(
+            "save_images needs to be either None or a string indicating where to save file"
+        )
+    
+
 for b in dm:
     dm[b].close_dm()
-    print(f"close DM{b}")
 
-
-"""
-##to analyse the data 
-
-recon_data = fits.open( file )
-# poke values used in linear ramp
-No_ramps = int(recon_data['SEQUENCE_IMGS'].header['#ramp steps'])
-max_ramp = float( recon_data['SEQUENCE_IMGS'].header['in-poke max amp'] )
-min_ramp = float( recon_data['SEQUENCE_IMGS'].header['out-poke max amp'] ) 
-ramp_values = np.linspace( min_ramp, max_ramp, No_ramps)
-
-flat_dm_cmd = recon_data['FLAT_DM_CMD'].data
-
-Nmodes_poked = int(recon_data[0].header['HIERARCH Nmodes_poked']) # can also see recon_data[0].header['RESHAPE']
-
-Nact =  int(recon_data[0].header['HIERARCH Nact'])  
-
-N0 = recon_data['FPM_OUT'].data
-#P = np.sqrt( pupil ) # 
-I0 = recon_data['FPM_IN'].data
-
-# the first image is another reference I0 with FPM IN and flat DM
-poke_imgs = recon_data['SEQUENCE_IMGS'].data[1:].reshape(No_ramps, 140, I0.shape[0], I0.shape[1])
-
-"""
