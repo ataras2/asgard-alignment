@@ -34,6 +34,25 @@ import bmc
 data_path = '/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
+def convert_to_serializable(obj):
+    """
+    Recursively converts NumPy arrays and other non-serializable objects to serializable forms.
+    Also converts dictionary keys to standard types (str, int, float).
+    """
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()  # Convert NumPy arrays to lists
+    elif isinstance(obj, np.integer):
+        return int(obj)  # Convert NumPy integers to Python int
+    elif isinstance(obj, np.floating):
+        return float(obj)  # Convert NumPy floats to Python float
+    elif isinstance(obj, dict):
+        return {str(key): convert_to_serializable(value) for key, value in obj.items()}  # Ensure keys are strings
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in obj]
+    else:
+        return obj  # Base case: return the object itself if it doesn't need conversion
+
+
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
