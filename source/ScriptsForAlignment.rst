@@ -245,8 +245,6 @@ Baldr Calibration Script
 This script performs basic calibration for the Baldr wavefront sensing and control system. It generates analytics and visualizations for diagnostics and creates a PDF report summarizing the results. The calibration process includes affine transform calibration between the DM actuators and camera pixels, eigenmode analysis, and fitting of ZWFS responses. Also records motor states for stability analysis. The default output is a json file that can be used to initialise the Baldr RTC. The calibration report is optional.
 
 **Arguments:**
-
-Positional Arguments:
 - `--ramp_file`: Path to the ramp FITS file (obligatory).
 - `--kol_file`: Path to the Kolmogorov phase screen FITS file. Optional (default: None).
 - `--beam`: Beam number for calibration (default: 2).
