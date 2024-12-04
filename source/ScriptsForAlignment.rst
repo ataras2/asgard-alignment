@@ -171,19 +171,19 @@ This script pokes each actuator on the DMs over a specified range of values and 
 
 **Arguments:**
 
-- `--host': Server hostname or IP address for ZeroMQ communication (default: localhost).
-- `--port': Port number for ZeroMQ communication (default: 5555).
-- `--timeout': Response timeout in milliseconds (default: 5000).
-- `--dm_config_path': Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
-- `--DMshapes_path': Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
-- `--data_path': Directory to store calibration data FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
-- `--number_images_recorded_per_cmd': Number of images recorded per DM command, typically averaged (default: 5).
-- `--number_amp_samples': Number of amplitude steps to apply to DM actuators (default: 18).
-- `--amp_max': Maximum DM amplitude to apply, normalized to 0–1. The script ramps between +/- of this value (default: 18).
-- `--basis_name': Name of the modal basis to use for DM operations. Options include Zonal, Zonal_pinned_edges, Hadamard, Zernike, fourier, etc. (default: Zonal).
-- `--number_of_modes': Number of modes to include in the modal basis (default: 140).
-- `--cam_fps': Frames per second for the camera (default: 50).
-- `--cam_gain': Camera gain setting (default: 1).
+- `--host`: Server hostname or IP address for ZeroMQ communication (default: localhost).
+- `--port`: Port number for ZeroMQ communication (default: 5555).
+- `--timeout`: Response timeout in milliseconds (default: 5000).
+- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
+- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
+- `--data_path`: Directory to store calibration data FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
+- `--number_images_recorded_per_cmd`: Number of images recorded per DM command, typically averaged (default: 5).
+- `--number_amp_samples`: Number of amplitude steps to apply to DM actuators (default: 18).
+- `--amp_max`: Maximum DM amplitude to apply, normalized to 0–1. The script ramps between +/- of this value (default: 18).
+- `--basis_name`: Name of the modal basis to use for DM operations. Options include Zonal, Zonal_pinned_edges, Hadamard, Zernike, fourier, etc. (default: Zonal).
+- `--number_of_modesv: Number of modes to include in the modal basis (default: 140).
+- `--cam_fps`: Frames per second for the camera (default: 50).
+- `--cam_gain`: Camera gain setting (default: 1).
 
 
 **Example Usage:**
@@ -210,17 +210,17 @@ This script applies Kolmogorov phase screens across multiple DMs (four by defaul
 
 **Arguments:**
 
-- `--host': Server hostname or IP address for ZeroMQ communication (default: localhost).
-- `--port': Port number for ZeroMQ communication (default: 5555).
-- `--timeout': Response timeout in milliseconds (default: 5000).
-- `--dm_config_path': Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
-- `--DMshapes_path': Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
-- `--data_path': Directory to store phase screen calibration FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
-- `--number_of_rolls': Number of iterations (rolls) of the Kolmogorov phase screen applied to the DM (default: 1000).
-- `--scaling_factor': Scaling factor for the amplitude of the phase screen applied to the DM. Keep this value low to avoid saturation (default: 0.05).
-- `--number_images_recorded_per_cmd': Number of images recorded for each DM command, typically averaged (default: 5).
-- `--cam_fps': Frames per second for the camera (default: 50).
-- `--cam_gain': Camera gain setting (default: 1).
+- `--host`: Server hostname or IP address for ZeroMQ communication (default: localhost).
+- `--portv: Port number for ZeroMQ communication (default: 5555).
+- `--timeout`: Response timeout in milliseconds (default: 5000).
+- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
+- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
+- `--data_path`: Directory to store phase screen calibration FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
+- `--number_of_rolls`: Number of iterations (rolls) of the Kolmogorov phase screen applied to the DM (default: 1000).
+- `--scaling_factor`: Scaling factor for the amplitude of the phase screen applied to the DM. Keep this value low to avoid saturation (default: 0.05).
+- `--number_images_recorded_per_cmd`: Number of images recorded for each DM command, typically averaged (default: 5).
+- `--cam_fps`: Frames per second for the camera (default: 50).
+- `--cam_gain`: Camera gain setting (default: 1).
 
 **Example Usage:**
 
@@ -247,17 +247,16 @@ This script performs basic calibration for the Baldr wavefront sensing and contr
 **Arguments:**
 
 Positional Arguments:
-- `--ramp_file': Path to the ramp FITS file (obligatory).
-Optional Arguments:
-- `--kol_file': Path to the Kolmogorov phase screen FITS file. Optional (default: None).
-- `--beam': Beam number for calibration (default: 2).
-- `--write_report': Boolean to enable/disable writing the PDF report (default: True).
-- `--a': Amplitude index for calculating +/- around flat during DM/detector transform calibration (default: 2).
-- `--signal_method': Method to compute the ZWFS signal, e.g., I-I0/N0 (default: 'I-I0/N0').
-- `--control_method': Control method for DM operations, e.g., zonal_linear (default: 'zonal_linear').
-- `--output_config_filename': Output JSON filename for saving calibration results (default: baldr_transform_dict_beam2_<timestamp>.json).
-- `--output_report_dir': Directory to save PDF reports (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/).
-- `--fig_path': Directory to save generated figures (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/figures/).
+- `--ramp_file`: Path to the ramp FITS file (obligatory).
+- `--kol_file`: Path to the Kolmogorov phase screen FITS file. Optional (default: None).
+- `--beam`: Beam number for calibration (default: 2).
+- `--write_report`: Boolean to enable/disable writing the PDF report (default: True).
+- `--a`: Amplitude index for calculating +/- around flat during DM/detector transform calibration (default: 2).
+- `--signal_method`: Method to compute the ZWFS signal, e.g., I-I0/N0 (default: 'I-I0/N0').
+- `--control_method`: Control method for DM operations, e.g., zonal_linear (default: 'zonal_linear').
+- `--output_config_filename`: Output JSON filename for saving calibration results (default: baldr_transform_dict_beam2_<timestamp>.json).
+- `--output_report_dir`: Directory to save PDF reports (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/).
+- `--fig_path`: Directory to save generated figures (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/figures/).
 
 **Example Usage:**
 
