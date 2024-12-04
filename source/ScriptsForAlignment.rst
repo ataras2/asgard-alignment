@@ -171,19 +171,19 @@ This script pokes each actuator on the DMs over a specified range of values and 
 
 **Arguments:**
 
---host: Server hostname or IP address for ZeroMQ communication (default: localhost).
---port: Port number for ZeroMQ communication (default: 5555).
---timeout: Response timeout in milliseconds (default: 5000).
---dm_config_path: Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
---DMshapes_path: Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
---data_path: Directory to store calibration data FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
---number_images_recorded_per_cmd: Number of images recorded per DM command, typically averaged (default: 5).
---number_amp_samples: Number of amplitude steps to apply to DM actuators (default: 18).
---amp_max: Maximum DM amplitude to apply, normalized to 0–1. The script ramps between +/- of this value (default: 18).
---basis_name: Name of the modal basis to use for DM operations. Options include Zonal, Zonal_pinned_edges, Hadamard, Zernike, fourier, etc. (default: Zonal).
---number_of_modes: Number of modes to include in the modal basis (default: 140).
---cam_fps: Frames per second for the camera (default: 50).
---cam_gain: Camera gain setting (default: 1).
+- `--host': Server hostname or IP address for ZeroMQ communication (default: localhost).
+- `--port': Port number for ZeroMQ communication (default: 5555).
+- `--timeout': Response timeout in milliseconds (default: 5000).
+- `--dm_config_path': Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
+- `--DMshapes_path': Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
+- `--data_path': Directory to store calibration data FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
+- `--number_images_recorded_per_cmd': Number of images recorded per DM command, typically averaged (default: 5).
+- `--number_amp_samples': Number of amplitude steps to apply to DM actuators (default: 18).
+- `--amp_max': Maximum DM amplitude to apply, normalized to 0–1. The script ramps between +/- of this value (default: 18).
+- `--basis_name': Name of the modal basis to use for DM operations. Options include Zonal, Zonal_pinned_edges, Hadamard, Zernike, fourier, etc. (default: Zonal).
+- `--number_of_modes': Number of modes to include in the modal basis (default: 140).
+- `--cam_fps': Frames per second for the camera (default: 50).
+- `--cam_gain': Camera gain setting (default: 1).
 
 
 **Example Usage:**
@@ -191,7 +191,7 @@ To poke actuators using the Zonal basis with default FPS and gain:
 
 .. code-block:: bash
 
-python calibration/poke_dm_actuators.py --host localhost --port 5555 --timeout 5000 \
+    python calibration/poke_dm_actuators.py --host localhost --port 5555 --timeout 5000 \
     --dm_config_path /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json \
     --DMshapes_path /home/heimdallr/Documents/asgard-alignment/DMShapes/ \
     --data_path /home/heimdallr/data/baldr_calibration/01-12-2024/ \
