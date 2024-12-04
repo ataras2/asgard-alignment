@@ -247,7 +247,7 @@ This script performs basic calibration for the Baldr wavefront sensing and contr
 **Arguments:**
 
 Positional Arguments:
-ramp_file: Path to the ramp FITS file (obligatory).
+- `--ramp_file': Path to the ramp FITS file (obligatory).
 Optional Arguments:
 - `--kol_file': Path to the Kolmogorov phase screen FITS file. Optional (default: None).
 - `--beam': Beam number for calibration (default: 2).
