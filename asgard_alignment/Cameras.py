@@ -50,6 +50,8 @@ class PointGrey:
         self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
         self.cam.ExposureTime.SetValue(1000)
 
+        self.cam.AcquisitionFrameRateEnable.SetValue(True)
+
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
         self.cam.Gain.SetValue(0)
 
@@ -182,6 +184,13 @@ class PointGrey:
         """
         x1, x2 = sorted([x1, x2])
         y1, y2 = sorted([y1, y2])
+
+        # round everything to the nearest 4 pixels
+
+        x1 = x1 - (x1 % 4)
+        x2 = x2 - (x2 % 4)
+        y1 = y1 - (y1 % 4)
+        y2 = y2 - (y2 % 4)
 
         self["Width"] = x2 - x1
         self["Height"] = y2 - y1
