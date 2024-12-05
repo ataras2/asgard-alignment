@@ -1,33 +1,15 @@
-import sys
-import glob
+
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import argparse
-import os
-import time
 from scipy.ndimage import distance_transform_edt
 from scipy.spatial import distance
 from math import factorial
-import atexit
-#import bmc
-sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
-import bmc
-# Dynamically add the path to pyBaldr based on the location of this script
-# script_dir = os.path.dirname(os.path.realpath(__file__))
-# pyBaldr_path = os.path.join(script_dir, '../')
-# sys.path.append(pyBaldr_path)
-# from pyBaldr import utilities as util
+import pandas as pd
+
+dm_serials = {"1": "DMShapes/17DW019#113_FLAT_MAP_COMMANDS.csv", "2":"DMShapes/17DW019#053_FLAT_MAP_COMMANDS.csv", "3":"DMShapes/17DW019#093_FLAT_MAP_COMMANDS.csv", "4":"DMShapes/17DW019#122_FLAT_MAP_COMMANDS.csv"}
 
 
-def close_dm():
-    try:
-        dm.close_dm()
-    except:
-        print( 'Failed to close DM or DM object does not exist' )
-        
-atexit.register(close_dm)
-
+dm_flatmap_dict = {f"{i}" : pd.read_csv(dm_serials[f"{i}"], header=None)[0].values for i in [1,2,3,4]}
+cross_map = pd.read_csv("DMShapes/Crosshair140.csv", header=None)[0].values
 
 def get_DM_command_in_2D(cmd,Nx_act=12):
     # function so we can easily plot the DM shape (since DM grid is not perfectly square raw cmds can not be plotted in 2D immediately )
@@ -769,94 +751,3 @@ def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, re
     
     
     return basis_norm
-
-
-
-def apply_oscillating_mode(beam,  basis_name,  mode, speed, strength, duration, plot_shape=False, DMshapes_path = 'DMShapes/'):
-    """Apply oscillating mode to the DM at a specified speed and strength."""
-    ## >>>> ADAM - YOU WILL NEED TO UPDATE THIS DICTIONARY WITH THE CORRECT SERIAL NUMBERS FOR YOUR DMs <<<<<< 
-    # best put all in a standard json file and load it in
-    DM_serial_number_dict = {"1": "17DW019#113", "2": "17DW019#053", "3": "17DW019#093","4": "17DW019#122"}#{'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  
-
-    SIMULATION = False
-    # Initialize deformable mirror
-    if SIMULATION:
-        dm = {}#bmc.BmcDm()
-        dm_err_flag = 0#dm.open_dm(DM_serial_number_dict[beam])
-    else:
-        dm = bmc.BmcDm()
-        dm_err_flag = dm.open_dm(DM_serial_number_dict[beam])
-        
-    flatdm = pd.read_csv(DMshapes_path + '{}_FLAT_MAP_COMMANDS.csv'.format(DM_serial_number_dict[beam]), header=None)[0].values
-    
-    # Construct the basis of modes
-    # options are: ['Hadamard', "Zonal", "Zonal_pinned_edges", "Zernike", "Zernike_pinned_edges", "fourier", "fourier_pinned_edges"]
-    basis = construct_command_basis(basis=basis_name, number_of_modes=int(mode)+10, Nx_act_DM=12, Nx_act_basis=12, act_offset=(0,0), without_piston=True)
-    
-    if dm_err_flag != 0:
-        print(f"Error opening DM: {dm_err_flag}")
-        sys.exit(1)
-
-    # Ensure mode is within valid range
-    if mode >= basis.shape[1] or mode < 0:
-        print(f"Mode '{mode}' out of range. Please choose an integer between 0 and {basis.shape[1]-1}.")
-        sys.exit(1)
-
-    selected_mode = basis.T[mode]
-
-    print(f"Oscillating mode {mode} from basis '{basis_name}' at {speed} Hz with strength {strength} on beam {beam} for {duration} seconds.")
-    
-    # Start the oscillation loop
-    plt.ion()
-    start_time = time.time()
-    while (time.time() - start_time) < duration:
-        current_time = time.time() - start_time
-        dm_command = flatdm + strength * selected_mode * np.sin(2 * np.pi * speed * current_time)
-        if not SIMULATION:
-            dm.send_data(dm_command)
-        
-        if plot_shape:
-            plt.clf()
-            plt.imshow(get_DM_command_in_2D(dm_command), vmax = 0.5 + 1.2 * strength, vmin = 0.5 - 1.2 * strength)
-            plt.colorbar(label='DM command')
-            plt.pause(0.01)
-            #plt.show()
-        time.sleep(1.0 / (speed * 10))  # Control loop timing for smooth oscillation - designed for slow oscillations! 
-
-    if not SIMULATION:
-        dm.send_data(flatdm)
-        dm.close_dm()
-
-if __name__ == "__main__":
-    # Set up argument parser
-    parser = argparse.ArgumentParser(description="Oscillate a mode on the DM")
-    parser.add_argument("-beam", type=str, required=True, help="Beam identifier")
-    parser.add_argument("-basis", type=str, required=True, help="Basis name for the DM modes. Options are [Hadamard, Zonal, Zonal_pinned_edges, Zernike, Zernike_pinned_edges, fourier, fourier_pinned_edges]")
-    parser.add_argument("-mode", type=int, required=True, help="Mode index to apply from the basis")
-    parser.add_argument("-speed", type=float, required=True, help="Speed of oscillation in Hz")
-    parser.add_argument("-strength", type=float, required=True, help="Strength of the oscillation")
-    parser.add_argument("-duration", type=float, required=True, help="Duration of oscillation in seconds")
-    parser.add_argument("-plot_shape", type=bool, required=False, default=False, help="Do you want to plot the shape during oscillation?")
-    parser.add_argument("-DMshapes_path", type=str, required=False,default='DMShapes/',  help="Where do we find the DM shape files?")
-
-    # Parse arguments
-    args = parser.parse_args()
-
-    # Run the main function
-    apply_oscillating_mode(args.beam, args.basis, args.mode, args.speed, args.strength,\
-        args.duration,  args.plot_shape , args.DMshapes_path )
-
-    
-
-# DM_serial_number_dict = {'1':'17DW019#122', '2': '17DW019#122', '3': '17DW019#122', '4':'17DW019#122'}  # Adjust serial number as needed
-# DMshapes_path = 'DMShapes/'
-
-# b = construct_command_basis( basis='fourier_pinned_edges', number_of_modes = 40, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True)
-
-# plt.figure()
-# plt.imshow( get_DM_command_in_2D( b.T[0] ) )
-# plt.show()
-
-#python common/m_alternate_DM_mode.py -beam 1 -mode 5 -speed 1.0 -strength 0.1 -duration 10 -basis 'fourier_pinned_edges'
-
-#apply_oscillating_mode(beam='1', mode=3, speed=2, strength=0.1, duration=10, basis_name='fourier', plot_shape=False, DMshapes_path = 'DMShapes/')
