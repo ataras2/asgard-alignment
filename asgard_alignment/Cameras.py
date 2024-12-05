@@ -64,13 +64,13 @@ class PointGrey:
 
         # frame rate stuff
         # self.cam.AcquisitionFrameRateEnable.SetValue(True)
-        self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
+        #self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
         """
         Start the camera acquisition stream.
         """
-        self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
+        #self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
         self.cam.BeginAcquisition()
 
     def stop_stream(self):
