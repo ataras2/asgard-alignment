@@ -50,7 +50,7 @@ class PointGrey:
         self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
         self.cam.ExposureTime.SetValue(1000)
 
-        self.cam.AcquisitionFrameRateEnable.SetValue(True)
+        # self.cam.AcquisitionFrameRateEnable.SetValue(True)
 
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
         self.cam.Gain.SetValue(0)
@@ -66,13 +66,14 @@ class PointGrey:
 
         # frame rate stuff
         # self.cam.AcquisitionFrameRateEnable.SetValue(True)
-        #self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
+        # self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
         """
         Start the camera acquisition stream.
         """
-        #self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
+        # self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
+        print(f"Starting stream at {self.cam.AcquisitionFrameRate.GetValue()} fps")
         self.cam.BeginAcquisition()
 
     def stop_stream(self):
@@ -196,6 +197,10 @@ class PointGrey:
         self["Height"] = y2 - y1
         self["OffsetX"] = x1
         self["OffsetY"] = y1
+
+        print(
+            f"Succesfully set region to offset ({x1}, {y1}) and size ({x2-x1}, {y2-y1})"
+        )
 
     def release(self):
         """
