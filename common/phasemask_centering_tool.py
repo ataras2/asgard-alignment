@@ -142,7 +142,7 @@ def spiral_square_search_and_save_images(
     starting_point,
     step_size,
     search_radius,
-    sleep_time=0.5,
+    sleep_time=1,
     use_multideviceserver=True,
 ):
     """
@@ -160,10 +160,32 @@ def spiral_square_search_and_save_images(
     for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
         print("at ", x_pos, y_pos)
         print(f"{100 * i/len(x_points)}% complete")
-        if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {[xpos, ypos]}"
-            phasemask.send_string(message)
 
+        # motor limit safety checks!
+        if x_pos <= 0:
+            print('x_pos < 0. set x_pos = 1')
+            x_pos = 1
+        if x_pos >= 10000:
+            print('x_pos > 10000. set x_pos = 9999')
+            x_pos = 9999
+        if y_pos <= 0:
+            print('y_pos < 0. set y_pos = 1')
+            y_pox = 1
+        if y_pos >= 10000:
+            print('y_pos > 10000. set y_pos = 9999')
+            y_pos = 9999
+
+        if use_multideviceserver:
+            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"!moveabs BMX{beam} {x_pos}"
+            phasemask.send_string(message)
+            response = phasemask.recv_string()
+            print(response)
+
+            message = f"!moveabs BMY{beam} {y_pos}"
+            phasemask.send_string(message)
+            response = phasemask.recv_string()
+            print(response)
         else:
             phasemask.move_absolute([x_pos, y_pos])
 
@@ -186,7 +208,12 @@ def analyse_search_results(search, savepath="delme.png"):
     coord = np.array([k for k, v in search.items()])
     img_list = np.array([v for k, v in search.items()])
 
+    # make the ref image the median 
+    reftmp = np.median( img_list ,axis = 0)
+
     dif_imgs = np.mean((img_list[0] - img_list) ** 2, axis=(1, 2))
+
+    #dif_imgs = np.mean((np.log10( reftmp ) - np.log10( img_list) ) ** 2, axis=(1, 2))
 
     plt.figure()
     plt.plot(dif_imgs)
@@ -208,7 +235,7 @@ def analyse_search_results(search, savepath="delme.png"):
         img_candidate = search[tuple(coord[candidate_indx[i]])]
 
         plt.figure()
-        plt.imshow(img_candidate)
+        plt.imshow(np.log10(img_candidate))
         plt.title(
             f"position = { coord[candidate_indx[i]]}, metric = {metric_candidate}"
         )
@@ -473,7 +500,7 @@ def spiral_search_and_center(
     return pos
 
 
-def move_relative_and_get_image(cam, beam, phasemask, savefigName=None):
+def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_multideviceserver=True):
     print(
         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
     )
@@ -489,8 +516,17 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None):
                 y = float(xy[1])
 
                 if use_multideviceserver:
-                    message = f"!fpm_moveabs phasemask{beam} {[x,y]}"
+                    #message = f"!fpm_moveabs phasemask{beam} {[x,y]}"
+                    #phasemask.send_string(message)
+                    message = f"!moverel BMX{beam} {x}"
                     phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
+
+                    message = f"!moverel BMY{beam} {y}"
+                    phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
 
                 else:
                     phasemask.move_relative([x, y])
@@ -498,13 +534,14 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None):
                 time.sleep(0.5)
                 img = np.mean(
                     cam.get_some_frames(
-                        number_of_frames=20, apply_manual_reduction=True
+                        number_of_frames=10, apply_manual_reduction=True
                     ),
                     axis=0,
                 )
                 if savefigName != None:
                     plt.figure()
-                    plt.imshow(img)
+                    plt.imshow( np.log10( img) )
+                    plt.colorbar()
                     plt.savefig(savefigName)
             except:
                 print('incorrect input. Try input "1,1" as an example, or "e" to exit')
