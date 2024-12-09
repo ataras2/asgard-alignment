@@ -64,7 +64,7 @@ parser.add_argument(
 parser.add_argument(
     '--beam',
     type=str,
-    default="2",
+    default="1",
     help="what beam to look at?. Default: %(default)s"
 )
 parser.add_argument(
@@ -130,7 +130,7 @@ with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
 
 # init camera 
-roi =  baldr_pupils[str(args.beam)] #[None, None, None, None]
+roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
 c = FLI.fli(cameraIndex=0, roi=roi)
 # configure with default configuration file
 config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
@@ -165,6 +165,7 @@ c.start_camera()
 # dm = {}
 # dm_err_flag = {}
 # for beam, serial_number in dm_serial_numbers.items():
+#     print(f'beam {beam}====\n\n')
 #     dm[beam] = bmc.BmcDm()  # init DM object
 #     dm_err_flag[beam] = dm[beam].open_dm(serial_number)  # open DM
 #     if not dm_err_flag:
@@ -188,14 +189,18 @@ c.start_camera()
 
 
 # bbb = args.beam #"3" 
-# dm[bbb].send_data( flatdm[bbb] +  0.3 * crossdm[bbb] )
+# for bbb in ['1','2','3','4']:
+#     dm[bbb].send_data( flatdm[bbb] +  0.3 * crossdm[bbb] )
 
 # for beam, serial_number in dm_serial_numbers.items():
 #     dm[beam].close_dm()
 
+# img = np.mean( c.get_some_frames( number_of_frames=10, apply_manual_reduction=True ) , axis = 0 ) 
 
+# x_start, x_end , y_start, y_end = baldr_pupils[ '2']# str(args.beam)]
+# plt.figure(); plt.imshow( np.log10( img) ) ; plt.colorbar(); plt.savefig('delme.png')
 
-
+# plt.figure(); plt.imshow( np.log10( img[ x_start:x_end, y_start:y_end ] ) ) ; plt.colorbar(); plt.savefig('delme.png')
 
 
 
@@ -251,6 +256,7 @@ plt.figure(); plt.imshow( np.log10( img ) ) ; plt.colorbar(); plt.savefig('delme
 
 
 # if using multidevice server phasemask is the MDS server socket
+print( f'doing square spiral search for beam {args.beam}')
 img_dict = pct.spiral_square_search_and_save_images(
     cam=c,
     beam=args.beam,

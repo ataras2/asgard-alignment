@@ -17,10 +17,13 @@ from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
 import common.phasescreens as ps
 import pyBaldr.utilities as util
+from common import phasemask_centering_tool as pct
 
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
 
+import matplotlib 
+matplotlib.use('Agg')
 """
 pokes each actuator on the DMs over a +/- range of values and records images on the CRED ONE
 default mode globalresetcds with setup taken from default_cred1_config.json
@@ -289,6 +292,10 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 
+baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+with open(baldr_pupils_path, "r") as json_file:
+    baldr_pupils = json.load(json_file)
+
 # positions to put thermal source on and take it out to empty position to get dark
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
@@ -321,6 +328,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    '--phasemask_name',
+    type=str,
+    default="H3",
+    help="which phasemask? (J1-5 or H1-5). Default: %(default)s."
+)
+
+parser.add_argument(
     '--number_images_recorded_per_cmd',
     type=int,
     default=5,
@@ -347,26 +361,27 @@ parser.add_argument(
     default='Zonal',
     help="Name of the basis to use for DM operations. Default: %(default)s. Options include Zonal, Zonal_pinned_edges, Hadamard, Zernike, Zernike_pinned_edges, fourier, fourier_pinned_edges,"
 )
+
 parser.add_argument(
     '--number_of_modes',
     type=int,
     default=140,
     help="Number of modes to use. Default: %(default)s"
 )
+
 parser.add_argument(
     '--cam_fps',
     type=int,
     default=50,
     help="frames per second on camera. Default: %(default)s"
 )
+
 parser.add_argument(
     '--cam_gain',
     type=int,
     default=1,
     help="camera gain. Default: %(default)s"
 )
-
-parser.parse_args()
 
 args = parser.parse_args()
 
@@ -415,6 +430,22 @@ c.send_fli_cmd(f"set fps {args.cam_fps}")
 c.start_camera()
 
 
+#bad_pixels = c.get_bad_pixel_indicies(  no_frames = 200, std_threshold = 10 , flatten=False)
+#set_bad_pixels_to = int( c.send_fli_cmd("aduoffset") )
+#c.build_bad_pixel_mask(  bad_pixels , set_bad_pixels_to = set_bad_pixels_to)
+
+# frames = c.get_some_frames( number_of_frames=200, apply_manual_reduction=True )
+# plt.figure() ; plt.imshow( np.std( frames, axis=0)) ;plt.colorbar() ; plt.savefig('delme.png')
+
+# mean_frame = np.mean(frames, axis=0)
+# std_frame = np.std(frames, axis=0)
+
+# # Identify bad pixels
+# global_mean = np.mean(mean_frame)
+# global_std = np.std(mean_frame)
+# bad_pixel_map = (np.abs(mean_frame - global_mean) > 5 * global_std) | (std_frame > 5 * np.median(std_frame))
+
+
 ########## set up DMs
 with open(args.dm_config_path, "r") as f:
     dm_serial_numbers = json.load(f)
@@ -452,6 +483,27 @@ for b in dm_serial_numbers:
 # number_amp_samples = 18
 # amp_max = 0.1
 ramp_values = np.linspace(-args.amp_max, args.amp_max, args.number_amp_samples)
+
+
+# phasemask
+for beam in [1,2,3,4]:
+    message = f"!fpm_movetomask phasemask{beam} {args.phasemask_name}"
+    res = send_and_get_response(message)
+    print(res)
+    time.sleep(2)
+
+
+# img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
+# r1,r2,c1,c2 = baldr_pupils[str(beam)]
+# plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+
+# time.sleep(5)
+
+# manual centering 
+#pct.move_relative_and_get_image(cam=c, beam=2, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
+
+
+
 
 
 ########## ########## ##########

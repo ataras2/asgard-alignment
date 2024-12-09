@@ -6,7 +6,7 @@ import json
 import pandas as pd
 import datetime
 from astropy.io import fits
-from scipy.ndimage import label, find_objects
+from scipy.ndimage import label, find_objects, median_filter
 from scipy.stats import linregress
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from fpdf import FPDF
@@ -16,6 +16,10 @@ script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
 import common.DM_registration as DM_registration
 from pyBaldr import utilities as util
+
+# to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
+import matplotlib 
+matplotlib.use('Agg')
 
 #ipython calibration/baldr_calibration.py /home/heimdallr/data/stability_tests/calibration_27-11-2024T17.31.28.fits --beam 2
 
@@ -132,19 +136,6 @@ def plot_eigenmodes( IM, M2C, save_path = None ):
 
 
 
-# hard coded - this could become a json file
-pupil_regions = {
-    4:(31, 85, 208, 256), 
-    3:(120, 174, 160, 214), 
-    2:(211, 270, 151, 210), 
-    1:(271, 320, 149, 206)
-    }
-
-
-plt.ion() 
-
-tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
-tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
 
 def parse_arguments():
@@ -219,6 +210,23 @@ def parse_arguments():
     return parser.parse_args()
 
 
+# hard coded - this could become a json file
+# baldr_pupil_regions = {
+#     4:(31, 85, 208, 256), 
+#     3:(120, 174, 160, 214), 
+#     2:(211, 270, 151, 210), 
+#     1:(271, 320, 149, 206)
+#     }
+
+baldr_pupils_path = "config_files/baldr_pupils_coords.json"
+
+with open(baldr_pupils_path, "r") as json_file:
+    baldr_pupil_regions = json.load(json_file)
+
+plt.ion() 
+
+tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
 
 args = parse_arguments()
@@ -285,6 +293,7 @@ if write_report:
 
 #===========================
 
+#ramp_file = '/home/heimdallr/data/baldr_calibration/08-12-2024/calibration_Zonal_08-12-2024T08.47.26.fits'
 
 recon_data = fits.open( ramp_file )
 
@@ -305,14 +314,51 @@ I0 = np.mean( recon_data['FPM_IN'].data, axis = 0)
 
 poke_imgs = recon_data['SEQUENCE_IMGS'].data[1:].reshape(No_ramps, 140, I0.shape[0], I0.shape[1])
 
-x_start, x_end, y_start, y_end = pupil_regions[beam]
+x_start, x_end , y_start, y_end= baldr_pupil_regions[str(beam)]
+
 # average over axis 1 which is number of frames taken per iteration 
-poke_imgs_cropped = poke_imgs[:,:,y_start:y_end, x_start:x_end] #np.mean( recon_data['SEQUENCE_IMGS'].data[:,:, y_start:y_end, x_start:x_end] , axis=1)
+poke_imgs_cropped = poke_imgs[:,:, x_start:x_end, y_start:y_end] #np.mean( recon_data['SEQUENCE_IMGS'].data[:,:, y_start:y_end, x_start:x_end] , axis=1)
+
+
+## Identify bad pixels
+mean_frame = np.mean(poke_imgs_cropped, axis=(0, 1))
+std_frame = np.std(poke_imgs_cropped, axis=(0, 1))
+
+global_mean = np.mean(mean_frame)
+global_std = np.std(mean_frame)
+bad_pixel_map = (np.abs(mean_frame - global_mean) > 6 * global_std) | (std_frame > 20 * np.median(std_frame))
+
+# save bad pixel map to PDF
+plt.figure() ; plt.imshow( bad_pixel_map ) ;plt.colorbar() ; plt.savefig(fig_path + 'bad_pixel_map.png')
+plt.close('all')
+
+def interpolate_bad_pixels(image, bad_pixel_map):
+    filtered_image = image.copy()
+    filtered_image[bad_pixel_map] = median_filter(image, size=3)[bad_pixel_map]
+    return filtered_image
+
+def process_poke_images(poke_images, bad_pixel_map):
+    """
+    Apply bad pixel interpolation to all frames and pokes.
+    """
+    num_ramps, num_acts, height, width = poke_images.shape
+    filtered_images = np.zeros_like(poke_images)
+    
+    for r in range(num_ramps):
+        for a in range(num_acts):
+            filtered_images[r, a] = interpolate_bad_pixels(poke_images[r, a], bad_pixel_map)
+    return filtered_images
+
+
+poke_imgs_cropped = process_poke_images(poke_imgs_cropped, bad_pixel_map)
+#plt.figure() ; plt.imshow( poke_imgs_cropped[0,0]-poke_imgs_cropped[1,0] ) ;plt.colorbar() ; plt.savefig('delme.png')
+
+
 
 
 
 if write_report:
-    util.nice_heatmap_subplots( im_list = [np.log10( I0[ y_start:y_end, x_start : x_end]), np.log10( N0[y_start:y_end,x_start : x_end] )] , 
+    util.nice_heatmap_subplots( im_list = [np.log10( I0[ x_start : x_end, y_start:y_end]), np.log10( N0[x_start : x_end,y_start:y_end] )] , 
                             xlabel_list=['x [pixels]','x [pixels]'], 
                             ylabel_list=['y [pixels]','y [pixels]'], 
                             title_list=['Phasemask in\n\n\n\n', 'phasemask out\n\n\n\n'], 
@@ -359,6 +405,12 @@ if write_report:
 
 
 
+
+# Bad pixels in pdf
+pdf.add_page()
+pdf.set_font("Arial", size=12)
+pdf.cell(0, 10,  'bad pixel map (interpolates bad pixels)', ln=True)
+pdf.image(fig_path + 'bad_pixel_map.png', x=10, y=30, w=190)
 
 
 
@@ -505,7 +557,7 @@ if write_report:
 
 
 # save and add it to pdf 
-cal_frames = poke_imgs_cropped.reshape( -1, y_end - y_start, x_end - x_start )
+cal_frames = poke_imgs_cropped.reshape( -1,  x_end - x_start, y_end - y_start ) #poke_imgs_cropped.reshape( -1, y_end - y_start, x_end - x_start )
 
 I0 = np.mean( recon_data['FPM_IN'].data, axis = 0) 
 N0 = np.mean( recon_data['FPM_OUT'].data, axis = 0) 
@@ -719,7 +771,7 @@ final_dict = {"beam":beam,
               "control_method":control_method,
               "dm_registration": transform_dict, 
               "control_model":fit_results, 
-              "pupil_regions":pupil_regions[beam],
+              "pupil_regions":baldr_pupil_regions[str(beam)],
               "interpolated_I0":interpolated_I0,
               "interpolated_N0":interpolated_N0,
               "I0":I0,

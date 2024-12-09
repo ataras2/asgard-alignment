@@ -153,6 +153,12 @@ parser.add_argument(
     help="Path to the directory for storing phasescreen data. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--phasemask_name',
+    type=str,
+    default="H3",
+    help="which phasemask? (J1-5 or H1-5). Default: %(default)s."
+)
 
 parser.add_argument(
     '--number_of_rolls',
@@ -188,6 +194,7 @@ parser.add_argument(
     default=1,
     help="camera gain. Default: %(default)s"
 )
+
 
 parser.parse_args()
 
@@ -238,6 +245,16 @@ c.send_fli_cmd(f"set fps {args.cam_fps}")
 c.start_camera()
 
 
+
+
+# phasemask
+for beam in [1,2,3,4]:
+    message = f"!fpm_movetomask phasemask{beam} {args.phasemask_name}"
+    res = send_and_get_response(message)
+    print(res)
+    time.sleep(2)
+
+    
 ########## set up DMs
 with open(args.dm_config_path, "r") as f:
     dm_serial_numbers = json.load(f)
