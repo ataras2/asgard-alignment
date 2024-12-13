@@ -12,6 +12,11 @@ from datetime import datetime
 from typing import Union
 
 
+class SemaphoreState(Enum):
+    RELEASED = 0
+    TAKEN = 1
+
+
 class ESOdevice(abc.ABC):
     def __init__(self, name, semaphore_id) -> None:
         super().__init__()

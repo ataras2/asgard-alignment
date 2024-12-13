@@ -2,9 +2,11 @@ import zmq
 import asgard_alignment
 import argparse
 import sys
-import re
 from parse import parse
 import time
+
+import json
+import datetime
 
 import enum
 import asgard_alignment.ESOdevice
@@ -12,6 +14,7 @@ import asgard_alignment.Instrument
 import asgard_alignment.MultiDeviceServer
 import asgard_alignment.Engineering
 import asgard_alignment.NewportMotor
+import asgard_alignment.ESOdevice
 
 
 class MockMDS:
@@ -28,6 +31,14 @@ class MultiDeviceServer:
     A class to run the Instrument MDS.
     """
 
+    DATABASE_MSG_TEMPLATE = {
+        "command": {
+            "name": "write",
+            "time": "YYYY-MM-DDThh:mm:ss",
+            "parameters": [],
+        }
+    }
+
     def __init__(self, port, host, config_file):
         self.port = port
         self.host = host
@@ -37,6 +48,8 @@ class MultiDeviceServer:
         self.server.bind(f"tcp://{self.host}:{self.port}")
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
+
+        self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
         if config_file == "mock":
             self.instr = MockMDS()
@@ -76,97 +89,297 @@ class MultiDeviceServer:
                     else:
                         s.send_string(response + "\n")
 
+    @staticmethod
+    def get_timestamp():
+        time_now = datetime.datetime.now()
+        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+
+        return time_stamp
+
     def handle_message(self, message):
+        """
+        Handles a recieved message. Custom messages are indicated by a leading "!".
+        """
+
         if "!" in message:
             return self._handle_custom_command(message)
 
-        if ("MAIN" in message) and (message.count(".") > 2):
-            valid = True
-        else:
-            valid = False
-        if valid:
-            if "=" in message:
-                # Received request is "write"
-                x = re.split("=", message)
-                read_val = x[1]
-                y = re.split("\.", x[0])
-                device = y[1]
-                category = y[2]
-                # Deal with the case of parameter arrays (two atoms)
-                if len(y) == 5:
-                    # Replace dot and braces by underscores
-                    parameter = re.sub("\[|\]", "_", y[3]) + "_" + y[4]
-                    par_type = y[4][0]
+        message = message.rstrip(message[-1])
+        print(message)
+        json_data = json.loads(message)
+        command_name = json_data["command"]["name"]
+        timeStampIn = json_data["command"]["time"]
+
+        # Verification of received time-stamp (to do...)
+        # If the timestamp is invalid, set command_name to "none",
+        # so no command will be processed but a reply will be sent
+        # back to the client (set replyContent to "ERROR")
+
+        ################################
+        # Process the received command:
+        ################################
+
+        # Case of "online" (sent by wag when bringing ICS online, to check
+        # that MCUs are alive and ready)
+
+        if "online" in command_name:
+            # TODO: make sure all devices are powered on
+            # .............................................................
+            # If needed, call controller-specific functions to power up
+            # the devices and have them ready for operations
+            # .............................................................
+
+            # Update the wagics database to show all the devices in ONLINE
+            # state (value of "state" attribute has to be set to 3)
+
+            for key in self.instr.devices:
+                attribute = f"<alias>{key}.state"
+                self.database_message["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 3}
+                )
+
+            # Send message to wag to update the database
+
+            self.database_message["command"]["time"] = self.get_timestamp()
+            outputMsg = json.dumps(self.database_message) + "\0"
+
+            cliSocket.send_string(outputMsg)
+            print(outputMsg)
+
+            replyContent = "OK"
+
+        # Case of "standby" (sent by wag when bringing ICS standby,
+        # usually when the instrument night operations are finished)
+
+        if "standby" in command_name:
+
+            # .............................................................
+            # If needed, call controller-specific functions to bring some
+            # devices to a "parking" position and to power them off
+            # .............................................................
+
+            # Update the wagics database to show all the devices in STANDBY
+            # state (value of "state" attrivute has to be set to 2)
+
+            self.database_message["command"]["parameters"].clear()
+            for i in self.instr.devices:
+                attribute = f"<alias>{i}.state"
+                self.database_message["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 2}
+                )
+
+            # Send message to wag to update the database
+            timeNow = datetime.datetime.now()
+            timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+            self.database_message["command"]["time"] = timeStamp
+            outputMsg = json.dumps(self.database_message) + "\0"
+
+            cliSocket.send_string(outputMsg)
+            print(outputMsg)
+
+            replyContent = "OK"
+
+        # Case of "setup" (sent by wag to move devices)
+        if "setup" in command_name:
+            n_devs_to_setup = len(json_data["command"]["parameters"])
+
+            self.instr.free_semaphores()  # TODO: implement this
+
+            # Create a double-list of devices to move
+            setupList = [[], []]
+            for i in range(n_devs_to_setup):
+                kwd = json_data["command"]["parameters"][i]["name"]
+                val = json_data["command"]["parameters"][i]["value"]
+                print("Setup:", kwd, "to", val)
+
+                # Keywords are in the format: INS.<device>.<motion type>
+
+                prefixes = kwd.split(".")
+                dev_name = prefixes[1]
+                mType = prefixes[2]
+                print("Device:", dev_name, " - motion type:", mType)
+
+                # mType can be one of these words:
+                # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
+                # ENC    = Absolute encoder position
+                # ENCREL = Relative encoder postion (can be negative)
+                # ST     = State. Given value is equal to either T or F.
+                #          if device is shutter: T = open, F = closed.
+                #          if device is lamp: T = on, F = off.
+
+                # Look if device exists in list
+                # (something should be done if device does not exist)
+                device = self.instr.devices[dev_name]
+
+                semId = device.semId
+                if sema[semId] == 0:
+                    # Semaphore is free =>
+                    # Device can be moved now
+                    setupList[0].append(
+                        asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
+                    )
+                    sema[semId] = 1
                 else:
-                    parameter = y[3]
-                    par_type = y[3][0]
-                if par_type == "b":
-                    value = read_val == "TRUE"
-                if par_type == "n":
-                    value = int(read_val)
-                if par_type == "l":
-                    value = float(read_val)
+                    # Semaphore is already taken =>
+                    # Device will be moved in a second batch
+                    setupList[1].append(
+                        asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
+                    )
 
-                # Update parameter value of device
-                print("parameter = ", parameter)
-                if hasattr(self.instr.devices[device], parameter):
-                    setattr(self.instr.devices[device], parameter, value)
+            # Move devices (two batchesi if needed)
+            for batch in range(2):
+                if len(setupList[batch]) > 0:
+                    print("batch", batch, "of devices to move:")
+                    self.database_message["command"]["parameters"].clear()
+                    for s in setupList[batch]:
+                        print(
+                            "Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )"
+                        )
 
-                    self.instr.devices[device].update_param()
-                    print("Updated parameter", parameter, "of", device, "to", value)
-                return "ACK"
-            else:
-                # Received request is "read"
-                x = re.split("\.", message)
-                device = x[1]
-                category = x[2]
-                # Deal with the case of parameter arrays (two atoms)
-                if len(x) == 5:
-                    # Replace dot and braces by underscores
-                    parameter = re.sub("\[|\]", "_", x[3]) + "_" + x[4]
-                    par_type = x[4][0]
-                else:
-                    parameter = x[3]
-                    par_type = x[3][0]
+                        # ......................................................
+                        # Add here call to controller-specific functions that
+                        # move the device "s.dev" to the requested position
+                        # "s.val", according to "s.mType"
+                        # ......................................................
+                        self.instr.devices[s.dev].setup(s.mType, s.val)
 
-                if device not in self.instr.devices:
-                    return "Device not found"
-                if hasattr(self.instr.devices[device], parameter):
-                    value = getattr(self.instr.devices[device], parameter)
-                    if type(value) == int:
-                        reply = "n" + str(value)
-                    elif type(value) == float:
-                        reply = "r" + str(value)
-                    elif type(value) == bool:
-                        if value:
-                            reply = "bTRUE"
-                        else:
-                            reply = "bFALSE"
-                    elif isinstance(value, enum.Enum):
-                        reply = "s" + str(value.name)
-                    else:
-                        reply = "s--UNKNOWN--"
-                    print("Value of parameter", parameter, "of", device, "is:", value)
-                else:
-                    # Unknown parameter: send back garbage value according to type
-                    if par_type == "b":
-                        reply = "bFALSE"
-                    elif par_type == "n":
-                        reply = "n9999"
-                    elif par_type == "l":
-                        reply = "r99.99"
-                    else:
-                        reply = "s--UNKNOWN--"
+                        # Inform wag ICS that the device is moving
+                        attribute = f"<alias>{s.dev}:DATA.status0"
+                        self.database_message["command"]["parameters"].append(
+                            {"attribute": attribute, "value": "MOVING"}
+                        )
 
-                self.instr.devices[device].update_fsm()
-                # Send reply to client
-                print("OUT>", reply)
-                return reply
-        else:
-            # Garbage received => send anything to avoid blocking
-            reply = "????"
-            print("OUT>", reply)
-            return reply
+                    # Send message to wag to update the database
+                    self.database_message["command"]["time"] = self.get_timestamp()
+                    outputMsg = json.dumps(self.database_message) + "\0"
+
+                    cliSocket.send_string(outputMsg)
+                    print(outputMsg)
+
+                    # ........................................................
+                    # Add here calls to read (every 1 to 3 seconds) the position
+                    # of the devices and update the database of wag (using the
+                    # code below to generate the JSON message)
+                    # ........................................................
+
+                    # ........................................................
+                    # Add here call to check that devices have reached their
+                    # requested positions. Once done, inform wag as follows:
+                    # ........................................................
+
+                    self.database_message["command"]["parameters"].clear()
+                    for s in setupList[batch]:
+                        attribute = "<alias>" + s.dev + ":DATA.status0"
+                        # Case of motor with named position requested
+                        if s.mType == "NAME":
+                            self.database_message["command"]["parameters"].append(
+                                {"attribute": attribute, "value": s.val}
+                            )
+                            # Note: normally the encoder position shall be
+                            # reported along with the named position
+                            # ...............................................
+                            # => Call function to read the encoder position
+                            #    store it in a variable "posEnc" and execute:
+                            #
+                            # attribute = "<alias>" + s.dev +":DATA.posEnc"
+                            # self.database_message['command']['parameters'].append({"attribute":attribute, "value":posEnc})
+
+                        # Case of shutter or lamp
+                        if s.mType == "ST":
+                            # Here the device can be either a lamp or a shutter
+                            # Add here code to find out the type of s.dev
+                            # If it is a shutter do:
+                            if s.val == "T":
+                                self.database_message["command"]["parameters"].append(
+                                    {"attribute": attribute, "value": "OPEN"}
+                                )
+                            else:
+                                self.database_message["command"]["parameters"].append(
+                                    {"attribute": attribute, "value": "CLOSED"}
+                                )
+                        # If it is a lamp, reuse the code above replacing
+                        # OPEN  by ON and CLOSED by OFF
+
+                        # Case of motor with absolute encoder position requested
+                        if s.mType == "ENC":
+                            self.database_message["command"]["parameters"].append(
+                                {"attribute": attribute, "value": ""}
+                            )
+                            # Note: if motor is at limit, do:
+                            # self.database_message['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
+                            attribute = "<alias>" + s.dev + ":DATA.posEnc"
+                            self.database_message["command"]["parameters"].append(
+                                {"attribute": attribute, "value": s.val}
+                            )
+                        # Case of motor with relative encoder position
+                        # not considered yet
+                        # The simplest would be to read the encoder position
+                        # and to update the database as for the previous case
+
+                    # Send message to wag to update its database
+                    timeNow = datetime.datetime.now()
+                    timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+                    self.database_message["command"]["time"] = timeStamp
+                    outputMsg = json.dumps(self.database_message) + "\0"
+
+                    cliSocket.send_string(outputMsg)
+                    print(outputMsg)
+
+        # Case of "stop" (sent by wag to immediately stop the devices)
+
+        if "stop" in cmdName:
+            nbDevs = len(json_data["command"]["parameters"])
+            for i in range(nbDevs):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print("Stop device:", dev)
+
+                # ......................................................
+                # Add here call to stop the motion of the device dev
+                # ......................................................
+
+            replyContent = "OK"
+
+        # Case of "disable" (sent by wag to power-off devices)
+
+        if "disable" in cmdName:
+            nbDevs = len(json_data["command"]["parameters"])
+            for i in range(nbDevs):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print("Power off device:", dev)
+
+                # ......................................................
+                # Add here call to power-off the device dev
+                # ......................................................
+
+            replyContent = "OK"
+
+        # Case of "enable" (sent by wag to power-on devices)
+
+        if "enable" in cmdName:
+            nbDevs = len(json_data["command"]["parameters"])
+            for i in range(nbDevs):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print("Power on device:", dev)
+
+                # ......................................................
+                # Add here call to power-on the device dev
+                # ......................................................
+
+            replyContent = "OK"
+
+        # Send back reply to ic0fb process
+
+        timeNow = datetime.datetime.now()
+        timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+        reply = (
+            '{\n\t"reply" :\n\t{\n\t\t"content" : "'
+            + replyContent
+            + '",\n\t\t"time" : "'
+            + timeStamp
+            + '"\n\t}\n}\n\0'
+        )
+        print(reply)
+        srvSocket.send_string(reply)
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol
