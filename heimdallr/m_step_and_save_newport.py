@@ -98,8 +98,8 @@ n_imgs = 3
 
 # setup camera
 cam = asgard_alignment.Cameras.PointGrey()
-cam.Gain=15
-cam.ExposureTime=10000
+cam.Gain=10
+cam.ExposureTime=3000
 
 # take a photo and ask the user to crop the image using ginput
 cam.start_stream()

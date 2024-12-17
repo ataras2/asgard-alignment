@@ -12,6 +12,7 @@ import argparse
 import zmq
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter, label, find_objects
+import atexit
 
 from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
@@ -29,6 +30,16 @@ pokes each actuator on the DMs over a +/- range of values and records images on 
 default mode globalresetcds with setup taken from default_cred1_config.json
 user can change fps and gain as desired, also the modal basis to ramp over
 """
+
+def close_all_dms():
+    try:
+        for b in dm:
+            dm[b].close_dm()
+        print("All DMs have been closed.")
+    except Exception as e:
+        print(f"dm object doesn't seem to exist, probably already closed")
+# Register the cleanup function to run at script exit
+atexit.register(close_all_dms)
 
 
 def get_motor_states_as_list_of_dicts( ): 
@@ -493,14 +504,22 @@ for beam in [1,2,3,4]:
     time.sleep(2)
 
 
-# img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
-# r1,r2,c1,c2 = baldr_pupils[str(beam)]
-# plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
 
-# time.sleep(5)
+beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
 
-# manual centering 
-#pct.move_relative_and_get_image(cam=c, beam=2, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
+while beam :
+    print( 'we save images as delme.png in asgard-alignment project - open it!')
+    img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
+    r1,r2,c1,c2 = baldr_pupils[str(beam)]
+    print( r1,r2,c1,c2  )
+    plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+
+    # time.sleep(5)
+
+    # manual centering 
+    pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
+
+    beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
 
 
 

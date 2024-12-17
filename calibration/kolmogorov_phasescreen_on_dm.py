@@ -12,14 +12,19 @@ import argparse
 import zmq
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter, label, find_objects
+import atexit 
 
 from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
 import common.phasescreens as ps
+from common import phasemask_centering_tool as pct
 import pyBaldr.utilities as util
 
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
+
+import matplotlib 
+matplotlib.use('Agg') # helps avoid freezing in remote sessions
 
 """
 Apply Kolmogorov phasescreens across the DMs (4 by default) and records images on the CRED ONE
@@ -27,6 +32,16 @@ default mode globalresetcds with setup taken from default_cred1_config.json
 user can change fps and gain as desired, the 
 """
 
+
+def close_all_dms():
+    try:
+        for b in dm:
+            dm[b].close_dm()
+        print("All DMs have been closed.")
+    except Exception as e:
+        print(f"dm object doesn't seem to exist, probably already closed")
+# Register the cleanup function to run at script exit
+atexit.register(close_all_dms)
 
 
 def get_motor_states_as_list_of_dicts( ): 
@@ -216,6 +231,12 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 
+# Baldr pupils (for checking phasemask alignment before beginning)
+baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+with open(baldr_pupils_path, "r") as json_file:
+    baldr_pupils = json.load(json_file)
+
+
 #DMshapes_path = args.DMshapes_path #"/home/heimdallr/Documents/asgard-alignment/DMShapes/"
 #dm_config_path = #"/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
 # data_path = f"/home/heimdallr/data/pokeramp/{tstamp_rough}/"
@@ -255,6 +276,24 @@ for beam in [1,2,3,4]:
     time.sleep(2)
 
     
+beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
+
+while beam :
+    print( 'we save images as delme.png in asgard-alignment project - open it!')
+    img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
+    r1,r2,c1,c2 = baldr_pupils[str(beam)]
+    #print( r1,r2,c1,c2  )
+    plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+
+    # time.sleep(5)
+
+    # manual centering 
+    pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
+
+    beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
+
+
+
 ########## set up DMs
 with open(args.dm_config_path, "r") as f:
     dm_serial_numbers = json.load(f)

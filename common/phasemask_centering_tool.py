@@ -1,9 +1,10 @@
 import numpy as np
 import time
+import datetime
 from scipy.ndimage import center_of_mass
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
-
+from matplotlib import animation
 
 # "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
 # "!fpm_moverel {} {}": fpm_move_relative_msg,
@@ -12,6 +13,77 @@ import scipy.interpolate as interp
 # "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
 # "!fpm_updatemaskpos {}": fpm_write_mask_positions_msg,
 # "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
+
+
+
+def complete_collinear_points(known_points, separation, tolerance=20):
+    """
+    Completes the dictionary of collinear points given known positions and separation,
+    used to find phase mask positions when only some of the positions are known. 
+
+    Parameters:
+    known_points (dict): A dictionary where keys are integers (1-5) representing the order of points,
+                         and values are tuples (x, y) representing the known coordinates.
+    separation (float): The separation between consecutive points.
+    tolerance (float): Allowed deviation for the separation constraint.
+
+    Returns:
+    dict: A dictionary with all points (1-5) and their computed positions, ordered by keys.
+    """
+    # Validate input
+    if not known_points:
+        raise ValueError("known_points dictionary cannot be empty.")
+    if separation <= 0:
+        raise ValueError("Separation must be a positive value.")
+    if any(key < 1 or key > 5 for key in known_points):
+        raise ValueError("Keys in known_points must be integers between 1 and 5.")
+    
+    # Extract known keys and positions
+    keys = np.array(sorted(known_points.keys()))
+    positions = np.array([known_points[k] for k in keys])  # Shape: (n_points, 2)
+
+    # Validate separation constraints for known points
+    for i in range(len(keys) - 1):
+        actual_separation = np.sqrt(np.sum((positions[i + 1] - positions[i])**2))
+        expected_separation = (keys[i + 1] - keys[i]) * separation
+        if not (np.abs(actual_separation - expected_separation) <= tolerance):
+            raise ValueError(
+                f"Separation constraint violated between points {keys[i]} and {keys[i+1]}: "
+                f"actual={actual_separation}, expected={expected_separation}"
+            )
+
+    # Fit a line through the known points
+    t = keys - keys.min()  # Normalize to start from 0
+    x, y = positions[:, 0], positions[:, 1]
+    px = np.polyfit(t, x, 1)  # Fit x(t)
+    py = np.polyfit(t, y, 1)  # Fit y(t)
+
+    # Calculate the unit direction vector of the line
+    dx, dy = px[0], py[0]  # Gradients dx/dt and dy/dt
+    direction = np.array([dx, dy])
+    direction /= np.linalg.norm(direction)  # Normalize
+
+    # Reconstruct all positions along the line
+    result = {}
+    min_key = keys.min()
+
+    for i in range(1, 6):
+        if i in known_points:
+            result[i] = known_points[i]
+        else:
+            offset = (i - min_key) * separation  # Offset distance along the line
+            reference_point = known_points[min_key]
+            position = np.array(reference_point) + offset * direction
+            result[i] = tuple(position)
+
+    # Print the calculated separation for verification
+    positions_array = np.array([result[i] for i in sorted(result.keys())])
+    separations = np.sqrt(np.sum(np.diff(positions_array, axis=0)**2, axis=1))
+    print("Calculated separations between consecutive points:", separations)
+
+    # Order the result by keys
+    ordered_result = {key: result[key] for key in sorted(result.keys())}
+    return ordered_result
 
 
 def compute_image_difference(img1, img2):
@@ -265,6 +337,132 @@ def analyse_search_results(search, savepath="delme.png"):
 
     return stop_coord
 
+def display_scatter_and_image(data_dict):
+    """
+    
+    Displays an interactive plot with:
+    - A scatter plot of x, y positions up to the current index.
+    - An image corresponding to the current index.
+
+
+    Parameters:
+    - data_dict: Dictionary where keys are x, y positions (string tuples) and
+                 values are 2D arrays (images).
+                 !!!!!!!!!
+                 designed to use img_dict returned from spiral_square_search_and_save_images()
+                 as input 
+                 !!!!!!!!!
+    """
+    # Extract and process data
+    positions = [eval(key) for key in data_dict.keys()]
+    images = list(data_dict.values())
+    x_positions, y_positions = zip(*positions)
+
+    num_frames = len(positions)
+
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    scatter_ax, image_ax = axes
+
+    # Initial scatter plot
+    scatter = scatter_ax.scatter(x_positions[:1], y_positions[:1], c='b', label='Positions')
+    scatter_ax.set_xlim(min(x_positions) - 1, max(x_positions) + 1)
+    scatter_ax.set_ylim(min(y_positions) - 1, max(y_positions) + 1)
+    scatter_ax.set_xlabel("X Position")
+    scatter_ax.set_ylabel("Y Position")
+    scatter_ax.set_title("Scatter Plot of Positions")
+    scatter_ax.legend()
+
+    # Initial image plot
+    img_display = image_ax.imshow(images[0], cmap='viridis')
+    cbar = fig.colorbar(img_display, ax=image_ax)
+    cbar.set_label("Intensity")
+    image_ax.set_title("Image at Current Position")
+
+    # Slider setup
+    ax_slider = plt.axes([0.2, 0.02, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
+
+    # Update function for the slider
+    def update(val):
+        index = int(frame_slider.val)
+
+        # Update scatter plot
+        scatter.set_offsets(np.c_[x_positions[:index + 1], y_positions[:index + 1]])
+
+        # Update image plot
+        img_display.set_data(images[index])
+
+        fig.canvas.draw_idle()
+
+    # Connect the slider to the update function
+    frame_slider.on_changed(update)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def create_scatter_image_movie(data_dict, save_path="scatter_image_movie.mp4", fps=5):
+    """
+    Creates a movie showing:
+    - A scatter plot of x, y positions up to the current index.
+    - An image corresponding to the current index.
+
+    Parameters:
+    - data_dict: Dictionary where keys are x, y positions (string tuples) and
+                 values are 2D arrays (images).
+    - save_path: Path to save the movie file (e.g., "output.mp4").
+    - fps: Frames per second for the output movie.
+    !!!!!!!!!
+    designed to use img_dict returned from spiral_square_search_and_save_images()
+    as input 
+    !!!!!!!!!
+    """
+    # Extract data from the dictionary
+    positions = [eval(key) for key in data_dict.keys()]
+    images = list(data_dict.values())
+    x_positions, y_positions = zip(*positions)
+
+    num_frames = len(positions)
+
+    # Create the figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    scatter_ax, image_ax = axes
+
+    # Initialize the scatter plot
+    scatter = scatter_ax.scatter([], [], c='b', label='Positions')
+    scatter_ax.set_xlim(min(x_positions) - 1, max(x_positions) + 1)
+    scatter_ax.set_ylim(min(y_positions) - 1, max(y_positions) + 1)
+    scatter_ax.set_xlabel("X Position")
+    scatter_ax.set_ylabel("Y Position")
+    scatter_ax.set_title("Scatter Plot of Positions")
+    scatter_ax.legend()
+
+    # Initialize the image plot
+    img_display = image_ax.imshow(images[0], cmap='viridis')
+    cbar = fig.colorbar(img_display, ax=image_ax)
+    cbar.set_label("Intensity")
+    image_ax.set_title("Image at Current Position")
+
+    # Function to update the plots for each frame
+    def update_frame(frame_idx):
+        # Update scatter plot
+        scatter.set_offsets(np.c_[x_positions[:frame_idx + 1], y_positions[:frame_idx + 1]])
+
+        # Update image plot
+        img_display.set_data(images[frame_idx])
+
+        return scatter, img_display
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
+
+    # Save the animation as a movie file
+    ani.save(save_path, fps=fps, writer='ffmpeg')
+
+    plt.close(fig)  # Close the figure to avoid displaying it unnecessarily
+
 
 def spiral_search_and_center(
     cam,
@@ -500,7 +698,7 @@ def spiral_search_and_center(
     return pos
 
 
-def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_multideviceserver=True):
+def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
     print(
         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
     )
@@ -540,7 +738,7 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_mult
                 )
                 if savefigName != None:
                     plt.figure()
-                    plt.imshow( np.log10( img) )
+                    plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
                     plt.colorbar()
                     plt.savefig(savefigName)
             except:

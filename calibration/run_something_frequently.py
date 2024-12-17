@@ -18,18 +18,18 @@ def run_scripts():
 
         time.sleep( 5 )
 
-        # Run the second script with "cross" DM map
-        subprocess.run(
-            [
-                "python",
-                "/home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis.py",
-                "--cam_gain", "5",
-                "--cam_fps", "50",
-                "--dm_map", "cross"
-            ],
-            check=True
-        )
-        print("Cross map script completed successfully.")
+        # # Run the second script with "cross" DM map
+        # subprocess.run(
+        #     [
+        #         "python",
+        #         "/home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis.py",
+        #         "--cam_gain", "5",
+        #         "--cam_fps", "50",
+        #         "--dm_map", "cross"
+        #     ],
+        #     check=True
+        # )
+        # print("Cross map script completed successfully.")
 
     except subprocess.CalledProcessError as e:
         print(f"Error: Script failed with exit code {e.returncode}")
@@ -43,4 +43,4 @@ while True:
     print(f'========= RUN {run_count} ========')
     run_scripts()
     run_count += 1
-    time.sleep(2 * 60 * 60)  # Sleep for 2 hours
+    time.sleep(10 * 60) 1 # Sleep for 2 hours

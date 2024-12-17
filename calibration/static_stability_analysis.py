@@ -418,50 +418,6 @@ print('Done')
 #     plt.close()
 
 
-# def plot_motor_states_vs_time(fits_files):
-#     """
-#     Reads multiple FITS files and plots motor states vs time.
-
-#     Parameters:
-#     - fits_files (list of str): List of paths to FITS files.
-#     """
-#     timestamps = []
-#     motor_positions = {}
-
-#     for fits_file in fits_files:
-#         timestamp = extract_timestamp_from_filename(os.path.basename(fits_file))
-#         if not timestamp:
-#             continue
-#         timestamps.append(timestamp)
-
-#         motor_states = read_motor_states_fits(fits_file)
-#         for motor in motor_states:
-#             name = motor["name"]
-#             position = motor.get("position", np.nan)
-#             if name not in motor_positions:
-#                 motor_positions[name] = []
-#             motor_positions[name].append(position)
-
-#     # Sort timestamps and ensure positions align
-#     sorted_indices = np.argsort(timestamps)
-#     timestamps = np.array(timestamps)[sorted_indices]
-#     motor_positions = {motor: np.array(positions)[sorted_indices] for motor, positions in motor_positions.items()}
-
-#     # Plot each motor's position vs time
-#     plt.figure(figsize=(12, 8))
-#     for motor, positions in motor_positions.items():
-#         plt.plot(timestamps, positions, label=motor)
-
-#     plt.xlabel("Time")
-#     plt.ylabel("Position")
-#     plt.title("Motor States vs Time")
-#     plt.legend()
-#     plt.grid()
-#     plt.savefig('delme.png')
-#     plt.close()
-
-
-#     #plt.show()
 
 
 # def plot_motor_states_subplots(fits_files, motor_names, motor_names_no_beams):
@@ -549,12 +505,11 @@ print('Done')
 
 # #plot_motor_states_vs_time(matching_files)
 
+# # Define motor names
+# motor_names = ["SDLA", "SDL12", "SDL34", "SSS", "BFO"]
+# motor_names_no_beams = [
+#     "HFO", "HTPP", "HTPI", "HTTP", "HTTI", "BDS", "BTT", "BTP", "BMX", "BMY"
+# ]
 
-# Define motor names
-motor_names = ["SDLA", "SDL12", "SDL34", "SSS", "BFO"]
-motor_names_no_beams = [
-    "HFO", "HTPP", "HTPI", "HTTP", "HTTI", "BDS", "BTT", "BTP", "BMX", "BMY"
-]
-
-# Plot motor states
-plot_motor_states_subplots(matching_files, motor_names, motor_names_no_beams)
+# # Plot motor states
+# plot_motor_states_subplots(matching_files, motor_names, motor_names_no_beams)

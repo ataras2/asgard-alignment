@@ -43,6 +43,25 @@ def send_and_get_response(message):
     return response.strip()
 
 
+def convert_to_serializable(obj):
+    """
+    Recursively converts NumPy arrays and other non-serializable objects to serializable forms.
+    Also converts dictionary keys to standard types (str, int, float).
+    """
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()  # Convert NumPy arrays to lists
+    elif isinstance(obj, np.integer):
+        return int(obj)  # Convert NumPy integers to Python int
+    elif isinstance(obj, np.floating):
+        return float(obj)  # Convert NumPy floats to Python float
+    elif isinstance(obj, dict):
+        return {str(key): convert_to_serializable(value) for key, value in obj.items()}  # Ensure keys are strings
+    elif isinstance(obj, list):
+        return [convert_to_serializable(item) for item in obj]
+    else:
+        return obj  # Base case: return the object itself if it doesn't need conversion
+
+
 # paths and timestamps
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
@@ -129,6 +148,8 @@ baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/bal
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
 
+
+
 # init camera 
 roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
 c = FLI.fli(cameraIndex=0, roi=roi)
@@ -148,6 +169,32 @@ time.sleep(1)
 c.send_fli_cmd(f"set fps {args.cam_fps}")
 
 c.start_camera()
+
+
+# check the cropped pupil regions are correct: 
+full_im = c.get_image_in_another_region( )
+
+# Plot the image
+plt.figure(figsize=(8, 8))
+plt.imshow(np.log10(full_im), cmap='gray' ) #, origin='upper') #extent=[0, full_im.shape[1], 0, full_im.shape[0]]
+plt.colorbar(label='Intensity')
+
+# Overlay red boxes for each cropping region
+for beam, (row1, row2, column1, column2) in  baldr_pupils.items():
+    plt.plot([column1, column2, column2, column1, column1],
+             [row1, row1, row2, row2, row1],
+             color='red', linewidth=2, label=f'Beam {beam}' if beam == 1 else "")
+    plt.text((column1 + column2) / 2, row1 + 2, f'Beam {beam}', 
+             color='red', fontsize=15, ha='center', va='bottom')
+
+# Add labels and legend
+plt.title('Image with Cropping Regions')
+plt.xlabel('Columns')
+plt.ylabel('Rows')
+plt.legend(loc='upper right')
+plt.savefig('delme.png')
+plt.show()
+plt.close() 
 
 
 #### Check we are on the right beam !!!! 
@@ -270,6 +317,13 @@ img_dict = pct.spiral_square_search_and_save_images(
 
 final_coord = pct.analyse_search_results(img_dict, savepath="delme.png")
 
+save_search_dict = int(input('save the search images (input 1 or 0) - only save if you want to inspect it later'))
+if save_search_dict:
+
+    with open(args.data_path+f'search_dictionary_beam{args.beam}.json', "w") as json_file:
+        json.dump(convert_to_serializable(img_dict), json_file, indent=4)
+
+
 
 ### Move to the aquired position 
 
@@ -305,6 +359,7 @@ res = send_and_get_response(message)
 most_recent_file = max(valid_reference_position_files, key=os.path.getmtime)
 reference_mask_pos_file = most_recent_file  # this could also be a user input 
 
+print( f'using {reference_mask_pos_file } as the reference file to calculate offsets for the other phase masks relative to the current acquired mask')
 
 # check the reference file 
 # Read the JSON file into a dictionary
