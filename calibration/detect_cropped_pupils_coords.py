@@ -194,12 +194,101 @@ def detect_circle(image, sigma=2, threshold=0.5, plot=True):
 
 
 
+def find_optimal_connected_region(image, connectivity=4, initial_percentile_threshold=95):
+    """
+    Robust way to detect the pupil which is immune to outliers, noise and uneven illumination. 
+    
+    Finds the connected region that maximizes the product between the normalized number of pixels
+    in the region and the percentile of the lowest pixel value in the group.
+
+    Parameters:
+        image (2D array): The input image.
+        connectivity (int): Pixel connectivity. Options:
+            - 4: Only cardinal neighbors (up, down, left, right).
+            - 8: Diagonal neighbors are also considered.
+        initial_percentile_threshold (float): Initial percentile threshold to identify connected regions.
+        NOTE: The initial percentile threshold should be in the range [0, 100] 
+        - results are very sensitive to this parameter. Best to keep it high around 95 
+
+    Returns:
+        2D boolean array: A mask where True represents the selected connected region.
+    """
+    # Ensure the input image is a numpy array
+    image = np.asarray(image)
+
+    # Threshold to get initial candidates for connected regions
+    mask = image > np.percentile( image, initial_percentile_threshold ) 
+
+    # Define neighbor offsets based on connectivity
+    if connectivity == 4:
+        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    elif connectivity == 8:
+        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+    else:
+        raise ValueError("Connectivity must be 4 or 8")
+
+    def flood_fill(start):
+        """Flood fill algorithm to find connected components."""
+        stack = [start]
+        region = []
+        while stack:
+            x, y = stack.pop()
+            if (0 <= x < image.shape[0]) and (0 <= y < image.shape[1]) and mask[x, y]:
+                region.append((x, y))
+                mask[x, y] = False  # Mark as visited
+                for dx, dy in neighbors:
+                    stack.append((x + dx, y + dy))
+        return region
+
+    # Find all connected components
+    regions = []
+    for x in range(image.shape[0]):
+        for y in range(image.shape[1]):
+            if mask[x, y]:
+                regions.append(flood_fill((x, y)))
+
+    # Initialize variables to track the best region
+    best_score = -np.inf
+    best_region = None
+    total_pixels = image.size  # Total number of pixels in the image
+
+    # Evaluate each region
+    for region in regions:
+        # Number of pixels in the region (normalized)
+        num_pixels = len(region)
+        normalized_num_pixels = (num_pixels / total_pixels) * 100
+
+        # Percentile of the lowest pixel value in the region
+        region_pixels = np.array([image[x, y] for x, y in region])
+        lowest_value = np.min(region_pixels)
+        lowest_value_percentile = (np.sum(image <= lowest_value) / image.size) * 100
+
+        # Calculate the score
+        score = normalized_num_pixels * lowest_value_percentile
+
+        # Update the best region if the score is higher
+        if score > best_score:
+            best_score = score
+            best_region = region
+
+    # Create a mask for the best region
+    final_mask = np.zeros_like(image, dtype=bool)
+    for x, y in best_region:
+        final_mask[x, y] = True
+
+    return final_mask
+
+
 
 
 # paths and timestamps
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
+# default data paths 
+with open( "config_files/file_paths.json") as f:
+    default_path_dict = json.load(f)
+    
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="Mode setup")
 parser.add_argument(
@@ -233,7 +322,7 @@ if not os.path.exists(args.data_path):
 
 
 
-baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)

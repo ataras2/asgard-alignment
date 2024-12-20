@@ -24,7 +24,7 @@ sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
 
 import matplotlib 
-matplotlib.use('Agg')
+matplotlib.use('Agg') # helps avoid freezing in remote sessions
 """
 pokes each actuator on the DMs over a +/- range of values and records images on the CRED ONE
 default mode globalresetcds with setup taken from default_cred1_config.json
@@ -511,7 +511,7 @@ while beam :
     print( 'we save images as delme.png in asgard-alignment project - open it!')
     img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
     r1,r2,c1,c2 = baldr_pupils[str(beam)]
-    print( r1,r2,c1,c2  )
+    #print( r1,r2,c1,c2  )
     plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
 
     # time.sleep(5)

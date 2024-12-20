@@ -430,7 +430,7 @@ class fli( ):
 
 
 
-    def get_bad_pixel_indicies( self, no_frames = 100, std_threshold = 100 , flatten=False):
+    def get_bad_pixel_indicies( self, no_frames = 100, std_threshold = 20, mean_threshold=6, flatten=False):
         # To get bad pixels we just take a bunch of images and look at pixel variance 
         #self.enable_frame_tag( True )
         time.sleep(0.5)
@@ -450,12 +450,27 @@ class fli( ):
         #             previous_frame_number = current_frame_number 
         #             dark_list.append( self.get_image( apply_manual_reduction  = False) )
         #     i+=1
-        dark_std = np.std( dark_list ,axis=0)
-        # define our bad pixels where std > 100 or zero variance
-        #if not flatten:
-        bad_pixels = np.where( (dark_std > std_threshold) + (dark_std == 0 ))
-        #else:  # flatten is useful for when we filter regions by flattened pixel indicies
-        bad_pixels_flat = np.where( (dark_std.reshape(-1) > std_threshold) + (dark_std.reshape(-1) == 0 ))
+
+        ## Identify bad pixels
+        mean_frame = np.mean(dark_list, axis=0)
+        std_frame = np.std(dark_list, axis=0)
+
+        global_mean = np.mean(mean_frame)
+        global_std = np.std(mean_frame)
+        bad_pixel_map = (np.abs(mean_frame - global_mean) > mean_threshold * global_std) | (std_frame > std_threshold * np.median(std_frame))
+
+        if not flatten:
+            bad_pixels = np.where( bad_pixel_map )
+        else: 
+            bad_pixels_flat = np.where( bad_pixel_map.reshape(-1) ) 
+
+        ## OlD WAY 
+        # dark_std = np.std( dark_list ,axis=0)
+        # # define our bad pixels where std > 100 or zero variance
+        # #if not flatten:
+        # bad_pixels = np.where( (dark_std > std_threshold) + (dark_std == 0 ))
+        # #else:  # flatten is useful for when we filter regions by flattened pixel indicies
+        # bad_pixels_flat = np.where( (dark_std.reshape(-1) > std_threshold) + (dark_std.reshape(-1) == 0 ))
 
         #self.bad_pixels = bad_pixels_flat
 

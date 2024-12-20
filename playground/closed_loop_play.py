@@ -16,11 +16,17 @@ from common import DM_registration
 from asgard_alignment import FLI_Cameras as FLI
 from common import phasemask_centering_tool as pct
 
-# import bmc and fli class 
 
+# import bmc and fli class 
 # 
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
+
+
+"""
+process 
+
+"""
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -188,8 +194,10 @@ img = np.mean( c.get_some_frames( number_of_frames=10, apply_manual_reduction=Tr
 plt.figure(); plt.imshow( np.log10( img ) ) ; plt.colorbar(); plt.savefig('delme.png')
 
 
-# manual centering 
-#pct.move_relative_and_get_image(cam=c, beam=args.beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
+
+
+# manual centering of phasemask 
+pct.move_relative_and_get_image(cam=c, beam=args.beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
 
 
 
@@ -304,7 +312,7 @@ while closed:
 hdul = fits.HDUList()
 
 # Add each list to the HDU list as a new extension
-for list_name, data_list in lists_dict.items():
+for list_name, data_list in telem.items():
     # Convert list to numpy array for FITS compatibility
     data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
 

@@ -1,6 +1,7 @@
 import sys
 import os
 import numpy as np
+import fnmatch
 import matplotlib.pyplot as plt
 import json
 import pandas as pd
@@ -20,6 +21,14 @@ from pyBaldr import utilities as util
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
 import matplotlib 
 matplotlib.use('Agg')
+
+# default paths from one file
+with open( "config_files/file_paths.json") as f:
+    default_path_dict = json.load(f)
+
+default_data_calibration_path =  default_path_dict["baldr_calibration_data"] # default path to look for most recent calibration files. HARD CODED 
+ramp_file_pattern = 'calibration_Zonal*.fits' # pattern to ffind the most recent pokeramp calibration file 
+kolmogorov_file_pattern = 'kolmogorov_calibration*.fits'# pattern to ffind the most recent kolmogorov calibration file (if specified)
 
 #ipython calibration/baldr_calibration.py /home/heimdallr/data/stability_tests/calibration_27-11-2024T17.31.28.fits --beam 2
 
@@ -135,7 +144,28 @@ def plot_eigenmodes( IM, M2C, save_path = None ):
 
 
 
+def get_most_recent_file(directory, pattern):
+    most_recent_file = None
+    most_recent_time = None
 
+    # Walk through the directory and its subdirectories
+    for root, _, files in os.walk(directory):
+        for filename in files:
+            if fnmatch.fnmatch(filename, pattern):  # Match the file pattern
+                filepath = os.path.join(root, filename)
+                file_time = os.path.getmtime(filepath)  # Get last modified time
+                
+                if most_recent_time is None or file_time > most_recent_time:
+                    most_recent_time = file_time
+                    most_recent_file = filepath
+
+    if most_recent_file:
+        print(f"Most recent file: {most_recent_file}")
+        print(f"Last modified time: {datetime.datetime.fromtimestamp(most_recent_time)}")
+    else:
+        print("No files matched the given pattern.")
+
+    return most_recent_file
 
 
 def parse_arguments():
@@ -146,7 +176,7 @@ def parse_arguments():
     parser.add_argument(
         'ramp_file',
         type=str,
-        help="Path to the ramp file (obligatory)."
+        help="Path to the ramp file (obligatory). If you want to use the most recent one input 'recent'"
     )
     
     # Optional arguments with defaults
@@ -154,7 +184,7 @@ def parse_arguments():
         '--kol_file',
         type=str,
         default=None,
-        help="Path to the fits file with Kolmogorov phasescreen on DM. Optional. Default: %(default)s"
+        help="Path to the fits file with Kolmogorov phasescreen on DM. Optional. Default: %(default)s. If you want to use the most recent one input 'recent'"
     )
     parser.add_argument(
         '--beam',
@@ -218,7 +248,7 @@ def parse_arguments():
 #     1:(271, 320, 149, 206)
 #     }
 
-baldr_pupils_path = "config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"config_files/baldr_pupils_coords.json"
 
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupil_regions = json.load(json_file)
@@ -242,6 +272,18 @@ control_method = args.control_method
 output_config_filename = args.output_config_filename
 output_report_dir = args.output_report_dir
 fig_path = args.fig_path
+
+if ramp_file == 'recent':
+    print( f'using the most recent poke ramp calibration fits file from {default_data_calibration_path}.')
+
+    ramp_file = get_most_recent_file(default_data_calibration_path, ramp_file_pattern)
+
+
+if kol_file == 'recent':
+    print( f'using the most recent kolmogorov calibration fits file from {default_data_calibration_path}.')
+
+    kol_file = get_most_recent_file(default_data_calibration_path, kolmogorov_file_pattern)
+
 
 os.makedirs(output_report_dir, exist_ok=True)
 

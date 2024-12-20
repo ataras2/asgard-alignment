@@ -5,6 +5,9 @@ from scipy.ndimage import center_of_mass
 import matplotlib.pyplot as plt
 import scipy.interpolate as interp
 from matplotlib import animation
+from scipy.cluster.vq import kmeans, vq
+from scipy.ndimage import gaussian_filter, median_filter
+from scipy.optimize import leastsq
 
 # "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
 # "!fpm_moverel {} {}": fpm_move_relative_msg,
@@ -207,6 +210,155 @@ def square_spiral_scan(starting_point, step_size, search_radius):
     return scan_points
 
 
+def raster_scan_with_orientation(starting_point, dx, dy, width, height, orientation=0):
+    """
+    Generates a raster scan pattern within a defined rectangular area and rotates it by a given orientation.
+
+    Parameters:
+    starting_point (tuple): The initial (x, y) point to start the raster scan.
+    dx (float): Step size in the x-direction.
+    dy (float): Step size in the y-direction.
+    width (float): Total width of the scan area.
+    height (float): Total height of the scan area.
+    orientation (float): Orientation angle in degrees (rotation counterclockwise).
+
+    Returns:
+    list: A list of tuples where each tuple contains (x, y) positions for the scan.
+    """
+    x_start, y_start = starting_point
+    scan_points = []
+
+    # Define the bounds of the scan area
+    x_min = 0
+    x_max = width
+    y_min = 0
+    y_max = height
+
+    # Initialize y and direction for x movement
+    y = y_min
+    direction = 1  # 1 for left-to-right, -1 for right-to-left
+
+    while y <= y_max:
+        # Generate a row of points
+        row_points = []
+        if direction == 1:  # Left-to-right
+            x = x_min
+            while x <= x_max:
+                row_points.append((x, y))
+                x += dx
+        else:  # Right-to-left
+            x = x_max
+            while x >= x_min:
+                row_points.append((x, y))
+                x -= dx
+
+        # Add the row to the scan points
+        scan_points.extend(row_points)
+
+        # Move to the next row and flip direction
+        y += dy
+        direction *= -1
+
+    # Rotate points based on the orientation angle
+    angle_rad = np.radians(orientation)
+    cos_theta, sin_theta = np.cos(angle_rad), np.sin(angle_rad)
+
+    # Apply rotation and translate back to the starting point
+    rotated_points = []
+    for x, y in scan_points:
+        x_rot = cos_theta * x - sin_theta * y
+        y_rot = sin_theta * x + cos_theta * y
+        rotated_points.append((x_rot + x_start, y_rot + y_start))
+
+    return rotated_points
+
+
+def raster_square_search_and_save_images(
+    cam,
+    beam,
+    phasemask,
+    starting_point,
+    dx, 
+    dy, 
+    width, 
+    height, 
+    orientation=0,
+    sleep_time=1,
+    use_multideviceserver=True,
+    plot_grid_before_scan=True
+):
+    """
+    Perform a raster search pattern to map the phase mask.
+    if use_multideviceserver is True, the function will use ZMQ protocol to communicate with the
+    MultiDeviceServer to move the phase mask. 
+    !!! In this case phasemask should be the socket for the ZMQ protocol.
+    !!! Otherwise, it will move the phase mask directly and phasemask shold be the BaldrPhaseMask object.
+    """
+
+    spiral_pattern = raster_scan_with_orientation(starting_point, dx, dy, width, height, orientation)
+
+    x_points, y_points = zip(*spiral_pattern)
+    img_dict = {}
+
+    if plot_grid_before_scan:
+        # Plot the scan points
+        plt.figure(figsize=(6, 6))
+        plt.scatter(x_points, y_points, color="blue", label="Scan Points")
+        plt.plot(x_points, y_points, linestyle="--", color="gray", alpha=0.7)
+        plt.title(f"Raster Scan Pattern with {orientation}° Rotation")
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.legend()
+        plt.grid()
+        plt.axis("equal")  # Ensure equal scaling
+        plt.savefig( 'delme.png')
+        plt.show()
+        plt.close()
+
+
+    for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
+        print("at ", x_pos, y_pos)
+        print(f"{100 * i/len(x_points)}% complete")
+
+        # motor limit safety checks!
+        if x_pos <= 0:
+            print('x_pos < 0. set x_pos = 1')
+            x_pos = 1
+        if x_pos >= 10000:
+            print('x_pos > 10000. set x_pos = 9999')
+            x_pos = 9999
+        if y_pos <= 0:
+            print('y_pos < 0. set y_pos = 1')
+            y_pos = 1
+        if y_pos >= 10000:
+            print('y_pos > 10000. set y_pos = 9999')
+            y_pos = 9999
+
+        if use_multideviceserver:
+            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"!moveabs BMX{beam} {x_pos}"
+            phasemask.send_string(message)
+            response = phasemask.recv_string()
+            print(response)
+
+            message = f"!moveabs BMY{beam} {y_pos}"
+            phasemask.send_string(message)
+            response = phasemask.recv_string()
+            print(response)
+        else:
+            phasemask.move_absolute([x_pos, y_pos])
+
+        time.sleep(sleep_time)  # wait for the phase mask to move and settle
+        img = np.mean(
+            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            axis=0,
+        )
+
+        img_dict[(x_pos, y_pos)] = img
+
+    return img_dict
+
+
 def spiral_square_search_and_save_images(
     cam,
     beam,
@@ -242,7 +394,7 @@ def spiral_square_search_and_save_images(
             x_pos = 9999
         if y_pos <= 0:
             print('y_pos < 0. set y_pos = 1')
-            y_pox = 1
+            y_pos = 1
         if y_pos >= 10000:
             print('y_pos > 10000. set y_pos = 9999')
             y_pos = 9999
@@ -272,7 +424,7 @@ def spiral_square_search_and_save_images(
     return img_dict
 
 
-def analyse_search_results(search, savepath="delme.png"):
+def analyse_search_results(search, savepath="delme.png", plot_logscale=True):
     """
     analyse results from spiral_square_search_and_save_images
     search = img_dict output from spiral_square_search_and_save_images function.
@@ -285,6 +437,7 @@ def analyse_search_results(search, savepath="delme.png"):
 
     dif_imgs = np.mean((img_list[0] - img_list) ** 2, axis=(1, 2))
 
+    # dont do log in the case of dark subtraction (negative adu!)
     #dif_imgs = np.mean((np.log10( reftmp ) - np.log10( img_list) ) ** 2, axis=(1, 2))
 
     plt.figure()
@@ -307,7 +460,12 @@ def analyse_search_results(search, savepath="delme.png"):
         img_candidate = search[tuple(coord[candidate_indx[i]])]
 
         plt.figure()
-        plt.imshow(np.log10(img_candidate))
+        if plot_logscale:
+            im = plt.imshow(np.log10(img_candidate))
+            plt.colorbar(im, label='log ADU')
+        else: 
+            im = plt.imshow(img_candidate)
+            plt.colorbar(im, label = "ADU")
         plt.title(
             f"position = { coord[candidate_indx[i]]}, metric = {metric_candidate}"
         )
@@ -336,71 +494,6 @@ def analyse_search_results(search, savepath="delme.png"):
     # phasemask.write_current_mask_positions()
 
     return stop_coord
-
-def display_scatter_and_image(data_dict):
-    """
-    
-    Displays an interactive plot with:
-    - A scatter plot of x, y positions up to the current index.
-    - An image corresponding to the current index.
-
-
-    Parameters:
-    - data_dict: Dictionary where keys are x, y positions (string tuples) and
-                 values are 2D arrays (images).
-                 !!!!!!!!!
-                 designed to use img_dict returned from spiral_square_search_and_save_images()
-                 as input 
-                 !!!!!!!!!
-    """
-    # Extract and process data
-    positions = [eval(key) for key in data_dict.keys()]
-    images = list(data_dict.values())
-    x_positions, y_positions = zip(*positions)
-
-    num_frames = len(positions)
-
-    # Create figure with two subplots
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    scatter_ax, image_ax = axes
-
-    # Initial scatter plot
-    scatter = scatter_ax.scatter(x_positions[:1], y_positions[:1], c='b', label='Positions')
-    scatter_ax.set_xlim(min(x_positions) - 1, max(x_positions) + 1)
-    scatter_ax.set_ylim(min(y_positions) - 1, max(y_positions) + 1)
-    scatter_ax.set_xlabel("X Position")
-    scatter_ax.set_ylabel("Y Position")
-    scatter_ax.set_title("Scatter Plot of Positions")
-    scatter_ax.legend()
-
-    # Initial image plot
-    img_display = image_ax.imshow(images[0], cmap='viridis')
-    cbar = fig.colorbar(img_display, ax=image_ax)
-    cbar.set_label("Intensity")
-    image_ax.set_title("Image at Current Position")
-
-    # Slider setup
-    ax_slider = plt.axes([0.2, 0.02, 0.65, 0.03], facecolor='lightgoldenrodyellow')
-    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
-
-    # Update function for the slider
-    def update(val):
-        index = int(frame_slider.val)
-
-        # Update scatter plot
-        scatter.set_offsets(np.c_[x_positions[:index + 1], y_positions[:index + 1]])
-
-        # Update image plot
-        img_display.set_data(images[index])
-
-        fig.canvas.draw_idle()
-
-    # Connect the slider to the update function
-    frame_slider.on_changed(update)
-
-    plt.tight_layout()
-    plt.show()
-
 
 
 def create_scatter_image_movie(data_dict, save_path="scatter_image_movie.mp4", fps=5):
@@ -469,6 +562,7 @@ def spiral_search_and_center(
     phasemask,
     phasemask_name,
     beam,
+    starting_point,
     search_radius,
     dr,
     dtheta,
@@ -476,21 +570,24 @@ def spiral_search_and_center(
     fine_tune_threshold=3,
     savefigName=None,
     usr_input=True,
+    use_multideviceserver=True
 ):
 
     if use_multideviceserver:
-        message = f"!fpm_movetomask phasemask{beam} {phasemask_name}"
+        #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+        message = f"!moveabs BMX{beam} {x_pos}"
         phasemask.send_string(message)
+        response = phasemask.recv_string()
+        print(response)
 
-        message = f"!fpm_readpos phasemask{beam}"
+        message = f"!moveabs BMY{beam} {y_pos}"
         phasemask.send_string(message)
-        initial_pos = phasemask.recv_string()
-
+        response = phasemask.recv_string()
+        print(response)
     else:
-        phasemask.move_to_mask(phasemask_name)  # move to phasemask
-        initial_pos = phasemask.phase_positions[phasemask_name]  # set initial position
+        phasemask.move_absolute([x_pos, y_pos])
 
-    x, y = initial_pos
+    x, y = starting_point
     angle = 0
     radius = 0
     plot_cnt = 0  # so we don't plot every iteration
@@ -539,7 +636,7 @@ def spiral_search_and_center(
                 ax[0].imshow(img)
                 ax[1].plot([x_pos, y_pos], "x", color="r", label="current pos")
                 ax[1].plot(
-                    [initial_pos[0], initial_pos[1]],
+                    [starting_point[0], starting_point[1]],
                     "o",
                     color="k",
                     label="current pos",
@@ -559,10 +656,10 @@ def spiral_search_and_center(
                     norm=norm,
                 )
                 ax[1].set_xlim(
-                    [initial_pos[0] - search_radius, initial_pos[0] + search_radius]
+                    [starting_point[0] - search_radius, starting_point[0] + search_radius]
                 )
                 ax[1].set_ylim(
-                    [initial_pos[1] - search_radius, initial_pos[1] + search_radius]
+                    [starting_point[1] - search_radius, starting_point[1] + search_radius]
                 )
                 ax[1].legend()
                 ax[2].plot(diff_list)
@@ -600,10 +697,10 @@ def spiral_search_and_center(
     else:
         print("moving back to initial position")
         if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {initial_pos}"
+            message = f"!fpm_moveabs phasemask{beam} {starting_point}"
             phasemask.send_string(message)
         else:
-            phasemask.move_absolute(initial_pos)
+            phasemask.move_absolute(starting_point)
 
     # phasemask.move_absolute( phasemask.phase_positions[phasemask_name]  )
     time.sleep(0.5)
@@ -698,6 +795,74 @@ def spiral_search_and_center(
     return pos
 
 
+
+
+
+def detect_circle(image, sigma=2, threshold=0.5, plot=True):
+    """
+    Detects a circular pupil in a cropped image using edge detection and circle fitting.
+
+    Parameters:
+        image (2D array): Cropped grayscale image containing a single pupil.
+        sigma (float): Standard deviation for Gaussian smoothing.
+        threshold (float): Threshold for binarizing edges.
+        plot (bool): If True, displays the image with the detected circle overlay.
+
+    Returns:
+        tuple: (center_x, center_y, radius) of the detected circle.
+    """
+    # Normalize the image
+    image = image / image.max()
+
+    # Smooth the image to suppress noise
+    smoothed_image = gaussian_filter(image, sigma=sigma)
+
+    # Calculate gradients (Sobel-like edge detection)
+    grad_x = np.gradient(smoothed_image, axis=1)
+    grad_y = np.gradient(smoothed_image, axis=0)
+    edges = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Threshold edges to create a binary mask
+    binary_edges = edges > (threshold * edges.max())
+
+    # Get edge pixel coordinates
+    y, x = np.nonzero(binary_edges)
+
+    # Initial guess for circle parameters
+    def initial_guess(x, y):
+        center_x, center_y = np.mean(x), np.mean(y)
+        radius = np.sqrt(((x - center_x) ** 2 + (y - center_y) ** 2).mean())
+        return center_x, center_y, radius
+
+    # Circle model for optimization
+    def circle_model(params, x, y):
+        center_x, center_y, radius = params
+        return np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2) - radius
+
+    # Perform least-squares circle fitting
+    guess = initial_guess(x, y)
+    result, _ = leastsq(circle_model, guess, args=(x, y))
+    center_x, center_y, radius = result
+
+    if plot:
+        # Create a circular overlay for visualization
+        overlay = np.zeros_like(image)
+        yy, xx = np.ogrid[: image.shape[0], : image.shape[1]]
+        circle_mask = (xx - center_x) ** 2 + (yy - center_y) ** 2 <= radius**2
+        overlay[circle_mask] = 1
+
+        # Plot the image and detected circle
+        plt.figure(figsize=(6, 6))
+        plt.imshow(image, cmap="gray", origin="upper")
+        plt.contour(binary_edges, colors="cyan", linewidths=1, label="Edges")
+        plt.contour(overlay, colors="red", linewidths=1, label="Detected Circle")
+        plt.scatter(center_x, center_y, color="blue", marker="+", label="Center")
+        plt.title("Detected Pupil with Circle Overlay")
+        plt.legend()
+        plt.show()
+
+    return center_x, center_y, radius
+
 def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
     print(
         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
@@ -745,17 +910,264 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_mult
                 print('incorrect input. Try input "1,1" as an example, or "e" to exit')
 
 
+
+def interpolate_bad_pixels(image, bad_pixel_map):
+    filtered_image = image.copy()
+    filtered_image[bad_pixel_map] = median_filter(image, size=3)[bad_pixel_map]
+    return filtered_image
+
+
+def pixelmask_image_dict(data, bad_pixel_map):
+    """
+    Apply bad pixel interpolation to all frames and pokes.
+    """
+    #imgs = np.array( list(  data.values() ) )
+    #keys = np.array( list(  data.keys() ) )
+
+    filtered_images = {}
+    for c, i in data.items():
+        filtered_images[c] = interpolate_bad_pixels(np.array( i ), bad_pixel_map)
+    return filtered_images
+
+def create_bad_pixel_mask( search_dict, mean_thresh=6, std_thresh=20 ):
+    # search_dict is a dictionary keyed by x,y coordinates with 
+    # images (2D array like) as values.
+    # create a bad pixel mask from search results (e.g. a dictionary returned from spiral_square_search_and_save_images() function)
+    imgs = np.array( list(  search_dict.values() ) )
+
+    positions = [eval(str(key)) for key in search_dict.keys()] # keys are sometimes strings, sometimes tuple ints.. so force to string so eval should always work
+    x_positions, y_positions = zip(*positions)
+
+    mean_frame = np.mean(imgs, axis=0)
+    std_frame = np.std(imgs, axis=0)
+
+    global_mean = np.mean(mean_frame)
+    global_std = np.std(mean_frame)
+
+    # thresh_grid =  np.linspace( 1, 50, 50)
+    # no_bp=[]
+    # for thr in thresh_grid:
+    #     bad_pixel_map = (np.abs(mean_frame - global_mean) > 5 * global_std) | (std_frame > thr * np.median(std_frame))
+    #     no_bp.append(  np.sum(bad_pixel_map) )
+    # plt.semilogy(thresh_grid, no_bp); plt.show()
+
+    bad_pixel_map = (np.abs(mean_frame - global_mean) > mean_thresh * global_std) | (std_frame > std_thresh * np.median(std_frame))
+
+    return bad_pixel_map 
+
+
+
+def cluster_analysis_on_searched_images(images, detect_circle_function, n_clusters=3, plot_clusters=False):
+    """
+    Detects circular pupils in a list of images, performs clustering on their positions and radii
+    using scipy's k-means, and returns the cluster assignments for each image.
+
+    Parameters:
+        images (list of 2D arrays): List of cropped grayscale images containing single pupils.
+        detect_circle_function (function): Function to detect circular pupils (e.g., your detect_circle function).
+        n_clusters (int): Number of clusters to use for k-means clustering.
+        plot_clusters (bool): If True, displays the clustering results.
+
+    Returns:
+        dict: A dictionary with keys:
+            - "centers" (list): List of tuples (x, y, radius) for each detected pupil.
+            - "clusters" (list): Cluster labels for each image.
+            - "centroids" (ndarray): Centroids of the clusters.
+    """
+    # Step 1: Detect circles in all images
+    centers = []
+    for idx, image in enumerate(images):
+        try:
+            center_x, center_y, radius = detect_circle_function(image, plot=False)
+            centers.append((center_x, center_y, radius))
+        except Exception as e:
+            print(f"Warning: Failed to detect circle in image {idx}. Error: {e}")
+            centers.append((np.nan, np.nan, np.nan))  # Handle failure gracefully
+
+    # Convert to a numpy array for clustering
+    centers_array = np.array([center for center in centers if not np.isnan(center).any()])
+
+    if len(centers_array) < n_clusters:
+        raise ValueError("Number of valid centers is less than the number of clusters.")
+
+    # Step 2: Perform k-means clustering using scipy
+    centroids, _ = kmeans(centers_array, n_clusters)
+    cluster_labels, _ = vq(centers_array, centroids)
+
+    # Step 3: Assign cluster labels back to all images (use NaN for failed detections)
+    cluster_assignments = []
+    idx_center = 0
+    for center in centers:
+        if np.isnan(center).any():
+            cluster_assignments.append(np.nan)
+        else:
+            cluster_assignments.append(cluster_labels[idx_center])
+            idx_center += 1
+
+    # Step 4: Plot clustering results (optional)
+    if plot_clusters:
+        plt.figure(figsize=(8, 6))
+        for cluster_id in range(n_clusters):
+            cluster_points = centers_array[cluster_labels == cluster_id]
+            plt.scatter(cluster_points[:, 0], cluster_points[:, 1], label=f"Cluster {cluster_id}")
+        plt.scatter(centroids[:, 0], centroids[:, 1], 
+                    color="red", marker="x", s=100, label="Cluster Centers")
+        plt.xlabel("X Coordinate")
+        plt.ylabel("Y Coordinate")
+        plt.legend()
+        plt.title("Clustering of Detected Pupil Centers")
+        plt.show()
+
+    return {
+        "centers": centers,
+        "clusters": cluster_assignments,
+        "centroids": centroids
+    }
+
+
+
+def plot_aggregate_cluster_images(images, clusters, operation="median"):
+    """
+    Computes and plots the aggregate (median, mean, or std) image for each cluster.
+
+    Parameters:
+        images (list of 2D arrays): List of images corresponding to the data points.
+        clusters (list or array): Cluster labels corresponding to each image.
+        operation (str): Statistical operation to apply ('median', 'mean', 'std').
+
+    Returns:
+        None
+    """
+    # Validate operation
+    valid_operations = {"median", "mean", "std"}
+    if operation not in valid_operations:
+        raise ValueError(f"Invalid operation. Choose from {valid_operations}.")
+
+    # Convert images to a NumPy array
+    images_array = np.array(images)
+
+    # Get unique clusters (exclude NaN)
+    unique_clusters = [cluster for cluster in np.unique(clusters) if not np.isnan(cluster)]
+
+    # Prepare the plot
+    num_clusters = len(unique_clusters)
+    fig, axes = plt.subplots(1, num_clusters, figsize=(6 * num_clusters, 6))
+    if num_clusters == 1:
+        axes = [axes]  # Ensure axes is iterable for a single cluster
+
+    # Process and plot images for each cluster
+    for ax, cluster in zip(axes, unique_clusters):
+        # Get indices of images in the current cluster
+        cluster_indices = np.where(np.array(clusters) == cluster)[0]
+
+        # Stack the images for the current cluster
+        cluster_images = images_array[cluster_indices]
+
+        # Compute the aggregate image
+        if operation == "median":
+            aggregate_image = np.median(cluster_images, axis=0)
+        elif operation == "mean":
+            aggregate_image = np.mean(cluster_images, axis=0)
+        elif operation == "std":
+            aggregate_image = np.std(cluster_images, axis=0)
+
+        # Plot the aggregate image
+        im = ax.imshow(aggregate_image, cmap="viridis", origin="lower")
+        ax.set_title(f"Cluster {int(cluster)} - {operation.capitalize()} Image")
+        fig.colorbar(im, ax=ax, orientation="vertical")
+
+    #plt.tight_layout()
+    #plt.show()
+
+
+
+def find_optimal_connected_region(image, connectivity=4, initial_percentile_threshold=95):
+    """
+    Robust way to detect the pupil which is immune to outliers, noise and uneven illumination. 
+    
+    Finds the connected region that maximizes the product between the normalized number of pixels
+    in the region and the percentile of the lowest pixel value in the group.
+
+    Parameters:
+        image (2D array): The input image.
+        connectivity (int): Pixel connectivity. Options:
+            - 4: Only cardinal neighbors (up, down, left, right).
+            - 8: Diagonal neighbors are also considered.
+        initial_percentile_threshold (float): Initial percentile threshold to identify connected regions.
+        NOTE: The initial percentile threshold should be in the range [0, 100] 
+        - results are very sensitive to this parameter. Best to keep it high around 95 
+
+    Returns:
+        2D boolean array: A mask where True represents the selected connected region.
+    """
+    # Ensure the input image is a numpy array
+    image = np.asarray(image)
+
+    # Threshold to get initial candidates for connected regions
+    mask = image > np.percentile( image, initial_percentile_threshold ) 
+
+    # Define neighbor offsets based on connectivity
+    if connectivity == 4:
+        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+    elif connectivity == 8:
+        neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]
+    else:
+        raise ValueError("Connectivity must be 4 or 8")
+
+    def flood_fill(start):
+        """Flood fill algorithm to find connected components."""
+        stack = [start]
+        region = []
+        while stack:
+            x, y = stack.pop()
+            if (0 <= x < image.shape[0]) and (0 <= y < image.shape[1]) and mask[x, y]:
+                region.append((x, y))
+                mask[x, y] = False  # Mark as visited
+                for dx, dy in neighbors:
+                    stack.append((x + dx, y + dy))
+        return region
+
+    # Find all connected components
+    regions = []
+    for x in range(image.shape[0]):
+        for y in range(image.shape[1]):
+            if mask[x, y]:
+                regions.append(flood_fill((x, y)))
+
+    # Initialize variables to track the best region
+    best_score = -np.inf
+    best_region = None
+    total_pixels = image.size  # Total number of pixels in the image
+
+    # Evaluate each region
+    for region in regions:
+        # Number of pixels in the region (normalized)
+        num_pixels = len(region)
+        normalized_num_pixels = (num_pixels / total_pixels) * 100
+
+        # Percentile of the lowest pixel value in the region
+        region_pixels = np.array([image[x, y] for x, y in region])
+        lowest_value = np.min(region_pixels)
+        lowest_value_percentile = (np.sum(image <= lowest_value) / image.size) * 100
+
+        # Calculate the score
+        score = normalized_num_pixels * lowest_value_percentile
+
+        # Update the best region if the score is higher
+        if score > best_score:
+            best_score = score
+            best_region = region
+
+    # Create a mask for the best region
+    final_mask = np.zeros_like(image, dtype=bool)
+    for x, y in best_region:
+        final_mask[x, y] = True
+
+    return final_mask
+
+
 if __name__ == "__main__":
 
-    print(
-        " THIS TAKES SEVERAL MINUTES TO RUN. WHAT WE ARE DOING IS: \n\
-     - connect to motors, DM and camera. Set up detector with darks, bad pixel mask etc.\n \
-     - iterate through all phase masks on beam 3 (in Sydney) and update phasemask positions and save them.\n \
-     - This should only serve as example. must be called from asgard_alignment folder\n \
-    DEVELOPED IN SYDNEY WITH MOTORS ONLY ON BEAM 3 - UPDATE ACCORDINGLY \n \
-    DOING AUTOMATED SEARCH OVER LIMITED RADIUS, IF RESULTS ARE POOR - ADJUST SEARCH RADIUS / GRID.\
-    "
-    )
     from asgard_alignment.FLI_Cameras import fli
     import argparse
     import zmq

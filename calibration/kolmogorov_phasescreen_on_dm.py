@@ -136,6 +136,9 @@ def send_and_get_response(message):
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
+# default data paths 
+with open( "config_files/file_paths.json") as f:
+    default_path_dict = json.load(f)
 
 # positions to put thermal source on and take it out to empty position to get dark
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
@@ -231,8 +234,9 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 
+
 # Baldr pupils (for checking phasemask alignment before beginning)
-baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
 
