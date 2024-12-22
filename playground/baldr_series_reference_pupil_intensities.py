@@ -147,6 +147,23 @@ parser.add_argument(
     help="how many frames to take in each setting. Default: %(default)s - easy to find"
 )
 
+parser.add_argument(
+    '--cam_gain',
+    type=int,
+    default=1,
+    help="camera gain. Default: %(default)s"
+)
+
+# parser.add_argument(
+#     '--cam_fps',
+#     type=int,
+#     default=50,
+#     help="frames per second on camera. Default: %(default)s"
+# )
+
+
+
+
 
 # parser.add_argument(
 #     '--search_radius',
@@ -225,8 +242,8 @@ apply_manual_reduction = True
 c.send_fli_cmd("set mode globalresetcds")
 time.sleep(1)
 c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
 c.start_camera()
 

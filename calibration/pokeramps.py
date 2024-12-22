@@ -362,7 +362,7 @@ parser.add_argument(
 parser.add_argument(
     '--amp_max',
     type=int,
-    default=18,
+    default=0.1,
     help="maximum DM amplitude to apply. Units are normalized between 0-1. We ramp between +/- of this value. Default: %(default)s."
 )
 
@@ -395,6 +395,9 @@ parser.add_argument(
 )
 
 args = parser.parse_args()
+
+if abs(args.amp_max) > 0.5:
+    raise UserWarning("--amp_max is too high ({args.amp_max})!! try around 0.1")
 
 context = zmq.Context()
 

@@ -443,6 +443,34 @@ res = send_and_get_response(message)
 print(res) 
 
 
+# # to check raster points before moving 
+## ======================================
+# starting_point = (7450, 2400)  # Starting point of the scan
+# dx = 20  # Step size in x-direction
+# dy = 20  # Step size in y-direction
+# width = 300  # Width of the scan area
+# height = 2000  # Height of the scan area
+# orientation = 0 #-90 # Rotation angle in degrees
+
+# # Generate the raster scan points with rotation
+# raster_points = pct.raster_scan_with_orientation(starting_point, dx, dy, width, height, orientation)
+
+# # Extract x and y coordinates
+# x_coords, y_coords = zip(*raster_points)
+
+# # Plot the scan points
+# plt.figure(figsize=(6, 6))
+# plt.scatter(x_coords, y_coords, color="blue", label="Scan Points")
+# plt.plot(x_coords, y_coords, linestyle="--", color="gray", alpha=0.7)
+# plt.title(f"Raster Scan Pattern with {orientation}° Rotation")
+# plt.xlabel("X")
+# plt.ylabel("Y")
+# plt.legend()
+# plt.grid()
+# plt.axis("equal")  
+# plt.savefig('delme.png')
+# plt.show()
+
 
 # if using multidevice server phasemask is the MDS server socket
 print( f'doing raster search for beam {args.beam}')
