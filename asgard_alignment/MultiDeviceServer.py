@@ -258,7 +258,7 @@ class MultiDeviceServer:
 
                     # ........................................................
                     # Add here calls to read (every 1 to 3 seconds) the position
-                    # of the devices and update the database of wag (using the
+                    # of (all of the relevant) devices and update the database of wag (using the
                     # code below to generate the JSON message)
                     # ........................................................
 
@@ -327,7 +327,7 @@ class MultiDeviceServer:
 
         # Case of "stop" (sent by wag to immediately stop the devices)
 
-        if "stop" in cmdName:
+        if "stop" in command_name:
             nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
                 dev = json_data["command"]["parameters"][i]["device"]
@@ -336,12 +336,13 @@ class MultiDeviceServer:
                 # ......................................................
                 # Add here call to stop the motion of the device dev
                 # ......................................................
+                self.instr.devicesp[dev].stop()
 
             replyContent = "OK"
 
         # Case of "disable" (sent by wag to power-off devices)
 
-        if "disable" in cmdName:
+        if "disable" in command_name:
             nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
                 dev = json_data["command"]["parameters"][i]["device"]
@@ -355,7 +356,7 @@ class MultiDeviceServer:
 
         # Case of "enable" (sent by wag to power-on devices)
 
-        if "enable" in cmdName:
+        if "enable" in command_name:
             nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
                 dev = json_data["command"]["parameters"][i]["device"]
