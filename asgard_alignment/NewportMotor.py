@@ -117,6 +117,8 @@ class M100DAxis(ESOdevice.Motor):
         self._axis = axis
         self._name = name
 
+        self.internal_position = self.read_position()
+
     def _verify_valid_connection(self):
         """
         Verify that the connection is valid
@@ -150,6 +152,7 @@ class M100DAxis(ESOdevice.Motor):
             The position to move to
         """
         self._connection.write_str(f"1PA{self.axis}{position:.5f}")
+        self.internal_position = position
 
     def move_relative(self, position: float):
         """
@@ -161,6 +164,7 @@ class M100DAxis(ESOdevice.Motor):
             The position to move to
         """
         self._connection.write_str(f"1PR{self.axis}{position:.5f}")
+        self.internal_position += position
 
     def read_position(self):
         """
@@ -252,13 +256,38 @@ class M100DAxis(ESOdevice.Motor):
             position, self.LOWER_LIMIT
         )
 
-    def setup(self, )
+    def init(self):
+        pass
+
+    def stop(self):
+        self._connection.write_str(f"1ST{self.axis}")
+
+    def setup(self, value):
+        # option 1: blind absolute move
+        self.move_abs(value)
+
+        # option 2: relative move using internal state (assuming encoder drifts and not motor)
+        # self.move_relative(value - self.internal_position)
+
+    def disable(self):
+        pass
+
+    def enable(self):
+        pass
+
+    def online(self):
+        self._connection.write_str("1RS")
+
+    def standby(self):
+        pass
 
 
 class LS16PAxis(ESOdevice.Motor):
 
     UPPER_LIMIT = 16.0
     LOWER_LIMIT = 0.0
+
+    MIDDLE = 8.0
 
     ERROR_BITS = {
         "0000": "No error",
@@ -365,3 +394,28 @@ class LS16PAxis(ESOdevice.Motor):
         return np.isclose(position, self.UPPER_LIMIT) or np.isclose(
             position, self.LOWER_LIMIT
         )
+
+    def stop(self):
+        self._connection.write_str("1ST")
+
+    def setup(self, value):
+        self.move_abs(value)
+
+    def disable(self):
+        pass
+        # TODO: controllino power off
+
+    def enable(self):
+        pass
+        # TODO: controllino power on
+
+    def online(self):
+        self.enable()
+
+        # execute referencing
+        self.init()
+
+    def standby(self):
+        self.move_abs(self.MIDDLE)
+
+        self.disable()

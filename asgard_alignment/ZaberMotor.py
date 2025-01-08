@@ -190,6 +190,23 @@ class ZaberLinearActuator(ESOdevice.Motor):
         """
         return not self.axis.is_busy()
 
+    def stop(self):
+        self.axis.stop()
+
+    def setup(self, value):
+        self.axis.move_absolute(value)
+
+    def disable(self):
+        pass
+
+    def enable(self):
+        pass
+
+    def online(self):
+        pass
+
+    def standby(self):
+        pass
 
 class ZaberLinearStage(ESOdevice.Motor):
     """
@@ -367,3 +384,21 @@ class ZaberLinearStage(ESOdevice.Motor):
             True if the motion is done, False otherwise
         """
         return not self.axis.is_busy()
+
+    def stop(self):
+        pass
+
+    def setup(self, value):
+        pass
+
+    def disable(self):
+        pass
+
+    def enable(self):
+        pass
+
+    def online(self):
+        pass
+
+    def standby(self):
+        pass
