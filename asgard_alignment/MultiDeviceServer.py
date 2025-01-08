@@ -8,6 +8,9 @@ import time
 import json
 import datetime
 
+# deepcopy
+from copy import deepcopy
+
 import enum
 import asgard_alignment.ESOdevice
 import asgard_alignment.Instrument
@@ -114,7 +117,7 @@ class MultiDeviceServer:
         # Verification of received time-stamp (TODO)
         # If the time_stamp is invalid, set command_name to "none",
         # so no command will be processed but a reply will be sent
-        # back to the client (set replyContent to "ERROR")
+        # back to the client (set reply to "ERROR")
 
         ################################
         # Process the received command:
@@ -146,12 +149,12 @@ class MultiDeviceServer:
             # Send message to wag to update the database
 
             self.database_message["command"]["time"] = self.get_time_stamp()
-            outputMsg = json.dumps(self.database_message) + "\0"
+            output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(outputMsg)
-            print(outputMsg)
+            self.client_socket.send_string(output_msg)
+            print(output_msg)
 
-            replyContent = "OK"
+            reply = "OK"
 
         # Case of "standby" (sent by wag when bringing ICS standby,
         # usually when the instrument night operations are finished)
@@ -180,15 +183,15 @@ class MultiDeviceServer:
                 )
 
             # Send message to wag to update the database
-            timeNow = datetime.datetime.now()
-            time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+            time_now = datetime.datetime.now()
+            time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
             self.database_message["command"]["time"] = time_stamp
-            outputMsg = json.dumps(self.database_message) + "\0"
+            output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(outputMsg)
-            print(outputMsg)
+            self.client_socket.send_string(output_msg)
+            print(output_msg)
 
-            replyContent = "OK"
+            reply = "OK"
 
         # Case of "setup" (sent by wag to move devices)
         if "setup" in command_name:
@@ -197,7 +200,7 @@ class MultiDeviceServer:
             semaphore_array = [0] * 100  # TODO: implement this maximum correctly
 
             # Create a double-list of devices to move
-            setupList = [[], []]
+            setup_cmds = [[], []]
             for i in range(n_devs_to_setup):
                 kwd = json_data["command"]["parameters"][i]["name"]
                 val = json_data["command"]["parameters"][i]["value"]
@@ -222,28 +225,30 @@ class MultiDeviceServer:
                 # (something should be done if device does not exist) TODO
                 device = self.instr.devices[dev_name]
 
-                semId = device.semId
-                if semaphore_array[semId] == 0:
+                semaphore_id = device.semaphore_id
+                if semaphore_array[semaphore_id] == 0:
                     # Semaphore is free =>
                     # Device can be moved now
-                    setupList[0].append(
+                    setup_cmds[0].append(
                         asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
                     )
-                    semaphore_array[semId] = 1
+                    semaphore_array[semaphore_id] = 1
                 else:
                     # Semaphore is already taken =>
                     # Device will be moved in a second batch
-                    setupList[1].append(
+                    setup_cmds[1].append(
                         asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
                     )
 
             # Move devices (two batches if needed)
             for batch in range(2):
-                if len(setupList[batch]) > 0:
+                if len(setup_cmds[batch]) > 0:
                     print(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()
-                    for s in setupList[batch]:
-                        print(f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )")
+                    for s in setup_cmds[batch]:
+                        print(
+                            f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )"
+                        )
 
                         # do the actual move...
                         self.instr.devices[s.dev].setup(s.motion_type, s.val)
@@ -256,10 +261,10 @@ class MultiDeviceServer:
 
                     # Send message to wag to update the database
                     self.database_message["command"]["time"] = self.get_time_stamp()
-                    outputMsg = json.dumps(self.database_message) + "\0"
+                    output_msg = json.dumps(self.database_message) + "\0"
 
-                    self.client_socket.send_string(outputMsg)
-                    print(outputMsg)
+                    self.client_socket.send_string(output_msg)
+                    print(output_msg)
 
                     # TODO
                     # ........................................................
@@ -267,13 +272,16 @@ class MultiDeviceServer:
                     # of (all of the relevant) devices and update the database of wag (using the
                     # code below to generate the JSON message)
                     # ........................................................
-                    all_done = False
 
-                    while not all_done:
+                    still_moving_prev = setup_cmds[batch]
+                    still_moving = setup_cmds[batch]
+                    while len(still_moving) > 0:
                         time.sleep(1.0)
 
-                        all_done = True
-                        for s in setupList[batch]:
+                        still_moving = []
+                        still_moving_prev = setup_cmds[batch]
+
+                        for s in still_moving_prev:
                             dev = s.dev
                             pos = self.instr.devices[dev].read_position()
 
@@ -284,76 +292,62 @@ class MultiDeviceServer:
                                 }
                             )
                             if self.instr.devices[dev].is_moving():
-                                all_done = False
+                                still_moving.append(s)
+                            else:
+                                # not moving, so also send the done moving status
+                                if s.motion_type == "NAME":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": s.val,
+                                        }
+                                    )
+                                elif s.motion_type == "ST":
+                                    # TODO: change this to a mapping T -> OPEN, F -> CLOSED, and lamp case...
+                                    if s.val == "T":
+                                        self.database_message["command"][
+                                            "parameters"
+                                        ].append(
+                                            {
+                                                "attribute": f"<alias>{dev}:DATA.status0",
+                                                "value": "OPEN",
+                                            }
+                                        )
+                                    else:
+                                        self.database_message["command"][
+                                            "parameters"
+                                        ].append(
+                                            {
+                                                "attribute": f"<alias>{dev}:DATA.status0",
+                                                "value": "CLOSED",
+                                            }
+                                        )
+                                elif s.motion_type == "ENC":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": "",
+                                        }
+                                    )
+                            # Case of motor with relative encoder position
+                            # not considered yet
+                            # The simplest would be to read the encoder position
+                            # and to update the database as for the previous case
+
+                        still_moving_prev = deepcopy(still_moving)
 
                         # Send message to wag to update its database
-                        timeNow = datetime.datetime.now()
-                        time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-                        self.database_message["command"]["time"] = time_stamp
-                        outputMsg = json.dumps(self.database_message) + "\0"
+                        self.database_message["command"]["time"] = self.get_time_stamp()
+                        output_msg = json.dumps(self.database_message) + "\0"
 
-                        self.client_socket.send_string(outputMsg)
-                        print(outputMsg)
-                        
+                        self.client_socket.send_string(output_msg)
+                        print(output_msg)
+
                         self.database_message["command"]["parameters"].clear()
-
-                    # ........................................................
-                    # Add here call to check that devices have reached their
-                    # requested positions. Once done, inform wag as follows:
-                    # ........................................................
-
-                    for s in setupList[batch]:
-                        attribute = "<alias>" + s.dev + ":DATA.status0"
-                        # Case of motor with named position requested
-                        if s.motion_type == "NAME":
-                            self.database_message["command"]["parameters"].append(
-                                {"attribute": attribute, "value": s.val}
-                            )
-                            # Note: normally the encoder position shall be
-                            # reported along with the named position
-                            # ...............................................
-                            # => Call function to read the encoder position
-                            #    store it in a variable "posEnc" and execute:
-                            #
-                            # attribute = "<alias>" + s.dev +":DATA.posEnc"
-                            # self.database_message['command']['parameters'].append({"attribute":attribute, "value":posEnc})
-
-                        # Case of shutter or lamp
-                        if s.motion_type == "ST":
-                            # Here the device can be either a lamp or a shutter
-                            # Add here code to find out the type of s.dev
-                            # If it is a shutter do:
-                            if s.val == "T":
-                                self.database_message["command"]["parameters"].append(
-                                    {"attribute": attribute, "value": "OPEN"}
-                                )
-                            else:
-                                self.database_message["command"]["parameters"].append(
-                                    {"attribute": attribute, "value": "CLOSED"}
-                                )
-                        # If it is a lamp, reuse the code above replacing
-                        # OPEN  by ON and CLOSED by OFF
-
-                        # Case of motor with absolute encoder position requested
-                        if s.motion_type == "ENC":
-                            self.database_message["command"]["parameters"].append(
-                                {"attribute": attribute, "value": ""}
-                            )
-                            # Note: if motor is at limit, do:
-                            # self.database_message['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
-                            attribute = "<alias>" + s.dev + ":DATA.posEnc"
-                            self.database_message["command"]["parameters"].append(
-                                {"attribute": attribute, "value": s.val}
-                            )
-
-                    # Send message to wag to update its database
-                    timeNow = datetime.datetime.now()
-                    time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-                    self.database_message["command"]["time"] = time_stamp
-                    outputMsg = json.dumps(self.database_message) + "\0"
-
-                    self.client_socket.send_string(outputMsg)
-                    print(outputMsg)
 
         # Case of "stop" (sent by wag to immediately stop the devices)
 
@@ -365,7 +359,7 @@ class MultiDeviceServer:
 
                 self.instr.devices[dev].stop()
 
-            replyContent = "OK"
+            reply = "OK"
 
         # Case of "disable" (sent by wag to power-off devices)
 
@@ -377,7 +371,7 @@ class MultiDeviceServer:
 
                 self.instr.devices[dev].disable()
 
-            replyContent = "OK"
+            reply = "OK"
 
         # Case of "enable" (sent by wag to power-on devices)
 
@@ -389,13 +383,13 @@ class MultiDeviceServer:
 
                 self.instr.devices[dev].enable()
 
-            replyContent = "OK"
+            reply = "OK"
 
         # Send back reply to ic0fb process
 
-        timeNow = datetime.datetime.now()
-        time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
+        time_now = datetime.datetime.now()
+        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
 
@@ -431,22 +425,42 @@ class MultiDeviceServer:
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
 
-        patterns = {
-            "!read {}": read_msg,
-            "!stop {}": stop_msg,
-            "!moveabs {} {:f}": moveabs_msg,
-            "!connected? {}": connected_msg,
-            "!connect {}": connect_msg,
-            "!init {}": init_msg,
-            "!moverel {} {:f}": moverel_msg,
-            "!state {}": state_msg,
+        first_word_to_function = {
+            "!read": read_msg,
+            "!stop": stop_msg,
+            "!moveabs": moveabs_msg,
+            "!connected?": connected_msg,
+            "!connect": connect_msg,
+            "!init": init_msg,
+            "!moverel": moverel_msg,
+            "!state": state_msg,
+        }
+
+        first_word_to_format = {
+            "!read": "!read {}",
+            "!stop": "!stop {}",
+            "!moveabs": "!moveabs {} {:f}",
+            "!connected?": "!connected? {}",
+            "!connect": "!connect {}",
+            "!init": "!init {}",
+            "!moverel": "!moverel {} {:f}",
+            "!state": "!state {}",
         }
 
         try:
-            for pattern, func in patterns.items():
-                result = parse(pattern, message)
-                if result:
-                    return func(*result)
+            first_word = message.split(" ")[0]
+            if first_word in first_word_to_function:
+                format_str = first_word_to_format[first_word]
+                result = parse(format_str, message)
+                return first_word_to_function[first_word](*result)
+            else:
+                return "NACK: Unkown custom command"
+
+            # old
+            # for pattern, func in patterns.items():
+            #     result = parse(pattern, message)
+            #     if result:
+            #         return func(*result)
         except Exception as e:
             return f"NACK: {e}"
         return "NACK: Unkown custom command"
