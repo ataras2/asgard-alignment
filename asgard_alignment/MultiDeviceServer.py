@@ -161,7 +161,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print("Standby device:", dev)
+                print(f"Standby device: {dev}")
 
                 self.instr.devices[dev].standby()
 
@@ -198,14 +198,14 @@ class MultiDeviceServer:
             for i in range(n_devs_to_setup):
                 kwd = json_data["command"]["parameters"][i]["name"]
                 val = json_data["command"]["parameters"][i]["value"]
-                print("Setup:", kwd, "to", val)
+                print(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
 
                 prefixes = kwd.split(".")
                 dev_name = prefixes[1]
                 mType = prefixes[2]
-                print("Device:", dev_name, " - motion type:", mType)
+                print(f"Device: {dev_name} - motion type: {mType}")
 
                 # mType can be one of these words:
                 # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
@@ -237,11 +237,11 @@ class MultiDeviceServer:
             # Move devices (two batches if needed)
             for batch in range(2):
                 if len(setupList[batch]) > 0:
-                    print("batch", batch, "of devices to move:")
+                    print(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()
                     for s in setupList[batch]:
                         print(
-                            "Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )"
+                            f"Moving: {s.dev} to: {s.val} ( setting {s.mType} )"
                         )
 
                         # do the actual move...
@@ -330,7 +330,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print("Stop device:", dev)
+                print(f"Stop device: {dev}")
 
                 self.instr.devices[dev].stop()
 
@@ -342,7 +342,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print("Power off device:", dev)
+                print(f"Power off device: {dev}")
 
                 self.instr.devices[dev].disable()
 
@@ -354,7 +354,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print("Power on device:", dev)
+                print(f"Power on device: {dev}")
 
                 self.instr.devices[dev].enable()
 
@@ -365,11 +365,7 @@ class MultiDeviceServer:
         timeNow = datetime.datetime.now()
         timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
         reply = (
-            '{\n\t"reply" :\n\t{\n\t\t"content" : "'
-            + replyContent
-            + '",\n\t\t"time" : "'
-            + timeStamp
-            + '"\n\t}\n}\n\0'
+            f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{timeStamp}"\n\t}}\n}}\n\0'
         )
         print(reply)
         srvSocket.send_string(reply)
