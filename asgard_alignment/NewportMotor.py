@@ -252,27 +252,7 @@ class M100DAxis(ESOdevice.Motor):
             position, self.LOWER_LIMIT
         )
 
-    def init(self):
-        """
-        Initialise the motor
-        """
-        return self._current_pos
-
-    def is_at_limit(self):
-        """
-        Check if the motor is at the limit
-
-        Returns:
-        --------
-        bool
-            True if the motor is at the limit, False otherwise
-        """
-        raise NotImplementedError
-
-    def init(self):
-        """
-        Initialise the motor
-        """
+    def setup(self, )
 
 
 class LS16PAxis(ESOdevice.Motor):

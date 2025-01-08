@@ -43,11 +43,16 @@ class MultiDeviceServer:
         self.port = port
         self.host = host
         self.config_file = config_file
+
         self.context = zmq.Context()
         self.server = self.context.socket(zmq.REP)
         self.server.bind(f"tcp://{self.host}:{self.port}")
+
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
+
+        self.client_socket = self.context.socket(zmq.PUSH)
+        self.client_socket.connect("tcp://localhost:5556")
 
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
@@ -86,8 +91,6 @@ class MultiDeviceServer:
                             self.log("Manually shut down. Goodbye.")
                         else:
                             self.log("Shut down by remote connection. Goodbye.")
-                    else:
-                        s.send_string(response + "\n")
 
     @staticmethod
     def get_timestamp():
@@ -145,7 +148,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = self.get_timestamp()
             outputMsg = json.dumps(self.database_message) + "\0"
 
-            cliSocket.send_string(outputMsg)
+            self.client_socket.send_string(outputMsg)
             print(outputMsg)
 
             replyContent = "OK"
@@ -182,7 +185,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = timeStamp
             outputMsg = json.dumps(self.database_message) + "\0"
 
-            cliSocket.send_string(outputMsg)
+            self.client_socket.send_string(outputMsg)
             print(outputMsg)
 
             replyContent = "OK"
@@ -240,9 +243,7 @@ class MultiDeviceServer:
                     print(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()
                     for s in setupList[batch]:
-                        print(
-                            f"Moving: {s.dev} to: {s.val} ( setting {s.mType} )"
-                        )
+                        print(f"Moving: {s.dev} to: {s.val} ( setting {s.mType} )")
 
                         # do the actual move...
                         self.instr.devices[s.dev].setup(s.mType, s.val)
@@ -257,7 +258,7 @@ class MultiDeviceServer:
                     self.database_message["command"]["time"] = self.get_timestamp()
                     outputMsg = json.dumps(self.database_message) + "\0"
 
-                    cliSocket.send_string(outputMsg)
+                    self.client_socket.send_string(outputMsg)
                     print(outputMsg)
 
                     # ........................................................
@@ -321,7 +322,7 @@ class MultiDeviceServer:
                     self.database_message["command"]["time"] = timeStamp
                     outputMsg = json.dumps(self.database_message) + "\0"
 
-                    cliSocket.send_string(outputMsg)
+                    self.client_socket.send_string(outputMsg)
                     print(outputMsg)
 
         # Case of "stop" (sent by wag to immediately stop the devices)
@@ -364,11 +365,9 @@ class MultiDeviceServer:
 
         timeNow = datetime.datetime.now()
         timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-        reply = (
-            f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{timeStamp}"\n\t}}\n}}\n\0'
-        )
+        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{timeStamp}"\n\t}}\n}}\n\0'
         print(reply)
-        srvSocket.send_string(reply)
+        self.server.send_string(reply)
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol
