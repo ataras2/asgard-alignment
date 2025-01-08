@@ -1,0 +1,234 @@
+[
+    {
+        "name": "HFO1",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA1",
+        "semaphore_id": 1
+    },
+    {
+        "name": "HFO2",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA2",
+        "semaphore_id": 2
+    },
+    {
+        "name": "HFO3",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA3",
+        "semaphore_id": 3
+    },
+    {
+        "name": "HFO4",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA4",
+        "semaphore_id": 4
+    },
+    {
+        "name": "HTXP1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68DE8BJA",
+        "semaphore_id": 5
+    },
+    {
+        "name": "HTXP2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 45.0
+        },
+        "serial_number": "A68DE8ROA",
+        "semaphore_id": 6
+    },
+    {
+        "name": "HTXP3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68DE8MDA",
+        "semaphore_id": 7
+    },
+    {
+        "name": "HTXP4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A675RRE6A",
+        "semaphore_id": 8
+    },
+    {
+        "name": "HTXI1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A67BVAK5A",
+        "semaphore_id": 9
+    },
+    {
+        "name": "HTXI2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 90.0
+        },
+        "serial_number": "A68IMGC2A",
+        "semaphore_id": 10
+    },
+    {
+        "name": "HTXI3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 90.0
+        },
+        "serial_number": "A68IMG9NA",
+        "semaphore_id": 11
+    },
+    {
+        "name": "HTXI4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A67BVBOJA",
+        "semaphore_id": 12
+    },
+    {
+        "name": "BTX1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68IMFQVA",
+        "semaphore_id": 13
+    },
+    {
+        "name": "BTX2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68DE8SPA",
+        "semaphore_id": 14
+    },
+    {
+        "name": "BTX3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68DE9BAA",
+        "semaphore_id": 15
+    },
+    {
+        "name": "BTX4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "orientation": 0.0
+        },
+        "serial_number": "A68IMGZLA",
+        "semaphore_id": 16
+    },
+    {
+        "name": "BFO",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.111",
+        "axis_number" : 1,
+        "semaphore_id": 17
+    },
+    {
+        "name": "SDLA",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.111",
+        "axis_number" : 2,
+        "semaphore_id": 18
+    },
+    {
+        "name": "SDL12",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.111",
+        "axis_number" : 3,
+        "semaphore_id": 19
+    },
+    {
+        "name": "SDL34",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.111",
+        "axis_number" : 4,
+        "semaphore_id": 20
+    },
+    {
+        "name": "BMX1",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.112",
+        "axis_number" : 1,
+        "semaphore_id": 21
+    },
+    {
+        "name": "BMX2",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.112",
+        "axis_number" : 2,
+        "semaphore_id": 22
+    },
+    {
+        "name": "BMX3",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.112",
+        "axis_number" : 3,
+        "semaphore_id": 23
+    },
+    {
+        "name": "BMX4",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.112",
+        "axis_number" : 4,
+        "semaphore_id": 24
+    },
+    {
+        "name": "BMY1",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.113",
+        "axis_number" : 1,
+        "semaphore_id": 25
+    },
+    {
+        "name": "BMY2",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.113",
+        "axis_number" : 2,
+        "semaphore_id": 26
+    },
+    {
+        "name": "BMY3",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.113",
+        "axis_number" : 3,
+        "semaphore_id": 27
+    },
+    {
+        "name": "BMY4",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "192.168.1.113",
+        "axis_number" : 4,
+        "semaphore_id": 28
+    }
+]
