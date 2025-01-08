@@ -93,7 +93,7 @@ class MultiDeviceServer:
                             self.log("Shut down by remote connection. Goodbye.")
 
     @staticmethod
-    def get_timestamp():
+    def get_time_stamp():
         time_now = datetime.datetime.now()
         return time_now.strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -109,10 +109,10 @@ class MultiDeviceServer:
         print(message)
         json_data = json.loads(message)
         command_name = json_data["command"]["name"]
-        timeStampIn = json_data["command"]["time"]
+        time_stampIn = json_data["command"]["time"]
 
         # Verification of received time-stamp (TODO)
-        # If the timestamp is invalid, set command_name to "none",
+        # If the time_stamp is invalid, set command_name to "none",
         # so no command will be processed but a reply will be sent
         # back to the client (set replyContent to "ERROR")
 
@@ -145,7 +145,7 @@ class MultiDeviceServer:
 
             # Send message to wag to update the database
 
-            self.database_message["command"]["time"] = self.get_timestamp()
+            self.database_message["command"]["time"] = self.get_time_stamp()
             outputMsg = json.dumps(self.database_message) + "\0"
 
             self.client_socket.send_string(outputMsg)
@@ -181,8 +181,8 @@ class MultiDeviceServer:
 
             # Send message to wag to update the database
             timeNow = datetime.datetime.now()
-            timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-            self.database_message["command"]["time"] = timeStamp
+            time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+            self.database_message["command"]["time"] = time_stamp
             outputMsg = json.dumps(self.database_message) + "\0"
 
             self.client_socket.send_string(outputMsg)
@@ -207,10 +207,10 @@ class MultiDeviceServer:
 
                 prefixes = kwd.split(".")
                 dev_name = prefixes[1]
-                mType = prefixes[2]
-                print(f"Device: {dev_name} - motion type: {mType}")
+                motion_type = prefixes[2]
+                print(f"Device: {dev_name} - motion type: {motion_type}")
 
-                # mType can be one of these words:
+                # motion_type can be one of these words:
                 # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
                 # ENC    = Absolute encoder position
                 # ENCREL = Relative encoder postion (can be negative)
@@ -227,14 +227,14 @@ class MultiDeviceServer:
                     # Semaphore is free =>
                     # Device can be moved now
                     setupList[0].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
+                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
                     )
                     semaphore_array[semId] = 1
                 else:
                     # Semaphore is already taken =>
                     # Device will be moved in a second batch
                     setupList[1].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
+                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
                     )
 
             # Move devices (two batches if needed)
@@ -243,10 +243,10 @@ class MultiDeviceServer:
                     print(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()
                     for s in setupList[batch]:
-                        print(f"Moving: {s.dev} to: {s.val} ( setting {s.mType} )")
+                        print(f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )")
 
                         # do the actual move...
-                        self.instr.devices[s.dev].setup(s.mType, s.val)
+                        self.instr.devices[s.dev].setup(s.motion_type, s.val)
 
                         # Inform wag ICS that the device is moving
                         attribute = f"<alias>{s.dev}:DATA.status0"
@@ -255,17 +255,47 @@ class MultiDeviceServer:
                         )
 
                     # Send message to wag to update the database
-                    self.database_message["command"]["time"] = self.get_timestamp()
+                    self.database_message["command"]["time"] = self.get_time_stamp()
                     outputMsg = json.dumps(self.database_message) + "\0"
 
                     self.client_socket.send_string(outputMsg)
                     print(outputMsg)
 
+                    # TODO
                     # ........................................................
                     # Add here calls to read (every 1 to 3 seconds) the position
                     # of (all of the relevant) devices and update the database of wag (using the
                     # code below to generate the JSON message)
                     # ........................................................
+                    all_done = False
+
+                    while not all_done:
+                        time.sleep(1.0)
+
+                        all_done = True
+                        for s in setupList[batch]:
+                            dev = s.dev
+                            pos = self.instr.devices[dev].read_position()
+
+                            self.database_message["command"]["parameters"].append(
+                                {
+                                    "attribute": f"<alias>{dev}:DATA.posEnc",
+                                    "value": pos,
+                                }
+                            )
+                            if self.instr.devices[dev].is_moving():
+                                all_done = False
+
+                        # Send message to wag to update its database
+                        timeNow = datetime.datetime.now()
+                        time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+                        self.database_message["command"]["time"] = time_stamp
+                        outputMsg = json.dumps(self.database_message) + "\0"
+
+                        self.client_socket.send_string(outputMsg)
+                        print(outputMsg)
+                        
+                        self.database_message["command"]["parameters"].clear()
 
                     # ........................................................
                     # Add here call to check that devices have reached their
@@ -275,7 +305,7 @@ class MultiDeviceServer:
                     for s in setupList[batch]:
                         attribute = "<alias>" + s.dev + ":DATA.status0"
                         # Case of motor with named position requested
-                        if s.mType == "NAME":
+                        if s.motion_type == "NAME":
                             self.database_message["command"]["parameters"].append(
                                 {"attribute": attribute, "value": s.val}
                             )
@@ -289,7 +319,7 @@ class MultiDeviceServer:
                             # self.database_message['command']['parameters'].append({"attribute":attribute, "value":posEnc})
 
                         # Case of shutter or lamp
-                        if s.mType == "ST":
+                        if s.motion_type == "ST":
                             # Here the device can be either a lamp or a shutter
                             # Add here code to find out the type of s.dev
                             # If it is a shutter do:
@@ -305,7 +335,7 @@ class MultiDeviceServer:
                         # OPEN  by ON and CLOSED by OFF
 
                         # Case of motor with absolute encoder position requested
-                        if s.mType == "ENC":
+                        if s.motion_type == "ENC":
                             self.database_message["command"]["parameters"].append(
                                 {"attribute": attribute, "value": ""}
                             )
@@ -318,8 +348,8 @@ class MultiDeviceServer:
 
                     # Send message to wag to update its database
                     timeNow = datetime.datetime.now()
-                    timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-                    self.database_message["command"]["time"] = timeStamp
+                    time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+                    self.database_message["command"]["time"] = time_stamp
                     outputMsg = json.dumps(self.database_message) + "\0"
 
                     self.client_socket.send_string(outputMsg)
@@ -364,8 +394,8 @@ class MultiDeviceServer:
         # Send back reply to ic0fb process
 
         timeNow = datetime.datetime.now()
-        timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{timeStamp}"\n\t}}\n}}\n\0'
+        time_stamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
+        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{replyContent}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
 
