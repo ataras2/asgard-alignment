@@ -1,4 +1,4 @@
-#*******************************************************************************
+# *******************************************************************************
 # E.S.O. - VLT project
 #
 #   agifbBackEnd.py
@@ -7,11 +7,11 @@
 #  --------  ----------  ------------------------------------------------
 #  smorel    2024-10-29  created
 #
-#******************************************************************************/
+# ******************************************************************************/
 #
 #  Example of ICS back-end for MCU.
 #
-#******************************************************************************/
+# ******************************************************************************/
 
 import time
 import datetime
@@ -28,19 +28,23 @@ import json
 # Device class (each instance of this class describes a device that is
 # controlled by the MCU)
 
+
 class device:
     def __init__(self, devName, semId):
         self.name = devName
         self.semId = semId
 
+
 # Setup class (each instance of this class describes an elementary setup
 # for one device)
+
 
 class setup:
     def __init__(self, dev, mType, val):
         self.dev = dev
         self.mType = mType
         self.val = val
+
 
 #
 # "Main" starts here
@@ -55,14 +59,14 @@ for i in range(nbSemas):
     sema.append(0)
 
 # Instanciate devices
-#...................................
+# ...................................
 # Update below the list of devices controlled by MCU
-# (in this example, devices from various modules are used, in 
+# (in this example, devices from various modules are used, in
 # order to test a template, with only one instance of this script
 # running locally).
 # Devices (axes) that cannot be moved in parallel (because they share the
 # same controller) must have the same semaphore ID (= second parameter)
-#...................................
+# ...................................
 
 d = []
 # Example: we cannot move HTPP1 and HTTP1 at the same time because they
@@ -85,20 +89,17 @@ d.append(device("FPSH3", 13))
 d.append(device("FPSH4", 14))
 
 # Total number of devices that can be controlled by the LCU
-nbCtrlDevs = len(d) 
+nbCtrlDevs = len(d)
 
 # Template of message in JSON to send,  in order to update the database on wag
 
 dbMsg = {
-          "command":
-          {
-            "name" : "write",
-            "time" : "YYYY-MM-DDThh:mm:ss",
-            "parameters" :
-            [
-            ]
-          }
-        }
+    "command": {
+        "name": "write",
+        "time": "YYYY-MM-DDThh:mm:ss",
+        "parameters": [],
+    }
+}
 
 context = zmq.Context()
 # Create server socket (listening to ic0fbControl process on wag)
@@ -130,8 +131,8 @@ while running == 1:
         message = message.rstrip(message[-1])
         print(message)
         json_data = json.loads(message)
-        cmdName = json_data['command']['name']
-        timeStampIn = json_data['command']['time']
+        cmdName = json_data["command"]["name"]
+        timeStampIn = json_data["command"]["time"]
 
         # Verification of received time-stamp (to do...)
         # If the timestamp is invalid, set cmdName to "none",
@@ -147,72 +148,75 @@ while running == 1:
 
         if "online" in cmdName:
 
-            #.............................................................
+            # .............................................................
             # If needed, call controller-specific functions to power up
             # the devices and have them ready for operations
-            #.............................................................
+            # .............................................................
 
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
 
-            dbMsg['command']['parameters'].clear()
+            dbMsg["command"]["parameters"].clear()
             for i in range(nbCtrlDevs):
-                attribute = "<alias>" + d[i].name +".state"
-                dbMsg['command']['parameters'].append({"attribute":attribute, "value":3})
+                attribute = "<alias>" + d[i].name + ".state"
+                dbMsg["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 3}
+                )
 
             # Send message to wag to update the database
             timeNow = datetime.datetime.now()
             timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-            dbMsg['command']['time'] = timeStamp
-            outputMsg = json.dumps(dbMsg) + '\0'
+            dbMsg["command"]["time"] = timeStamp
+            outputMsg = json.dumps(dbMsg) + "\0"
 
             cliSocket.send_string(outputMsg)
             print(outputMsg)
 
             replyContent = "OK"
 
-        # Case of "standby" (sent by wag when bringing ICS standby, 
+        # Case of "standby" (sent by wag when bringing ICS standby,
         # usually when the instrument night operations are finished)
 
         if "standby" in cmdName:
 
-            #.............................................................
+            # .............................................................
             # If needed, call controller-specific functions to bring some
-            # devices to a "parking" position and to power them off 
-            #.............................................................
+            # devices to a "parking" position and to power them off
+            # .............................................................
 
-            # Update the wagics database to show all the devices in STANDBY 
+            # Update the wagics database to show all the devices in STANDBY
             # state (value of "state" attrivute has to be set to 2)
 
-            dbMsg['command']['parameters'].clear()
+            dbMsg["command"]["parameters"].clear()
             for i in range(nbCtrlDevs):
-                attribute = "<alias>" + d[i].name +".state"
-                dbMsg['command']['parameters'].append({"attribute":attribute, "value":2})
+                attribute = "<alias>" + d[i].name + ".state"
+                dbMsg["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 2}
+                )
 
             # Send message to wag to update the database
             timeNow = datetime.datetime.now()
             timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-            dbMsg['command']['time'] = timeStamp
-            outputMsg = json.dumps(dbMsg) + '\0'
+            dbMsg["command"]["time"] = timeStamp
+            outputMsg = json.dumps(dbMsg) + "\0"
 
             cliSocket.send_string(outputMsg)
             print(outputMsg)
 
             replyContent = "OK"
 
-
         # Case of "setup" (sent by wag to move devices)
 
         if "setup" in cmdName:
-            nbDevs = len(json_data['command']['parameters'])
+            nbDevs = len(json_data["command"]["parameters"])
             # Free all semaphores
             for i in range(nbSemas):
                 sema[i] = 0
             # Create a double-list of devices to move
-            setupList = [[],[]]
+            setupList = [[], []]
             for i in range(nbDevs):
-                kwd = json_data['command']['parameters'][i]['name']
-                val = json_data['command']['parameters'][i]['value']
+                kwd = json_data["command"]["parameters"][i]["name"]
+                val = json_data["command"]["parameters"][i]["value"]
                 print("Setup:", kwd, "to", val)
 
                 # Keywords are in the format: INS.<device>.<motion type>
@@ -229,17 +233,17 @@ while running == 1:
                 # ST     = State. Given value is equal to either T or F.
                 #          if device is shutter: T = open, F = closed.
                 #          if device is lamp: T = on, F = off.
-            
-                # Look if device exists in list 
+
+                # Look if device exists in list
                 # (something should be done if device does not exist)
                 for devIdx in range(nbCtrlDevs):
-                   if d[devIdx].name == dev:
-                       break
+                    if d[devIdx].name == dev:
+                        break
 
                 semId = d[devIdx].semId
                 if sema[semId] == 0:
                     # Semaphore is free =>
-                    # Device can be moved now 
+                    # Device can be moved now
                     setupList[0].append(setup(dev, mType, val))
                     sema[semId] = 1
                 else:
@@ -251,25 +255,29 @@ while running == 1:
             for batch in range(2):
                 if len(setupList[batch]) > 0:
                     print("batch", batch, "of devices to move:")
-                    dbMsg['command']['parameters'].clear()
+                    dbMsg["command"]["parameters"].clear()
                     for s in setupList[batch]:
-                        print("Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )")
+                        print(
+                            "Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )"
+                        )
 
-                        #......................................................
+                        # ......................................................
                         # Add here call to controller-specific functions that
                         # move the device "s.dev" to the requested position
                         # "s.val", according to "s.mType"
-                        #......................................................
+                        # ......................................................
 
                         # Inform wag ICS that the device is moving
-                        attribute = "<alias>" + s.dev +":DATA.status0"
-                        dbMsg['command']['parameters'].append({"attribute":attribute, "value":"MOVING"})
+                        attribute = "<alias>" + s.dev + ":DATA.status0"
+                        dbMsg["command"]["parameters"].append(
+                            {"attribute": attribute, "value": "MOVING"}
+                        )
 
                     # Send message to wag to update the database
                     timeNow = datetime.datetime.now()
                     timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-                    dbMsg['command']['time'] = timeStamp
-                    outputMsg = json.dumps(dbMsg) + '\0'
+                    dbMsg["command"]["time"] = timeStamp
+                    outputMsg = json.dumps(dbMsg) + "\0"
 
                     cliSocket.send_string(outputMsg)
                     print(outputMsg)
@@ -277,26 +285,28 @@ while running == 1:
                     # Simulates a motion delay (just for test, to be deleted)
                     time.sleep(1)
 
-                    #........................................................
+                    # ........................................................
                     # Add here calls to read (every 1 to 3 seconds) the position
                     # of the devices and update the database of wag (using the
                     # code below to generate the JSON message)
-                    #........................................................
+                    # ........................................................
 
-                    #........................................................
+                    # ........................................................
                     # Add here call to check that devices have reached their
                     # requested positions. Once done, inform wag as follows:
-                    #........................................................
+                    # ........................................................
 
-                    dbMsg['command']['parameters'].clear()
+                    dbMsg["command"]["parameters"].clear()
                     for s in setupList[batch]:
-                        attribute = "<alias>" + s.dev +":DATA.status0"
+                        attribute = "<alias>" + s.dev + ":DATA.status0"
                         # Case of motor with named position requested
-                        if (s.mType == "NAME"):
-                            dbMsg['command']['parameters'].append({"attribute":attribute, "value":s.val})
+                        if s.mType == "NAME":
+                            dbMsg["command"]["parameters"].append(
+                                {"attribute": attribute, "value": s.val}
+                            )
                             # Note: normally the encoder position shall be
                             # reported along with the named position
-                            #...............................................
+                            # ...............................................
                             # => Call function to read the encoder position
                             #    store it in a variable "posEnc" and execute:
                             #
@@ -304,24 +314,32 @@ while running == 1:
                             # dbMsg['command']['parameters'].append({"attribute":attribute, "value":posEnc})
 
                         # Case of shutter or lamp
-                        if (s.mType == "ST"):
+                        if s.mType == "ST":
                             # Here the device can be either a lamp or a shutter
                             # Add here code to find out the type of s.dev
                             # If it is a shutter do:
-                            if (s.val == "T"):
-                                dbMsg['command']['parameters'].append({"attribute":attribute, "value":"OPEN"})
+                            if s.val == "T":
+                                dbMsg["command"]["parameters"].append(
+                                    {"attribute": attribute, "value": "OPEN"}
+                                )
                             else:
-                                dbMsg['command']['parameters'].append({"attribute":attribute, "value":"CLOSED"})
-                           # If it is a lamp, reuse the code above replacing
-                           # OPEN  by ON and CLOSED by OFF
+                                dbMsg["command"]["parameters"].append(
+                                    {"attribute": attribute, "value": "CLOSED"}
+                                )
+                        # If it is a lamp, reuse the code above replacing
+                        # OPEN  by ON and CLOSED by OFF
 
                         # Case of motor with absolute encoder position requested
-                        if (s.mType == "ENC"): 
-                            dbMsg['command']['parameters'].append({"attribute":attribute, "value":""})
-                        # Note: if motor is at limit, do:
-                        # dbMsg['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
-                            attribute = "<alias>" + s.dev +":DATA.posEnc"
-                            dbMsg['command']['parameters'].append({"attribute":attribute, "value":s.val})
+                        if s.mType == "ENC":
+                            dbMsg["command"]["parameters"].append(
+                                {"attribute": attribute, "value": ""}
+                            )
+                            # Note: if motor is at limit, do:
+                            # dbMsg['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
+                            attribute = "<alias>" + s.dev + ":DATA.posEnc"
+                            dbMsg["command"]["parameters"].append(
+                                {"attribute": attribute, "value": s.val}
+                            )
                         # Case of motor with relative encoder position
                         # not considered yet
                         # The simplest would be to read the encoder position
@@ -330,8 +348,8 @@ while running == 1:
                     # Send message to wag to update its database
                     timeNow = datetime.datetime.now()
                     timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-                    dbMsg['command']['time'] = timeStamp
-                    outputMsg = json.dumps(dbMsg) + '\0'
+                    dbMsg["command"]["time"] = timeStamp
+                    outputMsg = json.dumps(dbMsg) + "\0"
 
                     cliSocket.send_string(outputMsg)
                     print(outputMsg)
@@ -341,48 +359,45 @@ while running == 1:
 
             replyContent = "OK"
 
-
         # Case of "stop" (sent by wag to immediately stop the devices)
 
         if "stop" in cmdName:
-            nbDevs = len(json_data['command']['parameters'])
+            nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
-                dev = json_data['command']['parameters'][i]['device']
+                dev = json_data["command"]["parameters"][i]["device"]
                 print("Stop device:", dev)
 
-                #......................................................
+                # ......................................................
                 # Add here call to stop the motion of the device dev
-                #......................................................
+                # ......................................................
 
             replyContent = "OK"
-
 
         # Case of "disable" (sent by wag to power-off devices)
 
         if "disable" in cmdName:
-            nbDevs = len(json_data['command']['parameters'])
+            nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
-                dev = json_data['command']['parameters'][i]['device']
+                dev = json_data["command"]["parameters"][i]["device"]
                 print("Power off device:", dev)
 
-                #......................................................
+                # ......................................................
                 # Add here call to power-off the device dev
-                #......................................................
+                # ......................................................
 
             replyContent = "OK"
-
 
         # Case of "enable" (sent by wag to power-on devices)
 
         if "enable" in cmdName:
-            nbDevs = len(json_data['command']['parameters'])
+            nbDevs = len(json_data["command"]["parameters"])
             for i in range(nbDevs):
-                dev = json_data['command']['parameters'][i]['device']
+                dev = json_data["command"]["parameters"][i]["device"]
                 print("Power on device:", dev)
 
-                #......................................................
+                # ......................................................
                 # Add here call to power-on the device dev
-                #......................................................
+                # ......................................................
 
             replyContent = "OK"
 
@@ -390,7 +405,13 @@ while running == 1:
 
         timeNow = datetime.datetime.now()
         timeStamp = timeNow.strftime("%Y-%m-%dT%H:%M:%S")
-        reply = "{\n\t\"reply\" :\n\t{\n\t\t\"content\" : \"" + replyContent + "\",\n\t\t\"time\" : \"" + timeStamp + "\"\n\t}\n}\n\0"
+        reply = (
+            '{\n\t"reply" :\n\t{\n\t\t"content" : "'
+            + replyContent
+            + '",\n\t\t"time" : "'
+            + timeStamp
+            + '"\n\t}\n}\n\0'
+        )
         print(reply)
         srvSocket.send_string(reply)
 
@@ -400,6 +421,3 @@ while running == 1:
         srvSocket.close()
         context.destroy()
         exit()
-
-
-
