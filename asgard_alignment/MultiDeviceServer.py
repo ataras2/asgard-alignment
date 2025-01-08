@@ -92,9 +92,7 @@ class MultiDeviceServer:
     @staticmethod
     def get_timestamp():
         time_now = datetime.datetime.now()
-        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
-
-        return time_stamp
+        return time_now.strftime("%Y-%m-%dT%H:%M:%S")
 
     def handle_message(self, message):
         """
@@ -110,7 +108,7 @@ class MultiDeviceServer:
         command_name = json_data["command"]["name"]
         timeStampIn = json_data["command"]["time"]
 
-        # Verification of received time-stamp (to do...)
+        # Verification of received time-stamp (TODO)
         # If the timestamp is invalid, set command_name to "none",
         # so no command will be processed but a reply will be sent
         # back to the client (set replyContent to "ERROR")
@@ -122,12 +120,16 @@ class MultiDeviceServer:
         # Case of "online" (sent by wag when bringing ICS online, to check
         # that MCUs are alive and ready)
 
+        self.database_message["command"]["parameters"].clear()
+
         if "online" in command_name:
             # TODO: make sure all devices are powered on
             # .............................................................
             # If needed, call controller-specific functions to power up
             # the devices and have them ready for operations
             # .............................................................
+            for key in self.instr.devices:
+                self.instr.devices[key].online()
 
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
@@ -152,18 +154,24 @@ class MultiDeviceServer:
         # usually when the instrument night operations are finished)
 
         if "standby" in command_name:
-
             # .............................................................
             # If needed, call controller-specific functions to bring some
             # devices to a "parking" position and to power them off
             # .............................................................
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print("Standby device:", dev)
+
+                self.instr.devices[dev].standby()
 
             # Update the wagics database to show all the devices in STANDBY
             # state (value of "state" attrivute has to be set to 2)
 
             self.database_message["command"]["parameters"].clear()
-            for i in self.instr.devices:
-                attribute = f"<alias>{i}.state"
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                attribute = f"<alias>{dev}.state"
                 self.database_message["command"]["parameters"].append(
                     {"attribute": attribute, "value": 2}
                 )
@@ -183,7 +191,7 @@ class MultiDeviceServer:
         if "setup" in command_name:
             n_devs_to_setup = len(json_data["command"]["parameters"])
 
-            self.instr.free_semaphores()  # TODO: implement this
+            semaphore_array = [0] * 100  # TODO: implement this maximum correctly
 
             # Create a double-list of devices to move
             setupList = [[], []]
@@ -208,17 +216,17 @@ class MultiDeviceServer:
                 #          if device is lamp: T = on, F = off.
 
                 # Look if device exists in list
-                # (something should be done if device does not exist)
+                # (something should be done if device does not exist) TODO
                 device = self.instr.devices[dev_name]
 
                 semId = device.semId
-                if sema[semId] == 0:
+                if semaphore_array[semId] == 0:
                     # Semaphore is free =>
                     # Device can be moved now
                     setupList[0].append(
                         asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
                     )
-                    sema[semId] = 1
+                    semaphore_array[semId] = 1
                 else:
                     # Semaphore is already taken =>
                     # Device will be moved in a second batch
@@ -226,7 +234,7 @@ class MultiDeviceServer:
                         asgard_alignment.ESOdevice.SetupCommand(dev, mType, val)
                     )
 
-            # Move devices (two batchesi if needed)
+            # Move devices (two batches if needed)
             for batch in range(2):
                 if len(setupList[batch]) > 0:
                     print("batch", batch, "of devices to move:")
@@ -236,11 +244,7 @@ class MultiDeviceServer:
                             "Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )"
                         )
 
-                        # ......................................................
-                        # Add here call to controller-specific functions that
-                        # move the device "s.dev" to the requested position
-                        # "s.val", according to "s.mType"
-                        # ......................................................
+                        # do the actual move...
                         self.instr.devices[s.dev].setup(s.mType, s.val)
 
                         # Inform wag ICS that the device is moving
@@ -267,7 +271,6 @@ class MultiDeviceServer:
                     # requested positions. Once done, inform wag as follows:
                     # ........................................................
 
-                    self.database_message["command"]["parameters"].clear()
                     for s in setupList[batch]:
                         attribute = "<alias>" + s.dev + ":DATA.status0"
                         # Case of motor with named position requested
@@ -311,10 +314,6 @@ class MultiDeviceServer:
                             self.database_message["command"]["parameters"].append(
                                 {"attribute": attribute, "value": s.val}
                             )
-                        # Case of motor with relative encoder position
-                        # not considered yet
-                        # The simplest would be to read the encoder position
-                        # and to update the database as for the previous case
 
                     # Send message to wag to update its database
                     timeNow = datetime.datetime.now()
@@ -328,43 +327,36 @@ class MultiDeviceServer:
         # Case of "stop" (sent by wag to immediately stop the devices)
 
         if "stop" in command_name:
-            nbDevs = len(json_data["command"]["parameters"])
-            for i in range(nbDevs):
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
                 print("Stop device:", dev)
 
-                # ......................................................
-                # Add here call to stop the motion of the device dev
-                # ......................................................
-                self.instr.devicesp[dev].stop()
+                self.instr.devices[dev].stop()
 
             replyContent = "OK"
 
         # Case of "disable" (sent by wag to power-off devices)
 
         if "disable" in command_name:
-            nbDevs = len(json_data["command"]["parameters"])
-            for i in range(nbDevs):
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
                 print("Power off device:", dev)
 
-                # ......................................................
-                # Add here call to power-off the device dev
-                # ......................................................
+                self.instr.devices[dev].disable()
 
             replyContent = "OK"
 
         # Case of "enable" (sent by wag to power-on devices)
 
         if "enable" in command_name:
-            nbDevs = len(json_data["command"]["parameters"])
-            for i in range(nbDevs):
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
                 print("Power on device:", dev)
 
-                # ......................................................
-                # Add here call to power-on the device dev
-                # ......................................................
+                self.instr.devices[dev].enable()
 
             replyContent = "OK"
 
