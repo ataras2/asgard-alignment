@@ -38,7 +38,7 @@ socket.setsockopt(zmq.RCVTIMEO, args.timeout)
 server_address = f"tcp://{args.host}:{args.port}"
 socket.connect(server_address)
 
-print("server address: ", server_address)
+# print("server address: ", server_address)
 
 def set_motor_position(socket, beam_number, position):
     message = f"!moveabs HFO{beam_number} {position}"

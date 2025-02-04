@@ -17,8 +17,10 @@ from scipy.ndimage import gaussian_filter, label, find_objects
 from fpdf import FPDF
 from PIL import Image
 import argparse
-
+import json 
 import matplotlib
+from matplotlib.animation import FuncAnimation
+from matplotlib.colors import LogNorm
 matplotlib.use('Agg')
 
 origin_time_string = "01-11-2024T00.00.00"
@@ -64,6 +66,105 @@ class PDFReport(FPDF):
             "The following pages provide plots from the stability analysis correlating pupil position with motor states. "
             )
         self.multi_cell(0, 10, intro_text)
+
+
+
+def process_fits_files(base_directory, output_json):
+    """
+    Iterates through subdirectories, processes FITS files, and writes the average data to a JSON file.
+
+    Parameters:
+        base_directory (str): The base directory containing subdirectories with FITS files.
+        output_json (str): The output JSON file to save the results.
+
+    Returns:
+        None
+    """
+    # Initialize the dictionary to store averaged images
+    averaged_data = {}
+
+    # Walk through the directory tree
+    for root, _, files in os.walk(base_directory):
+        for file in files:
+            # Process only FITS files
+            if file.endswith(".fits"):
+                file_path = os.path.join(root, file)
+
+                try:
+                    # Open the FITS file
+                    with fits.open(file_path) as hdul:
+                        # Extract and average the 'FRAMES' extension
+                        if 'FRAMES' in hdul:
+                            img = np.mean(hdul['FRAMES'].data, axis=0)
+
+                            # Extract the timestamp from the file name
+                            timestamp = file.split('_')[-1].replace('.fits', '')
+
+                            # Store the averaged image in the dictionary
+                            averaged_data[timestamp] = img.tolist()  # Convert NumPy array to list for JSON serialization
+                        else:
+                            print(f"'FRAMES' extension not found in {file_path}")
+                except Exception as e:
+                    print(f"Failed to process {file_path}: {e}")
+
+    # Write the dictionary to a JSON file
+    with open(output_json, 'w') as json_file:
+        json.dump(averaged_data, json_file, indent=4)
+    print(f"Processed data saved to {output_json}")
+
+
+# base_directory = "/home/heimdallr/data/stability_analysis/24-12-2024/pupils"
+# output_json = base_directory + "/averaged_fits_data.json"
+# process_fits_files(base_directory, output_json)
+
+def create_movie_from_json(json_file, output_file, crop_region=None, fps=5):
+    """
+    Creates a movie animation from images stored in a JSON file.
+
+    Parameters:
+        json_file (str): Path to the JSON file containing image data.
+        output_file (str): Path to save the generated movie (e.g., .mp4 file).
+        crop_region (tuple): Optional subregion to crop the images as (xmin, xmax, ymin, ymax).
+        fps (int): Frames per second for the movie.
+
+    Returns:
+        None
+    """
+    # Load data from JSON file
+    with open(json_file, 'r') as file:
+        data = json.load(file)
+
+    # Extract timestamps and images
+    timestamps = sorted(data.keys())
+    images = [np.array(data[timestamp]) for timestamp in timestamps]
+
+    # Apply cropping if specified
+    if crop_region:
+        xmin, xmax, ymin, ymax = crop_region
+        images = [img[ xmin:xmax, ymin:ymax] for img in images]
+
+    # Create a figure for the animation
+    fig, ax = plt.subplots(figsize=(6, 6))
+    im = ax.imshow(images[0], cmap='gray', origin='lower', norm=LogNorm(vmin=np.min(images[0]), vmax=np.max(images[0])))
+    ax.set_title(timestamps[0], fontsize=10)
+    plt.colorbar(im, ax=ax, orientation='vertical', fraction=0.046, pad=0.04)
+
+    # Update function for the animation
+    def update(frame):
+        im.set_data(images[frame])
+        ax.set_title(timestamps[frame], fontsize=10)
+        return [im]
+
+    # Create the animation
+    anim = FuncAnimation(fig, update, frames=len(images), interval=1000 // fps, blit=True)
+
+    # Save the animation
+    if not os.path.exists(os.path.dirname(output_file)):
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    anim.save(output_file, writer='ffmpeg', fps=fps)
+    print(f"Animation saved to {output_file}")
+
+    
 
 def resize_image_to_fit(image_path, max_width, max_height):
     """
@@ -330,6 +431,7 @@ def percentile_based_detect_pupils(
         plt.show()
         if savefig is not None:
             plt.savefig( savefig )
+        plt.close()
     return pupil_regions
 
 
@@ -734,7 +836,7 @@ def save_pupil_plots(matching_files_pupils, coords, fig_path):
                 i == 0
             ):  # we define a common cropping for all files!!! very important to compare relative pixel shifts
                 crop_pupil_coords = percentile_based_detect_pupils(
-                    img, percentile=99, min_group_size=100, buffer=20, plot=True
+                    img, percentile=99, min_group_size=100, buffer=20, plot=False
                 )
         
         cropped_pupils = crop_and_sort_pupils(img, crop_pupil_coords)
@@ -782,7 +884,6 @@ def add_pupil_plots_to_pdf(pdf, fig_path):
 
 ###################################################################
 ##### Go
-
 
 if __name__ == "__main__":
     # Argument parser

@@ -363,8 +363,16 @@ poke_imgs_cropped = poke_imgs[:,:, x_start:x_end, y_start:y_end] #np.mean( recon
 
 
 ## Identify bad pixels
-mean_frame = np.mean(poke_imgs_cropped, axis=(0, 1))
-std_frame = np.std(poke_imgs_cropped, axis=(0, 1))
+fits_extensions = [hdu.name for hdu in recon_data]
+if 'DARK' in fits_extensions:
+    print('using DARK to create bad pixel map')
+    img4badpixels = recon_data['DARK'].data[ :,x_start:x_end, y_start:y_end]
+    mean_frame = np.mean(img4badpixels, axis=0)
+    std_frame = np.std(img4badpixels, axis=0)
+else:
+    print('no DARK found. Using illuminated images to create bad pixel map')
+    mean_frame = np.mean(poke_imgs_cropped, axis=(0, 1))
+    std_frame = np.std(poke_imgs_cropped, axis=(0, 1))
 
 global_mean = np.mean(mean_frame)
 global_std = np.std(mean_frame)

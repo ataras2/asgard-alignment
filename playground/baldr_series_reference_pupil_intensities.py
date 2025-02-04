@@ -127,12 +127,14 @@ parser.add_argument(
     default=f"/home/heimdallr/Documents/asgard-alignment/calibration/reports/reference_pupils/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
+
 parser.add_argument(
     '--beam',
     type=str,
     default="1",
     help="what beam to look at?. Default: %(default)s"
 )
+
 parser.add_argument(
     '--phasemask_name',
     type=str,
@@ -143,9 +145,17 @@ parser.add_argument(
 parser.add_argument(
     '--no_frames',
     type=int,
-    default=100,
+    default=1000,
     help="how many frames to take in each setting. Default: %(default)s - easy to find"
 )
+
+parser.add_argument(
+    '--cam_mode',
+    type=str,
+    default='globalresetsingle',
+    help="camera mode. Default: %(default)s"
+)
+
 
 parser.add_argument(
     '--cam_gain',
@@ -239,9 +249,11 @@ with open(config_file_name, "r") as file:
 
 apply_manual_reduction = True
 
-c.send_fli_cmd("set mode globalresetcds")
+c.send_fli_cmd(f"set mode {args.cam_mode}")
 time.sleep(1)
 c.send_fli_cmd(f"set gain {args.cam_gain}")
+time.sleep(1)
+
 # time.sleep(1)
 # c.send_fli_cmd(f"set fps {args.cam_fps}")
 
@@ -354,10 +366,12 @@ for fps in fps_grid:
     fname_base = f'beam{args.beam}_reference_pupils_fps-{round(fps)}_gain-{args.cam_gain}_'
 
     print( fps )
-    
+    c.stop_camera()
+    time.sleep( 1 )
     c.send_fli_cmd(f"set fps {fps}")
     time.sleep( 1 )
-
+    c.start_camera()
+    time.sleep( 1 )
     ######################################
     # Move source out to get raw darks 
     ######################################

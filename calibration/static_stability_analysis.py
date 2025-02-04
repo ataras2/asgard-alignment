@@ -12,7 +12,7 @@ import argparse
 import zmq
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter, label, find_objects
-
+import atexit 
 from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
 import common.phasescreens as ps
@@ -21,6 +21,29 @@ import pyBaldr.utilities as util
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import bmc
 
+
+
+def close_all_dms():
+    try:
+        for b in dm:
+            dm[b].close_dm()
+        print("All DMs have been closed.")
+    except Exception as e:
+        print(f"dm object doesn't seem to exist, probably already closed")
+
+    try:
+        c.send_fli_cmd( "set gain 1")
+        print( 'set camera gain = 1')
+    except:
+        print( 'could not set camera gain = 1')
+    try:
+        c.exit_camera()
+        print('exit camera context')
+    except:
+        print('could not exit camera context')
+        
+# Register the cleanup function to run at script exit
+atexit.register(close_all_dms)
 
 
 def get_motor_states_as_list_of_dicts( ): 
@@ -296,7 +319,7 @@ time.sleep(20)
 motor_states = get_motor_states_as_list_of_dicts()
 bintab_fits = save_motor_states_as_hdu(motor_states)
 
-c.save_fits( args.data_path + f'heim_bald_pupils_fps-{args.cam_fps}_gain-{args.cam_gain}_dm-{args.dm_map}_{tstamp}.fits' ,  number_of_frames=200, apply_manual_reduction=True )
+c.save_fits( args.data_path + f'heim_bald_pupils_fps-{args.cam_fps}_gain-{args.cam_gain}_dm-{args.dm_map}_{tstamp}.fits' ,  number_of_frames=50, apply_manual_reduction=True )
 
 bintab_fits.writeto(args.data_path + f'heim_bald_motorstates_{tstamp}.fits' )
 

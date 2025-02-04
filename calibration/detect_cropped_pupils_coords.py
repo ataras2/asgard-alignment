@@ -89,7 +89,9 @@ def percentile_based_detect_pupils(
             )
             plt.gca().add_patch(rect)
         plt.title(f"Detected Pupils: {len(pupil_regions)}")
+        plt.savefig('delme.png')
         plt.show()
+        
 
     return pupil_regions
 
@@ -322,10 +324,10 @@ if not os.path.exists(args.data_path):
 
 
 
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
 
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupils = json.load(json_file)
 
 # init camera 
 roi = [None, None, None, None]

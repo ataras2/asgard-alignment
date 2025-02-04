@@ -387,23 +387,35 @@ if args.open_dms_here:
         )[0].values
 
 
-    bbb = args.beam #"3" 
+    #bbb = args.beam #"3" 
     for bbb in ['1','2','3','4']:
         dm[bbb].send_data( flatdm[bbb]  )
 
-# for beam, serial_number in dm_serial_numbers.items():
-#     dm[beam].close_dm()
+    ## for beam, serial_number in dm_serial_numbers.items():
+    ##     dm[beam].close_dm()
 
-# img = np.mean( c.get_some_frames( number_of_frames=10, apply_manual_reduction=True ) , axis = 0 ) 
+    # ## Checking pupil crop region beam labels are correct
+    # fig,ax = plt.subplots( 1,4 )
+    # for bbb,axx in zip( ['1','2','3','4'], ax.reshape(-1)):
 
-# x_start, x_end , y_start, y_end = baldr_pupils[ '2']# str(args.beam)]
-# plt.figure(); plt.imshow( np.log10( img) ) ; plt.colorbar(); plt.savefig('delme.png')
+    #     dm[bbb].send_data( flatdm[bbb]  + 0.2 * crossdm[bbb])
+    #     time.sleep(2)
+    #     img = np.mean( c.get_some_frames( number_of_frames=10, apply_manual_reduction=True ) , axis = 0 ) 
 
-# plt.figure(); plt.imshow( np.log10( img[ x_start:x_end, y_start:y_end ] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+    #     x_start, x_end , y_start, y_end = baldr_pupils[ bbb ]# str(args.beam)]
+    #     #plt.figure(); plt.imshow( np.log10( img) ) ; plt.colorbar(); plt.savefig('delme.png')
 
+    #     #plt.figure(); 
+    #     iii = axx.imshow( np.log10( img[ x_start:x_end, y_start:y_end ] ) ) 
+    #     axx.set_title(f'beam{bbb}')
+    #     #plt.colorbar(); 
+    
 
+    #     dm[bbb].send_data( flatdm[bbb]  )
 
+    #     #input('check inmage in "delme.png". press any key to go to next beam')
 
+    # plt.savefig('delme.png')
 
 
 # ======== Source out first for dark and bad pixel map 
