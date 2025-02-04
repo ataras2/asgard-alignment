@@ -5,14 +5,14 @@ import socket
 
 # List of devices and the associated arduino pin
 CONNEXIONS = {
-    'Flip1+' : 3,
-    'Flip2+' : 4,
-    'Flip3+' : 5,
-    'Flip4+' : 6,
-    'Flip1-' : 7,
-    'Flip2-' : 8,
-    'Flip3-' : 9,
-    'Flip4-' : 10,
+    'SSF1+' : 3,
+    'SSF2+' : 4,
+    'SSF3+' : 5,
+    'SSF4+' : 6,
+    'SSF1-' : 7,
+    'SSF2-' : 8,
+    'SSF3-' : 9,
+    'SSF4-' : 10,
     'Lower Fan' : 11,
     'Upper Fan' : 12,
     'DM1' : 42,
@@ -30,8 +30,8 @@ CONNEXIONS = {
     'BLF2' : 23,
     'BLF3' : 24,
     'BLF4' : 25,
-    'Red L' : 30,
-    'Green L' : 31,
+    'SRL' : 30,
+    'SGL' : 31,
     'Lower T' : 54,
     'Upper T' : 55,
     'Bench T' : 56,
@@ -141,6 +141,22 @@ class Controllino():
             raise ValueError ("The value must be between 0 and 255")
         return self.send_command("m" + str(CONNEXIONS[key]) + f" {value}")
     
+    # Command to move a flipper to the down (out) position
+    def flip_down(self, key:str, value:int, dt:float) -> bool:
+        self._ensure_device(key + "+")
+        self.send_command("m" + str(CONNEXIONS[key+"+"]) + f" 0")
+        self.send_command("m" + str(CONNEXIONS[key+"-"]) + f" {value}")
+        time.sleep(dt)
+        return self.send_command("m" + str(CONNEXIONS[key+"-"]) + f" 0")
+        
+    # Command to move a flipper to the up (in) position
+    def flip_up(self, key:str, value:int, dt:float) -> bool:
+        self._ensure_device(key + "+")
+        self.send_command("m" + str(CONNEXIONS[key+"-"]) + f" 0")
+        self.send_command("m" + str(CONNEXIONS[key+"+"]) + f" {value}")
+        time.sleep(dt)
+        return self.send_command("m" + str(CONNEXIONS[key+"+"]) + f" 0")        
+            
     # Command to ask for an analog input.
     def analog_input(self, key:str) -> int:
         self._ensure_device(key)

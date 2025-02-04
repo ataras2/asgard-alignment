@@ -12,6 +12,7 @@ import asgard_alignment.Instrument
 import asgard_alignment.MultiDeviceServer
 import asgard_alignment.Engineering
 import asgard_alignment.NewportMotor
+import asgard_alignment.controllino
 
 
 class MockMDS:
@@ -316,6 +317,8 @@ class MultiDeviceServer:
             "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
             "!fpm_writemaskpos {}": fpm_write_mask_positions_msg,
             "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
+#            "!on {}": on_msg,
+#            "!off {}": off_msg,
         }
 
         try:
