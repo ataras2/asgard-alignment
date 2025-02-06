@@ -88,6 +88,7 @@ class MultiDeviceServer:
                 if data == -1:
                     running = False
                 elif data != 0:
+                    print(f"Received message: {data}")
                     response = self.handle_message(data)
                     if response == -1:
                         running = False
@@ -95,6 +96,8 @@ class MultiDeviceServer:
                             self.log("Manually shut down. Goodbye.")
                         else:
                             self.log("Shut down by remote connection. Goodbye.")
+                    else:
+                        s.send_string(response + "\n")
 
     @staticmethod
     def get_time_stamp():
@@ -107,11 +110,16 @@ class MultiDeviceServer:
         """
 
         if "!" in message:
+            print(f"Custom command: {message}")
             return self._handle_custom_command(message)
 
-        message = message.rstrip(message[-1])
-        print(message)
-        json_data = json.loads(message)
+        try:
+            message = message.rstrip(message[-1])
+            print(message)
+            json_data = json.loads(message)
+        except:
+            print("Error: Invalid JSON message")
+            return "NACK: Invalid JSON message"
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
 
@@ -518,32 +526,54 @@ class MultiDeviceServer:
                 return f"NACK: Axis {axis} not found"
             else:
                 self.instr.devices[axis].update_all_mask_positions_relative_to_current(
-                    current_mask_name, reference_mask_position_file, write_file = False
+                    current_mask_name, reference_mask_position_file, write_file=False
                 )
                 return "ACK"
 
-        patterns = {
-            "!read {}": read_msg,
-            "!stop {}": stop_msg,
-            "!moveabs {} {:f}": moveabs_msg,
-            "!connected? {}": connected_msg,
-            "!connect {}": connect_msg,
-            "!init {}": init_msg,
-            "!moverel {} {:f}": moverel_msg,
-            "!state {}": state_msg,
-            "!dmapplyflat {}": apply_flat_msg,
-            "!dmapplycross {}": apply_cross_msg,
-            "!fpm_getsavepath {}": fpm_get_savepath_msg,
-            "!fpm_maskpositions {}": fpm_mask_positions_msg,
-            "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
-            "!fpm_moverel {} {}": fpm_move_relative_msg,
-            "!fpm_moveabs {} {}": fpm_move_absolute_msg,
-            "!fpm_readpos {}": fpm_read_position_msg,
-            "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
-            "!fpm_writemaskpos {}": fpm_write_mask_positions_msg,
-            "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
-#            "!on {}": on_msg,
-#            "!off {}": off_msg,
+        # patterns = {
+        #     "!read {}": read_msg,
+        #     "!stop {}": stop_msg,
+        #     "!moveabs {} {:f}": moveabs_msg,
+        #     "!connected? {}": connected_msg,
+        #     "!connect {}": connect_msg,
+        #     "!init {}": init_msg,
+        #     "!moverel {} {:f}": moverel_msg,
+        #     "!state {}": state_msg,
+        #     "!dmapplyflat {}": apply_flat_msg,
+        #     "!dmapplycross {}": apply_cross_msg,
+        #     "!fpm_getsavepath {}": fpm_get_savepath_msg,
+        #     "!fpm_maskpositions {}": fpm_mask_positions_msg,
+        #     "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
+        #     "!fpm_moverel {} {}": fpm_move_relative_msg,
+        #     "!fpm_moveabs {} {}": fpm_move_absolute_msg,
+        #     "!fpm_readpos {}": fpm_read_position_msg,
+        #     "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
+        #     "!fpm_writemaskpos {}": fpm_write_mask_positions_msg,
+        #     "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
+        #     #            "!on {}": on_msg,
+        #     #            "!off {}": off_msg,
+        # }
+
+        first_word_to_function = {
+            "!read": read_msg,
+            "!stop": stop_msg,
+            "!moveabs": moveabs_msg,
+            "!connected?": connected_msg,
+            "!connect": connect_msg,
+            "!init": init_msg,
+            "!moverel": moverel_msg,
+            "!state": state_msg,
+        }
+
+        first_word_to_format = {
+            "!read": "!read {}",
+            "!stop": "!stop {}",
+            "!moveabs": "!moveabs {} {:f}",
+            "!connected?": "!connected? {}",
+            "!connect": "!connect {}",
+            "!init": "!init {}",
+            "!moverel": "!moverel {} {:f}",
+            "!state": "!state {}",
         }
 
         try:
