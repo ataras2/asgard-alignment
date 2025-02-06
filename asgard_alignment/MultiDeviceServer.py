@@ -563,6 +563,18 @@ class MultiDeviceServer:
             "!init": init_msg,
             "!moverel": moverel_msg,
             "!state": state_msg,
+
+            "!dmapplyflat": apply_flat_msg,
+            "!dmapplycross": apply_cross_msg,
+            "!fpm_getsavepath": fpm_get_savepath_msg,
+            "!fpm_maskpositions": fpm_mask_positions_msg,
+            "!fpm_movetomask": fpm_move_to_phasemask_msg,
+            "!fpm_moverel": fpm_move_relative_msg,
+            "!fpm_moveabs": fpm_move_absolute_msg,
+            "!fpm_readpos": fpm_read_position_msg,
+            "!fpm_updatemaskpos": fpm_update_mask_position_msg,
+            "!fpm_writemaskpos": fpm_write_mask_positions_msg,
+            "!fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
         }
 
         first_word_to_format = {
@@ -574,6 +586,19 @@ class MultiDeviceServer:
             "!init": "!init {}",
             "!moverel": "!moverel {} {:f}",
             "!state": "!state {}",
+
+            "!dmapplyflat": "dmapplyflat {}",
+            "!dmapplycross": "!dmapplycross {}",
+            "!fpm_getsavepath": "!fpm_getsavepath {}",
+            "!fpm_maskpositions": "!fpm_maskpositions {}",
+            "!fpm_movetomask": "!fpm_movetomask {} {}",
+            "!fpm_moverel": "!fpm_moverel {} {}",
+            "!fpm_moveabs": "!fpm_moveabs {} {}",
+            "!fpm_readpos": "!fpm_readpos {}",
+            "!fpm_updatemaskpos": "!fpm_updatemaskpos {} {}",
+            "!fpm_writemaskpos": "!fpm_writemaskpos {}",
+            "!fpm_updateallmaskpos": "!fpm_updateallmaskpos {} {} {}",
+
         }
 
         try:
