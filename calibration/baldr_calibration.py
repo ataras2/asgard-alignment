@@ -12,7 +12,7 @@ from scipy.stats import linregress
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from fpdf import FPDF
 import argparse
-sys.path.insert(1, "/Users/bencb/Documents/ASGARD/BaldrApp" )
+#sys.path.insert(1, "/Users/bencb/Documents/ASGARD/BaldrApp" )
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
 import common.DM_registration as DM_registration
@@ -544,6 +544,22 @@ for actuator_number in dm_4_corners:
 
 transform_dict = DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debug=True, fig_path = fig_path  )
 
+
+# Create a matrix for bi-linear interpolation
+# (BCB: Tested against scipy map_coordinate method)
+x_target = np.array( [x for x,_ in transform_dict['actuator_coord_list_pixel_space']] )
+y_target = np.array( [y for _,y in transform_dict['actuator_coord_list_pixel_space']] )
+x_grid = np.arange(poke_imgs_cropped[0][0].shape[0])
+y_grid = np.arange(poke_imgs_cropped[0][0].shape[1])
+pix2dm = DM_registration.construct_bilinear_interpolation_matrix(image_shape=poke_imgs_cropped[0][0].shape, 
+                                        x_grid=x_grid, 
+                                        y_grid=y_grid, 
+                                        x_target=x_target,
+                                        y_target=y_target)
+
+# e.g. interpolate cmd_like_array = pix2dm @ img.flatten() 
+# Note this is only valid for local frame defined by baldr_pupil_regions
+
 if write_report:
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -820,6 +836,7 @@ final_dict = {"beam":beam,
               "signal_method":signal_method,
               "control_method":control_method,
               "dm_registration": transform_dict, 
+              "pix2dm_interp_matrix": pix2dm,
               "control_model":fit_results, 
               "pupil_regions":baldr_pupil_regions[str(beam)],
               "interpolated_I0":interpolated_I0,
