@@ -30,8 +30,8 @@ class ZaberLinearActuator(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, axis) -> None:
-        super().__init__(name)
+    def __init__(self, name, semaphore_id, axis) -> None:
+        super().__init__(name, semaphore_id)
         self.axis = axis
 
         if not self.axis.is_homed():
@@ -208,6 +208,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
     def standby(self):
         pass
 
+
 class ZaberLinearStage(ESOdevice.Motor):
     """
     A linear stage, e.g. the X-LHM100A-SE03, or the X-LSM150A-SE03
@@ -216,8 +217,8 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, device):
-        super().__init__(name)
+    def __init__(self, name, semaphore_id, device):
+        super().__init__(name, semaphore_id)
         self.device = device
         self.axis = device.get_axis(1)
 

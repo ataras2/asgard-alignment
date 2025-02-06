@@ -233,6 +233,7 @@ class Instrument:
             if self._config_dict[name]["motor_type"] in ["M100D"]:
                 self.devices[name] = asgard_alignment.NewportMotor.M100DAxis(
                     self._controllers[port],
+                    cfg["semaphore_id"],
                     cfg["motor_config"]["axis"],
                     name,
                 )
@@ -241,6 +242,7 @@ class Instrument:
             if self._config_dict[name]["motor_type"] in ["LS16P"]:
                 self.devices[name] = asgard_alignment.NewportMotor.LS16PAxis(
                     self._controllers[port],
+                    cfg["semaphore_id"],
                     name,
                 )
                 return True
@@ -269,6 +271,7 @@ class Instrument:
                 return False
             self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                 name,
+                cfg["semaphore_id"],
                 axis,
             )
             return True
@@ -294,6 +297,7 @@ class Instrument:
                 if dev.serial_number == self._config_dict[name]["serial_number"]:
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
                         name,
+                        self._config_dict[name]["semaphore_id"],
                         dev,
                     )
                     return True

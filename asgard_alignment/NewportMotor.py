@@ -102,6 +102,7 @@ class M100DAxis(ESOdevice.Motor):
     def __init__(
         self,
         connection: NewportConnection,
+        semaphore_id: int,
         axis: Literal["U", "V"],
         name: str,
     ) -> None:
@@ -110,7 +111,7 @@ class M100DAxis(ESOdevice.Motor):
         https://www.newport.com.cn/p/CONEX-AG-M100D
         """
 
-        super().__init__(name=name)
+        super().__init__(name=name, semaphore_id=semaphore_id)
 
         assert axis in ["U", "V"]
         self._connection = connection
@@ -327,8 +328,8 @@ class LS16PAxis(ESOdevice.Motor):
         "5A": "HOLDING",
     }
 
-    def __init__(self, connection, name):
-        super().__init__(name)
+    def __init__(self, connection, semaphore_id, name):
+        super().__init__(name, semaphore_id)
 
         self._connection = connection
         self._name = name
@@ -343,6 +344,9 @@ class LS16PAxis(ESOdevice.Motor):
 
     def move_abs(self, position: float):
         self._connection.write_str(f"1PA{position:.5f}")
+
+    def move_relative(self, position):
+        self._connection.write_str(f"1PR{position:.5f}")
 
     def read_position(self):
         reply = self._connection.query_str("1TP?")
