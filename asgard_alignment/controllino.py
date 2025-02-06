@@ -109,7 +109,7 @@ class Controllino:
         self._clear_buffer()
 
         # Send the command
-        self.client.sendall(bytes(command + "\n", "utf-8"))
+        self.client.sendall(bytes(f"{command}\n", "utf-8"))
         # Wait for the answer
         r = self.client.recv(1024).decode().replace("\n", "").replace("\r", "")
 
@@ -126,45 +126,45 @@ class Controllino:
     # Command to turn on a device
     def turn_on(self, key: str) -> bool:
         self._ensure_device(key)
-        return self.send_command("o" + str(CONNEXIONS[key]))
+        return self.send_command(f"o{CONNEXIONS[key]}")
 
     # Command to turn off a device
     def turn_off(self, key: str) -> bool:
         self._ensure_device(key)
-        return self.send_command("c" + str(CONNEXIONS[key]))
+        return self.send_command(f"c{CONNEXIONS[key]}")
 
     # Command to get the power status of a device
     def get_status(self, key: str) -> bool:
         self._ensure_device(key)
-        return self.send_command("g" + str(CONNEXIONS[key]))
+        return self.send_command(f"g{CONNEXIONS[key]}")
 
     # Command to get the power status of a device
     def modulate(self, key: str, value: int) -> bool:
         self._ensure_device(key)
         if value < 0 or value > 255:
             raise ValueError("The value must be between 0 and 255")
-        return self.send_command("m" + str(CONNEXIONS[key]) + f" {value}")
+        return self.send_command(f"m{CONNEXIONS[key]} {value}")
 
     # Command to move a flipper to the down (out) position
     def flip_down(self, key: str, value: int, dt: float) -> bool:
-        self._ensure_device(key + "+")
-        self.send_command("m" + str(CONNEXIONS[key + "+"]) + f" 0")
-        self.send_command("m" + str(CONNEXIONS[key + "-"]) + f" {value}")
+        self._ensure_device(f"{key}+")
+        self.send_command(f"m{CONNEXIONS[key + '+']} 0")
+        self.send_command(f"m{CONNEXIONS[key + '-']} {value}")
         time.sleep(dt)
-        return self.send_command("m" + str(CONNEXIONS[key + "-"]) + f" 0")
+        return self.send_command(f"m{CONNEXIONS[key + '-']} 0")
 
     # Command to move a flipper to the up (in) position
     def flip_up(self, key: str, value: int, dt: float) -> bool:
-        self._ensure_device(key + "+")
-        self.send_command("m" + str(CONNEXIONS[key + "-"]) + f" 0")
-        self.send_command("m" + str(CONNEXIONS[key + "+"]) + f" {value}")
+        self._ensure_device(f"{key}+")
+        self.send_command(f"m{CONNEXIONS[key + '-']} 0")
+        self.send_command(f"m{CONNEXIONS[key + '+']} {value}")
         time.sleep(dt)
-        return self.send_command("m" + str(CONNEXIONS[key + "+"]) + f" 0")
+        return self.send_command(f"m{CONNEXIONS[key + '+']} 0")
 
     # Command to ask for an analog input.
     def analog_input(self, key: str) -> int:
         self._ensure_device(key)
-        return_str = self.send_command("i" + str(CONNEXIONS[key]))
+        return_str = self.send_command(f"i{CONNEXIONS[key]}")
         try:
             return_int = int(return_str)
             assert 0 <= return_int < 1024
