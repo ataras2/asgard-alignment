@@ -5,7 +5,7 @@ The documentation can be found at [https://asgard-alignment.readthedocs.io/en/la
 
 # Useful commands
 
-If you are unsure about any of the commands, you can always run `python <script> --help` to get more information, where `<script>` is the name of the script you want to run.
+If you are unsure about any of the commands, you can always run `python <script> --help` to get more information, where `<script>` is the name of the script you want to run. 
 
 All scripts are run from the root directory of the repository:
 ```bash
