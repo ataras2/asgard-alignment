@@ -2,9 +2,14 @@ import zmq
 import asgard_alignment
 import argparse
 import sys
-import re
 from parse import parse
 import time
+
+import json
+import datetime
+
+# deepcopy
+from copy import deepcopy
 
 import enum
 import asgard_alignment.ESOdevice
@@ -13,6 +18,7 @@ import asgard_alignment.MultiDeviceServer
 import asgard_alignment.Engineering
 import asgard_alignment.NewportMotor
 import asgard_alignment.controllino
+import asgard_alignment.ESOdevice
 
 
 class MockMDS:
@@ -29,15 +35,30 @@ class MultiDeviceServer:
     A class to run the Instrument MDS.
     """
 
+    DATABASE_MSG_TEMPLATE = {
+        "command": {
+            "name": "write",
+            "time": "YYYY-MM-DDThh:mm:ss",
+            "parameters": [],
+        }
+    }
+
     def __init__(self, port, host, config_file):
         self.port = port
         self.host = host
         self.config_file = config_file
+
         self.context = zmq.Context()
         self.server = self.context.socket(zmq.REP)
         self.server.bind(f"tcp://{self.host}:{self.port}")
+
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
+
+        self.client_socket = self.context.socket(zmq.PUSH)
+        self.client_socket.connect("tcp://localhost:5556")
+
+        self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
         if config_file == "mock":
             self.instr = MockMDS()
@@ -74,100 +95,304 @@ class MultiDeviceServer:
                             self.log("Manually shut down. Goodbye.")
                         else:
                             self.log("Shut down by remote connection. Goodbye.")
-                    else:
-                        s.send_string(response + "\n")
+
+    @staticmethod
+    def get_time_stamp():
+        time_now = datetime.datetime.now()
+        return time_now.strftime("%Y-%m-%dT%H:%M:%S")
 
     def handle_message(self, message):
+        """
+        Handles a recieved message. Custom messages are indicated by a leading "!".
+        """
+
         if "!" in message:
             return self._handle_custom_command(message)
 
-        if ("MAIN" in message) and (message.count(".") > 2):
-            valid = True
-        else:
-            valid = False
-        if valid:
-            if "=" in message:
-                # Received request is "write"
-                x = re.split("=", message)
-                read_val = x[1]
-                y = re.split("\.", x[0])
-                device = y[1]
-                category = y[2]
-                # Deal with the case of parameter arrays (two atoms)
-                if len(y) == 5:
-                    # Replace dot and braces by underscores
-                    parameter = re.sub("\[|\]", "_", y[3]) + "_" + y[4]
-                    par_type = y[4][0]
+        message = message.rstrip(message[-1])
+        print(message)
+        json_data = json.loads(message)
+        command_name = json_data["command"]["name"]
+        time_stampIn = json_data["command"]["time"]
+
+        # Verification of received time-stamp (TODO)
+        # If the time_stamp is invalid, set command_name to "none",
+        # so no command will be processed but a reply will be sent
+        # back to the client (set reply to "ERROR")
+
+        ################################
+        # Process the received command:
+        ################################
+
+        # Case of "online" (sent by wag when bringing ICS online, to check
+        # that MCUs are alive and ready)
+
+        self.database_message["command"]["parameters"].clear()
+
+        if "online" in command_name:
+            # TODO: make sure all devices are powered on
+            # .............................................................
+            # If needed, call controller-specific functions to power up
+            # the devices and have them ready for operations
+            # .............................................................
+            for key in self.instr.devices:
+                self.instr.devices[key].online()
+
+            # Update the wagics database to show all the devices in ONLINE
+            # state (value of "state" attribute has to be set to 3)
+
+            for key in self.instr.devices:
+                attribute = f"<alias>{key}.state"
+                self.database_message["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 3}
+                )
+
+            # Send message to wag to update the database
+
+            self.database_message["command"]["time"] = self.get_time_stamp()
+            output_msg = json.dumps(self.database_message) + "\0"
+
+            self.client_socket.send_string(output_msg)
+            print(output_msg)
+
+            reply = "OK"
+
+        # Case of "standby" (sent by wag when bringing ICS standby,
+        # usually when the instrument night operations are finished)
+
+        if "standby" in command_name:
+            # .............................................................
+            # If needed, call controller-specific functions to bring some
+            # devices to a "parking" position and to power them off
+            # .............................................................
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print(f"Standby device: {dev}")
+
+                self.instr.devices[dev].standby()
+
+            # Update the wagics database to show all the devices in STANDBY
+            # state (value of "state" attrivute has to be set to 2)
+
+            self.database_message["command"]["parameters"].clear()
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                attribute = f"<alias>{dev}.state"
+                self.database_message["command"]["parameters"].append(
+                    {"attribute": attribute, "value": 2}
+                )
+
+            # Send message to wag to update the database
+            time_now = datetime.datetime.now()
+            time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+            self.database_message["command"]["time"] = time_stamp
+            output_msg = json.dumps(self.database_message) + "\0"
+
+            self.client_socket.send_string(output_msg)
+            print(output_msg)
+
+            reply = "OK"
+
+        # Case of "setup" (sent by wag to move devices)
+        if "setup" in command_name:
+            n_devs_to_setup = len(json_data["command"]["parameters"])
+
+            semaphore_array = [0] * 100  # TODO: implement this maximum correctly
+
+            # Create a double-list of devices to move
+            setup_cmds = [[], []]
+            for i in range(n_devs_to_setup):
+                kwd = json_data["command"]["parameters"][i]["name"]
+                val = json_data["command"]["parameters"][i]["value"]
+                print(f"Setup: {kwd} to {val}")
+
+                # Keywords are in the format: INS.<device>.<motion type>
+
+                prefixes = kwd.split(".")
+                dev_name = prefixes[1]
+                motion_type = prefixes[2]
+                print(f"Device: {dev_name} - motion type: {motion_type}")
+
+                # motion_type can be one of these words:
+                # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
+                # ENC    = Absolute encoder position
+                # ENCREL = Relative encoder postion (can be negative)
+                # ST     = State. Given value is equal to either T or F.
+                #          if device is shutter: T = open, F = closed.
+                #          if device is lamp: T = on, F = off.
+
+                # Look if device exists in list
+                # (something should be done if device does not exist) TODO
+                device = self.instr.devices[dev_name]
+
+                semaphore_id = device.semaphore_id
+                if semaphore_array[semaphore_id] == 0:
+                    # Semaphore is free =>
+                    # Device can be moved now
+                    setup_cmds[0].append(
+                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
+                    )
+                    semaphore_array[semaphore_id] = 1
                 else:
-                    parameter = y[3]
-                    par_type = y[3][0]
-                if par_type == "b":
-                    value = read_val == "TRUE"
-                if par_type == "n":
-                    value = int(read_val)
-                if par_type == "l":
-                    value = float(read_val)
+                    # Semaphore is already taken =>
+                    # Device will be moved in a second batch
+                    setup_cmds[1].append(
+                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
+                    )
 
-                # Update parameter value of device
-                print("parameter = ", parameter)
-                if hasattr(self.instr.devices[device], parameter):
-                    setattr(self.instr.devices[device], parameter, value)
+            # Move devices (two batches if needed)
+            for batch in range(2):
+                if len(setup_cmds[batch]) > 0:
+                    print(f"batch {batch} of devices to move:")
+                    self.database_message["command"]["parameters"].clear()
+                    for s in setup_cmds[batch]:
+                        print(
+                            f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )"
+                        )
 
-                    self.instr.devices[device].update_param()
-                    print("Updated parameter", parameter, "of", device, "to", value)
-                return "ACK"
-            else:
-                # Received request is "read"
-                x = re.split("\.", message)
-                device = x[1]
-                category = x[2]
-                # Deal with the case of parameter arrays (two atoms)
-                if len(x) == 5:
-                    # Replace dot and braces by underscores
-                    parameter = re.sub("\[|\]", "_", x[3]) + "_" + x[4]
-                    par_type = x[4][0]
-                else:
-                    parameter = x[3]
-                    par_type = x[3][0]
+                        # do the actual move...
+                        self.instr.devices[s.dev].setup(s.motion_type, s.val)
 
-                if device not in self.instr.devices:
-                    return "Device not found"
-                if hasattr(self.instr.devices[device], parameter):
-                    value = getattr(self.instr.devices[device], parameter)
-                    if type(value) == int:
-                        reply = "n" + str(value)
-                    elif type(value) == float:
-                        reply = "r" + str(value)
-                    elif type(value) == bool:
-                        if value:
-                            reply = "bTRUE"
-                        else:
-                            reply = "bFALSE"
-                    elif isinstance(value, enum.Enum):
-                        reply = "s" + str(value.name)
-                    else:
-                        reply = "s--UNKNOWN--"
-                    print("Value of parameter", parameter, "of", device, "is:", value)
-                else:
-                    # Unknown parameter: send back garbage value according to type
-                    if par_type == "b":
-                        reply = "bFALSE"
-                    elif par_type == "n":
-                        reply = "n9999"
-                    elif par_type == "l":
-                        reply = "r99.99"
-                    else:
-                        reply = "s--UNKNOWN--"
+                        # Inform wag ICS that the device is moving
+                        attribute = f"<alias>{s.dev}:DATA.status0"
+                        self.database_message["command"]["parameters"].append(
+                            {"attribute": attribute, "value": "MOVING"}
+                        )
 
-                self.instr.devices[device].update_fsm()
-                # Send reply to client
-                print("OUT>", reply)
-                return reply
-        else:
-            # Garbage received => send anything to avoid blocking
-            reply = "????"
-            print("OUT>", reply)
-            return reply
+                    # Send message to wag to update the database
+                    self.database_message["command"]["time"] = self.get_time_stamp()
+                    output_msg = json.dumps(self.database_message) + "\0"
+
+                    self.client_socket.send_string(output_msg)
+                    print(output_msg)
+
+                    # TODO
+                    # ........................................................
+                    # Add here calls to read (every 1 to 3 seconds) the position
+                    # of (all of the relevant) devices and update the database of wag (using the
+                    # code below to generate the JSON message)
+                    # ........................................................
+
+                    still_moving_prev = setup_cmds[batch]
+                    still_moving = setup_cmds[batch]
+                    while len(still_moving) > 0:
+                        time.sleep(1.0)
+
+                        still_moving = []
+                        still_moving_prev = setup_cmds[batch]
+
+                        for s in still_moving_prev:
+                            dev = s.dev
+                            pos = self.instr.devices[dev].read_position()
+
+                            self.database_message["command"]["parameters"].append(
+                                {
+                                    "attribute": f"<alias>{dev}:DATA.posEnc",
+                                    "value": pos,
+                                }
+                            )
+                            if self.instr.devices[dev].is_moving():
+                                still_moving.append(s)
+                            else:
+                                # not moving, so also send the done moving status
+                                if s.motion_type == "NAME":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": s.val,
+                                        }
+                                    )
+                                elif s.motion_type == "ST":
+                                    # TODO: change this to a mapping T -> OPEN, F -> CLOSED, and lamp case...
+                                    if s.val == "T":
+                                        self.database_message["command"][
+                                            "parameters"
+                                        ].append(
+                                            {
+                                                "attribute": f"<alias>{dev}:DATA.status0",
+                                                "value": "OPEN",
+                                            }
+                                        )
+                                    else:
+                                        self.database_message["command"][
+                                            "parameters"
+                                        ].append(
+                                            {
+                                                "attribute": f"<alias>{dev}:DATA.status0",
+                                                "value": "CLOSED",
+                                            }
+                                        )
+                                elif s.motion_type == "ENC":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": "",
+                                        }
+                                    )
+                            # Case of motor with relative encoder position
+                            # not considered yet
+                            # The simplest would be to read the encoder position
+                            # and to update the database as for the previous case
+
+                        still_moving_prev = deepcopy(still_moving)
+
+                        # Send message to wag to update its database
+                        self.database_message["command"]["time"] = self.get_time_stamp()
+                        output_msg = json.dumps(self.database_message) + "\0"
+
+                        self.client_socket.send_string(output_msg)
+                        print(output_msg)
+
+                        self.database_message["command"]["parameters"].clear()
+
+        # Case of "stop" (sent by wag to immediately stop the devices)
+
+        if "stop" in command_name:
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print(f"Stop device: {dev}")
+
+                self.instr.devices[dev].stop()
+
+            reply = "OK"
+
+        # Case of "disable" (sent by wag to power-off devices)
+
+        if "disable" in command_name:
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print(f"Power off device: {dev}")
+
+                self.instr.devices[dev].disable()
+
+            reply = "OK"
+
+        # Case of "enable" (sent by wag to power-on devices)
+
+        if "enable" in command_name:
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            for i in range(n_devs_commanded):
+                dev = json_data["command"]["parameters"][i]["device"]
+                print(f"Power on device: {dev}")
+
+                self.instr.devices[dev].enable()
+
+            reply = "OK"
+
+        # Send back reply to ic0fb process
+
+        time_now = datetime.datetime.now()
+        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
+        print(reply)
+        self.server.send_string(reply)
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol
@@ -322,10 +547,19 @@ class MultiDeviceServer:
         }
 
         try:
-            for pattern, func in patterns.items():
-                result = parse(pattern, message)
-                if result:
-                    return func(*result)
+            first_word = message.split(" ")[0]
+            if first_word in first_word_to_function:
+                format_str = first_word_to_format[first_word]
+                result = parse(format_str, message)
+                return first_word_to_function[first_word](*result)
+            else:
+                return "NACK: Unkown custom command"
+
+            # old
+            # for pattern, func in patterns.items():
+            #     result = parse(pattern, message)
+            #     if result:
+            #         return func(*result)
         except Exception as e:
             return f"NACK: {e}"
         return "NACK: Unknown custom command"
