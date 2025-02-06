@@ -60,6 +60,9 @@ class Instrument:
         # Validate the config file
         self._validate_config_file(config_pth)
         self._config = self._read_motor_config(config_pth)
+        self._semaphore_set = set(
+            [component["semaphore_id"] for component in self._config]
+        )
         self._config_dict = {component["name"]: component for component in self._config}
 
         self._controllers = {}
@@ -358,6 +361,16 @@ class Instrument:
                 raise ValueError("Each component must have a serial number")
             if "motor_type" not in component:
                 raise ValueError("Each component must have a motor type")
+            if "semaphore_id" not in component:
+                raise ValueError("Each component must have a semaphore id")
+
+        # check that no semaphore id is used more than twice
+        semaphore_ids = [component["semaphore_id"] for component in config]
+        for semaphore_id in set(semaphore_ids):
+            if semaphore_ids.count(semaphore_id) > 2:
+                raise ValueError(
+                    f"Semaphore id must be unique, not true for {semaphore_id}"
+                )
 
         # check that all component names are unique:
         names = [component["name"] for component in config]
