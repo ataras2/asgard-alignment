@@ -5,7 +5,8 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A68DE8BJA"
+        "serial_number": "A68DE8BJA",
+        "semaphore_id": 1
     },
     {
         "name": "HTTP1",
@@ -13,7 +14,8 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A68DE8BJA"
+        "serial_number": "A68DE8BJA",
+        "semaphore_id": 1
     },
     {
         "name": "HTPP2",
@@ -21,7 +23,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68DE8ROA"
+        "serial_number": "A68DE8ROA",
+        "semaphore_id": 2
     },
     {
         "name": "HTTP2",
@@ -29,7 +32,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68DE8ROA"
+        "serial_number": "A68DE8ROA",
+        "semaphore_id": 2
     },
     {
         "name": "HTPP3",
@@ -37,7 +41,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68DE8MDA"
+        "serial_number": "A68DE8MDA",
+        "semaphore_id": 3
     },
     {
         "name": "HTTP3",
@@ -45,7 +50,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68DE8MDA"
+        "serial_number": "A68DE8MDA",
+        "semaphore_id": 3
     },
     {
         "name": "HTPP4",
@@ -53,7 +59,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A675RRE6A"
+        "serial_number": "A675RRE6A",
+        "semaphore_id": 4
     },
     {
         "name": "HTTP4",
@@ -61,7 +68,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A675RRE6A"
+        "serial_number": "A675RRE6A",
+        "semaphore_id": 4
     },
     {
         "name": "HTTI1",
@@ -69,7 +77,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A67BVAK5A"
+        "serial_number": "A67BVAK5A",
+        "semaphore_id": 5
     },
     {
         "name": "HTPI1",
@@ -77,7 +86,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A67BVAK5A"
+        "serial_number": "A67BVAK5A",
+        "semaphore_id": 5
     },
     {
         "name": "HTTI2",
@@ -85,7 +95,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68IMGC2A"
+        "serial_number": "A68IMGC2A",
+        "semaphore_id": 6
     },
     {
         "name": "HTPI2",
@@ -93,7 +104,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68IMGC2A"
+        "serial_number": "A68IMGC2A",
+        "semaphore_id": 6
     },
     {
         "name": "HTTI3",
@@ -101,7 +113,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68IMG9NA"
+        "serial_number": "A68IMG9NA",
+        "semaphore_id": 7
     },
     {
         "name": "HTPI3",
@@ -109,7 +122,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68IMG9NA"
+        "serial_number": "A68IMG9NA",
+        "semaphore_id": 7
     },
     {
         "name": "HTTI4",
@@ -117,7 +131,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A67BVBOJA"
+        "serial_number": "A67BVBOJA",
+        "semaphore_id": 8
     },
     {
         "name": "HTPI4",
@@ -125,7 +140,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A67BVBOJA"
+        "serial_number": "A67BVBOJA",
+        "semaphore_id": 8
     },
     {
         "name": "BTT1",
@@ -133,7 +149,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68IMFQVA"
+        "serial_number": "A68IMFQVA",
+        "semaphore_id": 9
     },
     {
         "name": "BTP1",
@@ -141,7 +158,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68IMFQVA"
+        "serial_number": "A68IMFQVA",
+        "semaphore_id": 9
     },
     {
         "name": "BTT2",
@@ -149,7 +167,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68DE8SPA"
+        "serial_number": "A68DE8SPA",
+        "semaphore_id": 10
     },
     {
         "name": "BTP2",
@@ -157,7 +176,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68DE8SPA"
+        "serial_number": "A68DE8SPA",
+        "semaphore_id": 10
     },
     {
         "name": "BTT3",
@@ -165,7 +185,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68DE9BAA"
+        "serial_number": "A68DE9BAA",
+        "semaphore_id": 11
     },
     {
         "name": "BTP3",
@@ -173,7 +194,8 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68DE9BAA"
+        "serial_number": "A68DE9BAA",
+        "semaphore_id": 11
     },
     {
         "name": "BTT4",
@@ -181,7 +203,8 @@
         "motor_config": {
             "axis" : "U"            
         },
-        "serial_number": "A68IMGZLA"
+        "serial_number": "A68IMGZLA",
+        "semaphore_id": 12
     },
     {
         "name": "BTP4",
@@ -189,140 +212,162 @@
         "motor_config": {
             "axis" : "V"            
         },
-        "serial_number": "A68IMGZLA"
+        "serial_number": "A68IMGZLA",
+        "semaphore_id": 12
     },
     {
         "name": "BDS1",
         "motor_type": "X-LSM150A-SE03",
-        "serial_number": 121405
+        "serial_number": 121405,
+        "semaphore_id": 13
     },
     {
         "name": "BDS2",
         "motor_type": "X-LSM150A-SE03",
-        "serial_number": 121406
+        "serial_number": 121406,
+        "semaphore_id": 14
     },
     {
         "name": "BDS3",
         "motor_type": "X-LSM150A-SE03",
-        "serial_number": 121408
+        "serial_number": 121408,
+        "semaphore_id": 15
     },
     {
         "name": "BDS4",
         "motor_type": "X-LSM150A-SE03",
-        "serial_number": 121407
+        "serial_number": 121407,
+        "semaphore_id": 16
     },
     {
         "name": "SSS",
         "motor_type": "X-LHM100A-SE03",
-        "serial_number": 121474
+        "serial_number": 121474,
+        "semaphore_id": 17
     },
     {
         "name": "HFO1",
         "motor_type": "LS16P",
         "motor_config": {},
-        "serial_number": "SA1"
+        "serial_number": "SA1",
+        "semaphore_id": 18
     },
     {
         "name": "HFO2",
         "motor_type": "LS16P",
         "motor_config": {},
-        "serial_number": "SA2"
+        "serial_number": "SA2",
+        "semaphore_id": 19
     },
     {
         "name": "HFO3",
         "motor_type": "LS16P",
         "motor_config": {},
-        "serial_number": "SA3"
+        "serial_number": "SA3",
+        "semaphore_id": 20
     },
     {
         "name": "HFO4",
         "motor_type": "LS16P",
         "motor_config": {},
-        "serial_number": "SA4"
+        "serial_number": "SA4",
+        "semaphore_id": 21
     },
     {
         "name": "BFO",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.113",
-        "axis_number" : 1
+        "axis_number" : 1,
+        "semaphore_id": 22
     },
     {
         "name": "SDLA",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.113",
-        "axis_number" : 4
+        "axis_number" : 4,
+        "semaphore_id": 23
     },
     {
         "name": "SDL12",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.113",
-        "axis_number" : 3
+        "axis_number" : 3,
+        "semaphore_id": 24
     },
     {
         "name": "SDL34",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.113",
-        "axis_number" : 2
+        "axis_number" : 2,
+        "semaphore_id": 25
     },
     {
         "name": "BMX1",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.112",
-        "axis_number" : 1
+        "axis_number" : 1,
+        "semaphore_id": 26
     },
     {
         "name": "BMX2",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.112",
-        "axis_number" : 2
+        "axis_number" : 2,
+        "semaphore_id": 27
     },
     {
         "name": "BMX3",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.112",
-        "axis_number" : 3
+        "axis_number" : 3,
+        "semaphore_id": 28
     },
     {
         "name": "BMX4",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.112",
-        "axis_number" : 4
+        "axis_number" : 4,
+        "semaphore_id": 29
     },
     {
         "name": "BMY1",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.111",
-        "axis_number" : 1
+        "axis_number" : 1,
+        "semaphore_id": 26
     },
     {
         "name": "BMY2",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.111",
-        "axis_number" : 2
+        "axis_number" : 2,
+        "semaphore_id": 27
     },
     {
         "name": "BMY3",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.111",
-        "axis_number" : 3
+        "axis_number" : 3,
+        "semaphore_id": 28
     },
     {
         "name": "BMY4",
         "motor_type": "LAC10A-T4A",
         "serial_number": "",
         "x_mcc_ip_address" : "172.16.8.111",
-        "axis_number" : 4
+        "axis_number" : 4,
+        "semaphore_id": 29
     },
     {
         "name": "BOTP2",
@@ -330,7 +375,8 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A69HQV36A"
+        "serial_number": "A69HQV36A",
+        "semaphore_id": 30
     },
     {
         "name": "BOTT2",
@@ -338,7 +384,8 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A69HQV36A"
+        "serial_number": "A69HQV36A",
+        "semaphore_id": 30
     },
     {
         "name": "BOTP3",
@@ -346,7 +393,8 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A69HQUR0A"
+        "serial_number": "A69HQUR0A",
+        "semaphore_id": 31
     },
     {
         "name": "BOTT3",
@@ -354,7 +402,8 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A69HQUR0A"
+        "serial_number": "A69HQUR0A",
+        "semaphore_id": 31
     },
     {
         "name": "BOTP4",
@@ -362,7 +411,8 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A69HQV0IA"
+        "serial_number": "A69HQV0IA",
+        "semaphore_id": 32
     },
     {
         "name": "BOTT4",
@@ -370,6 +420,7 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A69HQV0IA"
+        "serial_number": "A69HQV0IA",
+        "semaphore_id": 32
     }
 ]
