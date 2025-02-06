@@ -64,6 +64,7 @@ beam_specific_devices = [
     "BDS",
     "BMX",
     "BMY",
+    "BOTX",
     "DM",
     "phasemask",
 ]
@@ -637,6 +638,11 @@ def handle_tt_motor():
             break
         positions.append(float(res))
 
+    # if the read value is out of bounds, use None
+    for index in range(2):
+        if positions[index] < -0.75 or positions[index] > 0.75:
+            positions[index] = None
+
     ss_col1, ss_col2 = st.columns(2)
     with ss_col1:
         inc = st.number_input(
@@ -824,6 +830,15 @@ def handle_linear_actuator():
 col_main, col_history = st.columns([2, 1])
 
 
+with col_history:
+    with col_history.container(border=True, height=500):
+        st.subheader("Message History")
+        # join all into a long string with newlines, in reverse order and as a markdown list
+        message_history = st.session_state["message_history"]
+        message_history_str = "\n".join(reversed(message_history[-200:]))
+        st.markdown(message_history_str)
+
+
 with col_main:
     operating_mode = st.selectbox(
         "Select Operating Mode",
@@ -851,7 +866,7 @@ with col_main:
                 )
             targets = [f"{component}{beam_number}"]
 
-            if component in ["HTXP", "HTXI", "BTX"]:
+            if component in ["HTXP", "HTXI", "BTX", "BOTX"]:
                 # replace the X in target with P
                 target = f"{component}{beam_number}"
                 targets = [target.replace("X", "P"), target.replace("X", "T")]
@@ -883,12 +898,12 @@ with col_main:
                         send_and_get_response(message)
 
         if (
-            component not in ["HTXP", "HTXI", "BTX"]
+            component not in ["HTXP", "HTXI", "BTX", "BOTX"]
             and component in beam_specific_devices
         ):
             target = f"{component}{beam_number}"
         if (
-            component not in ["HTXP", "HTXI", "BTX"]
+            component not in ["HTXP", "HTXI", "BTX", "BOTX"]
             and component in beam_common_devices
         ):
             target = component
@@ -896,7 +911,7 @@ with col_main:
         if component in ["BDS", "SSS"]:
             handle_linear_stage()
 
-        elif component in ["HTXP", "HTXI", "BTX"]:
+        elif component in ["HTXP", "HTXI", "BTX", "BOTX"]:
             handle_tt_motor()
 
         elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
@@ -1141,11 +1156,3 @@ with col_main:
                         if state["is_connected"]:
                             message = f"!moveabs {state['name']} {state['position']}"
                             send_and_get_response(message)
-
-with col_history:
-    with col_history.container(border=True, height=500):
-        st.subheader("Message History")
-        # join all into a long string with newlines, in reverse order and as a markdown list
-        message_history = st.session_state["message_history"]
-        message_history_str = "\n".join(reversed(message_history[-200:]))
-        st.markdown(message_history_str)
