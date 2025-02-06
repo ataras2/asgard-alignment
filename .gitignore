@@ -5,6 +5,7 @@
 *.pyc
 
 *.json
+!motor_info_full_system.json
 *.log
 
 build

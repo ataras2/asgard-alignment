@@ -1,0 +1,375 @@
+[
+    {
+        "name": "HTPP1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"
+        },
+        "serial_number": "A68DE8BJA"
+    },
+    {
+        "name": "HTTP1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"
+        },
+        "serial_number": "A68DE8BJA"
+    },
+    {
+        "name": "HTPP2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68DE8ROA"
+    },
+    {
+        "name": "HTTP2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68DE8ROA"
+    },
+    {
+        "name": "HTPP3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68DE8MDA"
+    },
+    {
+        "name": "HTTP3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68DE8MDA"
+    },
+    {
+        "name": "HTPP4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A675RRE6A"
+    },
+    {
+        "name": "HTTP4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A675RRE6A"
+    },
+    {
+        "name": "HTTI1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A67BVAK5A"
+    },
+    {
+        "name": "HTPI1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A67BVAK5A"
+    },
+    {
+        "name": "HTTI2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68IMGC2A"
+    },
+    {
+        "name": "HTPI2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68IMGC2A"
+    },
+    {
+        "name": "HTTI3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68IMG9NA"
+    },
+    {
+        "name": "HTPI3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68IMG9NA"
+    },
+    {
+        "name": "HTTI4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A67BVBOJA"
+    },
+    {
+        "name": "HTPI4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A67BVBOJA"
+    },
+    {
+        "name": "BTT1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68IMFQVA"
+    },
+    {
+        "name": "BTP1",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68IMFQVA"
+    },
+    {
+        "name": "BTT2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68DE8SPA"
+    },
+    {
+        "name": "BTP2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68DE8SPA"
+    },
+    {
+        "name": "BTT3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68DE9BAA"
+    },
+    {
+        "name": "BTP3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68DE9BAA"
+    },
+    {
+        "name": "BTT4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"            
+        },
+        "serial_number": "A68IMGZLA"
+    },
+    {
+        "name": "BTP4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"            
+        },
+        "serial_number": "A68IMGZLA"
+    },
+    {
+        "name": "BDS1",
+        "motor_type": "X-LSM150A-SE03",
+        "serial_number": 121405
+    },
+    {
+        "name": "BDS2",
+        "motor_type": "X-LSM150A-SE03",
+        "serial_number": 121406
+    },
+    {
+        "name": "BDS3",
+        "motor_type": "X-LSM150A-SE03",
+        "serial_number": 121408
+    },
+    {
+        "name": "BDS4",
+        "motor_type": "X-LSM150A-SE03",
+        "serial_number": 121407
+    },
+    {
+        "name": "SSS",
+        "motor_type": "X-LHM100A-SE03",
+        "serial_number": 121474
+    },
+    {
+        "name": "HFO1",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA1"
+    },
+    {
+        "name": "HFO2",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA2"
+    },
+    {
+        "name": "HFO3",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA3"
+    },
+    {
+        "name": "HFO4",
+        "motor_type": "LS16P",
+        "motor_config": {},
+        "serial_number": "SA4"
+    },
+    {
+        "name": "BFO",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.113",
+        "axis_number" : 1
+    },
+    {
+        "name": "SDLA",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.113",
+        "axis_number" : 4
+    },
+    {
+        "name": "SDL12",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.113",
+        "axis_number" : 3
+    },
+    {
+        "name": "SDL34",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.113",
+        "axis_number" : 2
+    },
+    {
+        "name": "BMX1",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.112",
+        "axis_number" : 1
+    },
+    {
+        "name": "BMX2",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.112",
+        "axis_number" : 2
+    },
+    {
+        "name": "BMX3",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.112",
+        "axis_number" : 3
+    },
+    {
+        "name": "BMX4",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.112",
+        "axis_number" : 4
+    },
+    {
+        "name": "BMY1",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.111",
+        "axis_number" : 1
+    },
+    {
+        "name": "BMY2",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.111",
+        "axis_number" : 2
+    },
+    {
+        "name": "BMY3",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.111",
+        "axis_number" : 3
+    },
+    {
+        "name": "BMY4",
+        "motor_type": "LAC10A-T4A",
+        "serial_number": "",
+        "x_mcc_ip_address" : "172.16.8.111",
+        "axis_number" : 4
+    },
+    {
+        "name": "BOTP2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"
+        },
+        "serial_number": "A69HQV36A"
+    },
+    {
+        "name": "BOTT2",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"
+        },
+        "serial_number": "A69HQV36A"
+    },
+    {
+        "name": "BOTP3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"
+        },
+        "serial_number": "A69HQUR0A"
+    },
+    {
+        "name": "BOTT3",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"
+        },
+        "serial_number": "A69HQUR0A"
+    },
+    {
+        "name": "BOTP4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "U"
+        },
+        "serial_number": "A69HQV0IA"
+    },
+    {
+        "name": "BOTT4",
+        "motor_type": "M100D",
+        "motor_config": {
+            "axis" : "V"
+        },
+        "serial_number": "A69HQV0IA"
+    }
+]

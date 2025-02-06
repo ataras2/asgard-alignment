@@ -2,6 +2,7 @@
 # Documentation: https://asgard-controllino.readthedocs.io
 
 import socket
+import time
 
 # List of devices and the associated arduino pin
 CONNEXIONS = {
