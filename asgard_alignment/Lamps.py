@@ -68,4 +68,5 @@ class ThermalSource(ESOdevice.Lamp):
     def init(self):
         """
         Initialise the thermal source
+        Nothing is needed here
         """
