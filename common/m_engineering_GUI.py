@@ -1156,3 +1156,26 @@ with col_main:
                         if state["is_connected"]:
                             message = f"!moveabs {state['name']} {state['position']}"
                             send_and_get_response(message)
+
+        if routine_options == "Health":
+            message = "!health"
+            res = send_and_get_response(message)
+
+            # convert to list of dicts
+            data = json.loads(res)
+
+            column_names = ["Axis name", "Motor type", "Controller connected?", "State"]
+
+            st.write("Health of all motors")
+
+            n_motors = len(data)
+
+            rows = [st.columns(len(column_names)) for _ in range(n_motors + 1)]
+
+            # first row is titles
+            for i, col in enumerate(rows[0]):
+                col.write(column_names[i])
+
+            for i, row in enumerate(rows[1:]):
+                for j, col in enumerate(row):
+                    col.write(data[i][column_names[j]])
