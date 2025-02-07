@@ -1161,6 +1161,9 @@ with col_main:
             message = "!health"
             res = send_and_get_response(message)
 
+            if st.button("Refresh"):
+                res = send_and_get_response(message)
+
             # convert to list of dicts
             data = json.loads(res)
 
