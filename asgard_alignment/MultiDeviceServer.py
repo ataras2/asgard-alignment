@@ -433,6 +433,15 @@ class MultiDeviceServer:
 
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
+        
+        def ping(axis):
+            res = self.instr.ping_connection(axis)
+
+            if res:
+                return "ACK: connected"
+            else:
+                return "NACK: not connected"
+
 
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
@@ -563,6 +572,7 @@ class MultiDeviceServer:
             "!init": init_msg,
             "!moverel": moverel_msg,
             "!state": state_msg,
+            "!ping": 
         }
 
         first_word_to_format = {

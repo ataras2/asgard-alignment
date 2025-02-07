@@ -94,6 +94,33 @@ class Instrument:
         """
         return self._devices
 
+    def ping_connection(self, axis):
+        """
+        Ping the connection to the motor
+
+        Parameters
+        ----------
+        axis : str
+            The name of the motor to ping
+
+        Returns
+        -------
+        bool
+            True if the connection is successful, False otherwise
+        """
+        if axis not in self.devices:
+            return False
+
+        res = self.devices[axis].ping()
+
+        if not res:
+            # need to remove the connection from dict
+            # TODO: include check if it is just the axis or the controller that is down, 
+            # and remove as needed
+            del self.devices[axis]
+
+        return res
+
     def _create_phasemask_wrapper(self):
         """
         wraps the phasemask x,y motors into a specific Baldr_phasemask class that has
