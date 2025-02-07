@@ -94,6 +94,33 @@ class Instrument:
         """
         return self._devices
 
+    def health(self):
+        """
+        Summarise the health of the instrument in a json format
+        with the following
+        - axis name
+        - motor type
+        - is connected
+        - state
+        """
+
+        health = []
+        for axis in self._motor_config:
+            health.append(
+                {
+                    "axis": axis,
+                    "motor_type": self._motor_config[axis]["motor_type"],
+                    "is_connected": axis in self.devices,
+                    "state": (
+                        self.devices[axis].read_state()
+                        if axis in self.devices
+                        else None
+                    ),
+                }
+            )
+        
+        return health
+
     def ping_connection(self, axis):
         """
         Ping the connection to the motor
@@ -115,7 +142,7 @@ class Instrument:
 
         if not res:
             # need to remove the connection from dict
-            # TODO: include check if it is just the axis or the controller that is down, 
+            # TODO: include check if it is just the axis or the controller that is down,
             # and remove as needed
             del self.devices[axis]
 

@@ -433,8 +433,8 @@ class MultiDeviceServer:
 
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
-        
-        def ping(axis):
+
+        def ping_msg(axis):
             res = self.instr.ping_connection(axis)
 
             if res:
@@ -442,7 +442,16 @@ class MultiDeviceServer:
             else:
                 return "NACK: not connected"
 
-
+        def health_msg():
+            """
+            check the health of the whole instrument, and return a json list of dicts
+            to make a table, with columns
+            - axis name,
+            - motor type,
+            - connected,
+            - state,
+            """
+            
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
                 return f"NACK: DM {dm_name} not found"
@@ -572,7 +581,8 @@ class MultiDeviceServer:
             "!init": init_msg,
             "!moverel": moverel_msg,
             "!state": state_msg,
-            "!ping": 
+            "!ping": ping_msg,
+            "!health": health_msg,
         }
 
         first_word_to_format = {
@@ -584,6 +594,7 @@ class MultiDeviceServer:
             "!init": "!init {}",
             "!moverel": "!moverel {} {:f}",
             "!state": "!state {}",
+            "!ping": "!ping {}",
         }
 
         try:
