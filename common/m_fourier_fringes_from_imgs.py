@@ -38,7 +38,13 @@ def main():
     xcrop = args.xcrop
     ycrop = args.ycrop
 
-    print(f"path exists: {os.path.exists(pth)}")
+    log_file = open(os.path.join(pth, "analysis_log.txt"), "w")
+
+    def log_and_print(message):
+        print(message)
+        log_file.write(message + "\n")
+
+    log_and_print(f"path exists: {os.path.exists(pth)}")
 
     # Load image data
     data = np.load(os.path.join(pth, "img_stack.npz"))
@@ -82,8 +88,8 @@ def main():
 
     plt.savefig(os.path.join(pth, "power_plot.png"))
 
-    print(f"Maximum power: {np.max(max_pwr)}")
-    print(
+    log_and_print(f"Maximum power: {np.max(max_pwr)}")
+    log_and_print(
         f"Found at position {positions[int(np.argmax(max_pwr.flatten())/ims_per_set)]}"
     )
 
@@ -91,16 +97,18 @@ def main():
     mad = np.median(np.abs(max_pwr - bias))
     snr = (np.max(max_pwr) - bias) / (1.4826 * mad)
 
-    print(f"Maximum signal to noise ratio: {snr}")
+    log_and_print(f"Maximum signal to noise ratio: {snr}")
 
     plt.figure(2)
     plt.imshow(ims[np.argmax(max_pwr)])
 
     plt.savefig(os.path.join(pth, "max_power_image.png"))
 
-    #import pdb
+    log_file.close()
 
-    #pdb.set_trace()
+    # import pdb
+
+    # pdb.set_trace()
 
 
 if __name__ == "__main__":
