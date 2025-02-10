@@ -87,7 +87,7 @@ class MultiDeviceServer:
                 data = self.socket_funct(s)
                 if data == -1:
                     running = False
-                elif data = 0:
+                elif data != 0:
                     print(f"Received message: {data}")
                     response = self.handle_message(data)
                     if response == -1:
@@ -110,11 +110,11 @@ class MultiDeviceServer:
         """
 
         # if "!" in message:
-        if message[0].is_lower():
+        if message[0].islower():
             print(f"Custom command: {message}")
             return self._handle_custom_command(message)
 
-        if message[0]=="!":
+        if message[0] == "!":
             print("Old custom command")
             return "NACK: Are you using old custom commands?"
 

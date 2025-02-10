@@ -85,6 +85,7 @@ def send_and_get_response(message):
     st.session_state["message_history"].append(
         f":blue[Sending message to server: ] {message}\n"
     )
+    print(f"sending: {message}")
     st.session_state["socket"].send_string(message)
     response = st.session_state["socket"].recv_string()
     if "NACK" in response or "not connected" in response:
@@ -1146,9 +1147,9 @@ with col_main:
 
             with text_col:
                 # load_location = st.text_input("Load location", key="load_location")
-                
+
                 # check https://docs.streamlit.io/develop/api-reference/widgets/st.file_uploader
-                
+
                 load_location = st.file_uploader("Load location", type=["json"])
                 print(load_location)
 
