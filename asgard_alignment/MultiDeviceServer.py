@@ -114,6 +114,10 @@ class MultiDeviceServer:
             print(f"Custom command: {message}")
             return self._handle_custom_command(message)
 
+        if message[0]=="!":
+            print("Old custom command")
+            return "NACK: Are you using old custom commands?"
+
         try:
             message = message.rstrip(message[-1])
             print(message)
