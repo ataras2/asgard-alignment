@@ -1145,7 +1145,12 @@ with col_main:
             text_col, button_col = st.columns(2)
 
             with text_col:
-                load_location = st.text_input("Load location", key="load_location")
+                # load_location = st.text_input("Load location", key="load_location")
+                
+                # check https://docs.streamlit.io/develop/api-reference/widgets/st.file_uploader
+                
+                load_location = st.file_uploader("Load location", type=["json"])
+                print(load_location)
 
             with button_col:
                 if st.button("Load"):
