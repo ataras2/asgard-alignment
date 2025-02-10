@@ -152,7 +152,8 @@ class M100DAxis(ESOdevice.Motor):
             The position to move to
         """
         self._connection.write_str(f"1PA{self.axis}{position:.5f}")
-        self.internal_position = position
+        # self.internal_position = position
+
 
     def move_relative(self, position: float):
         """
@@ -164,7 +165,7 @@ class M100DAxis(ESOdevice.Motor):
             The position to move to
         """
         self._connection.write_str(f"1PR{self.axis}{position:.5f}")
-        self.internal_position += position
+        # self.internal_position += position
 
     def read_position(self):
         """
