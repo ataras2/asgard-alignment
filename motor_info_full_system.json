@@ -426,19 +426,27 @@
     },
     {
         "name": "SSF1",
-        "motor_type": "8893KM"
+        "motor_type": "8893KM",
+        "serial_number": "",
+        "semaphore_id": 33
     },
     {
         "name": "SSF2",
-        "motor_type": "8893KM"
+        "motor_type": "8893KM",
+        "serial_number": "",
+        "semaphore_id": 34
     },
     {
         "name": "SSF3",
-        "motor_type": "8893KM"
+        "motor_type": "8893KM",
+        "serial_number": "",
+        "semaphore_id": 35
     },
     {
         "name": "SSF4",
-        "motor_type": "8893KM"
+        "motor_type": "8893KM",
+        "serial_number": "",
+        "semaphore_id": 36
     }
 ],
     "lamps" : [

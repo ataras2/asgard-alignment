@@ -929,7 +929,7 @@ with col_main:
 
         routine_options = st.selectbox(
             "Select Routine",
-            ["Quick buttons", "Move image/pupil", "Save state", "Load state"],
+            ["Quick buttons", "Move image/pupil", "Save state", "Load state", "Health"],
             key="routine_options",
         )
 
@@ -1168,6 +1168,7 @@ with col_main:
             data = json.loads(res)
 
             column_names = ["Axis name", "Motor type", "Controller connected?", "State"]
+            keys = ["axis", "motor_type", "is_connected", "state"]
 
             st.write("Health of all motors")
 
@@ -1181,4 +1182,18 @@ with col_main:
 
             for i, row in enumerate(rows[1:]):
                 for j, col in enumerate(row):
-                    col.write(data[i][column_names[j]])
+                    if keys[j] == "is_connected":
+                        if data[i][keys[j]]:
+                            col.success("True")
+                        else:
+                            col.warning("False")
+                    elif keys[j] == "state":
+                        if data[i][keys[j]] is not None:
+                            if ("READY" in data[i][keys[j]]) or (
+                                "No error" in data[i][keys[j]]
+                            ):
+                                col.success(data[i][keys[j]])
+                            else:
+                                col.error(data[i][keys[j]])
+                    else:
+                        col.write(data[i][keys[j]])

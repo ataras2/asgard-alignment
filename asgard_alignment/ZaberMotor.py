@@ -108,8 +108,10 @@ class ZaberLinearActuator(ESOdevice.Motor):
         str
             The state of the motor
         """
-        # return self.axis.get_state()
-        return f"Warnings/errors: {self.axis.warnings.get_flags()}"
+
+        if self.axis.warnings.get_flags() == set():
+            return "No error"
+        return f"{self.axis.warnings.get_flags()}"
 
     def ping(self):
         try:
@@ -302,7 +304,9 @@ class ZaberLinearStage(ESOdevice.Motor):
             The state of the motor
         """
         # return ast.literal_eval(self.device.get_state())
-        return f"Warnings/errors: {self.device.warnings.get_flags()}"
+        if self.device.warnings.get_flags() == set():
+            return "No error"
+        return f"{self.device.warnings.get_flags()}"
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         return self.axis.get_position(unit=units)

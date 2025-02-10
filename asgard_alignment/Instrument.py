@@ -61,15 +61,16 @@ class Instrument:
         # Validate the config file
         self._validate_config_file(config_pth)
         self._config = self._read_motor_config(config_pth)
-        self._semaphore_set = set(
-            [component["semaphore_id"] for component in self._config]
-        )
         self._motor_config = {
             component["name"]: component for component in self._config["motors"]
         }
         self._other_config = {
             component["name"]: component for component in self._config["other_devices"]
         }
+
+        self._semaphore_set = set(
+            [self._motor_config[component]["semaphore_id"] for component in self._motor_config]
+        )
 
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
@@ -118,7 +119,7 @@ class Instrument:
                     ),
                 }
             )
-        
+
         return health
 
     def ping_connection(self, axis):
@@ -447,7 +448,10 @@ class Instrument:
                 )
 
         # check that all component names are unique:
-        names = [component["name"] for component in config]
+        names = []
+        for key in config:
+            for component in config[key]:
+                names.append(component["name"])
         if len(names) != len(set(names)):
             raise ValueError("All component names must be unique")
 

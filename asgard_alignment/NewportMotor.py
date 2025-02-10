@@ -141,7 +141,8 @@ class M100DAxis(ESOdevice.Motor):
         Read the state of the motor
         """
         msg = self._connection.query_str("1TS?")
-        state = msg[8:10]
+        state = msg[7:]
+        # print(f"State at M100D: {state}, from msg {msg}")
         state_str = (
             self.CONTROLLER_STATES[state] if state in self.CONTROLLER_STATES else ""
         )

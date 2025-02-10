@@ -452,6 +452,13 @@ class MultiDeviceServer:
             - state,
             """
 
+            health = self.instr.health()
+
+            # convert to string
+            health_str = json.dumps(health)
+
+            return health_str
+
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
                 return f"NACK: DM {dm_name} not found"
