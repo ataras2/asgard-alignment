@@ -15,6 +15,7 @@ import asgard_alignment.Baldr_phasemask
 
 # SDK for DM
 sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
+import asgard_alignment.controllino
 import bmc
 
 
@@ -153,6 +154,10 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
+        self._controllers["controllino_0"] = asgard_alignment.controllino.Controllino(
+            "172.16.8.200"
+        )
+
         self._prev_port_mapping = self.compute_serial_to_port_map()
         self._prev_zaber_port = self.find_zaber_usb_port()
         for name in self._config_dict:
