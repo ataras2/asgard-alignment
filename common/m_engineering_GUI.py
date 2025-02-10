@@ -1164,17 +1164,19 @@ with col_main:
             if st.button("Refresh"):
                 res = send_and_get_response(message)
 
+            # st.write(res)
             # convert to list of dicts
             data = json.loads(res)
 
             column_names = ["Axis name", "Motor type", "Controller connected?", "State"]
             keys = ["axis", "motor_type", "is_connected", "state"]
+            col_widths = [1, 1, 1, 5]
 
             st.write("Health of all motors")
 
             n_motors = len(data)
 
-            rows = [st.columns(len(column_names)) for _ in range(n_motors + 1)]
+            rows = [st.columns(col_widths) for _ in range(n_motors + 1)]
 
             # first row is titles
             for i, col in enumerate(rows[0]):

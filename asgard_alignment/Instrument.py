@@ -69,7 +69,10 @@ class Instrument:
         }
 
         self._semaphore_set = set(
-            [self._motor_config[component]["semaphore_id"] for component in self._motor_config]
+            [
+                self._motor_config[component]["semaphore_id"]
+                for component in self._motor_config
+            ]
         )
 
         self._controllers = {}
@@ -107,6 +110,8 @@ class Instrument:
 
         health = []
         for axis in self._motor_config:
+            if axis in self.devices:
+                self.ping_connection(axis)
             health.append(
                 {
                     "axis": axis,
@@ -136,17 +141,21 @@ class Instrument:
         bool
             True if the connection is successful, False otherwise
         """
+        print(f"Pinging {axis}...", end="")
         if axis not in self.devices:
+            print("not in devices")
             return False
 
         res = self.devices[axis].ping()
 
         if not res:
+            print("failed")
             # need to remove the connection from dict
             # TODO: include check if it is just the axis or the controller that is down,
             # and remove as needed
             del self.devices[axis]
 
+        print("success")
         return res
 
     def _create_phasemask_wrapper(self):

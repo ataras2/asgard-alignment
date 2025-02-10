@@ -130,7 +130,7 @@ class M100DAxis(ESOdevice.Motor):
 
     def ping(self):
         try:
-            self._verify_valid_connection()
+            self.read_state()
             return True
         except Exception as e:
             print(f"Error: {e}")

@@ -115,7 +115,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
 
     def ping(self):
         try:
-            self.axis.get_device_id()
+            self.axis.is_busy()
             return True
         except Exception as e:
             return False
@@ -289,7 +289,7 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     def ping(self):
         try:
-            self.axis.get_device_id()
+            self.axis.is_busy()
             return True
         except Exception as e:
             return False
