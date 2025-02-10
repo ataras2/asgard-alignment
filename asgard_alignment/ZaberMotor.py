@@ -111,6 +111,13 @@ class ZaberLinearActuator(ESOdevice.Motor):
         # return self.axis.get_state()
         return f"Warnings/errors: {self.axis.warnings.get_flags()}"
 
+    def ping(self):
+        try:
+            self.axis.get_device_id()
+            return True
+        except Exception as e:
+            return False
+
     def stop_now(self):
         """
         Stop the motor immediately
@@ -277,6 +284,13 @@ class ZaberLinearStage(ESOdevice.Motor):
             unit=units,
             wait_until_idle=ZaberLinearStage.IS_BLOCKING,
         )
+
+    def ping(self):
+        try:
+            self.axis.get_device_id()
+            return True
+        except Exception as e:
+            return False
 
     def read_state(self):
         """

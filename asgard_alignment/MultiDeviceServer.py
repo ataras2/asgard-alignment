@@ -434,6 +434,24 @@ class MultiDeviceServer:
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
 
+        def ping_msg(axis):
+            res = self.instr.ping_connection(axis)
+
+            if res:
+                return "ACK: connected"
+            else:
+                return "NACK: not connected"
+
+        def health_msg():
+            """
+            check the health of the whole instrument, and return a json list of dicts
+            to make a table, with columns
+            - axis name,
+            - motor type,
+            - connected,
+            - state,
+            """
+
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
                 return f"NACK: DM {dm_name} not found"
@@ -563,7 +581,6 @@ class MultiDeviceServer:
             "!init": init_msg,
             "!moverel": moverel_msg,
             "!state": state_msg,
-
             "!dmapplyflat": apply_flat_msg,
             "!dmapplycross": apply_cross_msg,
             "!fpm_getsavepath": fpm_get_savepath_msg,
@@ -575,6 +592,8 @@ class MultiDeviceServer:
             "!fpm_updatemaskpos": fpm_update_mask_position_msg,
             "!fpm_writemaskpos": fpm_write_mask_positions_msg,
             "!fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
+            "!ping": ping_msg,
+            "!health": health_msg,
         }
 
         first_word_to_format = {
@@ -586,7 +605,6 @@ class MultiDeviceServer:
             "!init": "!init {}",
             "!moverel": "!moverel {} {:f}",
             "!state": "!state {}",
-
             "!dmapplyflat": "dmapplyflat {}",
             "!dmapplycross": "!dmapplycross {}",
             "!fpm_getsavepath": "!fpm_getsavepath {}",
@@ -598,7 +616,8 @@ class MultiDeviceServer:
             "!fpm_updatemaskpos": "!fpm_updatemaskpos {} {}",
             "!fpm_writemaskpos": "!fpm_writemaskpos {}",
             "!fpm_updateallmaskpos": "!fpm_updateallmaskpos {} {} {}",
-
+            "!ping": "!ping {}",
+            "!health": "!health",
         }
 
         try:

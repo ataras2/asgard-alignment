@@ -128,6 +128,14 @@ class M100DAxis(ESOdevice.Motor):
         id_number = self._connection.query("1ID?").strip()
         assert "M100D" in id_number
 
+    def ping(self):
+        try:
+            self._verify_valid_connection()
+            return True
+        except Exception as e:
+            print(f"Error: {e}")
+            return False
+
     def read_state(self, echo=False):
         """
         Read the state of the motor
@@ -372,6 +380,14 @@ class LS16PAxis(ESOdevice.Motor):
             print(f"Error: {error_str}, State: {state_str}")
 
         return f"{error_str}\n {state_str}"
+
+    def ping(self):
+        try:
+            self.read_state()
+            return True
+        except Exception as e:
+            print(f"Error: {e}")
+            return False
 
     def is_moving(self):
         _, state_str = self.read_state()

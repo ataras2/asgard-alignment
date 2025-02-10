@@ -1,6 +1,3 @@
-# Code from: https://github.com/VForiel/ASGARD-Controllino
-# Documentation: https://asgard-controllino.readthedocs.io
-
 import socket
 import time
 
@@ -40,51 +37,99 @@ CONNEXIONS = {
 }
 
 
-# List of devices
 def get_devices():
+    """
+    List of devices.
+
+    Returns
+    -------
+    list
+        List of device names.
+    """
     return list(CONNEXIONS.keys())
 
 
 class Controllino:
     def __init__(self, ip, port=23):
+        """
+        Initialize the Controllino class.
+
+        Parameters
+        ----------
+        ip : str
+            IP address of the device.
+        port : int, optional
+            Port number, by default 23.
+        """
         self.ip = ip
         self.port = port
-
-        self._maintain_connection = True  # Set to false if this doesn't work.
+        self._maintain_connection = True
         self.client = None
 
-    # Ensure the device is known
     def _ensure_device(self, key: str):
-        if key not in CONNEXIONS:
-            raise ValueError(f"Unkown device '{key}'")
+        """
+        Ensure the device is known.
 
-    # Create a socket to communicate with the device
+        Parameters
+        ----------
+        key : str
+            Device key.
+
+        Raises
+        ------
+        ValueError
+            If the device is unknown.
+        """
+        if key not in CONNEXIONS:
+            raise ValueError(f"Unknown device '{key}'")
+
     def connect(self):
+        """
+        Create a socket to communicate with the device.
+        """
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client.settimeout(10)
         self.client.connect((self.ip, self.port))
 
-    # Close the socket
     def disconnect(self):
+        """
+        Close the socket.
+        """
         self.client.close()
         self.client = None
 
-    # Maintain connexion if there is only one user
     @property
     def maintain_connection(self) -> bool:
+        """
+        Maintain connection if there is only one user.
+
+        Returns
+        -------
+        bool
+            Connection maintenance status.
+        """
         return self._maintain_connection
 
     @maintain_connection.setter
     def maintain_connection(self, value: bool):
+        """
+        Set the connection maintenance status.
+
+        Parameters
+        ----------
+        value : bool
+            Connection maintenance status.
+        """
         if value:
             self.connect()
         else:
             self.disconnect()
         self._maintain_connection = value
 
-    # Clear the buffer before sending a command to avoid bug when reading the answer
     def _clear_buffer(self):
-        # Set very very short timeout to avoid waiting for new data
+        """
+        Clear the buffer before sending a command to avoid bug when reading the answer.
+        """
         self.client.settimeout(1e-20)
         try:
             while True:
@@ -92,77 +137,194 @@ class Controllino:
                 if not data:
                     break
         except BlockingIOError:
-            pass  # Nothing to read, normal
+            pass
         except TimeoutError:
-            pass  # No answer, normal too
-
-        # Reset timeout
+            pass
         self.client.settimeout(10)
 
-    # Send a command to the device
     def send_command_anyreply(self, command: str) -> str:
-        # If the connection is not maintained, we need to connect before sending the command
+        """
+        Send a command to the device.
+
+        Parameters
+        ----------
+        command : str
+            Command to send.
+
+        Returns
+        -------
+        str
+            Reply from the device.
+        """
         if self.client is None:
             self.connect()
-
-        # Clear the buffer before sending the command
         self._clear_buffer()
-
-        # Send the command
         self.client.sendall(bytes(f"{command}\n", "utf-8"))
-        # Wait for the answer
         r = self.client.recv(1024).decode().replace("\n", "").replace("\r", "")
-
-        # Disconnect to allow other users to send commands
         if not self.maintain_connection:
             self.disconnect()
+        return bool(int(r))
 
-        return bool(int(r))  # Convert the answer to a boolean
-
-    # Send a command, expecting a boolean reply
     def send_command(self, command: str) -> bool:
+        """
+        Send a command, expecting a boolean reply.
+
+        Parameters
+        ----------
+        command : str
+            Command to send.
+
+        Returns
+        -------
+        bool
+            Reply from the device.
+        """
         return bool(int(self.send_command_anyreply(command)))
 
-    # Command to turn on a device
     def turn_on(self, key: str) -> bool:
+        """
+        Command to turn on a device.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
         self._ensure_device(key)
         return self.send_command(f"o{CONNEXIONS[key]}")
 
-    # Command to turn off a device
     def turn_off(self, key: str) -> bool:
+        """
+        Command to turn off a device.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
         self._ensure_device(key)
         return self.send_command(f"c{CONNEXIONS[key]}")
 
-    # Command to get the power status of a device
     def get_status(self, key: str) -> bool:
+        """
+        Command to get the power status of a device.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+
+        Returns
+        -------
+        bool
+            Power status of the device.
+        """
         self._ensure_device(key)
         return self.send_command(f"g{CONNEXIONS[key]}")
 
-    # Command to get the power status of a device
     def modulate(self, key: str, value: int) -> bool:
+        """
+        Command to modulate a device.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+        value : int
+            Modulation value (0-255).
+
+        Returns
+        -------
+        bool
+            Status of the command.
+
+        Raises
+        ------
+        ValueError
+            If the value is not between 0 and 255.
+        """
         self._ensure_device(key)
         if value < 0 or value > 255:
             raise ValueError("The value must be between 0 and 255")
         return self.send_command(f"m{CONNEXIONS[key]} {value}")
 
-    # Command to move a flipper to the down (out) position
     def flip_down(self, key: str, value: int, dt: float) -> bool:
+        """
+        Command to move a flipper to the down (out) position.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+        value : int
+            Modulation value (0-255).
+        dt : float
+            Delay time in seconds.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
         self._ensure_device(f"{key}+")
         self.send_command(f"m{CONNEXIONS[key + '+']} 0")
         self.send_command(f"m{CONNEXIONS[key + '-']} {value}")
         time.sleep(dt)
         return self.send_command(f"m{CONNEXIONS[key + '-']} 0")
 
-    # Command to move a flipper to the up (in) position
     def flip_up(self, key: str, value: int, dt: float) -> bool:
+        """
+        Command to move a flipper to the up (in) position.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+        value : int
+            Modulation value (0-255).
+        dt : float
+            Delay time in seconds.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
         self._ensure_device(f"{key}+")
         self.send_command(f"m{CONNEXIONS[key + '-']} 0")
         self.send_command(f"m{CONNEXIONS[key + '+']} {value}")
         time.sleep(dt)
         return self.send_command(f"m{CONNEXIONS[key + '+']} 0")
 
-    # Command to ask for an analog input.
     def analog_input(self, key: str) -> int:
+        """
+        Command to ask for an analog input.
+
+        Parameters
+        ----------
+        key : str
+            Device key.
+
+        Returns
+        -------
+        int
+            Analog input value.
+
+        Raises
+        ------
+        ValueError
+            If the returned value is not an integer between 0 and 1023.
+        """
         self._ensure_device(key)
         return_str = self.send_command(f"i{CONNEXIONS[key]}")
         try:
@@ -172,11 +334,30 @@ class Controllino:
         except:
             raise ValueError("Returned value was not an integer between 0 and 1023")
 
-    # Command to set the piezo DAC value
     def set_piezo_dac(self, channel: int, value: int) -> bool:
+        """
+        Command to set the piezo DAC value.
+
+        Parameters
+        ----------
+        channel : int
+            DAC channel (0-4095).
+        value : int
+            DAC value (0-4095).
+
+        Returns
+        -------
+        bool
+            Status of the command.
+
+        Raises
+        ------
+        ValueError
+            If the channel or value is not between 0 and 4095.
+        """
         if channel < 0 or channel > 4095:
-            raise ValueError("The chanel must be between 0 and 4095")
+            raise ValueError("The channel must be between 0 and 4095")
         if value < 0 or value > 4095:
             raise ValueError("The value must be between 0 and 4095")
-        value = int(value)  # Convert the value to the 12 bits DAC range
+        value = int(value)
         return self.send_command(f"a{channel} {value}")

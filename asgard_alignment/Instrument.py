@@ -64,7 +64,12 @@ class Instrument:
         self._semaphore_set = set(
             [component["semaphore_id"] for component in self._config]
         )
-        self._config_dict = {component["name"]: component for component in self._config}
+        self._motor_config = {
+            component["name"]: component for component in self._config["motors"]
+        }
+        self._other_config = {
+            component["name"]: component for component in self._config["other_devices"]
+        }
 
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
@@ -88,6 +93,60 @@ class Instrument:
         A dictionary of devices with the device name as the key
         """
         return self._devices
+
+    def health(self):
+        """
+        Summarise the health of the instrument in a json format
+        with the following
+        - axis name
+        - motor type
+        - is connected
+        - state
+        """
+
+        health = []
+        for axis in self._motor_config:
+            health.append(
+                {
+                    "axis": axis,
+                    "motor_type": self._motor_config[axis]["motor_type"],
+                    "is_connected": axis in self.devices,
+                    "state": (
+                        self.devices[axis].read_state()
+                        if axis in self.devices
+                        else None
+                    ),
+                }
+            )
+        
+        return health
+
+    def ping_connection(self, axis):
+        """
+        Ping the connection to the motor
+
+        Parameters
+        ----------
+        axis : str
+            The name of the motor to ping
+
+        Returns
+        -------
+        bool
+            True if the connection is successful, False otherwise
+        """
+        if axis not in self.devices:
+            return False
+
+        res = self.devices[axis].ping()
+
+        if not res:
+            # need to remove the connection from dict
+            # TODO: include check if it is just the axis or the controller that is down,
+            # and remove as needed
+            del self.devices[axis]
+
+        return res
 
     def _create_phasemask_wrapper(self):
         """
@@ -154,13 +213,13 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
-        self._controllers["controllino_0"] = asgard_alignment.controllino.Controllino(
-            "172.16.8.200"
+        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
+            self._other_config["controllino"]["ip_address"]
         )
 
         self._prev_port_mapping = self.compute_serial_to_port_map()
         self._prev_zaber_port = self.find_zaber_usb_port()
-        for name in self._config_dict:
+        for name in self._motor_config:
             res = self._attempt_to_open(name, recheck_ports=False)
             if res:
                 print(f"Successfully connected to {name}")
@@ -193,21 +252,21 @@ class Instrument:
         bool
             True if the connection was successful, False otherwise
         """
-        if name not in self._config_dict:
+        if name not in self._motor_config:
             raise ValueError(f"{name} is not in the config file")
 
-        if self._config_dict[name]["motor_type"] == "deformable_mirror":
+        if self._motor_config[name]["motor_type"] == "deformable_mirror":
             # using shared memory (set up server such that DM is running and always looking to the shared memory)
 
             # otherwise we are connecting directly here to the DM
-            serial_number = self._config_dict[name].get("serial_number")
+            serial_number = self._motor_config[name].get("serial_number")
 
             # Load flat map and initialize DM
             dm = bmc.BmcDm()
             if dm.open_dm(serial_number) != 0:
                 print(f"Failed to connect to DM with serial number {serial_number}")
                 return False
-            flat_map_file = self._config_dict[name]["flat_map_file"]
+            flat_map_file = self._motor_config[name]["flat_map_file"]
             flat_map = pd.read_csv(flat_map_file, header=None)[0].values
             cross_map = pd.read_csv("DMShapes/Crosshair140.csv", header=None)[0].values
             self._devices[name] = {
@@ -218,10 +277,10 @@ class Instrument:
             # print(f"Connected to {name} with serial {serial_number}")
             return True
 
-        if self._config_dict[name]["motor_type"] in ["M100D", "LS16P"]:
+        if self._motor_config[name]["motor_type"] in ["M100D", "LS16P"]:
             # this is a newport motor USB connection, create a newport motor
             # object
-            cfg = self._config_dict[name]
+            cfg = self._motor_config[name]
 
             if recheck_ports:
                 self._prev_port_mapping = self.compute_serial_to_port_map()
@@ -238,7 +297,7 @@ class Instrument:
                     )
                 )
 
-            if self._config_dict[name]["motor_type"] in ["M100D"]:
+            if self._motor_config[name]["motor_type"] in ["M100D"]:
                 self.devices[name] = asgard_alignment.NewportMotor.M100DAxis(
                     self._controllers[port],
                     cfg["semaphore_id"],
@@ -247,7 +306,7 @@ class Instrument:
                 )
                 return True
 
-            if self._config_dict[name]["motor_type"] in ["LS16P"]:
+            if self._motor_config[name]["motor_type"] in ["LS16P"]:
                 self.devices[name] = asgard_alignment.NewportMotor.LS16PAxis(
                     self._controllers[port],
                     cfg["semaphore_id"],
@@ -256,13 +315,13 @@ class Instrument:
                 return True
 
             raise ValueError(
-                f"Unknown motor type {self._config_dict[name]['motor_type']}"
+                f"Unknown motor type {self._motor_config[name]['motor_type']}"
             )
 
-        elif self._config_dict[name]["motor_type"] in ["LAC10A-T4A"]:
+        elif self._motor_config[name]["motor_type"] in ["LAC10A-T4A"]:
             # this is a zaber motor, create a ZaberLinearActuator object
             # through the X-MCC
-            cfg = self._config_dict[name]
+            cfg = self._motor_config[name]
             if cfg["x_mcc_ip_address"] not in self._controllers:
                 self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
                     cfg["x_mcc_ip_address"]
@@ -284,7 +343,7 @@ class Instrument:
             )
             return True
 
-        elif self._config_dict[name]["motor_type"] in [
+        elif self._motor_config[name]["motor_type"] in [
             "X-LSM150A-SE03",
             "X-LHM100A-SE03",
         ]:
@@ -302,13 +361,15 @@ class Instrument:
                 )
 
             for dev in self._controllers[self._prev_zaber_port].detect_devices():
-                if dev.serial_number == self._config_dict[name]["serial_number"]:
+                if dev.serial_number == self._motor_config[name]["serial_number"]:
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
                         name,
-                        self._config_dict[name]["semaphore_id"],
+                        self._motor_config[name]["semaphore_id"],
                         dev,
                     )
                     return True
+        elif self._motor_config[name]["motor_type"] in ["8893KM"]:
+            pass
 
     @staticmethod
     def find_zaber_usb_port():
@@ -359,7 +420,15 @@ class Instrument:
         with open(config_path, "r", encoding="utf-8") as file:
             config = json.load(file)
 
-        for component in config:
+        sub_dicts = ["motors", "other_devices"]
+
+        for sub_dict in sub_dicts:
+            if sub_dict not in config:
+                raise ValueError(
+                    f"Config file must have a {sub_dict} key with a list of dictionaries"
+                )
+
+        for component in config["motors"]:
             if "name" not in component:
                 raise ValueError("Each component must have a name")
             if "serial_number" not in component:
@@ -370,7 +439,7 @@ class Instrument:
                 raise ValueError("Each component must have a semaphore id")
 
         # check that no semaphore id is used more than twice
-        semaphore_ids = [component["semaphore_id"] for component in config]
+        semaphore_ids = [component["semaphore_id"] for component in config["motors"]]
         for semaphore_id in set(semaphore_ids):
             if semaphore_ids.count(semaphore_id) > 2:
                 raise ValueError(

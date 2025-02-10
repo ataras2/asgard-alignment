@@ -1,4 +1,5 @@
-[
+{
+    "motors" : [
     {
         "name": "HTPP1",
         "motor_type": "M100D",
@@ -422,5 +423,45 @@
         },
         "serial_number": "A69HQV0IA",
         "semaphore_id": 32
+    },
+    {
+        "name": "SSF1",
+        "motor_type": "8893KM"
+    },
+    {
+        "name": "SSF2",
+        "motor_type": "8893KM"
+    },
+    {
+        "name": "SSF3",
+        "motor_type": "8893KM"
+    },
+    {
+        "name": "SSF4",
+        "motor_type": "8893KM"
     }
-]
+],
+    "lamps" : [
+        {
+            "name": "SRL"
+        },
+        {
+            "name": "SGL"
+        },
+        {
+            "name": "SLD"
+        },
+        {
+            "name" : "SBB"
+        }
+    ],
+    "shutters" : [
+
+    ],
+    "other_devices" : [
+        {
+            "name": "controllino",
+            "ip_address" : ""
+        }
+    ]
+}
