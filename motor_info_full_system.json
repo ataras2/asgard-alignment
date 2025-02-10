@@ -376,7 +376,7 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A69HQV36A",
+        "serial_number": "A69HQUR0A",
         "semaphore_id": 30
     },
     {
@@ -385,7 +385,7 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A69HQV36A",
+        "serial_number": "A69HQUR0A",
         "semaphore_id": 30
     },
     {
@@ -394,7 +394,7 @@
         "motor_config": {
             "axis" : "U"
         },
-        "serial_number": "A69HQUR0A",
+        "serial_number": "A69HQV36A",
         "semaphore_id": 31
     },
     {
@@ -403,7 +403,7 @@
         "motor_config": {
             "axis" : "V"
         },
-        "serial_number": "A69HQUR0A",
+        "serial_number": "A69HQV36A",
         "semaphore_id": 31
     },
     {
