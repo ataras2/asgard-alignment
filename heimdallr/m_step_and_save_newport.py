@@ -41,7 +41,7 @@ socket.connect(server_address)
 print("server address: ", server_address)
 
 def set_motor_position(socket, beam_number, position):
-    message = f"!moveabs HFO{beam_number} {position}"
+    message = f"moveabs HFO{beam_number} {position}"
     print("message", message)
     # print(f"Sending message to server: {message}")
     socket.send_string(message)

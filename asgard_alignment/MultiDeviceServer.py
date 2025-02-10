@@ -87,7 +87,7 @@ class MultiDeviceServer:
                 data = self.socket_funct(s)
                 if data == -1:
                     running = False
-                elif data != 0:
+                elif data = 0:
                     print(f"Received message: {data}")
                     response = self.handle_message(data)
                     if response == -1:
@@ -106,10 +106,11 @@ class MultiDeviceServer:
 
     def handle_message(self, message):
         """
-        Handles a recieved message. Custom messages are indicated by a leading "!".
+        Handles a recieved message. Custom messages are indicated by lowercase commands
         """
 
-        if "!" in message:
+        # if "!" in message:
+        if message[0].is_lower():
             print(f"Custom command: {message}")
             return self._handle_custom_command(message)
 
@@ -556,75 +557,75 @@ class MultiDeviceServer:
                 return "ACK"
 
         # patterns = {
-        #     "!read {}": read_msg,
-        #     "!stop {}": stop_msg,
-        #     "!moveabs {} {:f}": moveabs_msg,
-        #     "!connected? {}": connected_msg,
-        #     "!connect {}": connect_msg,
-        #     "!init {}": init_msg,
-        #     "!moverel {} {:f}": moverel_msg,
-        #     "!state {}": state_msg,
-        #     "!dmapplyflat {}": apply_flat_msg,
-        #     "!dmapplycross {}": apply_cross_msg,
-        #     "!fpm_getsavepath {}": fpm_get_savepath_msg,
-        #     "!fpm_maskpositions {}": fpm_mask_positions_msg,
-        #     "!fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
-        #     "!fpm_moverel {} {}": fpm_move_relative_msg,
-        #     "!fpm_moveabs {} {}": fpm_move_absolute_msg,
-        #     "!fpm_readpos {}": fpm_read_position_msg,
-        #     "!fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
-        #     "!fpm_writemaskpos {}": fpm_write_mask_positions_msg,
-        #     "!fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
-        #     #            "!on {}": on_msg,
-        #     #            "!off {}": off_msg,
+        #     "read {}": read_msg,
+        #     "stop {}": stop_msg,
+        #     "moveabs {} {:f}": moveabs_msg,
+        #     "connected? {}": connected_msg,
+        #     "connect {}": connect_msg,
+        #     "init {}": init_msg,
+        #     "moverel {} {:f}": moverel_msg,
+        #     "state {}": state_msg,
+        #     "dmapplyflat {}": apply_flat_msg,
+        #     "dmapplycross {}": apply_cross_msg,
+        #     "fpm_getsavepath {}": fpm_get_savepath_msg,
+        #     "fpm_maskpositions {}": fpm_mask_positions_msg,
+        #     "fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
+        #     "fpm_moverel {} {}": fpm_move_relative_msg,
+        #     "fpm_moveabs {} {}": fpm_move_absolute_msg,
+        #     "fpm_readpos {}": fpm_read_position_msg,
+        #     "fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
+        #     "fpm_writemaskpos {}": fpm_write_mask_positions_msg,
+        #     "fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
+        #     #            "on {}": on_msg,
+        #     #            "off {}": off_msg,
         # }
 
         first_word_to_function = {
-            "!read": read_msg,
-            "!stop": stop_msg,
-            "!moveabs": moveabs_msg,
-            "!connected?": connected_msg,
-            "!connect": connect_msg,
-            "!init": init_msg,
-            "!moverel": moverel_msg,
-            "!state": state_msg,
-            "!dmapplyflat": apply_flat_msg,
-            "!dmapplycross": apply_cross_msg,
-            "!fpm_getsavepath": fpm_get_savepath_msg,
-            "!fpm_maskpositions": fpm_mask_positions_msg,
-            "!fpm_movetomask": fpm_move_to_phasemask_msg,
-            "!fpm_moverel": fpm_move_relative_msg,
-            "!fpm_moveabs": fpm_move_absolute_msg,
-            "!fpm_readpos": fpm_read_position_msg,
-            "!fpm_updatemaskpos": fpm_update_mask_position_msg,
-            "!fpm_writemaskpos": fpm_write_mask_positions_msg,
-            "!fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
-            "!ping": ping_msg,
-            "!health": health_msg,
+            "read": read_msg,
+            "stop": stop_msg,
+            "moveabs": moveabs_msg,
+            "connected?": connected_msg,
+            "connect": connect_msg,
+            "init": init_msg,
+            "moverel": moverel_msg,
+            "state": state_msg,
+            "dmapplyflat": apply_flat_msg,
+            "dmapplycross": apply_cross_msg,
+            "fpm_getsavepath": fpm_get_savepath_msg,
+            "fpm_maskpositions": fpm_mask_positions_msg,
+            "fpm_movetomask": fpm_move_to_phasemask_msg,
+            "fpm_moverel": fpm_move_relative_msg,
+            "fpm_moveabs": fpm_move_absolute_msg,
+            "fpm_readpos": fpm_read_position_msg,
+            "fpm_updatemaskpos": fpm_update_mask_position_msg,
+            "fpm_writemaskpos": fpm_write_mask_positions_msg,
+            "fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
+            "ping": ping_msg,
+            "health": health_msg,
         }
 
         first_word_to_format = {
-            "!read": "!read {}",
-            "!stop": "!stop {}",
-            "!moveabs": "!moveabs {} {:f}",
-            "!connected?": "!connected? {}",
-            "!connect": "!connect {}",
-            "!init": "!init {}",
-            "!moverel": "!moverel {} {:f}",
-            "!state": "!state {}",
-            "!dmapplyflat": "dmapplyflat {}",
-            "!dmapplycross": "!dmapplycross {}",
-            "!fpm_getsavepath": "!fpm_getsavepath {}",
-            "!fpm_maskpositions": "!fpm_maskpositions {}",
-            "!fpm_movetomask": "!fpm_movetomask {} {}",
-            "!fpm_moverel": "!fpm_moverel {} {}",
-            "!fpm_moveabs": "!fpm_moveabs {} {}",
-            "!fpm_readpos": "!fpm_readpos {}",
-            "!fpm_updatemaskpos": "!fpm_updatemaskpos {} {}",
-            "!fpm_writemaskpos": "!fpm_writemaskpos {}",
-            "!fpm_updateallmaskpos": "!fpm_updateallmaskpos {} {} {}",
-            "!ping": "!ping {}",
-            "!health": "!health",
+            "read": "read {}",
+            "stop": "stop {}",
+            "moveabs": "moveabs {} {:f}",
+            "connected?": "connected? {}",
+            "connect": "connect {}",
+            "init": "init {}",
+            "moverel": "moverel {} {:f}",
+            "state": "state {}",
+            "dmapplyflat": "dmapplyflat {}",
+            "dmapplycross": "dmapplycross {}",
+            "fpm_getsavepath": "fpm_getsavepath {}",
+            "fpm_maskpositions": "fpm_maskpositions {}",
+            "fpm_movetomask": "fpm_movetomask {} {}",
+            "fpm_moverel": "fpm_moverel {} {}",
+            "fpm_moveabs": "fpm_moveabs {} {}",
+            "fpm_readpos": "fpm_readpos {}",
+            "fpm_updatemaskpos": "fpm_updatemaskpos {} {}",
+            "fpm_writemaskpos": "fpm_writemaskpos {}",
+            "fpm_updateallmaskpos": "fpm_updateallmaskpos {} {} {}",
+            "ping": "ping {}",
+            "health": "health",
         }
 
         try:

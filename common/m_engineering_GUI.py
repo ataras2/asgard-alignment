@@ -119,7 +119,7 @@ def handle_phasemask():
         st.write(f"target:{targets}")
         # beam = targets[0].split("phasemask")[1]
         for target in [f"BMX{beam}", f"BMY{beam}"]:
-            message = f"!read {target}"
+            message = f"read {target}"
             res = send_and_get_response(message)
             if "NACK" in res:
                 st.write(f"Error reading position for phasemask")
@@ -137,7 +137,7 @@ def handle_phasemask():
 
     if submit:
 
-        message = f"!fpm_movetomask {targets[0]} {preset_position}"
+        message = f"fpm_movetomask {targets[0]} {preset_position}"
         st.write(f"{message}")
 
         res = send_and_get_response(message)
@@ -167,20 +167,20 @@ def handle_phasemask():
 
     with um:
         if st.button(f"+y: {increment:.2f}"):
-            message = f"!moverel BMY{beam} {increment}"
+            message = f"moverel BMY{beam} {increment}"
             send_and_get_response(message)
 
     with lm:
         if st.button(f"-y: {increment:.2f}"):
-            message = f"!moverel BMY{beam} {-increment}"
+            message = f"moverel BMY{beam} {-increment}"
             send_and_get_response(message)
     with ml:
         if st.button(f"+x: {increment:.2f}"):
-            message = f"!moverel BMX{beam} {increment}"
+            message = f"moverel BMX{beam} {increment}"
             send_and_get_response(message)
     with mr:
         if st.button(f"-x: {increment:.2f}"):
-            message = f"!moverel BMX{beam} {-increment}"
+            message = f"moverel BMX{beam} {-increment}"
             send_and_get_response(message)
 
     update_col, save_col = st.columns(2)
@@ -191,7 +191,7 @@ def handle_phasemask():
         ):
             if "unknown" not in st.session_state["selected_mask"][0].lower():
                 # Update the current mask position
-                message = f"!fpm_updatemaskpos {targets[0]} {st.session_state['selected_mask'][0]}"
+                message = f"fpm_updatemaskpos {targets[0]} {st.session_state['selected_mask'][0]}"
                 res = send_and_get_response(message)
 
                 if "NACK" in res:
@@ -231,7 +231,7 @@ def handle_phasemask():
             if submit_reference_file:
                 if "unknown" not in st.session_state["selected_mask"][0].lower():
 
-                    message = f"!fpm_updateallmaskpos {targets[0]} {st.session_state['selected_mask'][0]} {selected_reference_file}"
+                    message = f"fpm_updateallmaskpos {targets[0]} {st.session_state['selected_mask'][0]} {selected_reference_file}"
 
                     res = send_and_get_response(message)
 
@@ -255,10 +255,10 @@ def handle_phasemask():
 
             if "unknown" not in st.session_state["selected_mask"][0].lower():
 
-                # save_path = send_and_get_response(f"!fpm_getsavepath {targets[0]}")
+                # save_path = send_and_get_response(f"fpm_getsavepath {targets[0]}")
 
                 # Save the updated positions to file
-                save_message = f"!fpm_writemaskpos {targets[0]}"
+                save_message = f"fpm_writemaskpos {targets[0]}"
                 save_res = send_and_get_response(save_message)
 
                 if "NACK" in save_res:
@@ -272,7 +272,7 @@ def handle_phasemask():
             else:
                 st.error(f"Cannot update mask position with 'Unknown' mask.")
 
-    # message = "!fpm_updateallmaskpos {} {} {}"
+    # message = "fpm_updateallmaskpos {} {} {}"
 
 
 def handle_deformable_mirror():
@@ -340,7 +340,7 @@ def handle_deformable_mirror():
     #     combined_mode += common.DM_basis_functions.dm_flatmap_dict[f"{beam}"]
 
     #     # for target in targets:
-    #     #     message = f"!dmapplyflat {target}"
+    #     #     message = f"dmapplyflat {target}"
     #     #     response = send_and_get_response(message)
     #     #     if "ACK" in response:
     #     #         st.success(f"Flat map successfully applied to {target}")
@@ -358,7 +358,7 @@ def handle_deformable_mirror():
     #     combined_mode += 0.2 * common.DM_basis_functions.cross_map
 
     #     # for target in targets:
-    #     #     message = f"!dmapplycross {target}"
+    #     #     message = f"dmapplycross {target}"
     #     #     response = send_and_get_response(message)
     #     #     if "ACK" in response:
     #     #         st.success(f"Cross map successfully applied to {target}")
@@ -479,7 +479,7 @@ def handle_deformable_mirror():
 
     ### Below is when we opened DM in the multi device server and communicated via ZMQ
     # Placeholder for sending the combined mode to the DM
-    # response = send_and_get_response(f"!dmapply {combined_mode}")
+    # response = send_and_get_response(f"dmapply {combined_mode}")
     # if "ACK" in response:
     #    st.success("Combined mode successfully applied to the DM.")
     # else:
@@ -527,7 +527,7 @@ def handle_linear_stage():
 
     with s_col1:
         if st.button("Read Position"):
-            message = f"!read {target}"
+            message = f"read {target}"
             res = send_and_get_response(message)
             # check if close to any preset position
             for pos, val in mapping.items():
@@ -539,13 +539,13 @@ def handle_linear_stage():
     with s_col2:
         # read state button
         if st.button("Read State"):
-            message = f"!state {target}"
+            message = f"state {target}"
             res = send_and_get_response(message)
             st.write(res)
 
     with s_col3:
         if st.button("Home (if needed)"):
-            message = f"!init {target}"
+            message = f"init {target}"
             send_and_get_response(message)
 
     ss_col1, ss_col2 = st.columns(2)
@@ -561,7 +561,7 @@ def handle_linear_stage():
             submit = st.form_submit_button("Move")
 
         if submit:
-            message = f"!moveabs {target} {mapping[preset_position]}"
+            message = f"moveabs {target} {mapping[preset_position]}"
             send_and_get_response(message)
 
     with ss_col2:
@@ -579,7 +579,7 @@ def handle_linear_stage():
             submit = st.form_submit_button("Move")
 
         if submit:
-            message = f"!moverel {target} {relative_move}"
+            message = f"moverel {target} {relative_move}"
             send_and_get_response(message)
 
     # add a button to update the preset positions
@@ -588,14 +588,14 @@ def handle_linear_stage():
     button_cols = st.columns(3)
     with button_cols[0]:
         if st.button(f"Update only {preset_position}"):
-            current_position = send_and_get_response(f"!read {target}")
+            current_position = send_and_get_response(f"read {target}")
             st.session_state[f"{target}_fixed_mapping"][preset_position] = float(
                 current_position
             )
             st.rerun()
     with button_cols[1]:
         if st.button("Update all"):
-            current_position = send_and_get_response(f"!read {target}")
+            current_position = send_and_get_response(f"read {target}")
             st.session_state[f"{target}_offset"] = (
                 float(current_position) - mapping[preset_position]
             )
@@ -618,7 +618,7 @@ def handle_tt_motor():
     if st.button("Read Position"):
         positions = []
         for target in targets:
-            message = f"!read {target}"
+            message = f"read {target}"
             res = send_and_get_response(message)
             if "NACK" in res:
                 st.write(f"Error reading position for {target}")
@@ -631,7 +631,7 @@ def handle_tt_motor():
 
     positions = []
     for target in targets:
-        message = f"!read {target}"
+        message = f"read {target}"
         res = send_and_get_response(message)
         if "NACK" in res:
             st.write(f"Error reading position for {target}")
@@ -683,7 +683,7 @@ def handle_tt_motor():
                 # replace the x in target with U
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "P")
-                message = f"!moveabs {target} {u_position}"
+                message = f"moveabs {target} {u_position}"
                 send_and_get_response(message)
 
         with s_col2:
@@ -702,7 +702,7 @@ def handle_tt_motor():
             if submit2:
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "T")
-                message = f"!moveabs {target} {v_position}"
+                message = f"moveabs {target} {v_position}"
                 send_and_get_response(message)
     else:
 
@@ -710,7 +710,7 @@ def handle_tt_motor():
             def onchange_fn():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", axis)
-                message = f"!moveabs {target} {st.session_state[key]}"
+                message = f"moveabs {target} {st.session_state[key]}"
                 send_and_get_response(message)
                 if delay_on_moves:
                     time.sleep(1.0)
@@ -759,7 +759,7 @@ def handle_linear_actuator():
     with c1:
         # read position button
         if st.button("Read Position"):
-            message = f"!read {target}"
+            message = f"read {target}"
             res = send_and_get_response(message)
             if "NACK" in res:
                 st.write(f"Error reading position for {target}")
@@ -772,14 +772,14 @@ def handle_linear_actuator():
     with c2:
         # read state button
         if st.button("Read State"):
-            message = f"!state {target}"
+            message = f"state {target}"
             res = send_and_get_response(message)
             st.write(res)
 
     with c3:
         # init button
         if st.button("Home (if needed)"):
-            message = f"!init {target}"
+            message = f"init {target}"
             send_and_get_response(message)
 
     def get_onchange_fn(key, target):
@@ -788,13 +788,13 @@ def handle_linear_actuator():
                 desired_position = st.session_state[key] * 1e-3
             else:
                 desired_position = st.session_state[key]
-            message = f"!moveabs {target} {desired_position}"
+            message = f"moveabs {target} {desired_position}"
             send_and_get_response(message)
             time.sleep(1.0)
 
         return onchange_fn
 
-    message = f"!read {target}"
+    message = f"read {target}"
     res = send_and_get_response(message)
     if "NACK" in res:
         st.write(f"Error reading position for {target}")
@@ -876,7 +876,7 @@ with col_main:
 
         # check if component is connected
         is_connected = all(
-            send_and_get_response(f"!connected? {target}") == "connected"
+            send_and_get_response(f"connected? {target}") == "connected"
             for target in targets
         )
         if not is_connected:
@@ -894,7 +894,7 @@ with col_main:
 
                 if submit:
                     for target in targets:
-                        message = f"!connect {target}"
+                        message = f"connect {target}"
                         send_and_get_response(message)
 
         if (
@@ -1059,7 +1059,7 @@ with col_main:
             axes = [f"HTTP{beam}", f"HTIP{beam}", f"HTTI{beam}" f"HTTI{beam}"]
 
             for axis in axes:
-                pos = send_and_get_response(f"!read {axis}")
+                pos = send_and_get_response(f"read {axis}")
                 st.write(f"axis: {pos}")
 
             if move_what == "move_image":
@@ -1119,7 +1119,7 @@ with col_main:
 
                         states = []
                         for name in motor_names:
-                            message = f"!read {name}"
+                            message = f"read {name}"
                             res = send_and_get_response(message)
 
                             if "NACK" in res:
@@ -1154,11 +1154,11 @@ with col_main:
 
                     for state in states:
                         if state["is_connected"]:
-                            message = f"!moveabs {state['name']} {state['position']}"
+                            message = f"moveabs {state['name']} {state['position']}"
                             send_and_get_response(message)
 
         if routine_options == "Health":
-            message = "!health"
+            message = "health"
             res = send_and_get_response(message)
 
             if st.button("Refresh"):

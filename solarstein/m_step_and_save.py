@@ -80,12 +80,12 @@ def main():
 
     # move to start and check
     print(f"sending !moveabs {axis} {positions[0]}")
-    socket.send_string(f"!moveabs {axis} {positions[0]}")
+    socket.send_string(f"moveabs {axis} {positions[0]}")
     res = socket.recv_string()
     print(f"Response: {res}")
     input("check we are at start")
     print(f"sending !moveabs {axis} {positions[-1]}")
-    socket.send_string(f"!moveabs {axis} {positions[-1]}")
+    socket.send_string(f"moveabs {axis} {positions[-1]}")
     res = socket.recv_string()
     print(f"Response: {res}")
     input("check we are at end")
@@ -142,7 +142,7 @@ def main():
         # print(f"\rMoving to {pos} um ({i+1}/{len(positions)})", end="")
         # axis.move_absolute(pos, Units.LENGTH_MICROMETRES)
 
-        socket.send_string(f"!moveabs {axis} {pos}")
+        socket.send_string(f"moveabs {axis} {pos}")
         res = socket.recv_string()
 
         time.sleep(0.1)

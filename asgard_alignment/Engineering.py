@@ -167,7 +167,7 @@ def move_image(beam_number, x, y, send_command, config):
     axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
     commands = [
-        f"!moverel {axis}{beam_number} {command[0]}"
+        f"moverel {axis}{beam_number} {command[0]}"
         for axis, command in zip(axis_list, uv_commands)
     ]
 
@@ -243,7 +243,7 @@ def move_pupil(beam_number, x, y, send_command, config):
     axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
     commands = [
-        f"!moverel {axis}{beam_number} {command[0]}"
+        f"moverel {axis}{beam_number} {command[0]}"
         for axis, command in zip(axis_list, uv_commands)
     ]
 
