@@ -337,6 +337,9 @@ class Instrument:
                     cfg["x_mcc_ip_address"]
                 )
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
+                self._controllers[cfg["x_mcc_ip_address"]].get_device(1).settings.set(
+                    "system.led.enable", 0
+                )
 
             axis = (
                 self._controllers[cfg["x_mcc_ip_address"]]
@@ -372,6 +375,7 @@ class Instrument:
 
             for dev in self._controllers[self._prev_zaber_port].detect_devices():
                 if dev.serial_number == self._motor_config[name]["serial_number"]:
+                    dev.settings.set("system.led.enable", 0)
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
                         name,
                         self._motor_config[name]["semaphore_id"],
