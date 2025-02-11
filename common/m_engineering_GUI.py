@@ -63,11 +63,11 @@ beam_specific_devices = [
     "HTXI",
     "BTX",
     "BDS",
+    "phasemask",
+    "SSF" "BOTX",
+    "DM",
     "BMX",
     "BMY",
-    "BOTX",
-    "DM",
-    "phasemask",
 ]
 
 beam_common_devices = [
@@ -867,6 +867,41 @@ def handle_source_select():
             st.write(res)
 
 
+def handle_bistable_motor():
+    st.subheader("Bistable Motor Interface")
+
+    if "selected_state" not in st.session_state:
+        st.session_state["selected_state"] = "Unknown"
+
+    # read state button
+    if st.button("Read State"):
+        message = f"state {target}"
+        res = send_and_get_response(message)
+        st.write(res)
+
+    if component == "SSF":
+        states = ["up", "down"]
+        values = [1, 0]
+    else:
+        st.error("Component not recognized")
+
+    # state 1 and state 2 buttons
+    s1,s2 = st.columns(2)
+
+    with s1:
+        if st.button(states[0]):
+            message = f"move {target} {values[0]}"
+            res = send_and_get_response(message)
+            st.session_state["selected_state"] = states[0]
+            st.write(res)
+
+    with s2:
+        if st.button(states[1]):
+            message = f"move {target} {values[1]}"
+            res = send_and_get_response(message)
+            st.session_state["selected_state"] = states[1]
+            st.write(res)
+
 col_main, col_history = st.columns([2, 1])
 
 
@@ -965,6 +1000,9 @@ with col_main:
 
         elif component in ["lamps"]:
             handle_source_select()
+
+        elif component in ["SSF"]:
+            handle_bistable_motor()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
