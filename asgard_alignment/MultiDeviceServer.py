@@ -465,13 +465,15 @@ class MultiDeviceServer:
             return health_str
 
         def on_msg(lamp_name):
-            self.instr
+            self.instr.devices[lamp_name].turn_on()
+            return "ACK"
 
         def off_msg(lamp_name):
-            pass
+            self.instr.devices[lamp_name].turn_off()
+            return "ACK"
 
         def is_on_msg(lamp_name):
-            pass
+            return self.instr.devices[lamp_name].is_on()
 
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
