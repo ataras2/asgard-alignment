@@ -9,6 +9,7 @@ import pandas as pd
 from zaber_motion.ascii import Connection
 
 import asgard_alignment.ESOdevice
+import asgard_alignment.Lamps
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
@@ -64,6 +65,9 @@ class Instrument:
         self._motor_config = {
             component["name"]: component for component in self._config["motors"]
         }
+        self._lamps_config = {
+            component["name"]: component for component in self._config["lamps"]
+        }
         self._other_config = {
             component["name"]: component for component in self._config["other_devices"]
         }
@@ -84,6 +88,7 @@ class Instrument:
         self._rm = pyvisa.ResourceManager()
 
         # Create the connections to the controllers
+        self._open_controllino()
         self._create_controllers_and_motors()
         self._create_lamps()
         self._create_shutters()
@@ -214,6 +219,11 @@ class Instrument:
                     )
                 )
 
+    def _open_controllino(self):
+        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
+            self._other_config["controllino"]["ip_address"]
+        )
+
     def _create_controllers_and_motors(self):
         """
         Create the connections to the controllers and motors
@@ -223,9 +233,6 @@ class Instrument:
         motors: dict
             A dictionary that maps the name of the motor to the motor object
         """
-        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino"]["ip_address"]
-        )
 
         self._prev_port_mapping = self.compute_serial_to_port_map()
         self._prev_zaber_port = self.find_zaber_usb_port()
@@ -240,7 +247,12 @@ class Instrument:
         """
         Create the connections to the lamps
         """
-
+        for name in self._lamps_config:
+            self.devices[name] = asgard_alignment.Lamps.LightSource(
+                    name,
+                    self._controllers["controllino"],
+                    **self._lamps_config[name]["config"],
+                )
     def _create_shutters(self):
         """
         Create the connections to the shutters

@@ -75,6 +75,7 @@ beam_common_devices = [
     "SDLA",
     "SDL12",
     "SDL34",
+    "lamps",
 ]
 
 all_devices = beam_common_devices + beam_specific_devices
@@ -827,6 +828,43 @@ def handle_linear_actuator():
     )
 
 
+def handle_source_select():
+    st.subheader("Source Selection")
+    valid_lamps = ["SGL", "SRL", "SBB"]
+    if "selected_source" not in st.session_state:
+        st.session_state["selected_source"] = "Unknown"
+
+    # dropdown to select from valid
+    lamp_cur = st.selectbox(
+        "Select Source",
+        valid_lamps,
+        key="lamp_cur",
+    )
+
+    # read state button
+    if st.button("Read State"):
+        message = f"is_on {target}"
+        res = send_and_get_response(message)
+        st.write(res)
+
+    # on and off buttons
+    on, off = st.columns(2)
+
+    with on:
+        if st.button("Turn On"):
+            message = f"on {target}"
+            res = send_and_get_response(message)
+            st.session_state["selected_source"] = lamp_cur
+            st.write(res)
+
+    with off:
+        if st.button("Turn Off"):
+            message = f"off {target}"
+            res = send_and_get_response(message)
+            st.session_state["selected_source"] = "Unknown"
+            st.write(res)
+
+
 col_main, col_history = st.columns([2, 1])
 
 
@@ -852,7 +890,7 @@ with col_main:
 
         with col1:
             component = st.selectbox(
-                "Select Component",
+                "Select device",
                 all_devices,
                 key="component",
             )
@@ -922,6 +960,9 @@ with col_main:
 
         elif component in ["phasemask"]:
             handle_phasemask()
+
+        elif component in ["lamps"]:
+            handle_source_select()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
@@ -1146,9 +1187,9 @@ with col_main:
 
             with text_col:
                 # load_location = st.text_input("Load location", key="load_location")
-                
+
                 # check https://docs.streamlit.io/develop/api-reference/widgets/st.file_uploader
-                
+
                 load_location = st.file_uploader("Load location", type=["json"])
                 print(load_location)
 

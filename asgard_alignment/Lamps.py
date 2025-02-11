@@ -1,72 +1,48 @@
 import asgard_alignment.ESOdevice as ESOdevice
 
 
-class Laser(ESOdevice.Lamp):
+class LightSource(ESOdevice.Lamp):
     """
-    A laser, e.g. Thorlabs CPS532 or CPS635R.
+    All light sources in H/B/S use this framework
     """
 
-    def __init__(self, name, io_pin, controllino_connection):
+    def __init__(self, name, controllino_connection, nCooldown, nWarmup, nMaxOn):
         super().__init__(name)
 
-        self.io_pin = io_pin
         self.controllino_connection = controllino_connection
 
-        self.nCooldown = (
-            2  # time in seconds to wait before turning lamp on again, can be 0
-        )
-        self.nWarmup = 1  # time in seconds to wait before lamp is fully on
-        self.nMaxOn = 1 * 60 * 60  # 1 hour
+        self.nCooldown = nCooldown
+        self.nWarmup = nWarmup
+        self.nMaxOn = nMaxOn
+
+        self.turn_off()
+        self._on = False
 
     def turn_on(self):
         """
-        Turn the laser on
+        Turn the thermal source on
         """
-        self.controllino_connection.send_command(f"h{self.io_pin}")
+        self.controllino_connection.turn_on(self.name)
 
     def turn_off(self):
         """
-        Turn the laser off
+        Turn the thermal source off
         """
-        self.controllino_connection.send_command(f"l{self.io_pin}")
+        self.controllino_connection.turn_off(self.name)
 
     def init(self):
         """
         Initialise the laser
         """
 
-
-class ThermalSource(ESOdevice.Lamp):
-    """
-    The thermal source, e.g. a SLS201/M
-    """
-
-    def __init__(self, name, io_pin, controllino_connection):
-        super().__init__(name)
-
-        self.io_pin = io_pin
-        self.controllino_connection = controllino_connection
-
-        self.nCooldown = (
-            5  # time in seconds to wait before turning lamp on again, can be 0
-        )
-        self.nWarmup = 5  # time in seconds to wait before lamp is fully on
-        self.nMaxOn = 8 * 60 * 60  # 8 hours
-
-    def turn_on(self):
+    def is_on(self):
         """
-        Turn the thermal source on
+        Check if the light source is on
         """
-        self.controllino_connection.send_command(f"h{self.io_pin}")
+        return self.controllino_connection.get_status(self.name)
 
-    def turn_off(self):
+    def is_off(self):
         """
-        Turn the thermal source off
+        Check if the light source is off
         """
-        self.controllino_connection.send_command(f"l{self.io_pin}")
-
-    def init(self):
-        """
-        Initialise the thermal source
-        Nothing is needed here
-        """
+        return not self.is_on()

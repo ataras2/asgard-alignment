@@ -464,6 +464,15 @@ class MultiDeviceServer:
 
             return health_str
 
+        def on_msg(lamp_name):
+            self.instr
+
+        def off_msg(lamp_name):
+            pass
+
+        def is_on_msg(lamp_name):
+            pass
+
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
                 return f"NACK: DM {dm_name} not found"
@@ -606,6 +615,9 @@ class MultiDeviceServer:
             "fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
             "ping": ping_msg,
             "health": health_msg,
+            "on": on_msg,
+            "off": off_msg,
+            "is_on": is_on_msg,
         }
 
         first_word_to_format = {
@@ -630,6 +642,9 @@ class MultiDeviceServer:
             "fpm_updateallmaskpos": "fpm_updateallmaskpos {} {} {}",
             "ping": "ping {}",
             "health": "health",
+            "on": "on {}",
+            "off": "off {}",
+            "is_on": "is_on {}",
         }
 
         try:

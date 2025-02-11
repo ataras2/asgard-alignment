@@ -18,11 +18,10 @@ class SemaphoreState(Enum):
 
 
 class ESOdevice(abc.ABC):
-    def __init__(self, name, semaphore_id) -> None:
+    def __init__(self, name) -> None:
         super().__init__()
 
         self.name = name
-        self.semaphore_id = semaphore_id
 
 
 class SetupCommand:
@@ -42,8 +41,11 @@ class Motor(ESOdevice):
     """
 
     def __init__(self, name, semaphore_id, named_positions={}) -> None:
-        super().__init__(name, semaphore_id)
+        super().__init__(
+            name,
+        )
         self._named_positions = named_positions
+        self.semaphore_id = semaphore_id
 
     #######################################################
     # functions for compatibility with custom command set
@@ -119,8 +121,8 @@ class Motor(ESOdevice):
 
 
 class Lamp(ESOdevice):
-    def __init__(self, name, semaphore_id) -> None:
-        super().__init__(name, semaphore_id)
+    def __init__(self, name) -> None:
+        super().__init__(name)
 
     @abc.abstractmethod
     def is_on(self):

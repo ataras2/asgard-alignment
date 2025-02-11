@@ -451,16 +451,28 @@
 ],
     "lamps" : [
         {
-            "name": "SRL"
+            "name": "SRL",
+            "config": {
+                "nCooldown" : 1.0,
+                "nWarmup" : 1.0,
+                "nMaxOn" : 3600.0
+            }
         },
         {
-            "name": "SGL"
+            "name": "SGL",
+            "config": {
+                "nCooldown" : 1.0,
+                "nWarmup" : 1.0,
+                "nMaxOn" : 3600.0      
+            }
         },
         {
-            "name": "SLD"
-        },
-        {
-            "name" : "SBB"
+            "name" : "SBB",
+            "config": {
+                "nCooldown" : 1.0,
+                "nWarmup" : 3.0,
+                "nMaxOn" : 28800.0
+            }
         }
     ],
     "shutters" : [
