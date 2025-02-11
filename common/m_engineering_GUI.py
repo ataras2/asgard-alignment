@@ -8,6 +8,7 @@ import os
 import glob
 import sys
 import matplotlib.pyplot as plt
+from io import StringIO
 
 import asgard_alignment.Engineering
 import common.DM_basis_functions
@@ -86,6 +87,7 @@ def send_and_get_response(message):
     st.session_state["message_history"].append(
         f":blue[Sending message to server: ] {message}\n"
     )
+    print(f"sending: {message}")
     st.session_state["socket"].send_string(message)
     response = st.session_state["socket"].recv_string()
     if "NACK" in response or "not connected" in response:
@@ -1195,13 +1197,16 @@ with col_main:
 
             with button_col:
                 if st.button("Load"):
-                    with open("instr_states/" + load_location + ".json", "r") as f:
-                        states = json.load(f)
+                    if load_location is not None:
+                        stringio = StringIO(load_location.getvalue().decode("utf-8"))
+                        stringio = stringio.read()
+                        # string to json
+                        states = json.loads(stringio)
 
-                    for state in states:
-                        if state["is_connected"]:
-                            message = f"moveabs {state['name']} {state['position']}"
-                            send_and_get_response(message)
+                        for state in states:
+                            if state["is_connected"]:
+                                message = f"moveabs {state['name']} {state['position']}"
+                                send_and_get_response(message)
 
         if routine_options == "Health":
             message = "health"
