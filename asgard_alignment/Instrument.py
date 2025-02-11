@@ -8,6 +8,7 @@ import sys
 import pandas as pd
 from zaber_motion.ascii import Connection
 
+import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
 import asgard_alignment.Lamps
 import asgard_alignment.NewportMotor
@@ -395,7 +396,13 @@ class Instrument:
                     )
                     return True
         elif self._motor_config[name]["motor_type"] in ["8893KM"]:
-            pass
+            self.devices[name] = asgard_alignment.CustomMotors.MirrorFlipper(
+                name,
+                self._motor_config[name]["semaphore_id"],
+                self._controllers["controllino"],
+                self._motor_config[name]["modulation_value"],   
+                self._motor_config[name]["delay_time"],
+            )
 
     @staticmethod
     def find_zaber_usb_port():
