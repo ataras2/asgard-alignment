@@ -429,8 +429,8 @@
         "motor_type": "8893KM",
         "serial_number": "",
         "motor_config": {
-            "modulation_value" : 255,
-            "delay_time": 0.0
+            "modulation_value" : 50,
+            "delay_time": 1.0
         },
         "semaphore_id": 33
     },
@@ -439,8 +439,8 @@
         "motor_type": "8893KM",
         "serial_number": "",
         "motor_config": {
-            "modulation_value" : 255,
-            "delay_time": 0.0
+            "modulation_value" : 50,
+            "delay_time": 1.0
         },
         "semaphore_id": 34
     },
@@ -449,8 +449,8 @@
         "motor_type": "8893KM",
         "serial_number": "",
         "motor_config": {
-            "modulation_value" : 255,
-            "delay_time": 0.0
+            "modulation_value" : 50,
+            "delay_time": 1.0
         },
         "semaphore_id": 35
     },
@@ -459,8 +459,8 @@
         "motor_type": "8893KM",
         "serial_number": "",
         "motor_config": {
-            "modulation_value" : 255,
-            "delay_time": 0.0
+            "modulation_value" : 50,
+            "delay_time": 1.0
         },
         "semaphore_id": 36
     }
