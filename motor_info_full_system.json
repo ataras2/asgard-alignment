@@ -428,24 +428,40 @@
         "name": "SSF1",
         "motor_type": "8893KM",
         "serial_number": "",
+        "motor_config": {
+            "modulation_value" : 255,
+            "delay_time": 0.0
+        },
         "semaphore_id": 33
     },
     {
         "name": "SSF2",
         "motor_type": "8893KM",
         "serial_number": "",
+        "motor_config": {
+            "modulation_value" : 255,
+            "delay_time": 0.0
+        },
         "semaphore_id": 34
     },
     {
         "name": "SSF3",
         "motor_type": "8893KM",
         "serial_number": "",
+        "motor_config": {
+            "modulation_value" : 255,
+            "delay_time": 0.0
+        },
         "semaphore_id": 35
     },
     {
         "name": "SSF4",
         "motor_type": "8893KM",
         "serial_number": "",
+        "motor_config": {
+            "modulation_value" : 255,
+            "delay_time": 0.0
+        },
         "semaphore_id": 36
     }
 ],
