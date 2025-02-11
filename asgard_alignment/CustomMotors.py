@@ -64,7 +64,7 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         )
 
         self._controller = controllino_controller
-        self._state = None
+        self._state = ""
 
         self._modulation_value = modulation_value
         self._delay_time = delay_time
@@ -78,8 +78,10 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         self._state = "down"
 
     def move_abs(self, position):
+        print(f"Moving {self.name} to {position}")
         if isinstance(position, str):
             position = self._named_positions[position]
+        position = int(position)
 
         if position == 0:
             self._flip_down()
@@ -109,3 +111,6 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
 
     def standby(self):
         pass
+
+    def ping(self):
+        return True

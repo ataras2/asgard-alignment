@@ -39,7 +39,9 @@ class LightSource(ESOdevice.Lamp):
         """
         Check if the light source is on
         """
-        return self.controllino_connection.get_status(self.name)
+        res = self.controllino_connection.get_status(self.name)
+        print(f"Light source {self.name} is on: {res}")
+        return res
 
     def is_off(self):
         """

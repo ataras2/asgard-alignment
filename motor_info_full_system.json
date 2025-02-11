@@ -481,14 +481,6 @@
                 "nWarmup" : 1.0,
                 "nMaxOn" : 3600.0      
             }
-        },
-        {
-            "name" : "SBB",
-            "config": {
-                "nCooldown" : 1.0,
-                "nWarmup" : 3.0,
-                "nMaxOn" : 28800.0
-            }
         }
     ],
     "shutters" : [
@@ -497,7 +489,7 @@
     "other_devices" : [
         {
             "name": "controllino",
-            "ip_address" : ""
+            "ip_address" : "172.16.8.200"
         }
     ]
 }

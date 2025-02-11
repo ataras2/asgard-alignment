@@ -473,7 +473,7 @@ class MultiDeviceServer:
             return "ACK"
 
         def is_on_msg(lamp_name):
-            return self.instr.devices[lamp_name].is_on()
+            return str(self.instr.devices[lamp_name].is_on())
 
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:

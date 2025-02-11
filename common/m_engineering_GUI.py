@@ -64,7 +64,8 @@ beam_specific_devices = [
     "BTX",
     "BDS",
     "phasemask",
-    "SSF" "BOTX",
+    "SSF",
+    "BOTX",
     "DM",
     "BMX",
     "BMY",
@@ -845,7 +846,7 @@ def handle_source_select():
 
     # read state button
     if st.button("Read State"):
-        message = f"is_on {target}"
+        message = f"is_on {lamp_cur}"
         res = send_and_get_response(message)
         st.write(res)
 
@@ -854,14 +855,14 @@ def handle_source_select():
 
     with on:
         if st.button("Turn On"):
-            message = f"on {target}"
+            message = f"on {lamp_cur}"
             res = send_and_get_response(message)
             st.session_state["selected_source"] = lamp_cur
             st.write(res)
 
     with off:
         if st.button("Turn Off"):
-            message = f"off {target}"
+            message = f"off {lamp_cur}"
             res = send_and_get_response(message)
             st.session_state["selected_source"] = "Unknown"
             st.write(res)
@@ -881,26 +882,27 @@ def handle_bistable_motor():
 
     if component == "SSF":
         states = ["up", "down"]
-        values = [1, 0]
+        values = [1.0, 0.0]
     else:
         st.error("Component not recognized")
 
     # state 1 and state 2 buttons
-    s1,s2 = st.columns(2)
+    s1, s2 = st.columns(2)
 
     with s1:
         if st.button(states[0]):
-            message = f"move {target} {values[0]}"
+            message = f"moveabs {target} {values[0]}"
             res = send_and_get_response(message)
             st.session_state["selected_state"] = states[0]
             st.write(res)
 
     with s2:
         if st.button(states[1]):
-            message = f"move {target} {values[1]}"
+            message = f"moveabs {target} {values[1]}"
             res = send_and_get_response(message)
             st.session_state["selected_state"] = states[1]
             st.write(res)
+
 
 col_main, col_history = st.columns([2, 1])
 
@@ -949,60 +951,61 @@ with col_main:
             beam_number = None
             targets = [component]
 
-        # check if component is connected
-        is_connected = all(
-            send_and_get_response(f"connected? {target}") == "connected"
-            for target in targets
-        )
-        if not is_connected:
-            if "DM" in component:
-                st.write(
-                    f"DM uses shared memory, start server \n>ipython -i asgard_alignment/DM_shared_memory_server.py\
-                        \nneeds to run in conda base (check >conda env list). \nAlso DMs must not be connected any where else\
-                          (check no other server is using them)\n To Do: run this within MDS. Still experimental. Zernike modes disabled"
-                )
-            else:
-                st.write(f"Component(s) {targets} is/are not connected!")
-
-                with st.form(key="connect_request"):
-                    submit = st.form_submit_button("Connect")
-
-                if submit:
-                    for target in targets:
-                        message = f"connect {target}"
-                        send_and_get_response(message)
-
-        if (
-            component not in ["HTXP", "HTXI", "BTX", "BOTX"]
-            and component in beam_specific_devices
-        ):
-            target = f"{component}{beam_number}"
-        if (
-            component not in ["HTXP", "HTXI", "BTX", "BOTX"]
-            and component in beam_common_devices
-        ):
-            target = component
-
-        if component in ["BDS", "SSS"]:
-            handle_linear_stage()
-
-        elif component in ["HTXP", "HTXI", "BTX", "BOTX"]:
-            handle_tt_motor()
-
-        elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
-            handle_linear_actuator()
-
-        elif component in ["DM"]:
-            handle_deformable_mirror()
-
-        elif component in ["phasemask"]:
-            handle_phasemask()
-
-        elif component in ["lamps"]:
+        if "lamps" in component:
             handle_source_select()
 
-        elif component in ["SSF"]:
-            handle_bistable_motor()
+        else:
+            # check if component is connected
+            is_connected = all(
+                send_and_get_response(f"connected? {target}") == "connected"
+                for target in targets
+            )
+            if not is_connected:
+                if "DM" in component:
+                    st.write(
+                        f"DM uses shared memory, start server \n>ipython -i asgard_alignment/DM_shared_memory_server.py\
+                            \nneeds to run in conda base (check >conda env list). \nAlso DMs must not be connected any where else\
+                            (check no other server is using them)\n To Do: run this within MDS. Still experimental. Zernike modes disabled"
+                    )
+                else:
+                    st.write(f"Component(s) {targets} is/are not connected!")
+
+                    with st.form(key="connect_request"):
+                        submit = st.form_submit_button("Connect")
+
+                    if submit:
+                        for target in targets:
+                            message = f"connect {target}"
+                            send_and_get_response(message)
+
+            if (
+                component not in ["HTXP", "HTXI", "BTX", "BOTX"]
+                and component in beam_specific_devices
+            ):
+                target = f"{component}{beam_number}"
+            if (
+                component not in ["HTXP", "HTXI", "BTX", "BOTX"]
+                and component in beam_common_devices
+            ):
+                target = component
+
+            if component in ["BDS", "SSS"]:
+                handle_linear_stage()
+
+            elif component in ["HTXP", "HTXI", "BTX", "BOTX"]:
+                handle_tt_motor()
+
+            elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
+                handle_linear_actuator()
+
+            elif component in ["DM"]:
+                handle_deformable_mirror()
+
+            elif component in ["phasemask"]:
+                handle_phasemask()
+
+            elif component in ["SSF"]:
+                handle_bistable_motor()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
