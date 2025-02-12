@@ -661,10 +661,16 @@ def handle_tt_motor():
 
     with ss_col2:
         use_button_to_move = st.checkbox("Use button to move")
-        if use_button_to_move:
-            delay_on_moves = st.checkbox("Delay on moves (recommended)", value=True)
-        else:
-            delay_on_moves = False
+        # value to delay after each move
+        delay_on_moves = st.number_input(
+            "Delay after each move (s)",
+            value=1.0,
+            min_value=0.0,
+            max_value=10.0,
+            key="delay_on_moves",
+            step=0.1,
+            format="%.1f",
+        )
 
     # absolute move option for input with button to move
     st.write("Move absolute")
