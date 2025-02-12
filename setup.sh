@@ -1,5 +1,7 @@
 #!/bin/bash
 # usage: sudo bash setup.sh
+# detailed user instructions found at
+# https://docs.google.com/document/d/12j7ZFyZ8E72clbRmer_jwnHb85poJUIWlCKUhd8aZ1Q/edit?usp=sharing
 
 # Exit immediately if a command exits with a non-zero status
 set -e
@@ -22,7 +24,32 @@ else
     exit 1
 fi
 
+# Check if the spinnaker SDK package is present
+if [[ -f "$(pwd)/spinnaker-4.2.0.46-amd64-20.04-pkg.tar.gz" ]]; then
+    echo "Extracting spinnaker-4.2.0.46-amd64-20.04-pkg.tar.gz..."
+    tar -xzf spinnaker-4.2.0.46-amd64-20.04-pkg.tar.gz -C .
+else
+    echo "Error: spinnaker-4.2.0.46-amd64-20.04-pkg.tar.gz file is not present in the current directory."
+    exit 1
+fi
+
 # FLI?
+
+
+# ==============================================================================
+# Spinview setup
+# ==============================================================================
+# again following the readme
+
+cd spinnaker-4.2.0.46-amd64/
+{
+    sudo sh install_spinnaker.sh 
+    sudo apt install ethtool
+    sudo /opt/spinnaker/bin/./gev_nettweak eno8403
+} || {
+    echo "Error occurred during Spinview setup, but continuing with the script..."
+}
+cd ..
 
 
 # ==============================================================================
@@ -38,7 +65,7 @@ sudo apt-get install -y \
     nlohmann-json3-dev \
     libfmt-dev \
     libzmq3-dev \
-    libboost-all-dev
+    libboost-all-dev \
 
 # spinview - see readme in spinnaker-4.2.0.46-amd64-22.04
 sudo apt-get install -y \
@@ -133,16 +160,6 @@ fi
 # sudo echo "xset s noblank" >> /etc/profile
 
 
-
-# ==============================================================================
-# Spinview setup
-# ==============================================================================
-# again following the readme
-
-#sudo sh install_spinnaker.sh
-#sudo apt install ethtool
-#sudo ./gev_nettweak eth0 # TODO check ethernet port
- 
 # ==============================================================================
 # Conda Environment Setup
 # ==============================================================================
@@ -177,8 +194,9 @@ fi
 
 # activate asg environment and install required packages
 conda activate "$ENV_NAME" && \
-    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64.whl
-# any other custom pip installs here
+    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64.whl && \
+    pip install -r "${USER_HOME}/Documents/asgard-alignment/spinview_reqs.txt" 
+
 
 
 # ==============================================================================
