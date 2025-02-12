@@ -11,24 +11,6 @@ USER_HOME=$(eval echo ~${SUDO_USER})
 # Pre-checks
 # ==============================================================================
 
-# Check if the spinnaker package is present
-if [[ -f "$(pwd)/spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz" ]]; then
-    echo "Extracting spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz..."
-    tar -xzf spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz
-else
-    echo "Error: spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz file is not present in the current directory."
-    exit 1
-fi
-
-# Check if the spinnaker python package is present
-if [[ -f "$(pwd)/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz" ]]; then
-    echo "Extracting spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz..."
-    mkdir -p spinnaker_python-4.2.0.46
-    tar -xzf spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz -C spinnaker_python-4.2.0.46
-else
-    echo "Error: spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz file is not present in the current directory."
-    exit 1
-fi
 
 # FLI?
 
@@ -50,7 +32,7 @@ apt-get install -y \
 
 # spinview - see readme in spinnaker-4.2.0.46-amd64-22.04
 apt-get install -y \
-    libusb \
+    libusb-1.0-0 \
     libavcodec58 \
     libavformat58 \
     libswscale5 \
@@ -87,7 +69,7 @@ if [[ -d "/${USER_HOME}/miniconda3" ]]; then
 else
     mkdir -p ${USER_HOME}/miniconda3
     wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${USER_HOME}/miniconda3/miniconda.sh
-    bash ${USER_HOME}/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+    sudo bash ${USER_HOME}/miniconda3/miniconda.sh -b -u -p ~/miniconda3
     rm ${USER_HOME}/miniconda3/miniconda.sh
     source ${USER_HOME}/miniconda3/bin/activate
 fi
@@ -127,7 +109,7 @@ if [[ -d "${REPO_DIR}" ]]; then
 else
     echo "Cloning Git repository..."
     # Replace <your-username> and <your-repo> with your actual repository URL
-    sudo -u ${SUDO_USER} git clone git@github.com:ataras2/asgard-alignment.git ${REPO_DIR}
+    sudo -u ${SUDO_USER} git clone https://github.com/ataras2/asgard-alignment.git ${REPO_DIR}
 fi
 
 
@@ -148,9 +130,9 @@ echo "xset s noblank" >> /etc/profile
 # ==============================================================================
 # again following the readme
 
-sudo sh install_spinnaker.sh
-sudo apt install ethtool
-sudo ./gev_nettweak eth0 # TODO check ethernet port
+#sudo sh install_spinnaker.sh
+#sudo apt install ethtool
+#sudo ./gev_nettweak eth0 # TODO check ethernet port
  
 # ==============================================================================
 # Conda Environment Setup
@@ -184,7 +166,14 @@ sudo -i -u $USER bash -c "source $CONDA_HOME/etc/profile.d/conda.sh && \
 # No machine configuration
 # ==============================================================================
 
-
+if ! command -v /usr/NX/bin/nxserver &> /dev/null; then
+    echo "Installing NoMachine..."
+    sudo wget https://download.nomachine.com/download/8.16/Linux/nomachine_8.16.1_1_amd64.deb
+    sudo dpkg -i nomachine_8.16.1_1_amd64.deb
+    rm nomachine_8.16.1_1_amd64.deb
+else
+    echo "NoMachine is already installed."
+fi
 
 
 # ==============================================================================
