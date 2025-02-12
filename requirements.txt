@@ -19,10 +19,11 @@ PySpin==1.1.1
 PyVISA==1.13.0
 pyzelda==1.2
 scikit_learn==1.6.1
-scipy==1.15.1
+scipy==1.9.1
 setuptools==68.2.2
 scikit-image==0.20.0
 streamlit==1.39.0
 sympy==1.13.2
 tqdm==4.65.0
 zaber_motion==6.5.0
+zmq==0.0.0

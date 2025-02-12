@@ -4,8 +4,9 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Get the username of the user who invoked sudo
-USER_HOME=$(eval echo ~${SUDO_USER})
+sudo echo "Starting setup script..."
+
+export USER_HOME="/home/$(logname)"
 
 # ==============================================================================
 # Pre-checks
@@ -22,16 +23,16 @@ USER_HOME=$(eval echo ~${SUDO_USER})
 # Update package list and install necessary packages
 echo "Updating package list and installing necessary packages..."
 
-apt-get update 
+sudo apt-get update 
 # DCS
-apt-get install -y \
+sudo apt-get install -y \
     nlohmann-json3-dev \
     libfmt-dev \
     libzmq3-dev \
     libboost-all-dev
 
 # spinview - see readme in spinnaker-4.2.0.46-amd64-22.04
-apt-get install -y \
+sudo apt-get install -y \
     libusb-1.0-0 \
     libavcodec58 \
     libavformat58 \
@@ -41,7 +42,7 @@ apt-get install -y \
     qt5-default
 
 # general
-apt-get install -y \
+sudo apt-get install -y \
     cmake \
     git \
     wget \
@@ -64,13 +65,13 @@ sudo usermod -a -G dialout $USER
 # ==============================================================================
 
 # Check if Miniconda is already installed
-if [[ -d "/${USER_HOME}/miniconda3" ]]; then
+if [[ -d "${USER_HOME}/miniconda3" ]]; then
     echo "Miniconda is already installed."
 else
-    mkdir -p ${USER_HOME}/miniconda3
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${USER_HOME}/miniconda3/miniconda.sh
-    sudo bash ${USER_HOME}/miniconda3/miniconda.sh -b -u -p ~/miniconda3
-    rm ${USER_HOME}/miniconda3/miniconda.sh
+    sudo mkdir -p ${USER_HOME}/miniconda3
+    sudo wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ${USER_HOME}/miniconda3/miniconda.sh
+    sudo bash ${USER_HOME}/miniconda3/miniconda.sh -b -u -p ${USER_HOME}/miniconda3
+    sudo rm ${USER_HOME}/miniconda3/miniconda.sh
     source ${USER_HOME}/miniconda3/bin/activate
 fi
 
@@ -82,11 +83,11 @@ fi
 # Check if Visual Studio Code Insiders is already installed
 if ! command -v code-insiders &> /dev/null; then
     echo "Installing Visual Studio Code Insiders..."
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
-    install -o root -g root -m 644 microsoft.gpg /etc/apt/trusted.gpg.d/
-    sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
-    apt-get update
-    apt-get install -y code-insiders
+    sudo wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > microsoft.gpg
+    sudo install -o root -g root -m 644 microsoft.gpg /etc/apt/trusted.gpg.d/
+    sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list'
+    sudo apt-get update
+    sudo apt-get install -y code-insiders
     rm microsoft.gpg
 else
     echo "Visual Studio Code Insiders is already installed."
@@ -99,8 +100,8 @@ fi
 
 # Configure Git username and email
 echo "Configuring Git username and email..."
-sudo -u ${SUDO_USER} git config --global user.name "ataras2"
-sudo -u ${SUDO_USER} git config --global user.email "ataras2@gmail.com"
+git config --global user.name "ataras2"
+git config --global user.email "ataras2@gmail.com"
 
 # Check if the repository already exists
 REPO_DIR="${USER_HOME}/Documents/asgard-alignment"
@@ -108,8 +109,7 @@ if [[ -d "${REPO_DIR}" ]]; then
     echo "Repository already exists at ${REPO_DIR}."
 else
     echo "Cloning Git repository..."
-    # Replace <your-username> and <your-repo> with your actual repository URL
-    sudo -u ${SUDO_USER} git clone https://github.com/ataras2/asgard-alignment.git ${REPO_DIR}
+    git clone https://github.com/ataras2/asgard-alignment.git ${REPO_DIR}
 fi
 
 
@@ -118,10 +118,10 @@ fi
 # ==============================================================================
 
 # Prevent the screen from turning blank
-echo "Preventing the screen from turning blank..."
-echo "xset s off" >> /etc/profile
-echo "xset -dpms" >> /etc/profile
-echo "xset s noblank" >> /etc/profile
+# echo "Preventing the screen from turning blank..."
+# sudo echo "xset s off" >> /etc/profile
+# sudo echo "xset -dpms" >> /etc/profile
+# sudo echo "xset s noblank" >> /etc/profile
 
 
 
@@ -138,26 +138,24 @@ echo "xset s noblank" >> /etc/profile
 # Conda Environment Setup
 # ==============================================================================
 # Set environment variables for conda
-export USER_HOME=$USER_HOME
-export CONDA_HOME="/home/$USER_HOME/miniconda3"
-export PATH="$CONDA_HOME/bin:$PATH"
-
+export CONDA_HOME="${USER_HOME}/miniconda3"
+export ENV_NAME="asgard"
 
 # init conda
 source "$CONDA_HOME/etc/profile.d/conda.sh"
 
-
-# check if environment exists, if not, make env with 3.10
-if ! conda info --envs | grep -q "asg"; then
-    sudo -u $USER conda create -y -n asg python=3.10
+# check if environment exists, if not, make env with Python 3.10
+if ! conda info --envs | grep -q "$ENV_NAME"; then
+    echo "Creating conda environment '$ENV_NAME' with Python 3.10..."
+    conda create -y -n "$ENV_NAME" python=3.10
+else
+    echo "Conda environment '$ENV_NAME' already exists."
 fi
 
-
-# activate asg environment
-sudo -i -u $USER bash -c "source $CONDA_HOME/etc/profile.d/conda.sh && \
-    conda activate asg && \
-    pip install -r ${USER_HOME}/Documents/asgard-alignment/requirements.txt \
-    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64.whl"
+# activate asg environment and install required packages
+conda activate "$ENV_NAME" && \
+    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" && \
+    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64.whl
     
 # any other custom pip installs here
 
