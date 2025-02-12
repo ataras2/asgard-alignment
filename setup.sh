@@ -11,9 +11,24 @@ USER_HOME=$(eval echo ~${SUDO_USER})
 # Pre-checks
 # ==============================================================================
 
+# Check if the spinnaker package is present
+if [[ -f "$(pwd)/spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz" ]]; then
+    echo "Extracting spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz..."
+    tar -xzf spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz
+else
+    echo "Error: spinnaker-4.2.0.46-amd64-22.04-pkg.tar.gz file is not present in the current directory."
+    exit 1
+fi
 
-# Check if the spinview install is present
-# TODO
+# Check if the spinnaker python package is present
+if [[ -f "$(pwd)/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz" ]]; then
+    echo "Extracting spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz..."
+    mkdir -p spinnaker_python-4.2.0.46
+    tar -xzf spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz -C spinnaker_python-4.2.0.46
+else
+    echo "Error: spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64-22.04.tar.gz file is not present in the current directory."
+    exit 1
+fi
 
 # FLI?
 
@@ -33,6 +48,16 @@ apt-get install -y \
     libzmq3-dev \
     libboost-all-dev
 
+# spinview - see readme in spinnaker-4.2.0.46-amd64-22.04
+apt-get install -y \
+    libusb \
+    libavcodec58 \
+    libavformat58 \
+    libswscale5 \
+    libswresample3 \
+    libavutil56 \
+    qt5-default
+
 # general
 apt-get install -y \
     cmake \
@@ -42,6 +67,14 @@ apt-get install -y \
     curl 
 
 # TODO
+
+# ==============================================================================
+# Environment Setup
+# ==============================================================================
+
+# Allow USB device access
+echo "Allowing USB device access..."
+sudo usermod -a -G dialout $USER
 
 
 # ==============================================================================
@@ -110,6 +143,15 @@ echo "xset s noblank" >> /etc/profile
 
 
 
+# ==============================================================================
+# Spinview setup
+# ==============================================================================
+# again following the readme
+
+sudo sh install_spinnaker.sh
+sudo apt install ethtool
+sudo ./gev_nettweak eth0 # TODO check ethernet port
+ 
 # ==============================================================================
 # Conda Environment Setup
 # ==============================================================================
