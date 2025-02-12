@@ -1260,9 +1260,15 @@ with col_main:
             # convert to list of dicts
             data = json.loads(res)
 
-            column_names = ["Axis name", "Motor type", "Controller connected?", "State"]
-            keys = ["axis", "motor_type", "is_connected", "state"]
-            col_widths = [1, 1, 1, 5]
+            column_names = [
+                "Axis name",
+                "Motor type",
+                "Controller connected?",
+                "State",
+                "Connect?",
+            ]
+            keys = ["axis", "motor_type", "is_connected", "state", "connect_button"]
+            col_widths = [1, 1, 1, 5, 1]
 
             st.write("Health of all motors")
 
@@ -1289,5 +1295,12 @@ with col_main:
                                 col.success(data[i][keys[j]])
                             else:
                                 col.error(data[i][keys[j]])
+                    elif keys[j] == "connect_button":
+                        if data[i]["is_connected"]:
+                            pass
+                        else:
+                            if col.button("Connect"):
+                                message = f"connect {data[i]['axis']}"
+                                send_and_get_response(message)
                     else:
                         col.write(data[i][keys[j]])

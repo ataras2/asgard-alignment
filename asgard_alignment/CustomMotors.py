@@ -92,7 +92,7 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         pass
 
     def read_state(self):
-        return self._state
+        return f"READY ({self._state})"
 
     def setup(self, value):
         pass
