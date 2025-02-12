@@ -172,13 +172,12 @@ fi
 
 
 # activate asg environment
-# sudo -i -u $USER bash -c "source $CONDA_HOME/etc/profile.d/conda.sh && \
-#     conda activate charPL && \
-#     pip install -r ${USER_HOME}/Documents/characterise_PL/requirements.txt \
-#     && unzip ${USER_HOME}/Downloads/arena_api-2.5.9-py3-none-any.zip -d \
-#     ${USER_HOME}/Downloads/ && \
-#     pip install ${USER_HOME}/Downloads/arena_api-2.5.9-py3-none-any.whl && \
-#     pip install -e ${USER_HOME}/Documents/characterise_PL"
+sudo -i -u $USER bash -c "source $CONDA_HOME/etc/profile.d/conda.sh && \
+    conda activate asg && \
+    pip install -r ${USER_HOME}/Documents/asgard-alignment/requirements.txt \
+    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64.whl"
+    
+# any other custom pip installs here
 
 
 # ==============================================================================
