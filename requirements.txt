@@ -10,7 +10,7 @@ numpy==1.23.0
 opencv_python==4.10.0.84
 pandas==2.2.3
 parse==1.19.0
-Pillow==11.1.0
+pillow==10.2.0
 PyQt5==5.15.10
 PyQt5_sip==12.13.0
 pyqtgraph==0.13.7
