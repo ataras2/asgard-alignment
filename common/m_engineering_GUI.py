@@ -1165,21 +1165,21 @@ with col_main:
                     st.image("figs/pupil_plane_KE.png")
 
         if routine_options == "Save state":
-
-            instruments = ["Heimdallr", "Baldr", "Solarstein"]
+            instruments = ["Heimdallr", "Baldr", "Solarstein", "All"]
             # grid of 3 rows, 2 cols, with first col being the save location
             # and second col being the save button
-            for i in range(3):
+            for i, instr in enumerate(instruments):
                 col1, col2 = st.columns(2)
                 with col1:
                     save_location = st.text_input(
-                        f"Save {instruments[i]}", key=f"save_location_{i}"
+                        f"Save {instr}", key=f"save_location_{i}"
                     )
                 with col2:
-                    if st.button(f"Save {instruments[i]}"):
-                        if instruments[i] == "Solarstein":
-                            motor_names = ["SDLA", "SDL12", "SDL34", "SSS"]
-                        elif instruments[i] == "Heimdallr":
+                    if st.button(f"Save {instr}"):
+                        motor_names = []
+                        if instr == "Solarstein" or instr == "All":
+                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS"]
+                        if instr == "Heimdallr" or instr == "All":
                             motor_names_no_beams = [
                                 "HFO",
                                 "HTPP",
@@ -1188,12 +1188,11 @@ with col_main:
                                 "HTTI",
                             ]
 
-                            motor_names = []
                             for motor in motor_names_no_beams:
                                 for beam_number in range(1, 5):
                                     motor_names.append(f"{motor}{beam_number}")
-                        elif instruments[i] == "Baldr":
-                            motor_names = ["BFO"]
+                        if instr == "Baldr" or instr == "All":
+                            motor_names += ["BFO"]
 
                             motor_names_no_beams = [
                                 "BDS",
@@ -1202,6 +1201,15 @@ with col_main:
                                 "BMX",
                                 "BMY",
                             ]
+
+                            partially_common_motors = [
+                                "BOTT",
+                                "BOTP",
+                            ]
+
+                            for motor in partially_common_motors:
+                                for beam_number in range(2, 5):
+                                    motor_names.append(f"{motor}{beam_number}")
 
                             for motor in motor_names_no_beams:
                                 for beam_number in range(1, 5):
@@ -1226,9 +1234,13 @@ with col_main:
 
                             states.append(state)
 
-                        # save to json at location
-                        with open("instr_states/" + save_location + ".json", "w") as f:
-                            json.dump(states, f, indent=4)
+                        fname = "instr_states/" + save_location + ".json"
+                        if os.path.exists(fname):
+                            st.error(f"File {fname} already exists")
+                        else:
+                            # save to json at location
+                            with open(fname, "w") as f:
+                                json.dump(states, f, indent=4)
 
         if routine_options == "Load state":
             # text box and reading of the json
