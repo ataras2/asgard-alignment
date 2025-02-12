@@ -6,7 +6,7 @@ control==0.10.1
 corner==2.2.2
 fpdf==1.7.2
 matplotlib==3.8.3
-numpy==2.2.2
+numpy==1.23.0
 opencv_python==4.10.0.84
 pandas==2.2.3
 parse==1.19.0
