@@ -12,6 +12,15 @@ export USER_HOME="/home/$(logname)"
 # Pre-checks
 # ==============================================================================
 
+# Check if the spinnaker python package is present
+if [[ -f "$(pwd)/spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64-20.04.tar.gz" ]]; then
+    echo "Extracting spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64-20.04.tar.gz..."
+    mkdir -p spinnaker_python-4.2.0.46
+    tar -xzf spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64-20.04.tar.gz -C spinnaker_python-4.2.0.46
+else
+    echo "Error: spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64-20.04.tar.gz file is not present in the current directory."
+    exit 1
+fi
 
 # FLI?
 
@@ -154,9 +163,21 @@ fi
 
 # activate asg environment and install required packages
 conda activate "$ENV_NAME" && \
-    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" && \
-    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp310-cp310-linux_x86_64.whl
-    
+    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" 
+# any other custom pip installs here
+
+
+export ENV_NAME="spinview"
+if ! conda info --envs | grep -q "$ENV_NAME"; then
+    echo "Creating conda environment '$ENV_NAME' with Python 3.8..."
+    conda create -y -n "$ENV_NAME" python=3.8
+else
+    echo "Conda environment '$ENV_NAME' already exists."
+fi
+
+# activate asg environment and install required packages
+conda activate "$ENV_NAME" && \
+    pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64.whl
 # any other custom pip installs here
 
 

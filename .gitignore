@@ -25,6 +25,7 @@ phasemask_centering_tool.log
 *.csv
 *.txt
 !requirements.txt
+!spinview_reqs.txt
 *.austin
 
 asgard_alignment.egg-info
