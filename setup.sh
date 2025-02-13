@@ -34,7 +34,17 @@ else
 fi
 
 # FLI?
+# TODO search google for pc edt f4 and frind drivers (get link)
+wget https://edt.com/downloads/pdv_6-2-0_deb_amd64/
+sudo apt-get install dkms
+sudo dpkg -i edtpdv_6.2.0_amd64.deb
 
+
+# TODO BMC stuff
+wget https://bostonmicromachines.com/DMSDK/BMC-DMSDK.zip
+
+
+# TODO also need to setup rc.local to include modprobe for TT motors...
 
 # ==============================================================================
 # Spinview setup
