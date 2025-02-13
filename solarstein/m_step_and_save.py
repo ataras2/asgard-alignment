@@ -93,6 +93,9 @@ def main():
     print(f"Response: {res}")
     input("check we are at end")
 
+    socket.send_string(f"moveabs {axis} {positions[0]}")
+    res = socket.recv_string()
+
     # setup camera
     cam = asgard_alignment.Cameras.PointGrey()
 
