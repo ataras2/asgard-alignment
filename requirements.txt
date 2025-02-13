@@ -28,3 +28,4 @@ sympy==1.13.2
 tqdm==4.65.0
 zaber_motion==6.5.0
 zmq==0.0.0
+zeroconf==0.131.0

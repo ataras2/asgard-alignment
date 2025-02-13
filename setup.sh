@@ -128,6 +128,8 @@ else
     sudo bash ${USER_HOME}/miniconda3/miniconda.sh -b -u -p ${USER_HOME}/miniconda3
     sudo rm ${USER_HOME}/miniconda3/miniconda.sh
     source ${USER_HOME}/miniconda3/bin/activate
+    echo "source ${USER_HOME}/miniconda3/bin/activate" >> ${USER_HOME}/.bashrc
+    echo "conda activate asgard" >> ${USER_HOME}/.bashrc
 fi
 
 
@@ -200,7 +202,7 @@ fi
 # activate asg environment and install required packages
 conda activate "$ENV_NAME" && \
     pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" && \
-    pip install .
+    pip install -e .
 # any other custom pip installs here
 
 
