@@ -54,6 +54,16 @@ if "socket" not in st.session_state:
     )
     st.session_state["socket"].connect(server_address)
 
+
+if "SSS_fixed_mapping" not in st.session_state:
+    st.session_state[f"SSS_fixed_mapping"] = {
+        "SRL": 11.5,
+        "SGL": 38.5,
+        "SLD/SSP": 92.5,
+        "SBB": 65.5,
+    }
+    st.session_state[f"SSS_offset"] = 0.0
+
 st.title("Asgard alignment engineering GUI")
 
 
@@ -512,14 +522,6 @@ def handle_linear_stage():
 
     elif component == "SSS":
         valid_pos = ["SRL", "SGL", "SLD/SSP", "SBB"]
-        if "SSS_fixed_mapping" not in st.session_state:
-            st.session_state[f"SSS_fixed_mapping"] = {
-                "SRL": 11.5,
-                "SGL": 38.5,
-                "SLD/SSP": 92.5,
-                "SBB": 65.5,
-            }
-            st.session_state[f"SSS_offset"] = 0.0
 
     mapping = {
         k: v + st.session_state[f"{target}_offset"]
@@ -1019,13 +1021,103 @@ with col_main:
 
         routine_options = st.selectbox(
             "Select Routine",
-            ["Quick buttons", "Move image/pupil", "Save state", "Load state", "Health"],
+            [
+                "Quick buttons",
+                "Illumination",
+                "Move image/pupil",
+                "Save state",
+                "Load state",
+                "Health",
+            ],
             key="routine_options",
         )
 
         if routine_options == "Quick buttons":
             # zero_all command button
             st.write("Nothing here (yet)")
+
+        if routine_options == "Illumination":
+            # a few options to control sources, source position and flipper states
+
+            # refresh button
+            if st.button("Refresh"):
+                pass
+
+            # source position
+            st.subheader("Source Position")
+            target = "SSS"
+            mapping = {
+                k: v + st.session_state[f"{target}_offset"]
+                for k, v in st.session_state[f"{target}_fixed_mapping"].items()
+            }
+
+            # add two buttons, one for homing and one for reading position
+            s_col1, s_col2, s_col3 = st.columns(3)
+
+            with s_col1:
+                if st.button("Read Position"):
+                    message = f"read {target}"
+                    res = send_and_get_response(message)
+                    # check if close to any preset position
+                    for pos, val in mapping.items():
+                        if np.isclose(float(res), val, atol=0.1):
+                            st.write(f"Current position: {float(res):.2f} mm ({pos})")
+                            break
+                    else:
+                        st.write(f"Current position: {float(res):.2f} mm")
+
+            buttons = ["SRL", "SGL", "SLD/SSP", "SBB"]
+            button_cols = st.columns(len(buttons))
+
+            for i, button in enumerate(buttons):
+                with button_cols[i]:
+                    if st.button(button):
+                        print(st.session_state[f"SSS_fixed_mapping"][button])
+                        message = f"moveabs SSS {st.session_state[f'SSS_fixed_mapping'][button]}"
+                        res = send_and_get_response(message)
+                        st.write(res)
+
+            # source on/off vertical buttons
+            st.subheader("Source On/Off")
+            headers = ["SRL", "SGL"]
+            header_colours = ["red", "green"]
+            button_cols = st.columns(len(headers))
+
+            for i, header in enumerate(headers):
+                with button_cols[i]:
+                    st.markdown(
+                        f'<p style="color:{header_colours[i]}; font-size: 20px;">{header}</p>',
+                        unsafe_allow_html=True,
+                    )
+                    if st.button(f"{header} On"):
+                        message = f"on {header}"
+                        res = send_and_get_response(message)
+                        # st.write(res)
+                    if st.button(f"{header} Off"):
+                        message = f"off {header}"
+                        res = send_and_get_response(message)
+                        # st.write(res)
+
+            # flippers
+            st.subheader("Flippers")
+            names = [f"SSF{i}" for i in range(1, 5)]
+            flipper_cols = st.columns(4)
+
+            for i, flipper in enumerate(names):
+                with flipper_cols[i]:
+                    st.markdown(f"**{flipper}**")
+                    if st.button(f"Up", key=f"up__{flipper}"):
+                        message = f"moveabs {flipper} 1.0"
+                        res = send_and_get_response(message)
+                        # st.write(res)
+                    if st.button(f"Down", key=f"down__{flipper}"):
+                        message = f"moveabs {flipper} 0.0"
+                        res = send_and_get_response(message)
+                        # st.write(res)
+                        # refresh
+
+                    cur_state = send_and_get_response(f"state {flipper}")
+                    st.write(f"Current state: {cur_state}")
 
         if routine_options == "Move image/pupil":
             col1, col2, col3 = st.columns(3)

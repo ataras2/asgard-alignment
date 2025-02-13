@@ -66,6 +66,7 @@ class PointGrey:
 
         # frame rate stuff
         # self.cam.AcquisitionFrameRateEnable.SetValue(True)
+        # self.cam.AcquisitionFrameRateAuto.SetValue(PySpin.AcquisitionFrameRateAuto_Off)
         # self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
@@ -446,7 +447,7 @@ class MockPointGrey:
 if __name__ == "__main__":
     # run some tests quickly
 
-    testing_what = "MockPointGrey"
+    testing_what = "PointGrey"
     mock_fname = "data/lab_imgs/beam_4_f400_laser_top_level_nd3.png"
 
     if testing_what == "PointGrey":
