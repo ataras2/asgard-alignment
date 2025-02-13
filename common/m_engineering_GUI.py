@@ -1051,17 +1051,18 @@ with col_main:
                 for k, v in st.session_state[f"{target}_fixed_mapping"].items()
             }
 
-            # add two buttons, one for homing and one for reading position
-            s_col1, s_col2, s_col3 = st.columns(3)
-
-            with s_col1:
+            but, txt = st.columns([1, 1])
+            res = None
+            with but:
                 if st.button("Read Position"):
                     message = f"read {target}"
                     res = send_and_get_response(message)
+            with txt:
+                if res:
                     # check if close to any preset position
                     for pos, val in mapping.items():
                         if np.isclose(float(res), val, atol=0.1):
-                            st.write(f"Current position: {float(res):.2f} mm ({pos})")
+                            st.write(f"Pos: {float(res):.2f} mm ({pos})")
                             break
                     else:
                         st.write(f"Current position: {float(res):.2f} mm")
@@ -1086,7 +1087,7 @@ with col_main:
             for i, header in enumerate(headers):
                 with button_cols[i]:
                     st.markdown(
-                        f'<p style="color:{header_colours[i]}; font-size: 20px;">{header}</p>',
+                        f'<h4 style="color:{header_colours[i]};">{header}</h4>',
                         unsafe_allow_html=True,
                     )
                     if st.button(f"{header} On"):
@@ -1105,7 +1106,7 @@ with col_main:
 
             for i, flipper in enumerate(names):
                 with flipper_cols[i]:
-                    st.markdown(f"**{flipper}**")
+                    st.markdown(f"<h4><b>{flipper}</b></h4>", unsafe_allow_html=True)
                     if st.button(f"Up", key=f"up__{flipper}"):
                         message = f"moveabs {flipper} 1.0"
                         res = send_and_get_response(message)
@@ -1117,7 +1118,13 @@ with col_main:
                         # refresh
 
                     cur_state = send_and_get_response(f"state {flipper}")
-                    st.write(f"Current state: {cur_state}")
+                    # st.write(f"Current state: {cur_state}")
+                    if "up" in cur_state:
+                        st.success("Up")
+                    elif "down" in cur_state:
+                        st.error("Down")
+                    else:
+                        st.warning("Unknown")
 
         if routine_options == "Move image/pupil":
             col1, col2, col3 = st.columns(3)
