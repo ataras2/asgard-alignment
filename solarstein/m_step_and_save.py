@@ -72,6 +72,9 @@ def main():
     n_imgs = args.n_imgs
     axis = args.axis
 
+    if axis not in ["SDL12", "SDLA", "SDL34"]:
+        raise ValueError("Invalid axis")
+
     if not os.path.exists(pth):
         os.makedirs(pth)
 
