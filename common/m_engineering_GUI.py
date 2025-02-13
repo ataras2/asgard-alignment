@@ -1317,7 +1317,7 @@ with col_main:
                         if data[i]["is_connected"]:
                             pass
                         else:
-                            if col.button("Connect"):
+                            if col.button("Connect", key=f"connect_{i}"):
                                 message = f"connect {data[i]['axis']}"
                                 send_and_get_response(message)
                     else:
