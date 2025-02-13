@@ -41,16 +41,35 @@ fi
 # ==============================================================================
 # again following the readme
 
+mkdir -p spinnaker-4.2.0.46-amd64
 cd spinnaker-4.2.0.46-amd64/
-{
-    sudo sh install_spinnaker.sh 
-    sudo apt install ethtool
-    sudo /opt/spinnaker/bin/./gev_nettweak eno8403
-} || {
-    echo "Error occurred during Spinview setup, but continuing with the script..."
-}
+if [[ ! -f "remove_spinnaker.sh" ]]; then
+    {
+        sudo sh install_spinnaker.sh 
+        sudo apt install ethtool
+        sudo /opt/spinnaker/bin/./gev_nettweak eno8403
+    } || {
+        echo "Error occurred during Spinview setup, but continuing with the script..."
+    }
+else
+    echo "Spinnaker is already installed."
+fi
 cd ..
 
+
+# ==============================================================================
+# Zaber launcher setup
+# ==============================================================================
+
+mkdir -p zaber_launcher
+cd zaber_launcher
+if [[ ! -f "ZaberLauncher.AppImage" ]]; then
+    wget https://zaber-launcher-release.s3-us-west-2.amazonaws.com/public/ZaberLauncher.AppImage
+    chmod +x ZaberLauncher.AppImage
+else
+    echo "ZaberLauncher.AppImage already exists."
+fi
+cd ..
 
 # ==============================================================================
 # System Update and Package Installation
@@ -180,7 +199,8 @@ fi
 
 # activate asg environment and install required packages
 conda activate "$ENV_NAME" && \
-    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" 
+    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" && \
+    pip install .
 # any other custom pip installs here
 
 

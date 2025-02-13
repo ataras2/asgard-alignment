@@ -6,6 +6,10 @@
 
 *.json
 !motor_info_full_system.json
+!config_files/beam1/phase_positions_beam_1_original_DONT_DELETE.json
+!config_files/beam2/phase_positions_beam_2_original_DONT_DELETE.json
+!config_files/beam3/phase_positions_beam_3_original_DONT_DELETE.json
+!config_files/beam4/phase_positions_beam_4_original_DONT_DELETE.json
 *.log
 
 build
