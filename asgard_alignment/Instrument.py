@@ -21,8 +21,8 @@ import asgard_alignment.controllino
 import bmc
 
 
-phasemask_position_directory = Path(
-    "/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions"
+phasemask_position_directory = Path.home().joinpath(
+    "Documents/asgard-alignment/config_files/phasemask_positions"
 )
 
 
@@ -192,10 +192,14 @@ class Instrument:
             else:
                 # try to find if configuration file provided in config file
                 pth = phasemask_position_directory.joinpath(Path(f"beam{beam}/"))
+                print("---------------------------")
+                print(pth)
                 # if not try find the most recent in a predefined folder
                 files = list(
                     pth.glob("*.json")
                 )  # [file for file in pth.iterdir() if file.is_file()]
+                print("\n")
+                print(files)
                 # most recent
                 if files:
                     phase_positions_json = max(
