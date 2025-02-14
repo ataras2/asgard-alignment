@@ -14,6 +14,8 @@
 !config_files/phasemask_positions/beam2/phase_positions_beam2_2024-11-22T18-47-39.json
 !config_files/phasemask_positions/beam3/phase_positions_beam3_2024-12-13T01-59-49.json
 !config_files/phasemask_positions/beam4/phase_positions_beam_4_2024-12-16T02-05-00.json
+!config_files/default_cred1_config.json
+
 *.log
 
 build
