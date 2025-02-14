@@ -279,6 +279,9 @@ class M100DAxis(ESOdevice.Motor):
         # option 2: relative move using internal state (assuming encoder drifts and not motor)
         # self.move_relative(value - self.internal_position)
 
+    def reset(self):
+        self._connection.write_str(f"1RS")
+
     def disable(self):
         pass
 
@@ -381,6 +384,9 @@ class LS16PAxis(ESOdevice.Motor):
             print(f"Error: {error_str}, State: {state_str}")
 
         return f"{error_str}\n {state_str}"
+
+    def reset(self):
+        self._connection.write_str("1RS")
 
     def ping(self):
         try:

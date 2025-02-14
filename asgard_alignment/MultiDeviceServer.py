@@ -475,6 +475,13 @@ class MultiDeviceServer:
         def is_on_msg(lamp_name):
             return str(self.instr.devices[lamp_name].is_on())
 
+        def reset_msg(axis):
+            try:
+                self.instr.devices[axis].reset()
+                return "ACK"
+            except Exception as e:
+                return f"NACK: {e}"
+
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
                 return f"NACK: DM {dm_name} not found"
@@ -620,6 +627,7 @@ class MultiDeviceServer:
             "on": on_msg,
             "off": off_msg,
             "is_on": is_on_msg,
+            "reset": reset_msg,
         }
 
         first_word_to_format = {
@@ -647,6 +655,7 @@ class MultiDeviceServer:
             "on": "on {}",
             "off": "off {}",
             "is_on": "is_on {}",
+            "reset": "reset {}",
         }
 
         try:
