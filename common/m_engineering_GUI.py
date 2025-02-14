@@ -1383,6 +1383,7 @@ with col_main:
                 "Controller connected?",
                 "State",
                 "Connect?",
+                "Reset"
             ]
             keys = ["axis", "motor_type", "is_connected", "state", "connect_button", "reset_button"]
             col_widths = [1, 1, 1, 5, 1,1]
