@@ -65,6 +65,16 @@ class CameraApp:
         )
         self.save_button.grid(row=5, column=0, columnspan=3, sticky=tk.W)
 
+        self.save_csv_label = tk.Label(control_frame, text="CSV Filename:")
+        self.save_csv_label.grid(row=6, column=0, sticky=tk.W)
+        self.save_csv_entry = tk.Entry(control_frame)
+        self.save_csv_entry.grid(row=6, column=1, sticky=tk.W)
+
+        self.save_csv_button = tk.Button(
+            control_frame, text="Save CSV", command=self.save_csv
+        )
+        self.save_csv_button.grid(row=7, column=0, columnspan=3, sticky=tk.W)
+
         stats_frame = tk.Frame(root)
         stats_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
@@ -185,6 +195,14 @@ class CameraApp:
             filename, images=np.array(frames), gain=gain, exposure_time=exposure_time
         )
         print(f"Saved {num_frames} frames to {filename}.npz")
+
+    def save_csv(self):
+        filename = self.save_csv_entry.get()
+        wfs_signals = [
+            bar["value"] - 300 for bar in self.extra_bars
+        ]  # Normalize back to -300 to 300 range
+        np.savetxt(filename, wfs_signals, delimiter=",")
+        print(f"Saved WFS signals to {filename}")
 
     def update_info(self):
         current_gain = math.floor(self.camera["Gain"] * 100) / 100
