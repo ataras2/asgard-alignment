@@ -243,7 +243,7 @@ conda activate "$ENV_NAME" && \
     pip install spinnaker_python-4.2.0.46/spinnaker_python-4.2.0.46-cp38-cp38-linux_x86_64.whl && \
     pip install -r "${USER_HOME}/Documents/asgard-alignment/spinview_reqs.txt" 
 
-
+export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libffi.so.7
 
 # ==============================================================================
 # No machine configuration
