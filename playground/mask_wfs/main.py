@@ -1,6 +1,6 @@
 import tkinter as tk
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import asgard_alignment.Cameras
 import time
 import math
@@ -75,6 +75,20 @@ class CameraApp:
         )
         self.save_csv_button.grid(row=7, column=0, columnspan=3, sticky=tk.W)
 
+        self.clicks = []
+
+        self.resize_button = tk.Button(
+            control_frame, text="Resize", command=self.resize_stream
+        )
+        self.resize_button.grid(row=8, column=0, columnspan=3, sticky=tk.W)
+
+        self.full_size_button = tk.Button(
+            control_frame, text="Full Size", command=self.full_size_stream
+        )
+        self.full_size_button.grid(row=9, column=0, columnspan=3, sticky=tk.W)
+
+        self.label.bind("<Button-1>", self.on_click)
+
         stats_frame = tk.Frame(root)
         stats_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
@@ -126,15 +140,12 @@ class CameraApp:
         self.exposure_max = int(self.camera.get_node_max("ExposureTime"))
         self.update_info()
 
+        self.scaling_factor = 1
+
         self.update_frame()
 
     def update_frame(self):
         img = self.camera.get_frame()
-        img = Image.fromarray(img)
-        imgtk = ImageTk.PhotoImage(image=img)
-        self.label.imgtk = imgtk
-        self.label.configure(image=imgtk)
-
         img_array = np.array(img)
         percentiles = np.percentile(img_array, [0, 1, 5, 95, 99, 100])
 
@@ -145,6 +156,27 @@ class CameraApp:
         wfs_signals = mock_wfs_signal(img_array)
         for i, signal in enumerate(wfs_signals):
             self.extra_bars[i]["value"] = signal + 300  # Normalize to 0-600 range
+
+        # Resize image for display
+        img = Image.fromarray(img)
+        img_resized = img.resize(
+            (800, int(800 * img.height / img.width)), Image.Resampling.LANCZOS
+        )
+
+        # Update scaling factor
+        self.scaling_factor = img.width / 800
+
+        # Draw red crosses on the image
+        draw = ImageDraw.Draw(img_resized)
+        for click in self.clicks:
+            x = int(click[0] / self.scaling_factor)
+            y = int(click[1] / self.scaling_factor)
+            draw.line((x - 5, y, x + 5, y), fill="red", width=2)
+            draw.line((x, y - 5, x, y + 5), fill="red", width=2)
+
+        imgtk = ImageTk.PhotoImage(image=img_resized)
+        self.label.imgtk = imgtk
+        self.label.configure(image=imgtk)
 
         self.root.after(int(1000 / self.fps), self.update_frame)  # Update based on FPS
 
@@ -212,12 +244,43 @@ class CameraApp:
             f"Current Exposure: {current_exposure}, Min: {self.exposure_min}, Max: {self.exposure_max}"
         )
 
+    def on_click(self, event):
+        x = int(event.x * self.scaling_factor)
+        y = int(event.y * self.scaling_factor)
+
+        if len(self.clicks) >= 2:
+            self.clicks.pop(0)
+        self.clicks.append((x, y))
+        print(f"Click recorded at: {x}, {y}")
+
+    def resize_stream(self):
+        if len(self.clicks) < 2:
+            print("Need two clicks to resize.")
+            return
+
+        y1, x1 = self.clicks[0]
+        y2, x2 = self.clicks[1]
+
+        self.camera.stop_stream()
+        self.camera.set_region_from_corners(x1, y1, x2, y2)
+        self.camera.start_stream()
+        self.clicks = []
+
+    def full_size_stream(self):
+        self.camera.stop_stream()
+        self.camera["OffsetX"] = 0
+        self.camera["OffsetY"] = 0
+        self.camera["Width"] = self.camera["Width"].GetMax()
+        self.camera["Height"] = self.camera["Height"].GetMax()
+        self.camera.start_stream()
+
     def __del__(self):
         self.camera.stop_stream()
 
 
 if __name__ == "__main__":
-    cam = asgard_alignment.Cameras.PointGrey(None, "14432631")
+    # cam = asgard_alignment.Cameras.PointGrey(None, "14432631")
+    cam = asgard_alignment.Cameras.PointGrey(0)
 
     root = tk.Tk()
     app = CameraApp(root, cam, fps=15)

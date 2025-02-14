@@ -25,6 +25,8 @@ build
 
 phasemask_centering_tool.log
 
+!.npz
+
 *.austin
 
 *.pickle
