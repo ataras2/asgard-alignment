@@ -1384,8 +1384,8 @@ with col_main:
                 "State",
                 "Connect?",
             ]
-            keys = ["axis", "motor_type", "is_connected", "state", "connect_button"]
-            col_widths = [1, 1, 1, 5, 1]
+            keys = ["axis", "motor_type", "is_connected", "state", "connect_button", "reset_button"]
+            col_widths = [1, 1, 1, 5, 1,1]
 
             st.write("Health of all motors")
 
@@ -1418,6 +1418,11 @@ with col_main:
                         else:
                             if col.button("Connect", key=f"connect_{i}"):
                                 message = f"connect {data[i]['axis']}"
+                                send_and_get_response(message)
+                    elif keys[j] == "reset_button":
+                        if data[i]["motor_type"] == "LS16P":
+                            if col.button("Reset", key=f"reset_{i}"):
+                                message = f"init {data[i]['axis']}"
                                 send_and_get_response(message)
                     else:
                         col.write(data[i][keys[j]])
