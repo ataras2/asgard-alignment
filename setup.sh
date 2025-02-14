@@ -42,7 +42,11 @@ sudo dpkg -i edtpdv_6.2.0_amd64.deb
 
 # TODO BMC stuff
 wget https://bostonmicromachines.com/DMSDK/BMC-DMSDK.zip
-
+cd DMSDK
+chmod +x DMSDK-setup-Ubuntu-18.04-x64-4.1.3.run
+sudo ./DMSDK-setup-Ubuntu-18.04-x64-4.1.3.run
+cd ..
+rm -rf DMSDK
 
 # TODO also need to setup rc.local to include modprobe for TT motors...
 
@@ -184,16 +188,26 @@ fi
 # System Configuration
 # ==============================================================================
 
-# Prevent the screen from turning blank
-# echo "Preventing the screen from turning blank..."
-# sudo echo "xset s off" >> /etc/profile
-# sudo echo "xset -dpms" >> /etc/profile
-# sudo echo "xset s noblank" >> /etc/profile
 
+# Prevent the screen from turning blank or locking
+echo "Preventing the screen from turning blank or locking..."
+gsettings set org.gnome.desktop.session idle-delay 0
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+
+# M100D usb detection -------------------------------------
+
+# Check if the commands are already in /etc/rc.local
+if ! grep -q "modprobe ftdi_sio vendor=0x104d:3008 product=3008" /etc/rc.local; then
+    # Add the commands to /etc/rc.local before the 'exit 0' line
+    sudo sed -i '/^exit 0/i \
+    sudo modprobe ftdi_sio vendor=0x104d:3008 product=3008\n\
+    sudo sh -c '\''echo "104d 3008" > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'\''\n' /etc/rc.local
+fi
 
 # ==============================================================================
 # Conda Environment Setup
 # ==============================================================================
+
 # Set environment variables for conda
 export CONDA_HOME="${USER_HOME}/miniconda3"
 export ENV_NAME="asgard"
