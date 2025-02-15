@@ -17,6 +17,8 @@ import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
 
+import time
+
 # SDK for DM
 # sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import asgard_alignment.controllino
@@ -136,6 +138,13 @@ class Instrument:
 
         return health
 
+    def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
+        # input validation
+        if beam_number not in [1, 2, 3, 4]:
+            raise ValueError("beam_number must be in the range [1, 4]")
+        if config not in ["c_red_one_focus", "intermediate_focus"]:
+            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus'")
+
     def move_image(self, config, beam_number, x, y):
         """
         Move the heimdallr image to a new location without moving the pupil
@@ -159,11 +168,7 @@ class Instrument:
         is_successful : bool
             True if the move was successful, False otherwise
         """
-        # input validation
-        if beam_number not in [1, 2, 3, 4]:
-            raise ValueError("beam_number must be in the range [1, 4]")
-        if config not in ["c_red_one_focus", "intermediate_focus"]:
-            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus'")
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
 
         desired_deviation = np.array([[x], [y]])
 
@@ -212,10 +217,22 @@ class Instrument:
             invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
             raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
 
-        for axis, command in zip(axis_list, uv_commands):
-            self.devices[axis + str(beam_number)].move_relative(command[0])
+
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
 
         return True
+
+    def move_pupil(self, config, beam_number, x, y):
+        """
+        Move the Heimdallr pupil to a new location, without moving the image
+        """
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
 
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """
