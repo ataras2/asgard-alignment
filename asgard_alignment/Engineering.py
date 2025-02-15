@@ -11,7 +11,7 @@ import time
 
 def get_matricies(config):
     """
-    Get the matricies for moving the pupil and imagem, depending on the configuration
+    Get the matricies for moving the pupil and image, depending on wthe configuration
 
     Parameters
     ----------

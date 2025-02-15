@@ -7,9 +7,11 @@ import serial.tools.list_ports
 import sys
 import pandas as pd
 from zaber_motion.ascii import Connection
+import numpy as np
 
 import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
+import asgard_alignment.Engineering
 import asgard_alignment.Lamps
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
@@ -18,6 +20,7 @@ import asgard_alignment.Baldr_phasemask
 # SDK for DM
 # sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import asgard_alignment.controllino
+
 # import bmc
 
 
@@ -132,6 +135,77 @@ class Instrument:
             )
 
         return health
+
+    def move_image(self, config, beam_number, x, y):
+        """
+        Move the heimdallr image to a new location without moving the pupil
+
+        Parameters
+        ----------
+        config : str
+            The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+        beam_number : int
+            The beam number to move - in the range [1, 4]
+
+        x : float
+            The x coordinate to move to, in pixels
+
+        y : float
+            The y coordinate to move to, in pixels
+
+        Returns
+        -------
+        is_successful : bool
+            True if the move was successful, False otherwise
+        """
+        # input validation
+        if beam_number not in [1, 2, 3, 4]:
+            raise ValueError("beam_number must be in the range [1, 4]")
+        if config not in ["c_red_one_focus", "intermediate_focus"]:
+            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus'")
+
+        desired_deviation = np.array([[x], [y]])
+
+        _, image_move_matricies = asgard_alignment.Engineering.get_matricies(config)
+
+        M_I = image_move_matricies[beam_number]
+        M_I_pupil = M_I[0]
+        M_I_image = M_I[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_I_pupil, 0.0],
+                [0.0, M_I_pupil],
+                [M_I_image, 0.0],
+                [0.0, M_I_image],
+            ]
+        )
+
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        commands = [
+            f"moverel {axis}{beam_number} {command[0]}"
+            for axis, command in zip(axis_list, uv_commands)
+        ]
 
     def ping_connection(self, axis):
         """

@@ -463,6 +463,22 @@ class MultiDeviceServer:
             health_str = json.dumps(health)
 
             return health_str
+        
+        def mv_img_msg(config, beam_number, x, y):
+            res = self.instr.move_image(config, beam_number, x, y)
+
+            if res:
+                return "ACK: moved"
+            else:
+                return "NACK: not moved"
+            
+        def mv_pup_msg(config, beam_number, x, y):
+            res = self.instr.move_pupil(config, beam_number, x, y)
+
+            if res:
+                return "ACK: moved"
+            else:
+                return "NACK: not moved"
 
         def on_msg(lamp_name):
             self.instr.devices[lamp_name].turn_on()
@@ -628,6 +644,8 @@ class MultiDeviceServer:
             "off": off_msg,
             "is_on": is_on_msg,
             "reset": reset_msg,
+            "mv_img": mv_img_msg,
+            "mv_pup": mv_pup_msg,
         }
 
         first_word_to_format = {
@@ -656,6 +674,8 @@ class MultiDeviceServer:
             "off": "off {}",
             "is_on": "is_on {}",
             "reset": "reset {}",
+            "mv_img": "mv_img {} {} {:f} {:f}",  # mv_img {config} {beam_number} {x} {y}
+            "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
         }
 
         try:
