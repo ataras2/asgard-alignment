@@ -1165,13 +1165,16 @@ with col_main:
 
                 if submit:
                     if move_what == "move_image":
-                        asgard_alignment.Engineering.move_image(
-                            beam, delx, dely, send_and_get_response, config
-                        )
+                        # asgard_alignment.Engineering.move_image(
+                        #     beam, delx, dely, send_and_get_response, config
+                        # )
+                        cmd = f"move_image {config} {beam} {delx} {dely}"
+                        send_and_get_response(cmd)
                     elif move_what == "move_pupil":
-                        asgard_alignment.Engineering.move_pupil(
-                            beam, delx, dely, send_and_get_response, config
-                        )
+                        # asgard_alignment.Engineering.move_pupil(
+                        #     beam, delx, dely, send_and_get_response, config
+                        # )
+                        cmd = f"move_pupil {config} {beam} {delx} {dely}"
             else:
                 # increment selection for each case
                 if move_what == "move_image":
@@ -1192,24 +1195,18 @@ with col_main:
                     )
 
                 if move_what == "move_image":
-                    move_function = asgard_alignment.Engineering.move_image
+                    # move_function = asgard_alignment.Engineering.move_image
+                    mv_cmd = "mv_img"
                 elif move_what == "move_pupil":
-                    move_function = asgard_alignment.Engineering.move_pupil
+                    # move_function = asgard_alignment.Engineering.move_pupil
+                    mv_cmd = "mv_pup"
                 else:
                     raise ValueError("Invalid move_what")
 
-                pos_x = lambda: move_function(
-                    beam, increment, 0, send_and_get_response, config
-                )
-                pos_y = lambda: move_function(
-                    beam, 0, increment, send_and_get_response, config
-                )
-                neg_x = lambda: move_function(
-                    beam, -increment, 0, send_and_get_response, config
-                )
-                neg_y = lambda: move_function(
-                    beam, 0, -increment, send_and_get_response, config
-                )
+                pos_x = f"{mv_cmd} {config} {beam} {increment} 0.0"
+                pos_y = f"{mv_cmd} {config} {beam} 0.0 {increment}"
+                neg_x = f"{mv_cmd} {config} {beam} {-increment} 0.0"
+                neg_y = f"{mv_cmd} {config} {beam} 0.0 {-increment}"
 
                 # make a 3x3 grid but only use the up, down, left and right
 
@@ -1217,32 +1214,32 @@ with col_main:
                 ml, mm, mr = st.columns(3)
                 ll, lm, lr = st.columns(3)
 
-                if move_what == "move_image":
-                    with um:
-                        if st.button(f"-y: {increment:.2f}"):
-                            neg_y()
-                    with lm:
-                        if st.button(f"+y: {increment:.2f}"):
-                            pos_y()
-                    with ml:
-                        if st.button(f"-x: {increment:.2f}"):
-                            neg_x()
-                    with mr:
-                        if st.button(f"+x: {increment:.2f}"):
-                            pos_x()
-                elif move_what == "move_pupil":
-                    with um:
-                        if st.button(f"+y: {increment:.2f}"):
-                            pos_y()
-                    with lm:
-                        if st.button(f"-y: {increment:.2f}"):
-                            neg_y()
-                    with ml:
-                        if st.button(f"-x: {increment:.2f}"):
-                            neg_x()
-                    with mr:
-                        if st.button(f"+x: {increment:.2f}"):
-                            pos_x()
+                # if move_what == "move_image":
+                with um:
+                    if st.button(f"-y: {increment:.2f}"):
+                        send_and_get_response(neg_y)
+                with lm:
+                    if st.button(f"+y: {increment:.2f}"):
+                        send_and_get_response(pos_y)
+                with ml:
+                    if st.button(f"-x: {increment:.2f}"):
+                        send_and_get_response(neg_x)
+                with mr:
+                    if st.button(f"+x: {increment:.2f}"):
+                        send_and_get_response(pos_x)
+                # elif move_what == "move_pupil":
+                #     with um:
+                #         if st.button(f"+y: {increment:.2f}"):
+                #             pos_y()
+                #     with lm:
+                #         if st.button(f"-y: {increment:.2f}"):
+                #             neg_y()
+                #     with ml:
+                #         if st.button(f"-x: {increment:.2f}"):
+                #             neg_x()
+                #     with mr:
+                #         if st.button(f"+x: {increment:.2f}"):
+                #             pos_x()
 
             # also show the state of all of the motors involved
             axes = [f"HTTP{beam}", f"HTIP{beam}", f"HTTI{beam}" f"HTTI{beam}"]
