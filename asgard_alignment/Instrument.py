@@ -234,6 +234,63 @@ class Instrument:
         """
         self._validate_move_img_pup_inputs(config, beam_number, x, y)
 
+        desired_deviation = np.array([[x], [y]])
+
+        pupil_move_matricies, _ = asgard_alignment.Engineering.get_matricies(config)
+
+        M_P = pupil_move_matricies[beam_number]
+        M_P_pupil = M_P[0]
+        M_P_image = M_P[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_P_pupil, 0.0],
+                [0.0, M_P_pupil],
+                [M_P_image, 0.0],
+                [0.0, M_P_image],
+            ]
+        )
+
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+        
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
+
+        return True
+
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """
         Check that the commands are valid for the current state of the axes

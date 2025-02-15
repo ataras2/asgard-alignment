@@ -463,21 +463,23 @@ class MultiDeviceServer:
             health_str = json.dumps(health)
 
             return health_str
-        
+
         def mv_img_msg(config, beam_number, x, y):
             try:
                 res = self.instr.move_image(config, beam_number, x, y)
             except ValueError as e:
                 return f"NACK: {e}"
-                
 
             if res:
                 return "ACK: moved"
             else:
                 return "NACK: not moved"
-            
+
         def mv_pup_msg(config, beam_number, x, y):
-            res = self.instr.move_pupil(config, beam_number, x, y)
+            try:
+                res = self.instr.move_pupil(config, beam_number, x, y)
+            except ValueError as e:
+                return f"NACK: {e}"
 
             if res:
                 return "ACK: moved"
