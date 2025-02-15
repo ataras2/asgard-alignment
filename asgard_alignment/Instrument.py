@@ -202,10 +202,35 @@ class Instrument:
         uv_commands = deviations_to_uv @ beam_deviations
         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
-        commands = [
-            f"moverel {axis}{beam_number} {command[0]}"
-            for axis, command in zip(axis_list, uv_commands)
-        ]
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+
+        for axis, command in zip(axis_list, uv_commands):
+            self.devices[axis + str(beam_number)].move_relative(command[0])
+
+        return True
+
+    def _check_commands_against_state(self, axes, commands, type="rel"):
+        """
+        Check that the commands are valid for the current state of the axes
+        """
+        res = []
+
+        for axis, command in zip(axes, commands):
+            if type == "rel":
+                is_val = self.devices[axis].is_relmove_valid(command)
+                res.append(is_val)
+            elif type == "abs":
+                raise NotImplementedError("Absolute moves not implemented yet")
+
+        return res
 
     def ping_connection(self, axis):
         """
