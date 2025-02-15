@@ -66,7 +66,7 @@ class Controllino:
         self._maintain_connection = True
         self.client = None
 
-        self.turn_on(CONNEXIONS["Piezo/Laser"])
+        #self.turn_on("Piezo/Laser")
 
     def _ensure_device(self, key: str):
         """
