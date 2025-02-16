@@ -1,4 +1,5 @@
 import asgard_alignment.ESOdevice
+import numpy as np
 
 
 class PK2FVF1(asgard_alignment.ESOdevice.Motor):
@@ -9,8 +10,7 @@ class PK2FVF1(asgard_alignment.ESOdevice.Motor):
 
 
 class MFF101(asgard_alignment.ESOdevice.Motor):
-    def __init__(self, name, semaphore_id, controllino_controller) -> None:
-        named_pos = {"30mm": 0, "15mm": 1}
+    def __init__(self, name, semaphore_id, controllino_controller, named_pos) -> None:
         super().__init__(
             name,
             semaphore_id,
@@ -19,10 +19,21 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
 
         self._controller = controllino_controller
 
-    def move_abs(self, position: float):
-        pass
+    def move_abs(self, position):
+        if isinstance(position, str):
+            position = self._named_positions[position]
+
+        if np.isclose(position, 1.0):
+            self._controller.turn_on(self.name)
+        elif np.isclose(position, 0.0):
+            self._controller.turn_off(self.name)
+        else:
+            raise ValueError(f"Invalid position for bistable motor {self.name}")
 
     def move_relative(self, position: float):
+        pass
+
+    def ping(self):
         pass
 
     def read_state(self):

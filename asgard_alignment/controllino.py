@@ -67,6 +67,8 @@ class Controllino:
         self.client = None
 
         self.turn_on(CONNEXIONS["Piezo/Laser"])
+        self.turn_on(CONNEXIONS["MFF101 (BLF)"])
+        self.turn_on(CONNEXIONS["LS16P (LFO)"])
 
     def _ensure_device(self, key: str):
         """
