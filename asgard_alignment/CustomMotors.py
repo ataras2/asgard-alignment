@@ -1,6 +1,8 @@
 import asgard_alignment.ESOdevice
 import numpy as np
 
+import asgard_alignment.controllino
+
 
 class PK2FVF1(asgard_alignment.ESOdevice.Motor):
     def __init__(self, name, semaphore_id, controllino_controller) -> None:
@@ -10,7 +12,13 @@ class PK2FVF1(asgard_alignment.ESOdevice.Motor):
 
 
 class MFF101(asgard_alignment.ESOdevice.Motor):
-    def __init__(self, name, semaphore_id, controllino_controller, named_pos) -> None:
+    def __init__(
+        self,
+        name: str,
+        semaphore_id: int,
+        controllino_controller: asgard_alignment.controllino.Controllino,
+        named_pos: dict,
+    ) -> None:
         super().__init__(
             name,
             semaphore_id,
@@ -30,6 +38,9 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         else:
             raise ValueError(f"Invalid position for bistable motor {self.name}")
 
+    def read_position(self):
+        self._controller.get_status(self.name)
+
     def move_relative(self, position: float):
         pass
 
@@ -40,7 +51,7 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
     def setup(self, value):
-        pass
+        self.move_abs(value)
 
     def disable(self):
         pass
@@ -101,6 +112,9 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
 
     def move_relative(self, position: float):
         pass
+
+    def read_position(self):
+        return self._state
 
     def read_state(self):
         return f"READY ({self._state})"

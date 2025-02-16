@@ -1300,7 +1300,7 @@ with col_main:
                     if st.button(f"Save {instr}"):
                         motor_names = []
                         if instr == "Solarstein" or instr == "All":
-                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS"]
+                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
                         if instr == "Heimdallr" or instr == "All":
                             motor_names_no_beams = [
                                 "HFO",
@@ -1322,6 +1322,7 @@ with col_main:
                                 "BTP",
                                 "BMX",
                                 "BMY",
+                                "BLF",
                             ]
 
                             partially_common_motors = [
