@@ -7,17 +7,22 @@ import serial.tools.list_ports
 import sys
 import pandas as pd
 from zaber_motion.ascii import Connection
+import numpy as np
 
 import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
+import asgard_alignment.Engineering
 import asgard_alignment.Lamps
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
 
+import time
+
 # SDK for DM
 # sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import asgard_alignment.controllino
+
 # import bmc
 
 
@@ -132,6 +137,174 @@ class Instrument:
             )
 
         return health
+
+    def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
+        # input validation
+        if beam_number not in [1, 2, 3, 4]:
+            raise ValueError("beam_number must be in the range [1, 4]")
+        if config not in ["c_red_one_focus", "intermediate_focus"]:
+            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus'")
+
+    def move_image(self, config, beam_number, x, y):
+        """
+        Move the heimdallr image to a new location without moving the pupil
+
+        Parameters
+        ----------
+        config : str
+            The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+        beam_number : int
+            The beam number to move - in the range [1, 4]
+
+        x : float
+            The x coordinate to move to, in pixels
+
+        y : float
+            The y coordinate to move to, in pixels
+
+        Returns
+        -------
+        is_successful : bool
+            True if the move was successful, False otherwise
+        """
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
+
+        desired_deviation = np.array([[x], [y]])
+
+        _, image_move_matricies = asgard_alignment.Engineering.get_matricies(config)
+
+        M_I = image_move_matricies[beam_number]
+        M_I_pupil = M_I[0]
+        M_I_image = M_I[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_I_pupil, 0.0],
+                [0.0, M_I_pupil],
+                [M_I_image, 0.0],
+                [0.0, M_I_image],
+            ]
+        )
+
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+
+
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
+
+        return True
+
+    def move_pupil(self, config, beam_number, x, y):
+        """
+        Move the Heimdallr pupil to a new location, without moving the image
+        """
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
+
+        desired_deviation = np.array([[x], [y]])
+
+        pupil_move_matricies, _ = asgard_alignment.Engineering.get_matricies(config)
+
+        M_P = pupil_move_matricies[beam_number]
+        M_P_pupil = M_P[0]
+        M_P_image = M_P[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_P_pupil, 0.0],
+                [0.0, M_P_pupil],
+                [M_P_image, 0.0],
+                [0.0, M_P_image],
+            ]
+        )
+
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+        
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
+
+        return True
+
+    def _check_commands_against_state(self, axes, commands, type="rel"):
+        """
+        Check that the commands are valid for the current state of the axes
+        """
+        res = []
+
+        for axis, command in zip(axes, commands):
+            if type == "rel":
+                is_val = self.devices[axis].is_relmove_valid(command)
+                res.append(is_val)
+            elif type == "abs":
+                raise NotImplementedError("Absolute moves not implemented yet")
+
+        return res
 
     def ping_connection(self, axis):
         """

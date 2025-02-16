@@ -169,13 +169,20 @@ fi
 # Git Configuration
 # ==============================================================================
 
-# Configure Git username and email
+# Configure default Git username and email
 echo "Configuring Git username and email..."
 git config --global user.name "ataras2"
 git config --global user.email "ataras2@gmail.com"
 
+# Configure alternative git credentials
+git config --global alias.use_mike "!git config user.email 'michael.ireland@anu.edu.au' && git config user.name 'Mike Ireland'"
+git config --global alias.use_adam = "!git config user.email 'ataras2@gmail.com' && git config user.name 'Adam Taras'"
+git config --global alias.use_ben = "!git config user.email 'bencb92@gmail.com' && git config user.name 'Ben Courtney-Barrer'"
+git config --global alias.use_frantz = "!git config user.email 'frantz.martinache@oca.eu' && git config user.name 'Frantz Martinache'"
+git config --global alias.use_nick = "!git config user.email 'nick.cvetojevic@oca.eu' && git config user.name 'Nick Cvetojevic'"
+
 # Check if the repository already exists
-REPO_DIR="${USER_HOME}/Documents/asgard-alignment"
+REPO_DIR="${USER_HOME}/Progs/repos/asgard-alignment"
 if [[ -d "${REPO_DIR}" ]]; then
     echo "Repository already exists at ${REPO_DIR}."
 else
@@ -224,8 +231,9 @@ else
 fi
 
 # activate asg environment and install required packages
+# !!! The pip install -e . only works if this is called from the asgard-alignment directory. 
 conda activate "$ENV_NAME" && \
-    pip install -r "${USER_HOME}/Documents/asgard-alignment/requirements.txt" && \
+    pip install -r "${USER_HOME}/Progs/repos/asgard-alignment/requirements.txt" && \
     pip install -e .
 # any other custom pip installs here
 
@@ -270,4 +278,5 @@ fi
 # ==============================================================================
 # Conclude
 # ==============================================================================
+source ~/.bashrc
 echo "Done! Reboot system to take effect"

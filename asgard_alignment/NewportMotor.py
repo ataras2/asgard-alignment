@@ -192,6 +192,22 @@ class M100DAxis(ESOdevice.Motor):
         position = float(parse_results[0])
         return position
 
+    def is_relmove_valid(self, value):
+        """
+        Check if a relative move is valid
+
+        Parameters:
+        -----------
+        value: float
+            The value to move by
+
+        Returns:
+        --------
+        bool
+            True if the move is valid, False otherwise
+        """
+        return self.LOWER_LIMIT <= self.read_position() + value <= self.UPPER_LIMIT
+
     def is_moving(self):
         """
         Check if the motor is moving
