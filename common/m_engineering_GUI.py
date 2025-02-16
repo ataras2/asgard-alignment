@@ -1302,7 +1302,7 @@ with col_main:
                         if instr == "Solarstein" or instr == "All":
                             motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
                         if instr == "Heimdallr" or instr == "All":
-                            motor_names_no_beams = [
+                            motor_names_all_beams = [
                                 "HFO",
                                 "HTPP",
                                 "HTPI",
@@ -1310,13 +1310,13 @@ with col_main:
                                 "HTTI",
                             ]
 
-                            for motor in motor_names_no_beams:
+                            for motor in motor_names_all_beams:
                                 for beam_number in range(1, 5):
                                     motor_names.append(f"{motor}{beam_number}")
                         if instr == "Baldr" or instr == "All":
                             motor_names += ["BFO"]
 
-                            motor_names_no_beams = [
+                            motor_names_all_beams = [
                                 "BDS",
                                 "BTT",
                                 "BTP",
@@ -1334,7 +1334,7 @@ with col_main:
                                 for beam_number in range(2, 5):
                                     motor_names.append(f"{motor}{beam_number}")
 
-                            for motor in motor_names_no_beams:
+                            for motor in motor_names_all_beams:
                                 for beam_number in range(1, 5):
                                     motor_names.append(f"{motor}{beam_number}")
 
