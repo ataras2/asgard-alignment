@@ -16,8 +16,8 @@ else
 fi
 
 # Remove the asgard-alignment directory if it exists
-if [ -d ~/Documents/asgard-alignment/ ]; then
-    sudo rm -rf ~/Documents/asgard-alignment/
+if [ -d ~/Progs/repos/asgard-alignment/ ]; then
+    sudo rm -rf ~/Progs/repos/asgard-alignment/
 fi
 
 # Remove the miniconda3 directory if it exists
