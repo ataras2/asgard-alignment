@@ -88,6 +88,7 @@ beam_common_devices = [
     "SDL12",
     "SDL34",
     "lamps",
+    "BLF",  # just do all 4 at once in a single page
 ]
 
 all_devices = beam_common_devices + beam_specific_devices
@@ -912,6 +913,28 @@ def handle_bistable_motor():
             st.write(res)
 
 
+def handle_lens_flipper():
+    st.subheader("Baldr lens flippers")
+
+    beam_nums = list(range(1, 5))
+
+    cols = st.columns(len(beam_nums))
+
+    for beam_num, col in zip(beam_nums, cols):
+        target = f"BLF{beam_num}"
+        with col:
+            if st.button("Read State"):
+                message = f"state {target}"
+                res = send_and_get_response(message)
+                st.write(res)
+
+            positions = ["30mm, 15mm"]
+            for pos in positions:
+                if st.button(pos):
+                    message = f"moveabs {target} {pos}"
+                    res = send_and_get_response(message)
+
+
 col_main, col_history = st.columns([2, 1])
 
 
@@ -1014,6 +1037,9 @@ with col_main:
 
             elif component in ["SSF"]:
                 handle_bistable_motor()
+
+            elif component in ["BLF"]:
+                handle_lens_flipper()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
