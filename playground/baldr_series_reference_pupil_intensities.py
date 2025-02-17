@@ -124,7 +124,7 @@ parser.add_argument(
 parser.add_argument(
     '--data_path',
     type=str,
-    default=f"/home/heimdallr/Documents/asgard-alignment/calibration/reports/reference_pupils/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
+    default=f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/reference_pupils/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 
@@ -229,7 +229,7 @@ if not os.path.exists(args.data_path):
 ######################################
 # define pupil crop regions 
 ######################################
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
@@ -265,8 +265,8 @@ time.sleep(5)
 ######################################
 # Setup DMs
 ######################################
-DMshapes_path = default_path_dict["DMshapes_path"]#"/home/heimdallr/Documents/asgard-alignment/DMShapes/"
-dm_config_path = default_path_dict["DM_config_path"] #"/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
+DMshapes_path = default_path_dict["DMshapes_path"]#"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+dm_config_path = default_path_dict["DM_config_path"] #"/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
 
 ########## ########## ##########
 ########## set up DMs

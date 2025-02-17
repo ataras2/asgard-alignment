@@ -229,9 +229,9 @@ def handle_phasemask():
             # save_path = cnt_pth + os.path.dirname(
             #    "/../config_files/phasemask_positions/"
             # )
-            # f"/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+            # f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
             valid_reference_position_files = glob.glob(
-                f"/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+                f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
             )  # save_path + f"/beam{beam}/*json")
 
             selected_reference_file = st.selectbox(
@@ -313,7 +313,7 @@ def handle_deformable_mirror():
     # Add a subheader for Deformable Mirror (DM) control
     st.subheader("Deformable Mirror (DM) Control")
 
-    ff = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_shared_memory_config.json"
+    ff = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_shared_memory_config.json"
     with open(ff, "r") as f:
         config_data = json.load(f)
 
@@ -1407,6 +1407,7 @@ with col_main:
                 "Controller connected?",
                 "State",
                 "Connect?",
+                "Reset"
             ]
             keys = [
                 "axis",

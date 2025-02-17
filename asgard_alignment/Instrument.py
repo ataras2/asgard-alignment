@@ -26,8 +26,8 @@ import asgard_alignment.controllino
 # import bmc
 
 
-phasemask_position_directory = Path.home().joinpath(
-    "Documents/asgard-alignment/config_files/phasemask_positions"
+phasemask_position_directory = Path.cwd().joinpath(
+    "config_files/phasemask_positions"
 )
 
 

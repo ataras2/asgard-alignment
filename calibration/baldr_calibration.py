@@ -227,13 +227,13 @@ def parse_arguments():
     parser.add_argument(
         '--output_report_dir',
         type=str,
-        default=f'/home/heimdallr/Documents/asgard-alignment/calibration/reports/{tstamp_rough}/',
+        default=f'/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/',
         help="Output directory for calibration reports. Default: %(default)s"
     )
     parser.add_argument(
         '--fig_path',
         type=str,
-        default=f'/home/heimdallr/Documents/asgard-alignment/calibration/reports/{tstamp_rough}/figures/',
+        default=f'/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/figures/',
         help="Path for saving figures. Default: %(default)s"
     )
     
@@ -308,7 +308,7 @@ plot=True
 
 output_config_filename = f'baldr_transform_dict_beam{beam}_{tstamp}.json'
 
-output_report_dir = f'/home/heimdallr/Documents/asgard-alignment/calibration/{tstamp_rough}/'
+output_report_dir = f'/home/asg/Progs/repos/asgard-alignment/calibration/{tstamp_rough}/'
 
 os.makedirs(output_report_dir, exist_ok=True)
 

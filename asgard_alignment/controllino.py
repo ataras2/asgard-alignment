@@ -21,13 +21,13 @@ CONNEXIONS = {
     "X-MCC (BFO,SDL,BDS)": 47,
     "MFF101 (BLF)": 48,
     "USB hubs": 49,
-    "Thermal": 77,
-    "LS16P (LFO)": 78,
+    "LS16P (HFO)": 78,
     "Piezo/Laser": 80,
-    "BLF1": 22,
+    "BLF1": 26,
     "BLF2": 23,
     "BLF3": 24,
     "BLF4": 25,
+    "SBB": 22,
     "SRL": 30,
     "SGL": 31,
     "Lower T": 54,
@@ -66,9 +66,12 @@ class Controllino:
         self._maintain_connection = True
         self.client = None
 
-        self.turn_on(CONNEXIONS["Piezo/Laser"])
-        self.turn_on(CONNEXIONS["MFF101 (BLF)"])
-        self.turn_on(CONNEXIONS["LS16P (LFO)"])
+	#The turn-on command needs a string, not a number! 
+        self.turn_on("Piezo/Laser")
+        self.turn_on("MFF101 (BLF)")
+        self.turn_on("LS16P (HFO)")
+        self.turn_on("X-MCC (BMX,BMY)")
+        self.turn_on("X-MCC (BFO,SDL,BDS)")
 
     def _ensure_device(self, key: str):
         """

@@ -22,8 +22,8 @@ import bmc
 """
 
 REDUNDANT - THIS SCRIPT IS NOW SPLIT TO SEPERATE SCRIPTS (02/12/24)
-/home/heimdallr/Documents/asgard-alignment/calibration/pokeramps.py
-/home/heimdallr/Documents/asgard-alignment/calibration/kolmogorov_phasescreen_on_dm.py
+/home/asg/Progs/repos/asgard-alignment/calibration/pokeramps.py
+/home/asg/Progs/repos/asgard-alignment/calibration/kolmogorov_phasescreen_on_dm.py
 
 
 Nov 24 - we notice significant drifts likely coming from OAP 1 and solarstein down periscope. 
@@ -239,7 +239,7 @@ def send_and_get_response(message):
 # paths and timestamps
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
-DMshapes_path = "/home/heimdallr/Documents/asgard-alignment/DMShapes/"
+DMshapes_path = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
 
 data_path = f"/home/heimdallr/data/stability_tests/"
 if not os.path.exists(data_path):
