@@ -923,14 +923,14 @@ def handle_lens_flipper():
     for beam_num, col in zip(beam_nums, cols):
         target = f"BLF{beam_num}"
         with col:
-            if st.button("Read State"):
+            if st.button("Read State", key=f"read_state_{beam_num}"):
                 message = f"state {target}"
                 res = send_and_get_response(message)
                 st.write(res)
 
             positions = ["30mm, 15mm"]
             for pos in positions:
-                if st.button(pos):
+                if st.button(pos, key=f"move_{pos}_{beam_num}"):
                     message = f"moveabs {target} {pos}"
                     res = send_and_get_response(message)
 
