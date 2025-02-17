@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 # import FliCredThree
 
 # FLI_Cameras  import must be above PyQt 5 otherwise c library conflicts.
-from asgard_alignment import FLI_Cameras
-
+#from asgard_alignment import FLI_Cameras
+from asgard_alignment import FLI_Cameras_shm as FLI_Cameras
 # from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
 # from PyQt5.QtCore import QTimer, Qt
 # from PyQt5.QtGui import QPixmap, QImage
@@ -35,11 +35,11 @@ class AOControlApp(QtWidgets.QWidget):
         super().__init__()
 
         # Initialize FLI camera
-        self.camera = FLI_Cameras.fli(0, roi=[None, None, None, None])
+        self.camera = FLI_Cameras.fli() #0, roi=[None, None, None, None])
         config_file_name = os.path.join(
             self.camera.config_file_path, "default_cred1_config.json"
         )
-        self.camera.configure_camera(config_file_name)
+        #self.camera.configure_camera(config_file_name)
         self.camera.start_camera()
 
         # Main layout as a 2x2 grid
@@ -258,7 +258,7 @@ class AOControlApp(QtWidgets.QWidget):
     def reinitialize_camera(self, config_file_path):
         self.camera.stop_camera()
         self.camera.exit_camera()
-        self.camera = FLI_Cameras.fli(0, roi=[None, None, None, None])
+        self.camera = FLI_Cameras.fli()#0, roi=[None, None, None, None])
         self.camera.configure_camera(config_file_path)
         self.camera.start_camera()
         self.prompt_history.append(

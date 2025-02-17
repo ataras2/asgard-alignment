@@ -365,6 +365,12 @@ class LS16PAxis(ESOdevice.Motor):
         self.init()
 
     def init(self):
+
+        state = self.read_state()
+        if "DISABLE" in state:
+            self.reset()
+            time.sleep(2.0)
+
         self._connection.write_str("OR")
         time.sleep(0.5)
         self._connection.write_str("RFP")
@@ -402,7 +408,7 @@ class LS16PAxis(ESOdevice.Motor):
         return f"{error_str}\n {state_str}"
 
     def reset(self):
-        self._connection.write_str("1RS")
+        self._connection.write_str("RS")
 
     def ping(self):
         try:

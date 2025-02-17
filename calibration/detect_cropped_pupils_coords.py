@@ -16,7 +16,7 @@ import datetime
 import sys
 import argparse
 
-from asgard_alignment import FLI_Cameras as FLI
+from asgard_alignment import FLI_Cameras_shm as FLI
 from common import phasemask_centering_tool as pct
 
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
@@ -288,15 +288,15 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 # default data paths 
-with open( "config_files/file_paths.json") as f:
-    default_path_dict = json.load(f)
+# with open( "config_files/file_paths.json") as f:
+#     default_path_dict = json.load(f)
     
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="Mode setup")
 parser.add_argument(
     '--data_path',
     type=str,
-    default="/home/heimdallr/Documents/asgard-alignment/config_files/",
+    default="/home/asg/Progs/repos/asgard-alignment/config_files/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 
@@ -324,14 +324,14 @@ if not os.path.exists(args.data_path):
 
 
 
-# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 # with open(baldr_pupils_path, "r") as json_file:
 #     baldr_pupils = json.load(json_file)
 
 # init camera 
 roi = [None, None, None, None]
-c = FLI.fli(cameraIndex=0, roi=roi)
+c = FLI.fli( roi=roi)
 # configure with default configuration file
 config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
 c.configure_camera(config_file_name)
@@ -341,11 +341,11 @@ with open(config_file_name, "r") as file:
 
 apply_manual_reduction = True
 
-c.send_fli_cmd("set mode globalresetcds")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# c.send_fli_cmd("set mode globalresetcds")
+# time.sleep(1)
+# c.send_fli_cmd(f"set gain {args.cam_gain}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
 c.start_camera()
 

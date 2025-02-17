@@ -26,8 +26,8 @@ import asgard_alignment.controllino
 # import bmc
 
 
-phasemask_position_directory = Path.home().joinpath(
-    "Documents/asgard-alignment/config_files/phasemask_positions"
+phasemask_position_directory = Path.cwd().joinpath(
+    "config_files/phasemask_positions"
 )
 
 
@@ -217,7 +217,6 @@ class Instrument:
             invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
             raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
 
-
         # shuffle to parallelise
         self.devices[axes[0]].move_relative(uv_commands[0][0])
         self.devices[axes[2]].move_relative(uv_commands[2][0])
@@ -280,7 +279,7 @@ class Instrument:
             # figure out which axis/axes are invalid
             invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
             raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
-        
+
         # shuffle to parallelise
         self.devices[axes[0]].move_relative(uv_commands[0][0])
         self.devices[axes[2]].move_relative(uv_commands[2][0])
@@ -578,6 +577,14 @@ class Instrument:
                 self._controllers["controllino"],
                 self._motor_config[name]["motor_config"]["modulation_value"],
                 self._motor_config[name]["motor_config"]["delay_time"],
+            )
+            return True
+        elif self._motor_config[name]["motor_type"] in ["MFF101M"]:
+            self.devices[name] = asgard_alignment.CustomMotors.MFF101(
+                name,
+                self._motor_config[name]["semaphore_id"],
+                self._controllers["controllino"],
+                self._motor_config[name]["named_pos"],
             )
             return True
 

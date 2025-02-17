@@ -49,8 +49,8 @@ class PDFReport(FPDF):
         intro_text = (
             "This report summarizes the stability analysis of Baldr/Heimdallr, "
             "focusing on the correlation between motor states and pupil parameters over time. "
-            "data used in this report is produced from /home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis.py"
-            "The report is automated from /home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis_PLOTS.py"
+            "data used in this report is produced from /home/asg/Progs/repos/asgard-alignment/calibration/static_stability_analysis.py"
+            "The report is automated from /home/asg/Progs/repos/asgard-alignment/calibration/static_stability_analysis_PLOTS.py"
             "The analysis involves two primary steps:\n\n"
             "1. **Data Acquisition and Preparation**:\n"
             "   - Motor positions are read and logged via a ZeroMQ server connected to the multi-device controller.\n"
@@ -916,7 +916,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Output directory for plots and report
-    fig_path = '/home/heimdallr/Documents/asgard-alignment/calibration/reports/stability/'
+    fig_path = '/home/asg/Progs/repos/asgard-alignment/calibration/reports/stability/'
     if not os.path.exists(fig_path):
         os.makedirs(fig_path)
         print(f"Created directory: {fig_path}")
@@ -1001,7 +1001,7 @@ if __name__ == "__main__":
 
 # if __name__=="__main__":
 
-#     fig_path = '/home/heimdallr/Documents/asgard-alignment/calibration/reports/stability/'
+#     fig_path = '/home/asg/Progs/repos/asgard-alignment/calibration/reports/stability/'
 #     if not os.path.exists(fig_path):
 #         # Create the directory (and any necessary parent directories)
 #         os.makedirs(fig_path)

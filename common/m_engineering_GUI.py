@@ -88,6 +88,7 @@ beam_common_devices = [
     "SDL12",
     "SDL34",
     "lamps",
+    "BLF",  # just do all 4 at once in a single page
 ]
 
 all_devices = beam_common_devices + beam_specific_devices
@@ -228,9 +229,9 @@ def handle_phasemask():
             # save_path = cnt_pth + os.path.dirname(
             #    "/../config_files/phasemask_positions/"
             # )
-            # f"/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+            # f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
             valid_reference_position_files = glob.glob(
-                f"/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+                f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
             )  # save_path + f"/beam{beam}/*json")
 
             selected_reference_file = st.selectbox(
@@ -312,7 +313,7 @@ def handle_deformable_mirror():
     # Add a subheader for Deformable Mirror (DM) control
     st.subheader("Deformable Mirror (DM) Control")
 
-    ff = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_shared_memory_config.json"
+    ff = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_shared_memory_config.json"
     with open(ff, "r") as f:
         config_data = json.load(f)
 
@@ -912,6 +913,28 @@ def handle_bistable_motor():
             st.write(res)
 
 
+def handle_lens_flipper():
+    st.subheader("Baldr lens flippers")
+
+    beam_nums = list(range(1, 5))
+
+    cols = st.columns(len(beam_nums))
+
+    for beam_num, col in zip(beam_nums, cols):
+        target = f"BLF{beam_num}"
+        with col:
+            if st.button("Read State"):
+                message = f"state {target}"
+                res = send_and_get_response(message)
+                st.write(res)
+
+            positions = ["30mm, 15mm"]
+            for pos in positions:
+                if st.button(pos):
+                    message = f"moveabs {target} {pos}"
+                    res = send_and_get_response(message)
+
+
 col_main, col_history = st.columns([2, 1])
 
 
@@ -1014,6 +1037,9 @@ with col_main:
 
             elif component in ["SSF"]:
                 handle_bistable_motor()
+
+            elif component in ["BLF"]:
+                handle_lens_flipper()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here
@@ -1274,9 +1300,9 @@ with col_main:
                     if st.button(f"Save {instr}"):
                         motor_names = []
                         if instr == "Solarstein" or instr == "All":
-                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS"]
+                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
                         if instr == "Heimdallr" or instr == "All":
-                            motor_names_no_beams = [
+                            motor_names_all_beams = [
                                 "HFO",
                                 "HTPP",
                                 "HTPI",
@@ -1284,18 +1310,19 @@ with col_main:
                                 "HTTI",
                             ]
 
-                            for motor in motor_names_no_beams:
+                            for motor in motor_names_all_beams:
                                 for beam_number in range(1, 5):
                                     motor_names.append(f"{motor}{beam_number}")
                         if instr == "Baldr" or instr == "All":
                             motor_names += ["BFO"]
 
-                            motor_names_no_beams = [
+                            motor_names_all_beams = [
                                 "BDS",
                                 "BTT",
                                 "BTP",
                                 "BMX",
                                 "BMY",
+                                "BLF",
                             ]
 
                             partially_common_motors = [
@@ -1307,7 +1334,7 @@ with col_main:
                                 for beam_number in range(2, 5):
                                     motor_names.append(f"{motor}{beam_number}")
 
-                            for motor in motor_names_no_beams:
+                            for motor in motor_names_all_beams:
                                 for beam_number in range(1, 5):
                                     motor_names.append(f"{motor}{beam_number}")
 
@@ -1380,6 +1407,7 @@ with col_main:
                 "Controller connected?",
                 "State",
                 "Connect?",
+                "Reset"
             ]
             keys = [
                 "axis",
