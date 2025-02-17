@@ -1106,8 +1106,8 @@ with col_main:
 
             # source on/off vertical buttons
             st.subheader("Source On/Off")
-            headers = ["SRL", "SGL"]
-            header_colours = ["red", "green"]
+            headers = ["SRL", "SGL", "SBB"]
+            header_colours = ["red", "green", "white"]
             button_cols = st.columns(len(headers))
 
             for i, header in enumerate(headers):
@@ -1407,7 +1407,7 @@ with col_main:
                 "Controller connected?",
                 "State",
                 "Connect?",
-                "Reset"
+                "Reset",
             ]
             keys = [
                 "axis",

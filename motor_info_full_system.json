@@ -521,6 +521,14 @@
                 "nWarmup" : 1.0,
                 "nMaxOn" : 3600.0      
             }
+        },
+        {
+            "name": "SBB",
+            "config": {
+                "nCooldown" : 1.0,
+                "nWarmup" : 3.0,
+                "nMaxOn" : 3600.0      
+            }
         }
     ],
     "shutters" : [
