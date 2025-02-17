@@ -69,7 +69,9 @@ class Controllino:
 	#The turn-on command needs a string, not a number! 
         self.turn_on("Piezo/Laser")
         self.turn_on("MFF101 (BLF)")
-        self.turn_on("LS16P (LFO)")
+        self.turn_on("LS16P (HFO)")
+        self.turn_on("X-MCC (BMX,BMY)")
+        self.turn_on("X-MCC (BFO,SDL,BDS)")
 
     def _ensure_device(self, key: str):
         """
