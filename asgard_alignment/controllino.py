@@ -22,7 +22,7 @@ CONNEXIONS = {
     "MFF101 (BLF)": 48,
     "USB hubs": 49,
     "Thermal": 77,
-    "LS16P (LFO)": 78,
+    "LS16P (HFO)": 78,
     "Piezo/Laser": 80,
     "BLF1": 22,
     "BLF2": 23,
