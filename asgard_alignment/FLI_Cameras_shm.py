@@ -3,6 +3,7 @@ import time
 import datetime
 import sys
 from pathlib import Path
+import re
 import os 
 from astropy.io import fits
 import json
@@ -24,7 +25,7 @@ import zmq
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
 from PyQt5.QtCore import QTimer, Qt
 from PyQt5.QtGui import QPixmap, QImage
-from astropy.io import fits
+
 
 
 
@@ -266,6 +267,29 @@ socket.connect(f"tcp://localhost:{server_port}")
 
 cmd_sz = 10 # finite size command with blanks filled
 
+def extract_value(s):
+    """
+    when returning msgs from C-red 1 server they follow a certain format. 
+    This function extracts the important bits of the striung
+    specifically extracts and returns the substring between the first double quote (")
+    and the literal '\\r\\n' sequence from the input string `s`, with surrounding
+    whitespace removed.
+    
+    Parameters:
+        s (str): The input string, e.g., '"  1739.356\\r\\nfli-cli>"'
+        
+    Returns:
+        str or None: The extracted substring (with whitespace stripped) if found,
+                     otherwise None.
+    """
+
+    pattern = r'^"\s*(.*?)\\r\\n'
+    match = re.search(pattern, s)
+    if match:
+        return match.group(1).strip()
+    
+    return None
+
 class fli( ):
 
     def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None):
@@ -276,7 +300,7 @@ class fli( ):
         if config_file_path is None:
             # default
             config_file_path = "config_files"
-             # get project root in way that also works in interactive shell (cannot use __file__)
+            # get project root in way that also works in interactive shell (cannot use __file__)
             project_root = Path.cwd()
             while not (project_root / ".git").is_dir() and project_root != project_root.parent:
                 project_root = project_root.parent
@@ -373,29 +397,33 @@ class fli( ):
         with open( config_file, "r") as file:
             camera_config = json.load(file)  # Parses the JSON content into a Python dictionary
 
+
+
         # check if in standby 
-        if self.send_fli_cmd( 'standby raw' )[1] == 'on':
-            try :
-                self.send_fli_cmd( f"set standby on" )
-            except:
-                raise UserWarning( "---\ncamera in standby mode and the fli command 'set standby off' failed\n " )
+        # if self.send_fli_cmd( 'standby raw' )[1] == 'on':
+        #     try :
+        #         self.send_fli_cmd( f"set standby on" )
+        #     except:
+        #         raise UserWarning( "---\ncamera in standby mode and the fli command 'set standby off' failed\n " )
         
         for k, v in camera_config.items():
+
             time.sleep( sleep_time )
+
+            self.send_fli_cmd( f"set {k} {v}")
 
             # for some reason set stanby mode timesout
             # if setting to the same state - so we manually check
             # before sending the command
-            if 'standby' in k:
-                if v != self.send_fli_cmd( 'standby raw' )[1]:
-                    ok , _  = self.send_fli_cmd( f"set {k} {v}")
-                    if not ok :
-                        print( f"FAILED FOR set {k} {v}")
+            # if 'standby' in k:
+            #     if v != self.send_fli_cmd( 'standby raw' )[1]:
+            #         ok , _  = self.send_fli_cmd( f"set {k} {v}")
+            #         if not ok :
+            #             print( f"FAILED FOR set {k} {v}")
 
-
-            ok , _  = self.send_fli_cmd( f"set {k} {v}")
-            if not ok :
-                print( f"FAILED FOR set {k} {v}")
+            # ok , _  = self.send_fli_cmd( f"set {k} {v}")
+            # if not ok :
+            #     print( f"FAILED FOR set {k} {v}")
 
         
     # basic wrapper functions
@@ -436,29 +464,14 @@ class fli( ):
     
 
     def get_camera_config(self):
-        return None 
-        # 
-        # config_dict = {
-        #     'mode':self.send_fli_cmd('mode raw' )[1], 
-        #     'fps': self.send_fli_cmd('fps raw' )[1],
-        #     'gain': self.send_fli_cmd('gain raw' )[1],
-        #     "cropping_state": self.send_fli_cmd('cropping raw' )[1],
-        #     "reset_width":self.send_fli_cmd('resetwidth raw' )[1],
-        #     "aduoffset":self.send_fli_cmd( 'aduoffset raw' )[1],
-        #     "resetwidth":self.send_fli_cmd( "resetwidth raw")[1]
-        # } 
 
-        # read in default_cred1_config
-
-         
+        config_dict = {} 
         # open the default config file to get the keys 
-        # with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
-        #     default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
-
-        # config_dict = {}
-        # for k, v in default_cred1_config.items():
-        #     config_dict[k] = self.send_fli_cmd( f"{k} raw" )[1].strip() # reads the state
-        # return( config_dict )
+        with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
+            default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
+            for k, v in default_cred1_config.items():
+                config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
+        return( config_dict )
      
 
     # some custom functions
@@ -700,7 +713,7 @@ if __name__ == "__main__":
     data_path = '/home/heimdallr/Downloads/'
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     roi = [None, None, None, None] # No region of interest
-    aduoffset = 100 # to avoid overflow with negative
+    aduoffset = 1000 # to avoid overflow with negative
     # init camera
     c = fli(cameraIndex=0, roi=[100,200,100,200])
 
@@ -710,14 +723,13 @@ if __name__ == "__main__":
     # set up 
     config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
     c.configure_camera( config_file_name )
-    c.send_fli_cmd( "set aduoffset 100")
+    c.send_fli_cmd( f"set aduoffset {aduoffset}")
     #FliSdk_V2.Update(c.camera)
 
     # start
     ok = c.start_camera()
 
     print( c.send_fli_cmd( "status" ) )
-    print("GetImageReceivedRate:", FliSdk_V2.GetImageReceivedRate(c.camera) )
 
     # c.build_manual_dark()
     #bp = c.get_bad_pixel_indicies( no_frames = 100, std_threshold = 100 , flatten=False)

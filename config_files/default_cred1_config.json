@@ -1,5 +1,5 @@
 {
-    "fps": "1000",
+    "fps": "100",
     "gain": "1",
     "testpattern": "off",
     "bias": "off",
@@ -10,7 +10,6 @@
     "extsynchro": "off",
     "rawimages": "off",
     "cooling": "on",
-    "standby": "off",
     "mode": "globalresetcds",
     "resetwidth": "15",
     "nbreadworeset": "10",

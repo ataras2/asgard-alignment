@@ -213,7 +213,7 @@ parser.add_argument('--open_dms_here',
 parser.add_argument(
     '--data_path',
     type=str,
-    default=f"/home/heimdallr/Documents/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
+    default=f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 parser.add_argument(
@@ -294,7 +294,7 @@ if not os.path.exists(args.data_path):
 # res = send_and_get_response(message)
 # print(res)
 
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
@@ -354,8 +354,8 @@ if args.open_dms_here:
     sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
     import bmc
 
-    DMshapes_path = "/home/heimdallr/Documents/asgard-alignment/DMShapes/"
-    dm_config_path = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
+    DMshapes_path = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+    dm_config_path = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
     ########## ########## ##########
     ########## set up DMs
     with open(dm_config_path, "r") as f:
@@ -462,7 +462,7 @@ and start here
 
 # # get all available files 
 valid_reference_position_files = glob.glob(
-    f"/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions/beam{args.beam}/*json"
+    f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{args.beam}/*json"
     )
 
 

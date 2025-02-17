@@ -7,7 +7,7 @@ def run_scripts():
         subprocess.run(
             [
                 "python",
-                "/home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis.py",
+                "/home/asg/Progs/repos/asgard-alignment/calibration/static_stability_analysis.py",
                 "--cam_gain", "5",
                 "--cam_fps", "2000",
                 "--dm_map", "flat"
@@ -22,7 +22,7 @@ def run_scripts():
         subprocess.run(
             [
                 "python",
-                "/home/heimdallr/Documents/asgard-alignment/calibration/static_stability_analysis.py",
+                "/home/asg/Progs/repos/asgard-alignment/calibration/static_stability_analysis.py",
                 "--cam_gain", "5",
                 "--cam_fps", "2000",
                 "--dm_map", "cross"

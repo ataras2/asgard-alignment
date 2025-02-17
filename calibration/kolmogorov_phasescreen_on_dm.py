@@ -155,13 +155,13 @@ parser.add_argument(
 parser.add_argument(
     '--dm_config_path',
     type=str,
-    default="/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json",
+    default="/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json",
     help="Path to the DM configuration file. Default: %(default)s"
 )
 parser.add_argument(
     '--DMshapes_path',
     type=str,
-    default="/home/heimdallr/Documents/asgard-alignment/DMShapes/",
+    default="/home/asg/Progs/repos/asgard-alignment/DMShapes/",
     help="Path to the directory containing DM shapes. Default: %(default)s"
 )
 parser.add_argument(
@@ -236,13 +236,13 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 # Baldr pupils (for checking phasemask alignment before beginning)
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 with open(baldr_pupils_path, "r") as json_file:
     baldr_pupils = json.load(json_file)
 
 
-#DMshapes_path = args.DMshapes_path #"/home/heimdallr/Documents/asgard-alignment/DMShapes/"
-#dm_config_path = #"/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
+#DMshapes_path = args.DMshapes_path #"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+#dm_config_path = #"/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
 # data_path = f"/home/heimdallr/data/pokeramp/{tstamp_rough}/"
 if not os.path.exists(args.data_path):
      os.makedirs(args.data_path)

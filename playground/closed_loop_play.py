@@ -61,7 +61,7 @@ parser.add_argument(
 parser.add_argument(
     '--data_path',
     type=str,
-    default=f"/home/heimdallr/Documents/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
+    default=f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 parser.add_argument(
@@ -121,10 +121,10 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 # paths 
-DMshapes_path = "/home/heimdallr/Documents/asgard-alignment/DMShapes/"
-dm_config_path = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
+DMshapes_path = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+dm_config_path = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
 
-#baldr_pupils_path = "/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
+#baldr_pupils_path = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 # with open(baldr_pupils_path, "r") as json_file:
 #     baldr_pupils = json.load(json_file)
 
