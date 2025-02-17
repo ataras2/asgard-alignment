@@ -463,6 +463,46 @@
             "delay_time": 1.0
         },
         "semaphore_id": 36
+    },
+    {
+        "name": "BLF1",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "30mm" : 1.0,
+            "15mm" : 0.0
+        },
+        "semaphore_id": 37
+    },
+    {
+        "name": "BLF2",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "30mm" : 1.0,
+            "15mm" : 0.0
+        },
+        "semaphore_id": 38
+    },
+    {
+        "name": "BLF3",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "15mm" : 1.0,
+            "30mm" : 0.0 
+        },
+        "semaphore_id": 39
+    },
+    {
+        "name": "BLF4",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "30mm" : 1.0,
+            "15mm" : 0.0
+        },
+        "semaphore_id": 40
     }
 ],
     "lamps" : [
