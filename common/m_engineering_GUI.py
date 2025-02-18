@@ -1231,6 +1231,8 @@ with col_main:
                 else:
                     raise ValueError("Invalid move_what")
 
+
+                increment = float(increment)
                 pos_x = f"{mv_cmd} {config} {beam} {increment} 0.0"
                 pos_y = f"{mv_cmd} {config} {beam} 0.0 {increment}"
                 neg_x = f"{mv_cmd} {config} {beam} {-increment} 0.0"
@@ -1270,11 +1272,12 @@ with col_main:
                 #             pos_x()
 
             # also show the state of all of the motors involved
-            axes = [f"HTTP{beam}", f"HTIP{beam}", f"HTTI{beam}" f"HTTI{beam}"]
+            axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+            # print("axes", axes)
 
-            for axis in axes:
-                pos = send_and_get_response(f"read {axis}")
-                st.write(f"axis: {pos}")
+            # for axis in axes:
+            #     pos = send_and_get_response(f"read {axis}")
+            #     st.write(f"{axis}: {pos}")
 
             if move_what == "move_image":
                 if config == "c_red_one_focus":
