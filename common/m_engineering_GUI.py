@@ -79,6 +79,7 @@ beam_specific_devices = [
     "DM",
     "BMX",
     "BMY",
+    "BLF",
 ]
 
 beam_common_devices = [
@@ -928,10 +929,10 @@ def handle_lens_flipper():
                 res = send_and_get_response(message)
                 st.write(res)
 
-            positions = ["30mm, 15mm"]
+            positions = ["30mm", "15mm"]
             for pos in positions:
                 if st.button(pos, key=f"move_{pos}_{beam_num}"):
-                    message = f"moveabs {target} {pos}"
+                    message = f"asg_setup {target} {pos}"
                     res = send_and_get_response(message)
 
 
@@ -991,6 +992,7 @@ with col_main:
                 send_and_get_response(f"connected? {target}") == "connected"
                 for target in targets
             )
+            print(is_connected)
             if not is_connected:
                 if "DM" in component:
                     st.write(
@@ -1352,9 +1354,11 @@ with col_main:
                                 "name": name,
                                 "is_connected": is_connected,
                             }
-                            if is_connected:
-                                state["position"] = float(res)
-
+                            print(res, type(res), is_connected)
+                            if is_connected: 
+                                if res != 'None':
+                                    state["position"] = float(res)
+                                print()
                             states.append(state)
 
                         fname = "instr_states/" + save_location + ".json"

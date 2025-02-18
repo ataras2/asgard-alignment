@@ -28,9 +28,6 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         self._controller = controllino_controller
 
     def move_abs(self, position):
-        if isinstance(position, str):
-            position = self._named_positions[position]
-
         if np.isclose(position, 1.0):
             self._controller.turn_on(self.name)
         elif np.isclose(position, 0.0):
@@ -39,7 +36,7 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
             raise ValueError(f"Invalid position for bistable motor {self.name}")
 
     def read_position(self):
-        self._controller.get_status(self.name)
+        return str(self._controller.get_status(self.name))
 
     def move_relative(self, position: float):
         pass
@@ -48,9 +45,12 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
     def read_state(self):
-        pass
+        return str(self._controller.get_status(self.name)) 
 
     def setup(self, value):
+        if isinstance(value, str):
+            value = self._named_positions[value]
+        
         self.move_abs(value)
 
     def disable(self):
