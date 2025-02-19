@@ -287,10 +287,10 @@ if not os.path.exists(args.data_path):
 
 
 # home mask.. 
-# message = f"!init BMX2"
+# message = f"init BMX2"
 # res = send_and_get_response(message)
 # print(res)
-# message = f"!init BMY2"
+# message = f"init BMY2"
 # res = send_and_get_response(message)
 # print(res)
 
@@ -303,25 +303,27 @@ with open(baldr_pupils_path, "r") as json_file:
 
 # init camera 
 roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
-c = FLI.fli(cameraIndex=0, roi=roi)
+c = FLI.fli( roi=roi)
+
+### can uncomment when commands are in 
 # configure with default configuration file
-config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
-c.configure_camera(config_file_name)
+# config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
+# c.configure_camera(config_file_name)
 
-with open(config_file_name, "r") as file:
-    camera_config = json.load(file)
+# with open(config_file_name, "r") as file:
+#     camera_config = json.load(file)
 
-apply_manual_reduction = True
+# apply_manual_reduction = True
 
-c.send_fli_cmd("set mode globalresetcds")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# c.send_fli_cmd("set mode globalresetcds")
+# time.sleep(1)
+# c.send_fli_cmd(f"set gain {args.cam_gain}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
-c.start_camera()
+# c.start_camera()
 
-time.sleep(5)
+# time.sleep(5)
 
 # check the cropped pupil regions are correct: 
 full_im = c.get_image_in_another_region( )
@@ -419,7 +421,7 @@ if args.open_dms_here:
 
 
 # ======== Source out first for dark and bad pixel map 
-# state_dict["socket"].send_string(f"!moveabs SSS {source_positions['SSS']['empty']}")
+# state_dict["socket"].send_string(f"moveabs SSS {source_positions['SSS']['empty']}")
 # res = socket.recv_string()
 # print(f"Response: {res}")
 
@@ -434,20 +436,20 @@ if args.open_dms_here:
 # time.sleep(1)
 
 
-# state_dict["socket"].send_string(f"!moveabs SSS {source_positions['SSS']['SBB']}")
+# state_dict["socket"].send_string(f"moveabs SSS {source_positions['SSS']['SBB']}")
 # res = socket.recv_string()
 # print(f"Response: {res}")
 
 
 
-message = f"!fpm_movetomask phasemask{args.beam} {args.phasemask_name}"
+message = f"fpm_movetomask phasemask{args.beam} {args.phasemask_name}"
 res = send_and_get_response(message)
 print(res)
 
-message = f"!read BMX{args.beam}"
+message = f"read BMX{args.beam}"
 Xpos = float( send_and_get_response(message) )
 
-message = f"!read BMY{args.beam}"
+message = f"read BMY{args.beam}"
 Ypos = float( send_and_get_response(message) )
 
 """
@@ -517,12 +519,12 @@ else:
 
 #             initial_pos_input = input("input initial x,y position for scan (in um, seperated by a comman ',' ).\nenter 'e' to use the position from the most recent calibration file ")
 
-#message = f"!fpm_moveabs phasemask{args.beam} {final_coord}"
-message = f"!moveabs BMX{args.beam} {Xpos}"
+#message = f"fpm_moveabs phasemask{args.beam} {final_coord}"
+message = f"moveabs BMX{args.beam} {Xpos}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {Ypos}"
+message = f"moveabs BMY{args.beam} {Ypos}"
 res = send_and_get_response(message)
 print(res) 
 
@@ -585,12 +587,12 @@ if make_movie:
 
 ### Move to the aquired position 
 
-#message = f"!fpm_moveabs phasemask{args.beam} {final_coord}"
-message = f"!moveabs BMX{args.beam} {final_coord[0]}"
+#message = f"fpm_moveabs phasemask{args.beam} {final_coord}"
+message = f"moveabs BMX{args.beam} {final_coord[0]}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {final_coord[1]}"
+message = f"moveabs BMY{args.beam} {final_coord[1]}"
 res = send_and_get_response(message)
 print(res) 
 
@@ -602,16 +604,16 @@ plt.figure(); plt.imshow( img  ) ; plt.colorbar(); plt.savefig('delme.png')
 if not args.non_verbose:
     pct.move_relative_and_get_image(cam=c, beam=args.beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
 
-message = f"!read BMX{args.beam}"
+message = f"read BMX{args.beam}"
 Xpos = float( send_and_get_response(message) )
 
-message = f"!read BMY{args.beam}"
+message = f"read BMY{args.beam}"
 Ypos = float( send_and_get_response(message) )
 
 
 
 # # Update the current mask position
-message = f"!fpm_updatemaskpos phasemask{args.beam} {args.phasemask_name}"
+message = f"fpm_updatemaskpos phasemask{args.beam} {args.phasemask_name}"
 res = send_and_get_response(message)
 
 
@@ -659,7 +661,7 @@ plt.savefig( args.data_path + f'reference_mask_positions_beam{args.beam}.png')
 
 
 # # Update all other mask positions relative to the current (aquired!) mask
-message = f"!fpm_updateallmaskpos phasemask{args.beam} {args.phasemask_name} {reference_mask_pos_file}"
+message = f"fpm_updateallmaskpos phasemask{args.beam} {args.phasemask_name} {reference_mask_pos_file}"
 res = send_and_get_response(message)
 
 
@@ -670,7 +672,7 @@ fig, axes = plt.subplots(5, 2, figsize=(10, 15))  # 5 rows, 2 columns
 for i, mask in enumerate([f"J{x}" for x in range(1, 6)]):
 
     # Send move command
-    message = f"!fpm_movetomask phasemask{args.beam} {mask}"
+    message = f"fpm_movetomask phasemask{args.beam} {mask}"
     res = send_and_get_response(message)
     if "ACK" in res:
         print(f'Successfully moved to mask {mask}')
@@ -697,7 +699,7 @@ for i, mask in enumerate([f"J{x}" for x in range(1, 6)]):
 for i, mask in enumerate([f"H{x}" for x in range(1, 6)]):
     
     # Send move command
-    message = f"!fpm_movetomask phasemask{args.beam} {mask}"
+    message = f"fpm_movetomask phasemask{args.beam} {mask}"
     res = send_and_get_response(message)
     if "ACK" in res:
         print(f'Successfully moved to mask {mask}')
@@ -730,7 +732,7 @@ plt.savefig(args.data_path + f'calibrated_phasemasks_beam{args.beam}_{tstamp}.pn
 write2file = int( input('write to file? enter 1 for yes, 0 for no') )
 
 if write2file:
-    message = f"!fpm_writemaskpos phasemask{args.beam}"
+    message = f"fpm_writemaskpos phasemask{args.beam}"
     res = send_and_get_response(message)
 
     if "ACK" in res:

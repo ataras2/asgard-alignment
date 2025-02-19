@@ -3,23 +3,33 @@ import time
 import datetime
 import sys
 from pathlib import Path
+import re
 import os 
 from astropy.io import fits
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from xaosim.shmlib import shm
+import zmq
+
+#from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
+#from PyQt5.QtCore import QTimer, Qt
+#from PyQt5.QtGui import QPixmap, QImage
 
 
-sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
-import FliSdk_V2
-import FliCredOne
-import FliCredTwo
-import FliCredThree
 
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
-from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QPixmap, QImage
-from astropy.io import fits
+
+"""
+from xaosim.shmlib import shm
+[15/2/2025, 4:25:24 PM] Mike Ireland: Frantz sets self.mySHM to shm(FILENAME)
+[15/2/2025, 4:25:32 PM] Mike Ireland: Then self.mySHM.mtdata["size"] is the image size.
+[15/2/2025, 4:26:08 PM] Mike Ireland: self.mySHM.get_counter() is the counter, that increments when there is a new frame.
+[15/2/2025, 4:26:20 PM] Mike Ireland: self.mySHM.get_data() is the actual data for the frame.
+[15/2/2025, 4:28:23 PM] Mike Ireland: To communicate with the camera, you need to run “asgard_cam_server —socket” rather than just “ascard_cam_server”, then starting the camera is ‘fetct’ and direct camera commands are sent over zmq as e.g. ‘cli [“set gain 10”]’
+[15/2/2025, 4:45:33 PM] Mike Ireland: For the camera interface, I ran “ZMQ_control_client.py” in an xterm on the (so far only) NoMachine client. The problem is that when communicating via ZMQ, “commander” fails if an invalid json string is given, e.g. no square brackets. The simplistic python interface also can’t handle the degrees symbol. So lots to do!
+[15/2/2025, 4:46:44 PM] Mike Ireland: No rush on your side at all. But I think I’ll head to bed shortly (get closer to Australian time zone)
+"""
+
 
 """
 FLI_Cameras Module
@@ -239,15 +249,48 @@ cred2_command_dict = {}
 # to do..
 cred3_command_dict = {}
 
+
+server_port = 6667
+context = zmq.Context()
+socket = context.socket(zmq.REQ)
+socket.connect(f"tcp://localhost:{server_port}")
+
+cmd_sz = 10 # finite size command with blanks filled
+
+def extract_value(s):
+    """
+    when returning msgs from C-red 1 server they follow a certain format. 
+    This function extracts the important bits of the striung
+    specifically extracts and returns the substring between the first double quote (")
+    and the literal '\\r\\n' sequence from the input string `s`, with surrounding
+    whitespace removed.
+    
+    Parameters:
+        s (str): The input string, e.g., '"  1739.356\\r\\nfli-cli>"'
+        
+    Returns:
+        str or None: The extracted substring (with whitespace stripped) if found,
+                     otherwise None.
+    """
+
+    pattern = r'^"\s*(.*?)\\r\\n'
+    match = re.search(pattern, s)
+    if match:
+        return match.group(1).strip()
+    
+    return None
+
 class fli( ):
 
-    def __init__(self, cameraIndex=1 , roi=[None, None, None, None], config_file_path = None):
-        self.camera = FliSdk_V2.Init() # init camera object
+    def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None):
+        #self.camera = FliSdk_V2.Init() # init camera object
+        self.shm_loc = shm_target
+        self.mySHM = shm(self.shm_loc)
 
         if config_file_path is None:
             # default
             config_file_path = "config_files"
-             # get project root in way that also works in interactive shell (cannot use __file__)
+            # get project root in way that also works in interactive shell (cannot use __file__)
             project_root = Path.cwd()
             while not (project_root / ".git").is_dir() and project_root != project_root.parent:
                 project_root = project_root.parent
@@ -261,57 +304,73 @@ class fli( ):
         #self.bad_pixel_mask = []
         self.pupil_crop_region = roi # region of interest where we crop (post readout)
 
-        listOfGrabbers = FliSdk_V2.DetectGrabbers(self.camera)
-        listOfCameras = FliSdk_V2.DetectCameras(self.camera)
+        try:
+            self.shm_shape = self.mySHM.get_data().shape
+        except:
+            print('failed to get shm shape. Set to ()')
+            self.shm_shape = () 
+        #listOfGrabbers = FliSdk_V2.DetectGrabbers(self.camera)
+        #listOfCameras = FliSdk_V2.DetectCameras(self.camera)
         # print some info and exit if nothing detected
-        if len(listOfGrabbers) == 0:
-            print("No grabber detected, exit.")
-            FliSdk_V2.Exit(self.camera)
-        if len(listOfCameras) == 0:
-            print("No camera detected, exit.")
-            FliSdk_V2.Exit(self.camera)
-        for i,s in enumerate(listOfCameras):
-            print("- index:" + str(i) + " -> " + s)
-
-        #cameraIndex = int( input('input index corresponding to the camera you want to use') )
         
-        print(f'--->using cameraIndex={cameraIndex}')
-        # set the camera
-        camera_err_flag = FliSdk_V2.SetCamera(self.camera, listOfCameras[cameraIndex])
-        if not camera_err_flag:
-            print("Error while setting camera.")
-            FliSdk_V2.Exit(self.camera)
-        print("Setting mode full.")
-        FliSdk_V2.SetMode(self.camera, FliSdk_V2.Mode.Full)
-        print("Updating...")
-        camera_err_flag = FliSdk_V2.Update(self.camera)
-        if not camera_err_flag:
-            print("Error while updating SDK.")
-            FliSdk_V2.Exit(self.camera)
+        # if len(listOfGrabbers) == 0:
+        #     print("No grabber detected, exit.")
+        #     FliSdk_V2.Exit(self.camera)
+        # if len(listOfCameras) == 0:
+        #     print("No camera detected, exit.")
+        #     FliSdk_V2.Exit(self.camera)
+        # for i,s in enumerate(listOfCameras):
+        #     print("- index:" + str(i) + " -> " + s)
 
-        # Dynamically inherit based on camera type
-        if FliSdk_V2.IsCredOne(self.camera):
-            self.__class__ = type("FliCredOneWrapper", (self.__class__, FliCredOne.FliCredOne), {})
-            print("Inherited from FliCredOne")
+        # #cameraIndex = int( input('input index corresponding to the camera you want to use') )
+        
+        # print(f'--->using cameraIndex={cameraIndex}')
+        # # set the camera
+        # camera_err_flag = FliSdk_V2.SetCamera(self.camera, listOfCameras[cameraIndex])
+        # if not camera_err_flag:
+        #     print("Error while setting camera.")
+        #     FliSdk_V2.Exit(self.camera)
+        # print("Setting mode full.")
+        # FliSdk_V2.SetMode(self.camera, FliSdk_V2.Mode.Full)
+        # print("Updating...")
+        # camera_err_flag = FliSdk_V2.Update(self.camera)
+        # if not camera_err_flag:
+        #     print("Error while updating SDK.")
+        #     FliSdk_V2.Exit(self.camera)
+
+        # # Dynamically inherit based on camera type
+        if 1: # FliSdk_V2.IsCredOne(self.camera):
+            #self.__class__ = type("FliCredOneWrapper", (self.__class__, FliCredOne.FliCredOne), {})
+            #print("Inherited from FliCredOne")
             self.command_dict = cred1_command_dict
-        elif FliSdk_V2.IsCredTwo(self.camera):
-            self.__class__ = type("FliCredTwoWrapper", (self.__class__, FliCredTwo.FliCredTwo), {})
-            print("Inherited from FliCredTwo")
-            self.command_dict = cred2_command_dict
-        elif FliSdk_V2.IsCredThree(self.camera):
-            self.__class__ = type("FliCredThreeWrapper", (self.__class__, FliCredThree.FliCredThree), {})
-            print("Inherited from FliCredThree")
-            self.command_dict = cred3_command_dict
-        else:
-            print("No compatible camera type detected.")
-            FliSdk_V2.Exit(self.camera)
+
+
+        # elif FliSdk_V2.IsCredTwo(self.camera):
+        #     self.__class__ = type("FliCredTwoWrapper", (self.__class__, FliCredTwo.FliCredTwo), {})
+        #     print("Inherited from FliCredTwo")
+        #     self.command_dict = cred2_command_dict
+        # elif FliSdk_V2.IsCredThree(self.camera):
+        #     self.__class__ = type("FliCredThreeWrapper", (self.__class__, FliCredThree.FliCredThree), {})
+        #     print("Inherited from FliCredThree")
+        #     self.command_dict = cred3_command_dict
+        # else:
+        #     print("No compatible camera type detected.")
+        #     FliSdk_V2.Exit(self.camera)
             
     # send FLI command (based on firmware version)
-    def send_fli_cmd(self, cmd ):
-        val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
+    def send_fli_cmd( self, cmd_raw ):
+        cmd = f'cli "{cmd_raw}"'
+        #cmd_sz = 10  # finite size command with blanks filled
+        out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
+        socket.send_string(out_cmd)
+        
+        #  Get the reply.
+        resp = socket.recv().decode("ascii")
+        print(f"== Reply: [{resp}]")
+        #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
         #if not val:
         #    print(f"Error with command {cmd}")
-        return val 
+        return resp 
     
 
     def print_camera_commands(self):
@@ -333,68 +392,80 @@ class fli( ):
         with open( config_file, "r") as file:
             camera_config = json.load(file)  # Parses the JSON content into a Python dictionary
 
+
+
         # check if in standby 
-        if self.send_fli_cmd( 'standby raw' )[1] == 'on':
-            try :
-                self.send_fli_cmd( f"set standby on" )
-            except:
-                raise UserWarning( "---\ncamera in standby mode and the fli command 'set standby off' failed\n " )
+        # if self.send_fli_cmd( 'standby raw' )[1] == 'on':
+        #     try :
+        #         self.send_fli_cmd( f"set standby on" )
+        #     except:
+        #         raise UserWarning( "---\ncamera in standby mode and the fli command 'set standby off' failed\n " )
         
         for k, v in camera_config.items():
+
             time.sleep( sleep_time )
+
+            self.send_fli_cmd( f"set {k} {v}")
 
             # for some reason set stanby mode timesout
             # if setting to the same state - so we manually check
             # before sending the command
-            if 'standby' in k:
-                if v != self.send_fli_cmd( 'standby raw' )[1]:
-                    ok , _  = self.send_fli_cmd( f"set {k} {v}")
-                    if not ok :
-                        print( f"FAILED FOR set {k} {v}")
+            # if 'standby' in k:
+            #     if v != self.send_fli_cmd( 'standby raw' )[1]:
+            #         ok , _  = self.send_fli_cmd( f"set {k} {v}")
+            #         if not ok :
+            #             print( f"FAILED FOR set {k} {v}")
 
-
-            ok , _  = self.send_fli_cmd( f"set {k} {v}")
-            if not ok :
-                print( f"FAILED FOR set {k} {v}")
+            # ok , _  = self.send_fli_cmd( f"set {k} {v}")
+            # if not ok :
+            #     print( f"FAILED FOR set {k} {v}")
 
         
     # basic wrapper functions
     def start_camera(self):
-        ok = FliSdk_V2.Start(self.camera)
-        return ok 
+        # not really startig camera , but just the thread to pwrite to shm
+        #fetch []
+        #ok = FliSdk_V2.Start(self.camera)
+        #return ok 
+
+        cmd = "fetch []"
+        #cmd_sz = 10  # finite size command with blanks filled
+        out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
+        socket.send_string(out_cmd)
+        
+        #  Get the reply.
+        resp = socket.recv().decode("ascii")
+        print(f"== Reply: [{resp}]")
+        #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
+        #if not val:
+        #    print(f"Error with command {cmd}")
+        return resp 
+
     def stop_camera(self):
-        ok = FliSdk_V2.Stop(self.camera)
-        return ok
+        return "to do"
+        #ok = FliSdk_V2.Stop(self.camera)
+        #return ok
     
     def exit_camera(self):
-        FliSdk_V2.Exit(self.camera)
+        return "to do"
+        #FliSdk_V2.Exit(self.camera)
 
     def get_last_raw_image_in_buffer(self):
-        img = FliSdk_V2.GetRawImageAsNumpyArray(self.camera, -1)
+        
+        img = self.mySHM.get_data()[-1] # typically its a buchch of 100 frames so get last one 
+
+        #img = FliSdk_V2.GetRawImageAsNumpyArray(self.camera, -1)
         return img 
     
 
     def get_camera_config(self):
-        # config_dict = {
-        #     'mode':self.send_fli_cmd('mode raw' )[1], 
-        #     'fps': self.send_fli_cmd('fps raw' )[1],
-        #     'gain': self.send_fli_cmd('gain raw' )[1],
-        #     "cropping_state": self.send_fli_cmd('cropping raw' )[1],
-        #     "reset_width":self.send_fli_cmd('resetwidth raw' )[1],
-        #     "aduoffset":self.send_fli_cmd( 'aduoffset raw' )[1],
-        #     "resetwidth":self.send_fli_cmd( "resetwidth raw")[1]
-        # } 
 
-        # read in default_cred1_config
-
-         
+        config_dict = {} 
         # open the default config file to get the keys 
         with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
             default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
-
-        config_dict = {}
-        for k, v in default_cred1_config.items():
-            config_dict[k] = self.send_fli_cmd( f"{k} raw" )[1].strip() # reads the state
+            for k, v in default_cred1_config.items():
+                config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
         return( config_dict )
      
 
@@ -509,11 +580,11 @@ class fli( ):
         # gets the last image in the buffer
         if not apply_manual_reduction:
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         else :
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
 
             if len( self.reduction_dict['bias'] ) > 0:
@@ -536,7 +607,7 @@ class fli( ):
         # defined by self.pupil_crop_region
 
         #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-        img = FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+        img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
         cropped_img = img[crop_region[0]:crop_region[1],crop_region[2]: crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         
         #if type( self.pixelation_factor ) == int : 
@@ -546,33 +617,47 @@ class fli( ):
         return( cropped_img )    
     
 
-    def get_some_frames(self, number_of_frames = 100, apply_manual_reduction=True, timeout_limit = 20000 ):
+    def get_some_frames(self, number_of_frames = 10, apply_manual_reduction=True, timeout_limit = 20000 ):
         """
         poll sequential frames (no repeats) and store in list  
         """
-        ref_img_list = []
-        i=0
-        timeout_counter = 0 
-        timeout_flag = 0
-        while (len( ref_img_list  ) < number_of_frames) and not timeout_flag: # poll  individual images
-            if timeout_counter > timeout_limit: # we have done timeout_limit iterations without a frame update
-                timeout_flag = 1 
-                raise TypeError('timeout! timeout_counter > 10000')
+        if len(self.shm_shape) == 3:
 
-            full_img = self.get_image_in_another_region() # empty argunment for full frame
-            current_frame_number = full_img[0][0] #previous_frame_number
-            if i==0:
-                previous_frame_number = current_frame_number
-            if current_frame_number > previous_frame_number:
-                timeout_counter = 0 # reset timeout counter
-                if current_frame_number == 65535:
-                    previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
-                else:
-                    previous_frame_number = current_frame_number 
-                    ref_img_list.append( self.get_image( apply_manual_reduction  = apply_manual_reduction) )
-            i+=1
-            timeout_counter += 1
-            
+            if self.shm_shape[0] >= number_of_frames :
+                ref_img_list = list(self.mySHM.get_data())
+
+            elif self.shm_shape[0] < number_of_frames :
+                ref_img_list = list(self.mySHM.get_data())
+                while (len( ref_img_list  ) < number_of_frames) : #and (not timeout_flag):
+                    ref_img_list = ref_img_list + list(self.mySHM.get_data())
+
+            ref_img_list = list(np.array( ref_img_list)[ : number_of_frames, self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]] )
+
+        if len(self.shm_shape) == 2: # then probably just the most recent (polling last)
+            ref_img_list = []
+            i=0
+            timeout_counter = 0 
+            timeout_flag = 0
+            while (len( ref_img_list  ) < number_of_frames) and not timeout_flag: # poll  individual images
+                if timeout_counter > timeout_limit: # we have done timeout_limit iterations without a frame update
+                    timeout_flag = 1 
+                    raise TypeError('timeout! timeout_counter > 10000')
+
+                full_img = self.get_image_in_another_region() # empty argunment for full frame
+                current_frame_number = full_img[0][0] #previous_frame_number
+                if i==0:
+                    previous_frame_number = current_frame_number
+                if current_frame_number > previous_frame_number:
+                    timeout_counter = 0 # reset timeout counter
+                    if current_frame_number == 65535:
+                        previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
+                    else:
+                        previous_frame_number = current_frame_number 
+                        ref_img_list.append( self.get_image( apply_manual_reduction  = apply_manual_reduction) )
+                i+=1
+                timeout_counter += 1
+            else:
+                raise UserWarning('nothing mettt here')
         return( ref_img_list )  
 
 
@@ -592,11 +677,11 @@ class fli( ):
         hdu.header['EXTNAME'] = 'FRAMES'
         #hdu.header['config'] = config_file_name
 
-        config_tmp = self.get_camera_config()
-        for k, v in config_tmp.items():
-            hdu.header[k] = v
-        # Append the HDU to the HDU list
-        hdulist.append(hdu)
+        # config_tmp = self.get_camera_config()
+        # for k, v in config_tmp.items():
+        #     hdu.header[k] = v
+        # # Append the HDU to the HDU list
+        # hdulist.append(hdu)
 
         # append reduction info
         for k, v in self.reduction_dict.items():
@@ -617,7 +702,7 @@ class fli( ):
         # Cleanup when object is deleted
         if hasattr(self, 'camera') and self.camera is not None:
             self.send_fli_cmd( "set gain 1" )
-            FliSdk_V2.Exit(self.camera)
+            #FliSdk_V2.Exit(self.camera)
             print("Camera SDK exited cleanly.")
 
 
@@ -637,9 +722,9 @@ if __name__ == "__main__":
     data_path = '/home/heimdallr/Downloads/'
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     roi = [None, None, None, None] # No region of interest
-    aduoffset = 100 # to avoid overflow with negative
+    aduoffset = 1000 # to avoid overflow with negative
     # init camera
-    c = fli(cameraIndex=0, roi=[100,200,100,200])
+    c = fli() #cameraIndex=0, roi=[100,200,100,200])
 
     # print the camera commands available in send_fli_cmd method
     c.print_camera_commands()
@@ -647,14 +732,13 @@ if __name__ == "__main__":
     # set up 
     config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
     c.configure_camera( config_file_name )
-    c.send_fli_cmd( "set aduoffset 100")
+    c.send_fli_cmd( f"set aduoffset {aduoffset}")
     #FliSdk_V2.Update(c.camera)
 
     # start
     ok = c.start_camera()
 
     print( c.send_fli_cmd( "status" ) )
-    print("GetImageReceivedRate:", FliSdk_V2.GetImageReceivedRate(c.camera) )
 
     # c.build_manual_dark()
     #bp = c.get_bad_pixel_indicies( no_frames = 100, std_threshold = 100 , flatten=False)

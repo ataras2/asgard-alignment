@@ -3,25 +3,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import leastsq
-from scipy.ndimage import gaussian_filter
 from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter, label, find_objects
-from scipy.ndimage import label, find_objects
 from astropy.io import fits
 import os
 import time
 import importlib
 import json
+import toml
 import datetime
 import sys
 import argparse
 
-from asgard_alignment import FLI_Cameras_shm as FLI
-from common import phasemask_centering_tool as pct
+from asgard_alignment import FLI_Cameras as FLI
+#from common import phasemask_centering_tool as pct
 
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
-import matplotlib 
-matplotlib.use('Agg')
+# import matplotlib 
+# matplotlib.use('Agg')
 
 """
 TO DO: maybe later cut the region of interest in 
@@ -313,7 +312,12 @@ parser.add_argument(
     default=1,
     help="camera gain. Default: %(default)s"
 )
-
+parser.add_argument(
+    '--saveformat',
+    type=str,
+    default='toml',
+    help="file type to save pupil coordinates. Default: %(default)s. Options: json, toml"
+)
 
 args = parser.parse_args()
 
@@ -332,12 +336,15 @@ if not os.path.exists(args.data_path):
 # init camera 
 roi = [None, None, None, None]
 c = FLI.fli( roi=roi)
-# configure with default configuration file
-config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
-c.configure_camera(config_file_name)
 
-with open(config_file_name, "r") as file:
-    camera_config = json.load(file)
+##########
+# configure with default configuration file
+##########
+#config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
+#c.configure_camera(config_file_name)
+
+# with open(config_file_name, "r") as file:
+#     camera_config = json.load(file)
 
 apply_manual_reduction = True
 
@@ -347,34 +354,113 @@ apply_manual_reduction = True
 # time.sleep(1)
 # c.send_fli_cmd(f"set fps {args.cam_fps}")
 
-c.start_camera()
+# c.start_camera()
 
 
 
 ### getting pupil regioons for Baldr 
-img = np.mean( c.get_some_frames( number_of_frames=10, apply_manual_reduction=True ) , axis = 0 ) 
-plt.figure(); plt.imshow( np.log10( img ) ) ; plt.savefig('delme.png')
-
-crop_pupil_coords = np.array( percentile_based_detect_pupils(
-    img, percentile = 99, min_group_size=100, buffer=20, plot=False
-) )
-#cropped_pupils = crop_and_sort_pupils(img, crop_pupil_coords)
-
-# sorts by rows (indicies are r1,r2,c1,c2)
-sorted_crop_pupil_coords = crop_pupil_coords[crop_pupil_coords[:, 0].argsort()]
-
-# Convert to dictionary with keys 4,3,2,1
-sorted_dict = {str(i): row.tolist() for i, row in zip(['4','3','2','1'],sorted_crop_pupil_coords)}
-
-#Swap the coordinates in the dictionary (since CRED one has funny convention with rows and cols)
-swapped_dict = {
-    key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
-}
-
-# Save to a JSON file
-with open(args.data_path + 'baldr_pupils_coords.json', "w") as json_file:
-    json.dump(swapped_dict, json_file, indent=4)
-
-print( f'wrote (detected) baldr pupil cropping coordinates to : {args.data_path + "baldr_pupils_coords.json"}')
+img = np.mean( c.get_some_frames( number_of_frames=5, apply_manual_reduction=True ) , axis = 0 ) 
+#plt.figure(); plt.imshow( np.log10( img ) ) ; plt.savefig('delme.png')
 
 
+baldr_mask = np.zeros_like(img).astype(bool)
+baldr_mask[img.shape[0]//2 : img.shape[0] , : ] = True # baldr occupies top half (pixels)
+heim_mask = ~baldr_mask # heimdallr occupies bottom half
+
+mask = baldr_mask
+
+dict2write = {}
+
+regiom_labels  = ["baldr", "heimdallr"]
+mask_list = [baldr_mask, heim_mask]
+for mask, lab in zip( mask_list, regiom_labels):
+    print(f"looking at {lab}")
+    crop_pupil_coords = np.array( percentile_based_detect_pupils(
+        img * mask, percentile = 99, min_group_size=100, buffer=20, plot=True
+    ) )
+    #cropped_pupils = crop_and_sort_pupils(img, crop_pupil_coords)
+
+    # sorts by rows (indicies are r1,r2,c1,c2)
+    sorted_crop_pupil_coords = crop_pupil_coords[crop_pupil_coords[:, 0].argsort()]
+
+
+    #Swap the coordinates in the dictionary (since CRED one has funny convention with rows and cols)
+    if lab == 'baldr':
+
+        if len(sorted_crop_pupil_coords) == 4:
+            # Convert to dictionary with keys 4,3,2,1 (order of baldr beams)
+            sorted_dict = {str(i): row.tolist() for i, row in zip(['4','3','2','1'],sorted_crop_pupil_coords)}
+
+            # flipped coordinates
+            swapped_dict = {
+                key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+            }
+        else:
+            ui = input("4 pupils not detected in Baldr. enter 1 to contiune, anything else to exit")
+            if ui != '1':
+                raise UserWarning("4 pupils not detected in Baldr.")
+
+    elif lab == 'heimdallr':
+        if len(sorted_crop_pupil_coords) == 2: 
+            # K1 (bright) on the left (low pixels), K2 on right (high pixels)
+            sorted_dict = {str(k):v.tolist() for k, v in zip(['K1','K2'], sorted_crop_pupil_coords)}
+            # flipped coordinates
+            swapped_dict = {
+                key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+            }
+        else:
+            ui = input("2 pupils not detected in Heimdallr. enter 1 to contiune, anything else to exit")
+            if ui != '1':
+                raise UserWarning("2 pupils not detected in Heimdallr.")
+    else:
+        raise UserWarning("no valid label.")
+
+
+    dict2write[lab+"_pupils"] = swapped_dict 
+
+    #print( f'wrote (detected) baldr pupil cropping coordinates to : {args.data_path + "baldr_pupils_coords.json"}')
+
+
+
+if args.saveformat=='json':
+    json_file_path = os.path.join(args.data_path,f'pupils_coords.json')
+    # Save to a JSON file
+    with open(json_file_path, "w") as json_file:
+        json.dump(dict2write, json_file, indent=4)
+
+    print(f'wrote {json_file_path}')
+
+elif args.saveformat=='toml':
+    toml_file_path = os.path.join(args.data_path, f'pupils_coords.toml')
+    # Write the dictionary to the TOML file
+    with open(toml_file_path, "w") as toml_file:
+        toml.dump(dict2write, toml_file)
+
+    print(f'wrote {toml_file_path}')
+
+
+### Plot final results 
+# Plot the image
+
+plt.figure(figsize=(8, 8))
+plt.imshow(np.log10(img), cmap='gray',origin='upper' ) #, origin='upper') #extent=[0, full_im.shape[1], 0, full_im.shape[0]]
+plt.colorbar(label='Intensity')
+
+# Overlay red boxes for each cropping region
+for lab in regiom_labels:
+    for beam_tmp, (row1, row2, column1, column2) in  dict2write[f"{lab}_pupils"].items():
+        plt.plot([column1, column2, column2, column1, column1],
+                [row1, row1, row2, row2, row1],
+                color='red', linewidth=2, label=f'Beam {beam_tmp}' if beam_tmp == 1 else "")
+
+        plt.text((column1 + column2) / 2, row1 , f'{lab} {beam_tmp}', 
+                color='red', fontsize=15, ha='center', va='bottom')
+
+# Add labels and legend
+#plt.title('Image with Baldr Cropping Regions')
+plt.xlabel('Columns')
+plt.ylabel('Rows')
+plt.legend(loc='upper right')
+plt.savefig('delme.png')
+plt.show()
+#plt.close() 

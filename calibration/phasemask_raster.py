@@ -12,9 +12,10 @@ import pandas as pd
 import argparse
 import zmq
 import atexit
+import toml
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
 import matplotlib 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 
 # custom
 from asgard_alignment import FLI_Cameras as FLI
@@ -28,8 +29,12 @@ import ast
 # if server is stuck 
 # sudo lsof -i :5555 then kill the PID 
 
+#export PYTHONPATH=~/Progs/repos/asgard-alignment:$PYTHONPATH
 
 # python -i calibration/phasemask_raster.py --beam 2 --initial_pos 10,10 --dx 500 --dy 3000 --width 9000 --height 9800 --orientation 0 
+
+"BTW - I only painted around the phase masks black on beans 1 and 2."
+"So the bad news is that I put a fingerprint on the phase mask of beam 4,"
 
 def close_all_dms():
     try:
@@ -155,7 +160,7 @@ def create_scatter_image_movie(data_dict, save_path="scatter_image_movie.mp4", f
     ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
 
     # Save the animation as a movie file
-    ani.save(save_path, fps=fps, writer='ffmpeg')
+    ani.save(save_path, fps=fps, writer='ffmpeg') #, codec='libx264')
 
     plt.close(fig)  # Close the figure to avoid displaying it unnecessarily
 
@@ -269,7 +274,7 @@ parser.add_argument(
 parser.add_argument(
     '--initial_pos',
     type=str,
-    default="recent",
+    default="5000,5000", #"recent",
     help="x,y initial position of search or 'recent' to use most recent calibration file. Default: %(default)s "
 )
 
@@ -289,21 +294,21 @@ parser.add_argument(
 parser.add_argument(
     '--dy',
     type=float,
-    default=1000,
+    default=20,
     help="set size in microns of y increments in raster. Default: %(default)s"
 )
 
 parser.add_argument(
     '--width',
     type=float,
-    default=1000,
+    default=100,
     help="set width (x-axis in local frame) in microns of raster search. Default: %(default)s"
 )
 
 parser.add_argument(
     '--height',
     type=float,
-    default=1000,
+    default=100,
     help="set height (y-axis in local frame) in microns of raster search. Default: %(default)s"
 )
 
@@ -353,17 +358,17 @@ if not os.path.exists(args.data_path):
 
 
 
-message = f"!read BMX{args.beam}"
+message = f"read BMX{args.beam}"
 initial_Ypos = float(send_and_get_response(message))
 
-message = f"!read BMX{args.beam}"
+message = f"read BMX{args.beam}"
 initial_Xpos = float(send_and_get_response(message))
 
 # home mask.. 
-# message = f"!init BMX2"
+# message = f"init BMX2"
 # res = send_and_get_response(message)
 # print(res)
-# message = f"!init BMY2"
+# message = f"init BMY2"
 # res = send_and_get_response(message)
 # print(res)
 
@@ -376,25 +381,27 @@ with open(baldr_pupils_path, "r") as json_file:
 
 # init camera 
 roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
-c = FLI.fli(cameraIndex=0, roi=roi)
+c = FLI.fli(roi=roi) #cameraIndex=0, roi=roi)
 # configure with default configuration file
-config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
-c.configure_camera(config_file_name)
 
-with open(config_file_name, "r") as file:
-    camera_config = json.load(file)
+### UNCOMMENT WHEN CMDS WORKING AGAIN
+#config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
+#c.configure_camera(config_file_name)
 
-apply_manual_reduction = True
+# with open(config_file_name, "r") as file:
+#     camera_config = json.load(file)
 
-c.send_fli_cmd("set mode globalresetcds")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# apply_manual_reduction = True
 
-c.start_camera()
+# c.send_fli_cmd("set mode globalresetcds")
+# time.sleep(1)
+# c.send_fli_cmd(f"set gain {args.cam_gain}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
-time.sleep(5)
+# c.start_camera()
+
+# time.sleep(5)
 
 # check the cropped pupil regions are correct: 
 full_im = c.get_image_in_another_region( )
@@ -420,25 +427,48 @@ plt.legend(loc='upper right')
 plt.savefig('delme.png')
 plt.show()
 plt.close() 
-plt.savefig('delme.png')
 
 
 
-# goiing to initial position 
-try: 
-    tmp_pos = args.initial_pos.split( ',')
+# # get all available files 
+valid_reference_position_files = glob.glob(
+    f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{args.beam}/*json"
+    )
 
-    Xpos = int( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
-    Ypos = int( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
-    print(f'using user input initial position x,y ={Xpos}, {Ypos}')
-except: 
-    raise UserWarning( 'invalid user input {args.initial_pos} for initial position x,y. Try (for example) --initial_pos 5000,5000  (i.e they are comma-separated)' )
+if 'recent' in args.initial_pos:
 
-message = f"!moveabs BMX{args.beam} {Xpos}"
+    # read in the most recent and make initial posiition the most recent one for given mask 
+    with open(max(valid_reference_position_files, key=os.path.getmtime)
+    , "r") as file:
+        start_position_dict = json.load(file)
+
+    Xpos = start_position_dict[args.phasemask_name][0]
+    Ypos = start_position_dict[args.phasemask_name][1]
+
+else: 
+    try: 
+        tmp_pos = args.initial_pos.split( ',')
+
+        Xpos = int( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
+        Ypos = int( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
+        print(f'using user input initial position x,y ={Xpos}, {Ypos}')
+    except: 
+        print( 'invalid user input {args.initial_pos} for initial position x,y. Try (for example) --initial_pos 5000,5000  (i.e they are comma-separated)' )
+        recent_file = max(valid_reference_position_files, key=os.path.getmtime)
+        with open(recent_file, "r") as file:
+            start_position_dict = json.load(file)
+
+        print( '\n\n--using the most recent calibration file \n  {recent_file}')
+
+        Xpos = start_position_dict[args.phasemask_name][0]
+        Ypos = start_position_dict[args.phasemask_name][1]
+
+
+message = f"moveabs BMX{args.beam} {Xpos}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {Ypos}"
+message = f"moveabs BMY{args.beam} {Ypos}"
 res = send_and_get_response(message)
 print(res) 
 
@@ -529,11 +559,11 @@ if make_movie:
 
 ### Move back to the initial position 
 
-message = f"!moveabs BMX{args.beam} {initial_Xpos}"
+message = f"moveabs BMX{args.beam} {initial_Xpos}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {initial_Ypos}"
+message = f"moveabs BMY{args.beam} {initial_Ypos}"
 res = send_and_get_response(message)
 print(res) 
 

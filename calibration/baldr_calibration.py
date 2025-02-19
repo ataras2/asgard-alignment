@@ -705,7 +705,7 @@ if control_method == 'zonal_linear':
     for act in range(140):
 
         # Select data for the current actuator and label data
-        x = interpolated_i[:, act]
+        x = interpolated_i[:, act] # NORMALIZATION
         y = dm_cmd[:, act]
         
         # Standard Linear Regression

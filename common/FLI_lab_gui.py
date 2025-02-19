@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 # FLI_Cameras  import must be above PyQt 5 otherwise c library conflicts.
 #from asgard_alignment import FLI_Cameras
-from asgard_alignment import FLI_Cameras_shm as FLI_Cameras
+from asgard_alignment import FLI_Cameras as FLI_Cameras
 # from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget, QLineEdit, QHBoxLayout, QTextEdit, QFileDialog, QSlider
 # from PyQt5.QtCore import QTimer, Qt
 # from PyQt5.QtGui import QPixmap, QImage

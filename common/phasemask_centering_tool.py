@@ -335,13 +335,13 @@ def raster_square_search_and_save_images(
             y_pos = 9999
 
         if use_multideviceserver:
-            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-            message = f"!moveabs BMX{beam} {x_pos}"
+            #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"moveabs BMX{beam} {x_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
 
-            message = f"!moveabs BMY{beam} {y_pos}"
+            message = f"moveabs BMY{beam} {y_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
@@ -350,7 +350,7 @@ def raster_square_search_and_save_images(
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
         img = np.mean(
-            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            cam.get_some_frames(number_of_frames=2, apply_manual_reduction=True),
             axis=0,
         )
 
@@ -400,13 +400,13 @@ def spiral_square_search_and_save_images(
             y_pos = 9999
 
         if use_multideviceserver:
-            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-            message = f"!moveabs BMX{beam} {x_pos}"
+            #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"moveabs BMX{beam} {x_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
 
-            message = f"!moveabs BMY{beam} {y_pos}"
+            message = f"moveabs BMY{beam} {y_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
@@ -574,13 +574,13 @@ def spiral_search_and_center(
 ):
 
     if use_multideviceserver:
-        #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-        message = f"!moveabs BMX{beam} {x_pos}"
+        #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+        message = f"moveabs BMX{beam} {x_pos}"
         phasemask.send_string(message)
         response = phasemask.recv_string()
         print(response)
 
-        message = f"!moveabs BMY{beam} {y_pos}"
+        message = f"moveabs BMY{beam} {y_pos}"
         phasemask.send_string(message)
         response = phasemask.recv_string()
         print(response)
@@ -688,7 +688,7 @@ def spiral_search_and_center(
     if move2best:
 
         if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {best_pos}"
+            message = f"fpm_moveabs phasemask{beam} {best_pos}"
             phasemask.send_string(message)
 
         else:
@@ -697,7 +697,7 @@ def spiral_search_and_center(
     else:
         print("moving back to initial position")
         if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {starting_point}"
+            message = f"fpm_moveabs phasemask{beam} {starting_point}"
             phasemask.send_string(message)
         else:
             phasemask.move_absolute(starting_point)
@@ -777,16 +777,16 @@ def spiral_search_and_center(
     if save_pos:
 
         if use_multideviceserver:
-            message = f"!fpm_updatemaskpos phasemask{beam} {phasemask_name}"
+            message = f"fpm_updatemaskpos phasemask{beam} {phasemask_name}"
             phasemask.send_string(message)
 
         else:
             phasemask.update_mask_position(phasemask_name)
 
     if use_multideviceserver:
-        message = f"!fpm_pos phasemask{beam}"
+        message = f"fpm_pos phasemask{beam}"
         phasemask.send_string(message)
-        message = f"!fpm_readpos phasemask{beam}"
+        message = f"fpm_readpos phasemask{beam}"
         phasemask.send_string(message)
         pos = phasemask.recv_string()
     else:
@@ -879,14 +879,14 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_mult
                 y = float(xy[1])
 
                 if use_multideviceserver:
-                    #message = f"!fpm_moveabs phasemask{beam} {[x,y]}"
+                    #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
                     #phasemask.send_string(message)
-                    message = f"!moverel BMX{beam} {x}"
+                    message = f"moverel BMX{beam} {x}"
                     phasemask.send_string(message)
                     response = phasemask.recv_string()
                     print(response)
 
-                    message = f"!moverel BMY{beam} {y}"
+                    message = f"moverel BMY{beam} {y}"
                     phasemask.send_string(message)
                     response = phasemask.recv_string()
                     print(response)
@@ -1219,6 +1219,6 @@ if __name__ == "__main__":
 
         return response.strip()
 
-    # socket.send_string(f"!movetomask phasemask1 J1")
+    # socket.send_string(f"movetomask phasemask1 J1")
     # res = socket.recv_string()
     # print(f"Response: {res}")
