@@ -439,9 +439,7 @@ elif args.saveformat=='toml':
     print(f'wrote {toml_file_path}')
 
 
-### Plot final results 
-# Plot the image
-
+### Plot final results for check
 plt.figure(figsize=(8, 8))
 plt.imshow(np.log10(img), cmap='gray',origin='upper' ) #, origin='upper') #extent=[0, full_im.shape[1], 0, full_im.shape[0]]
 plt.colorbar(label='Intensity')
@@ -456,7 +454,6 @@ for lab in regiom_labels:
         plt.text((column1 + column2) / 2, row1 , f'{lab} {beam_tmp}', 
                 color='red', fontsize=15, ha='center', va='bottom')
 
-# Add labels and legend
 #plt.title('Image with Baldr Cropping Regions')
 plt.xlabel('Columns')
 plt.ylabel('Rows')

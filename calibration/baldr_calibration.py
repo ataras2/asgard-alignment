@@ -628,6 +628,7 @@ cal_frames = poke_imgs_cropped.reshape( -1,  x_end - x_start, y_end - y_start ) 
 I0 = np.mean( recon_data['FPM_IN'].data, axis = 0) 
 N0 = np.mean( recon_data['FPM_OUT'].data, axis = 0) 
 
+#see with matrix method 
 interpolated_i =  np.array( [DM_registration.interpolate_pixel_intensities(image = i, pixel_coords = transform_dict['actuator_coord_list_pixel_space']) for i in cal_frames] )
 
 interpolated_I0 = DM_registration.interpolate_pixel_intensities(image = I0, pixel_coords = transform_dict['actuator_coord_list_pixel_space'])
@@ -822,6 +823,10 @@ if control_method == 'zonal_linear':
         # plt.show()
 
 
+
+    # Strehl Model 
+
+
 else:
     raise UserWarning("control_model not valid")
 
@@ -852,3 +857,10 @@ with open(output_config_filename, 'w') as f:
 
 
 
+# """
+# global config file for my system called Baldr. 4 telescopes with 4 corresponding beams, each with :
+# Sub pupil pixel coordinates to crop image from camera for each telescope 
+# Matrix to interpolate image to registered actuator position in pixelspace 
+# Boolean matrix with active actuators 
+# Vectors for actuator linear model 
+# """

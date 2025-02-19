@@ -350,7 +350,7 @@ def raster_square_search_and_save_images(
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
         img = np.mean(
-            cam.get_some_frames(number_of_frames=2, apply_manual_reduction=True),
+            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
             axis=0,
         )
 
