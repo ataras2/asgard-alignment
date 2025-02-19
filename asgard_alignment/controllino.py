@@ -66,12 +66,19 @@ class Controllino:
         self._maintain_connection = True
         self.client = None
 
-	#The turn-on command needs a string, not a number! 
+	    #The turn-on command needs a string, not a number! 
         self.turn_on("Piezo/Laser")
         self.turn_on("MFF101 (BLF)")
         self.turn_on("LS16P (HFO)")
         self.turn_on("X-MCC (BMX,BMY)")
         self.turn_on("X-MCC (BFO,SDL,BDS)")
+        #Wait for the piezo to settle, then we will set to mid range.
+        time.sleep(.3)
+        self.set_piezo_dac(0,2048)
+        self.set_piezo_dac(1,2048)
+        self.set_piezo_dac(2,2048)
+        self.set_piezo_dac(3,2048)
+        
 
     def _ensure_device(self, key: str):
         """

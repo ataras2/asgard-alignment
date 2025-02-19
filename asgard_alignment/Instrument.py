@@ -599,10 +599,35 @@ class Instrument:
             The COM port for the Zaber motor
         """
         ports = serial.tools.list_ports.comports()
+        possible_ports = []
+
+        #First, we need the list of cusbi ports. If we don't do this, the next time we query, 
+        #we get an error. I've put this as a fake list for now.
+        #Command to find is cusbi (in ~/bin). Syntax
+        #./cusbi /Q:ttyUSB0
+        #If we query all ports, then some Newport M100D ports get confused.
+        #See:
+        #https://sgcdn.startech.com/005329/media/sets/USB_Admin_Software_Manual/USB_Hub_Admin_Software_Manual.pdf
+        #If we try to open a Zaber connection to this port, then it seems stuck in an error state.
+        cusb_ports = ["/dev/ttyUSBX"]
 
         for port, _, hwid in sorted(ports):
             if "VID:PID=0403:6001" in hwid:
-                return port
+                if port in cusb_ports:
+                    print("Found a Managed USB hub.")
+                    continue
+                #Try to open it - if we can, it is a Zaber port!
+                test_connection = Connection.open_serial_port(port)
+                try:
+                    devices = test_connection.detect_devices()
+                    test_connection.close()
+                    print(f"Found a Zaber USB port {port}")
+                    return port
+                except:
+                    #This next line is essential, or the port remains open and no other process
+                    #can use it (including MDS later in the code)
+                    test_connection.close()
+                    print(f"A non-zaber motor using the same USB ID. Port {port}")
         return None
 
     @staticmethod
