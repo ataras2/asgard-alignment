@@ -36,7 +36,7 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
             raise ValueError(f"Invalid position for bistable motor {self.name}")
 
     def read_position(self):
-        return str(self._controller.get_status(self.name))
+        return str(float(self._controller.get_status(self.name)))
 
     def move_relative(self, position: float):
         pass
