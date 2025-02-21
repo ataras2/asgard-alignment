@@ -967,10 +967,15 @@ with col_main:
             )
 
         if component in beam_specific_devices:
+            if component == "BOTX":
+                beam_numbers = [2,3,4]
+            else:
+                beam_numbers = [1, 2, 3, 4]
+
             with col2:
                 beam_number = st.selectbox(
                     "Select Beam Number",
-                    [1, 2, 3, 4],
+                    beam_numbers,
                     key="beam_number",
                 )
             targets = [f"{component}{beam_number}"]
