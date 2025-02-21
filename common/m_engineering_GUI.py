@@ -925,7 +925,7 @@ def handle_lens_flipper():
         target = f"BLF{beam_num}"
         with col:
             if st.button("Read State", key=f"read_state_{beam_num}"):
-                message = f"state {target}"
+                message = f"read {target}"
                 res = send_and_get_response(message)
                 st.write(res)
 
