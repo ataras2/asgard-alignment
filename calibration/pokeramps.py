@@ -5,6 +5,7 @@ import time
 import matplotlib.pyplot as plt
 import importlib
 import json
+import toml
 import datetime
 import sys
 import pandas as pd
@@ -302,10 +303,22 @@ def send_and_get_response(message):
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
+# default data paths 
+with open( "config_files/file_paths.json") as f:
+    default_path_dict = json.load(f)
 
-baldr_pupils_path = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+baldr_pupils_path = default_path_dict["pupil_crop_toml"]  # "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupils = json.load(json_file)
+
+# Load the TOML file
+with open(baldr_pupils_path) as file:
+    pupildata = toml.load(file)
+
+# Extract the "baldr_pupils" section
+baldr_pupils = pupildata.get("baldr_pupils", {})
+
 
 # positions to put thermal source on and take it out to empty position to get dark
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}

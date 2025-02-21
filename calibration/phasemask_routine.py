@@ -5,6 +5,7 @@ import time
 import matplotlib.pyplot as plt
 import importlib
 import json
+import toml
 import datetime
 import sys
 import glob
@@ -294,10 +295,19 @@ if not os.path.exists(args.data_path):
 # res = send_and_get_response(message)
 # print(res)
 
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+
+# Load the TOML file
+with open(baldr_pupils_path) as file:
+    pupildata = toml.load(file)
+
+# Extract the "baldr_pupils" section
+baldr_pupils = pupildata.get("baldr_pupils", {})
+
+
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupils = json.load(json_file)
 
 
 

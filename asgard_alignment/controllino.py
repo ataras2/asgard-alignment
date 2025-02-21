@@ -30,10 +30,10 @@ CONNEXIONS = {
     "SBB": 22,
     "SRL": 30,
     "SGL": 31,
-    "Lower T": 54,
-    "Upper T": 55,
-    "Bench T": 56,
-    "Floor T": 57,
+    "Lower T": 54, 
+    "Upper T": 56, 
+    "Bench T": 55, 
+    "Floor T": 58, 
 }
 
 
@@ -72,6 +72,7 @@ class Controllino:
         self.turn_on("LS16P (HFO)")
         self.turn_on("X-MCC (BMX,BMY)")
         self.turn_on("X-MCC (BFO,SDL,BDS)")
+        self.turn_on("USB hubs")
         #Wait for the piezo to settle, then we will set to mid range.
         time.sleep(.3)
         self.set_piezo_dac(0,2048)
@@ -177,7 +178,7 @@ class Controllino:
         r = self.client.recv(1024).decode().replace("\n", "").replace("\r", "")
         if not self.maintain_connection:
             self.disconnect()
-        return bool(int(r))
+        return r
 
     def send_command(self, command: str) -> bool:
         """
@@ -340,7 +341,7 @@ class Controllino:
             If the returned value is not an integer between 0 and 1023.
         """
         self._ensure_device(key)
-        return_str = self.send_command(f"i{CONNEXIONS[key]}")
+        return_str = self.send_command_anyreply(f"i{CONNEXIONS[key]}")
         try:
             return_int = int(return_str)
             assert 0 <= return_int < 1024

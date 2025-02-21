@@ -7,6 +7,7 @@ import importlib
 import json
 import datetime
 import sys
+import toml
 import pandas as pd
 import argparse
 import zmq
@@ -236,9 +237,18 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 # Baldr pupils (for checking phasemask alignment before beginning)
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupils = json.load(json_file)
+
+baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+
+# Load the TOML file
+with open(baldr_pupils_path) as file:
+    pupildata = toml.load(file)
+
+# Extract the "baldr_pupils" section
+baldr_pupils = pupildata.get("baldr_pupils", {})
 
 
 #DMshapes_path = args.DMshapes_path #"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
