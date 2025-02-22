@@ -431,7 +431,20 @@ if args.saveformat=='json':
     print(f'wrote {json_file_path}')
 
 elif args.saveformat=='toml':
-    toml_file_path = os.path.join(args.data_path, f'pupils_coords.toml')
+    toml_file_path = os.path.join(args.data_path, f"baldr_config.toml")  #")#f'pupils_coords.toml')
+
+    # Check if file exists; if so, load and update.
+    if os.path.exists(toml_file_path):
+        try:
+            current_data = toml.load(toml_file_path)
+        except Exception as e:
+            print(f"Error loading TOML file: {e}")
+            current_data = {}
+    else:
+        current_data = {}
+
+    current_data.update(dict2write)
+        
     # Write the dictionary to the TOML file
     with open(toml_file_path, "w") as toml_file:
         toml.dump(dict2write, toml_file)
