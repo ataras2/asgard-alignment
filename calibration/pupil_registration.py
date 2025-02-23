@@ -289,7 +289,7 @@ parser = argparse.ArgumentParser(description="Baldr Pupil Fit Configuration.")
 
 # Camera shared memory path
 parser.add_argument(
-    "--camera_shm",
+    "--global_camera_shm",
     type=str,
     default="/dev/shm/cred1.im.shm",
     help="Camera shared memory path. Default: /dev/shm/cred1.im.shm"
@@ -341,7 +341,7 @@ with open(args.toml_file ) as file:
 
 
 # shm path to FULL () imagr 
-mySHM = shm(args.camera_shm)
+mySHM = shm(args.global_camera_shm)
 
 img_raw = mySHM.get_data()
 
