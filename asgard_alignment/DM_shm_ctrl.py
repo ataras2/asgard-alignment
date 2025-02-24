@@ -105,6 +105,8 @@ class dmclass():
             ss.set_data(cmd)
             print(f"zero'd {self.shmfs[ii]}")
 
+
+
     def closeEvent(self, event):
         # freeing all shared memory structures
         for ii in range(self.nch):
@@ -114,3 +116,4 @@ class dmclass():
         print("end of program")
 
         sys.exit()
+

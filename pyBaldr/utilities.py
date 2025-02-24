@@ -19,15 +19,19 @@ from scipy.optimize import curve_fit
 import itertools
 import corner
 
-import sys 
-sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
-sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
-import FliSdk_V2 
-import FliCredThree
-import FliCredTwo
-import FliCredOne
+#####
+# ANYTHING THAT RELIES ON THESE SDK'S NEEDS
+# TO BE UPDATED WITH  SHM
+#####
+# import sys 
+# sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
+# sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
+# import FliSdk_V2 
+# import FliCredThree
+# import FliCredTwo
+# import FliCredOne
 
-import bmc
+# import bmc
 # ============== UTILITY FUNCTIONS
 
 
@@ -493,8 +497,7 @@ def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, re
     
     return basis_norm
 
-
-def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, eta=0, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
     """
     get theoretical reference pupil intensities of ZWFS with / without phasemask 
     
@@ -509,6 +512,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
             if diameter_in_angular_units=True than this has diffraction limit units ( 1.22 * f * lambda/D )
             if  diameter_in_angular_units=False than this has physical units (m) determined by F_number and wavelength
         DESCRIPTION. The default is 1.2.
+    eta : ratio of secondary obstruction radius (r_2/r_1), where r2 is secondary, r1 is primary. 0 meams no secondary obstruction
     diameter_in_angular_units : TYPE, optional
         DESCRIPTION. The default is True.
     get_individual_terms : Type optional
@@ -541,7 +545,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
 
 
     # Define a circular pupil function
-    pupil = np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius
+    pupil = (np.sqrt(X_pupil**2 + Y_pupil**2) > eta*pupil_radius) & (np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius)
 
     # Zero padding to increase resolution
     # Increase the array size by padding (e.g., 4x original size)
@@ -640,7 +644,8 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         
         Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
     
-        return( P, Ic)
+        return( P, Ic )
+
 
 
 def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n, x_c, y_c, new_radius):

@@ -3,6 +3,7 @@
 # sys.path.append(script_dir)
 import numpy as np
 import time 
+import zmq
 import glob
 import sys
 import os 
@@ -15,6 +16,7 @@ from xaosim.shmlib import shm
 import asgard_alignment.controllino as co # for turning on / off source \
 from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_registration as DM_registration
+import common.DM_basis_functions as dmbases
 
 try:
     from asgard_alignment import controllino as co
@@ -62,6 +64,14 @@ def interpolate_bad_pixels(img, bad_pixel_map):
 parser = argparse.ArgumentParser(description="Baldr Pupil Fit Configuration.")
 
 default_toml = os.path.join( "config_files", "baldr_config.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+
+# setting up socket to ZMQ communication to multi device server
+parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--port", type=int, default=5555, help="Server port")
+parser.add_argument(
+    "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
+)
+
 # Camera shared memory path
 parser.add_argument(
     "--global_camera_shm",
@@ -282,3 +292,91 @@ current_data.update(dict2write)
 
 with open(args.toml_file, "w") as f:
     toml.dump(current_data, f)
+
+
+
+
+"""
+ome rand test 
+
+amp=0.03
+imlist = [] 
+amps = np.linspace( -0.04, 0.04, 25)
+for amp in amps:
+    print(amp)
+    zbasis = dmbases.zer_bank(1, 10 )
+    bb=2
+    dm_shm_dict[bb].set_data( amp * zbasis[3] )
+    #dm_shm_dict[bb].shms[2].set_data(amp * zbasis[3])
+    time.sleep(1)
+    img = np.mean( c.get_data() ,axis = 0 ) 
+    r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
+    imlist.append( img[r1:r2, c1:c2] )
+
+
+fig,ax = plt.subplots( 5,5, figsize=(15,15))
+for i, a, axx in zip( imlist, amps, ax.reshape(-1)):
+    axx.imshow(i ) 
+    axx.set_title( f'amp={round(a,3)}')
+plt.savefig('delme1.png') 
+
+cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+#plt.figure();plt.imshow(cropped_img);plt.savefig('delme1.png')
+plt.figure();plt.imshow(img[r1:r2, c1:c2]);plt.savefig('delme1.png')
+
+plt.figure();plt.imshow(dm_shm_dict[bb].shm0.get_data());plt.savefig('delme1.png')
+
+for bb in [1,2,3,4]:
+    dm_shm_dict[bb].zero_all()  
+    dm_shm_dict[bb].activate_flat()
+"""
+
+
+move_relative_and_get_image(cam=c, beam=2,baldr_pupils=baldr_pupils, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
+
+def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
+    print(
+        f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
+    )
+    r1,r2,c1,c2 = baldr_pupils[f"{beam}"]
+    exit = 0
+    while not exit:
+        input_str = input('enter "e" to exit, else input relative movement in um: x,y')
+        if input_str == "e":
+            exit = 1
+        else:
+            try:
+                xy = input_str.split(",")
+                x = float(xy[0])
+                y = float(xy[1])
+
+                if use_multideviceserver:
+                    #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
+                    #phasemask.send_string(message)
+                    message = f"moverel BMX{beam} {x}"
+                    phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
+
+                    message = f"moverel BMY{beam} {y}"
+                    phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
+
+                else:
+                    phasemask.move_relative([x, y])
+
+                time.sleep(0.5)
+                img = np.mean(
+                    cam.get_data(),
+                    axis=0,
+                )[r1:r2,c1:c2]
+                if savefigName != None:
+                    plt.figure()
+                    plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
+                    plt.colorbar()
+                    plt.savefig(savefigName)
+            except:
+                print('incorrect input. Try input "1,1" as an example, or "e" to exit')
+
+    plt.close()
