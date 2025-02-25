@@ -17,6 +17,7 @@ import asgard_alignment.controllino as co # for turning on / off source \
 from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_registration as DM_registration
 import common.DM_basis_functions as dmbases
+import common.phasemask_centering_tool as pct
 
 try:
     from asgard_alignment import controllino as co
@@ -115,7 +116,7 @@ args=parser.parse_args()
 
 # inputs 
 number_of_pokes = 100 
-poke_amplitude = 0.02
+poke_amplitude = 0.05
 dm_4_corners = DM_registration.get_inner_square_indices(outer_size=12, inner_offset=4) # flattened index of the DM actuator 
 dm_turbulence = False # roll phasescreen on DM?
 #all_dm_shms_list = [args.dm1_shm, args.dm2_shm, args.dm3_shm, args.dm4_shm]
@@ -125,11 +126,17 @@ assert len(args.beam_id) <= 4
 assert max(args.beam_id) <= 4
 assert min(args.beam_id) >= 1 
 
+DM_flat_offset = {}
 with open(args.toml_file ) as file:
     pupildata = toml.load(file)
 
     # Extract the "baldr_pupils" section
     baldr_pupils = pupildata.get("baldr_pupils", {})
+
+    for beam_id in args.beam_id:
+        DM_flat_offset[beam_id] = pupildata.get(f"beam{beam_id}", {}).get("DM_flat_offset", None)
+        # if pupil_masks[beam_id] is None:
+        #     raise UserWarning(f"pupil mask returned none in toml file. check for beam{beam_id}.pupil_mask.mask in the file:{args.toml_file}")
 
 
 # global camera image shm 
@@ -220,23 +227,26 @@ bilin_interp_matricies = []
 
 
 
+number_of_pokes = 2
 # poking DM and getting images 
+print('GOING VERY SLOW DUE TO SHM DELAY DM')
 for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2D map)
     print(f"actuator {act}")
     img_list_push = [[] for _ in args.beam_id]
     img_list_pull = [[] for _ in args.beam_id]
     poke_vector = np.zeros(140) # 4 corner indicies are in 140 length vector (not 144 2D map)
     for nn in range(number_of_pokes):
+        print( f'poke {nn}')
         poke_vector[act] = (-1)**nn * poke_amplitude
         # send DM commands 
-        for ii, dm in enumerate( dm_shm_dict.values() ):
-            dm.set_data( current_cmd_list[ii] + dm.cmd_2_map2D(poke_vector, fill=0) )
-        time.sleep(0.05)
+        for ii, beam_id in enumerate( args.beam_id):
+            dm_shm_dict[beam_id].set_data( DM_flat_offset[beam_id] + dm_shm_dict[beam_id].cmd_2_map2D(poke_vector, fill=0) )
+        time.sleep(20)
         # get the images 
         img = np.mean( c.get_data() , axis=0)
         for ii, bb in enumerate( args.beam_id ):
             r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
-            cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+            cropped_img = img[r1:r2, c1:c2] #interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
 
             if np.mod(nn,2):
                 img_list_push[ii].append(  cropped_img  )
@@ -251,19 +261,21 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
     for ii, _ in enumerate( args.beam_id):
         delta_img = abs( np.mean(img_list_push[ii],axis=0) - np.mean(img_list_pull[ii],axis=0) )
         # the mean difference in images from push/pulls on the current actuator
-        img_4_corners[ii].append( delta_img ) 
+        img_4_corners[ii].append( delta_img ) # 
 
+
+plt.figure(); plt.imshow( img_4_corners[0][1]);plt.savefig('delme.png')
 
 # Calibrating coordinate transforms 
 dict2write={}
-for ii, bb in enumerate( dm_shm_dict ):
+for ii, bb in enumerate( args.beam_id ):
 
     #calibraate the affine transform between DM and camera pixel coordinate systems
-    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = None  ) )
+    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = 'delme.png'  ) )
 
     # From affine transform construct bilinear interpolation matrix on registered DM actuator positions
     #(image -> actuator transform)
-    img = img_4_corners[ii].copy()
+    img = img_4_corners[ii][0].copy()
     x_target = np.array( [x for x,_ in transform_dicts[ii]['actuator_coord_list_pixel_space']] )
     y_target = np.array( [y for _,y in transform_dicts[ii]['actuator_coord_list_pixel_space']] )
     x_grid = np.arange(img.shape[0])
@@ -274,9 +286,93 @@ for ii, bb in enumerate( dm_shm_dict ):
                                             x_target=x_target,
                                             y_target=y_target)
 
-    bilin_interp_matricies.append( M )
+    bilin_interp_matricies.append( M.toarray() )
 
-    dict2write[f"beam{bb}"] = {"I2M":M}
+    dict2write[f"beam{bb}"] = {"I2M":list( M.toarray().tolist() )}
+
+
+
+
+
+## lets see the registration 
+# plt.figure()
+# plt.imshow( np.sum(img_4_corners[0],axis=0))
+# plt.savefig('delme.png')
+
+# # example to overlay the registered actuators in pixel space with the pupil (FPM out of beam)
+# fig = plt.figure()
+# img = np.mean( c.get_data() , axis=0)[r1:r2,c1:c2]
+# im = plt.imshow( img )
+# cbar = fig.colorbar(im, ax=plt.gca(), pad=0.01)
+# cbar.set_label(r'Intensity', fontsize=15, labelpad=10)
+
+# plt.scatter(transform_dicts[0]['actuator_coord_list_pixel_space'][:, 0],\
+#     transform_dicts[0]['actuator_coord_list_pixel_space'][:, 1], \
+#         color='blue', marker='.', label = 'DM actuators')
+
+# plt.legend() 
+# savefig = f'pupil_on_DM_in_pixel_space_{beam_id}.png'
+# fig.savefig(savefig, dpi=300, bbox_inches = 'tight' )
+# plt.show()    
+
+
+
+
+    stacked_corner_img = []
+    img_corners = []
+    corner_fits = {}
+    for actuator_number, delta_img in zip(dm_4_corners, img_4_corners[ii] ):  # <<< added actuator number 
+        stacked_corner_img.append( delta_img )
+
+        peak_pixels_raw = tuple( np.array( list(np.where( abs(delta_img) == np.max( abs(delta_img) )  ) ) ).ravel() )
+                
+        # fit actuator position in pixel space after interpolation and Gaussian fit 
+        corner_fit_dict = DM_registration.interpolate_and_fit_gaussian(coord=peak_pixels_raw, radius=5, pixel_values= abs(delta_img), factor=5)
+        corner_fits[actuator_number] = corner_fit_dict
+        #plot_fit_results( corner_fit_dict )
+        
+        img_corners.append( ( corner_fit_dict['x0'],  corner_fit_dict['y0'] ) )
+        # #Check individual registration          
+        # plt.figure(actuator_number)
+        # plt.imshow( delta_img )
+        # plt.plot( corner_fit_dict['x0'],  corner_fit_dict['y0'], 'x', color='red', lw=4, label='registered position') 
+        # plt.legend()
+        # plt.colorbar(label='Intensity')
+        # plt.show() 
+    
+        
+    #[top_left, top_right, bottom_right, bottom_left]
+    intersection = DM_registration.find_quadrilateral_diagonal_intersection( img_corners ) 
+
+    fig = plt.figure()
+    im = plt.imshow( np.sum( stacked_corner_img , axis=0 ))
+    cbar = fig.colorbar(im, ax=plt.gca(), pad=0.01)
+    cbar.set_label(r'$\Delta$ Intensity', fontsize=15, labelpad=10)
+
+    for i,c in  enumerate( img_corners ):
+        if i==0:
+            plt.plot( c[0],  c[1], 'x', color='red', lw=4, label='registered position') 
+        else:
+            plt.plot( c[0],  c[1], 'x', color='red', lw=4 )
+    
+    top_left, bottom_left, top_right, bottom_right = img_corners
+   
+    # Extract x and y coordinates for the cross
+    x_cross = [top_left[0], bottom_right[0], None, top_right[0], bottom_left[0]]
+    y_cross = [top_left[1], bottom_right[1], None, top_right[1], bottom_left[1]]
+
+
+    # Plot the cross
+    plt.plot(x_cross, y_cross, 'ro-', markersize=3)  # Red lines with circle markers
+
+    #plt.plot(  [bottom_left[0], top_right[0]], [bottom_right[1], top_right[1]] , 'r', lw=1)
+    #plt.plot(  [top_left[0], bottom_right[0]],   [top_left[1], bottom_right[1]] , 'r', lw=1)
+    plt.plot( intersection[0], intersection[1], 'x' ,color='white', lw = 5 )
+    plt.legend()
+    savefig =  'DM_center_in_pixel_space.png'
+    plt.savefig(savefig, dpi=300, bbox_inches = 'tight') 
+    plt.show()
+
 
 # Check if file exists; if so, load and update.
 if os.path.exists(args.toml_file):
@@ -332,51 +428,34 @@ for bb in [1,2,3,4]:
 """
 
 
-move_relative_and_get_image(cam=c, beam=2,baldr_pupils=baldr_pupils, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
 
-def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
-    print(
-        f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
-    )
-    r1,r2,c1,c2 = baldr_pupils[f"{beam}"]
-    exit = 0
-    while not exit:
-        input_str = input('enter "e" to exit, else input relative movement in um: x,y')
-        if input_str == "e":
-            exit = 1
-        else:
-            try:
-                xy = input_str.split(",")
-                x = float(xy[0])
-                y = float(xy[1])
 
-                if use_multideviceserver:
-                    #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
-                    #phasemask.send_string(message)
-                    message = f"moverel BMX{beam} {x}"
-                    phasemask.send_string(message)
-                    response = phasemask.recv_string()
-                    print(response)
 
-                    message = f"moverel BMY{beam} {y}"
-                    phasemask.send_string(message)
-                    response = phasemask.recv_string()
-                    print(response)
+# # # get all available files 
+# valid_reference_position_files = glob.glob(
+#     f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{args.beam_id}/*json"
+#     )
 
-                else:
-                    phasemask.move_relative([x, y])
 
-                time.sleep(0.5)
-                img = np.mean(
-                    cam.get_data(),
-                    axis=0,
-                )[r1:r2,c1:c2]
-                if savefigName != None:
-                    plt.figure()
-                    plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
-                    plt.colorbar()
-                    plt.savefig(savefigName)
-            except:
-                print('incorrect input. Try input "1,1" as an example, or "e" to exit')
+# # read in the most recent and make initial posiition the most recent one for given mask 
+# with open(max(valid_reference_position_files, key=os.path.getmtime)
+# , "r") as file:
+#     start_position_dict = json.load(file)
 
-    plt.close()
+# Xpos0 = start_position_dict[phasemask_name][0]
+# Ypos0 = start_position_dict[phasemask_name][1]
+
+
+# search_dict = spiral_square_search_and_save_images(
+#     cam=c,
+#     beam=2,
+#     baldr_pupils=baldr_pupils,
+#     phasemask=state_dict["socket"],
+#     starting_point='recent',
+#     step_size=20,
+#     search_radius=200,
+#     sleep_time=0.5,
+#     use_multideviceserver=True,
+# )
+
+# move_relative_and_get_image(cam=c, beam=2,baldr_pupils=baldr_pupils, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)

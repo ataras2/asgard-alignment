@@ -1081,6 +1081,63 @@ def plot_aggregate_cluster_images(images, clusters, operation="median"):
 
 
 
+
+def plot_image_grid(image_dict, savepath='delme.png'):
+    """
+    Plots images on a grid where positions correspond to their (x, y) keys,
+    with dynamically computed extents for maximum size without overlap.
+    
+    works best for up to 6x6 scan ! (36 points total)
+
+    Parameters:
+        image_dict (dict): Dictionary with (x, y) tuple keys and image arrays as values.
+    """
+    # Extract unique x and y coordinates
+    x_positions = sorted(set(pos[0] for pos in image_dict.keys()))
+    y_positions = sorted(set(pos[1] for pos in image_dict.keys()))
+
+    # Compute minimum spacing between points (avoiding overlap)
+    dx = min(np.diff(x_positions)) if len(x_positions) > 1 else 1
+    dy = min(np.diff(y_positions)) if len(y_positions) > 1 else 1
+
+    # Scale factor to prevent touching (adjust if needed)
+    scale_factor = 0.9  # Slightly less than full spacing to leave small gaps
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    for (x, y), img in image_dict.items():
+        # Compute extent using calculated dx, dy
+        extent = [
+            x - (dx * scale_factor) / 2,  # Left boundary
+            x + (dx * scale_factor) / 2,  # Right boundary
+            y - (dy * scale_factor) / 2,  # Bottom boundary
+            y + (dy * scale_factor) / 2   # Top boundary
+        ]
+
+        # Display the image
+        ax.imshow(img, extent=extent, origin='upper', cmap='gray')
+
+        # Add text label at the top of each image
+        ax.text(x, y + (dy * 0.4), f"({round(x)}, {round(y)})", ha='center', va='bottom', fontsize=8, color='white',
+                bbox=dict(facecolor='black', alpha=0.5, edgecolor='none', boxstyle='round,pad=0.3'))
+
+    # Set limits based on x, y ranges
+    ax.set_xlim(min(x_positions) - dx, max(x_positions) + dx)
+    ax.set_ylim(min(y_positions) - dy, max(y_positions) + dy)
+
+    # Set aspect ratio to equal
+    ax.set_aspect('equal')
+
+    # Remove axis ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    if savepath is not None:
+        plt.savefig( savepath )
+    plt.show()
+    plt.close()
+
+
 def find_optimal_connected_region(image, connectivity=4, initial_percentile_threshold=95):
     """
     Robust way to detect the pupil which is immune to outliers, noise and uneven illumination. 

@@ -358,7 +358,7 @@ if not os.path.exists(args.data_path):
 
 
 
-message = f"read BMX{args.beam}"
+message = f"read BMY{args.beam}"
 initial_Ypos = float(send_and_get_response(message))
 
 message = f"read BMX{args.beam}"

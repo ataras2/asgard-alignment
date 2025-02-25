@@ -72,7 +72,7 @@ def construct_bilinear_interpolation_matrix(image_shape, x_grid, y_grid, x_targe
         interpolation_matrix[i, idx12] = w12
         interpolation_matrix[i, idx22] = w22
 
-    return interpolation_matrix #.tocsr().toarray()  # Convert to compressed sparse row format for efficiency
+    return interpolation_matrix.toarray() #.tocsr().toarray()  # Convert to compressed sparse row format for efficiency
 
 
 
