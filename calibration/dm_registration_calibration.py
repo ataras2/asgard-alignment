@@ -41,6 +41,18 @@ except:
 
 
 
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
+
 
 def get_bad_pixel_indicies( imgs, std_threshold = 20, mean_threshold=6):
     # To get bad pixels we just take a bunch of images and look at pixel variance and mean
@@ -64,7 +76,7 @@ def interpolate_bad_pixels(img, bad_pixel_map):
 
 parser = argparse.ArgumentParser(description="Baldr Pupil Fit Configuration.")
 
-default_toml = os.path.join( "config_files", "baldr_config.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
 # setting up socket to ZMQ communication to multi device server
 parser.add_argument("--host", type=str, default="localhost", help="Server host")
@@ -93,7 +105,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1, 2, 3, 4],
+    default=[2],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -127,13 +139,13 @@ assert max(args.beam_id) <= 4
 assert min(args.beam_id) >= 1 
 
 DM_flat_offset = {}
-with open(args.toml_file ) as file:
-    pupildata = toml.load(file)
+for beam_id in args.beam_id:
+    with open(args.toml_file.replace('#',f'{beam_id}') ) as file:
+        pupildata = toml.load(file)
 
-    # Extract the "baldr_pupils" section
-    baldr_pupils = pupildata.get("baldr_pupils", {})
+        # Extract the "baldr_pupils" section
+        baldr_pupils = pupildata.get("baldr_pupils", {})
 
-    for beam_id in args.beam_id:
         DM_flat_offset[beam_id] = pupildata.get(f"beam{beam_id}", {}).get("DM_flat_offset", None)
         # if pupil_masks[beam_id] is None:
         #     raise UserWarning(f"pupil mask returned none in toml file. check for beam{beam_id}.pupil_mask.mask in the file:{args.toml_file}")
@@ -150,24 +162,25 @@ for beam_id in args.beam_id:
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
     dm_shm_dict[beam_id].activate_flat()
+    # apply DM flat offset 
 
 
-# try get dark and build bad pixel mask 
-if controllino_available:
+# # try get dark and build bad pixel mask 
+# if controllino_available:
     
-    myco.turn_off("SBB")
-    time.sleep(2)
+#     myco.turn_off("SBB")
+#     time.sleep(2)
     
-    dark_raw = c.get_data()
+#     dark_raw = c.get_data()
 
-    myco.turn_on("SBB")
-    time.sleep(2)
+#     myco.turn_on("SBB")
+#     time.sleep(2)
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-else:
-    dark_raw = c.get_data()
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+# else:
+#     dark_raw = c.get_data()
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
 
 
 # setup
@@ -264,11 +277,15 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         img_4_corners[ii].append( delta_img ) # 
 
 
-plt.figure(); plt.imshow( img_4_corners[0][1]);plt.savefig('delme.png')
+## lets see the registration 
+plt.figure()
+plt.imshow( np.sum(img_4_corners[0],axis=0))
+# should see four corner dm pokes in the image 
+plt.savefig('delme.png')
 
 # Calibrating coordinate transforms 
 dict2write={}
-for ii, bb in enumerate( args.beam_id ):
+for ii, beam_id in enumerate( args.beam_id ):
 
     #calibraate the affine transform between DM and camera pixel coordinate systems
     transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = 'delme.png'  ) )
@@ -286,9 +303,25 @@ for ii, bb in enumerate( args.beam_id ):
                                             x_target=x_target,
                                             y_target=y_target)
 
-    bilin_interp_matricies.append( M.toarray() )
+    bilin_interp_matricies.append( M )
 
-    dict2write[f"beam{bb}"] = {"I2M":list( M.toarray().tolist() )}
+    dict2write[f"beam{beam_id}"] = {"I2M":M.tolist()}
+
+    # Check if file exists; if so, load and update.
+    if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+        try:
+            current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+        except Exception as e:
+            print(f"Error loading TOML file: {e}")
+            current_data = {}
+    else:
+        current_data = {}
+
+
+    current_data = recursive_update(current_data, dict2write)
+
+    with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+        toml.dump(current_data, f)
 
 
 
@@ -318,78 +351,69 @@ for ii, bb in enumerate( args.beam_id ):
 
 
 
-    stacked_corner_img = []
-    img_corners = []
-    corner_fits = {}
-    for actuator_number, delta_img in zip(dm_4_corners, img_4_corners[ii] ):  # <<< added actuator number 
-        stacked_corner_img.append( delta_img )
+    # stacked_corner_img = []
+    # img_corners = []
+    # corner_fits = {}
+    # for actuator_number, delta_img in zip(dm_4_corners, img_4_corners[ii] ):  # <<< added actuator number 
+    #     stacked_corner_img.append( delta_img )
 
-        peak_pixels_raw = tuple( np.array( list(np.where( abs(delta_img) == np.max( abs(delta_img) )  ) ) ).ravel() )
+    #     peak_pixels_raw = tuple( np.array( list(np.where( abs(delta_img) == np.max( abs(delta_img) )  ) ) ).ravel() )
                 
-        # fit actuator position in pixel space after interpolation and Gaussian fit 
-        corner_fit_dict = DM_registration.interpolate_and_fit_gaussian(coord=peak_pixels_raw, radius=5, pixel_values= abs(delta_img), factor=5)
-        corner_fits[actuator_number] = corner_fit_dict
-        #plot_fit_results( corner_fit_dict )
+    #     # fit actuator position in pixel space after interpolation and Gaussian fit 
+    #     corner_fit_dict = DM_registration.interpolate_and_fit_gaussian(coord=peak_pixels_raw, radius=5, pixel_values= abs(delta_img), factor=5)
+    #     corner_fits[actuator_number] = corner_fit_dict
+    #     #plot_fit_results( corner_fit_dict )
         
-        img_corners.append( ( corner_fit_dict['x0'],  corner_fit_dict['y0'] ) )
-        # #Check individual registration          
-        # plt.figure(actuator_number)
-        # plt.imshow( delta_img )
-        # plt.plot( corner_fit_dict['x0'],  corner_fit_dict['y0'], 'x', color='red', lw=4, label='registered position') 
-        # plt.legend()
-        # plt.colorbar(label='Intensity')
-        # plt.show() 
+    #     img_corners.append( ( corner_fit_dict['x0'],  corner_fit_dict['y0'] ) )
+    #     # #Check individual registration          
+    #     # plt.figure(actuator_number)
+    #     # plt.imshow( delta_img )
+    #     # plt.plot( corner_fit_dict['x0'],  corner_fit_dict['y0'], 'x', color='red', lw=4, label='registered position') 
+    #     # plt.legend()
+    #     # plt.colorbar(label='Intensity')
+    #     # plt.show() 
     
         
-    #[top_left, top_right, bottom_right, bottom_left]
-    intersection = DM_registration.find_quadrilateral_diagonal_intersection( img_corners ) 
+    # #[top_left, top_right, bottom_right, bottom_left]
+    # intersection = DM_registration.find_quadrilateral_diagonal_intersection( img_corners ) 
 
-    fig = plt.figure()
-    im = plt.imshow( np.sum( stacked_corner_img , axis=0 ))
-    cbar = fig.colorbar(im, ax=plt.gca(), pad=0.01)
-    cbar.set_label(r'$\Delta$ Intensity', fontsize=15, labelpad=10)
+    # fig = plt.figure()
+    # im = plt.imshow( np.sum( stacked_corner_img , axis=0 ))
+    # cbar = fig.colorbar(im, ax=plt.gca(), pad=0.01)
+    # cbar.set_label(r'$\Delta$ Intensity', fontsize=15, labelpad=10)
 
-    for i,c in  enumerate( img_corners ):
-        if i==0:
-            plt.plot( c[0],  c[1], 'x', color='red', lw=4, label='registered position') 
-        else:
-            plt.plot( c[0],  c[1], 'x', color='red', lw=4 )
-    
-    top_left, bottom_left, top_right, bottom_right = img_corners
-   
-    # Extract x and y coordinates for the cross
-    x_cross = [top_left[0], bottom_right[0], None, top_right[0], bottom_left[0]]
-    y_cross = [top_left[1], bottom_right[1], None, top_right[1], bottom_left[1]]
+    # for i,c in  enumerate( img_corners ):
+    #     if i==0:
+    #         plt.plot( c[0],  c[1], 'x', color='red', lw=4, label='registered position') 
+    #     else:
+    #         plt.plot( c[0],  c[1], 'x', color='red', lw=4 )
 
 
-    # Plot the cross
-    plt.plot(x_cross, y_cross, 'ro-', markersize=3)  # Red lines with circle markers
+    # top_left, top_right, bottom_right, bottom_left = img_corners
 
-    #plt.plot(  [bottom_left[0], top_right[0]], [bottom_right[1], top_right[1]] , 'r', lw=1)
-    #plt.plot(  [top_left[0], bottom_right[0]],   [top_left[1], bottom_right[1]] , 'r', lw=1)
-    plt.plot( intersection[0], intersection[1], 'x' ,color='white', lw = 5 )
-    plt.legend()
-    savefig =  'DM_center_in_pixel_space.png'
-    plt.savefig(savefig, dpi=300, bbox_inches = 'tight') 
-    plt.show()
+    # # Correct cross diagonal plotting
+    # x_cross = [top_left[0], bottom_right[0], None, top_right[0], bottom_left[0]]
+    # y_cross = [top_left[1], bottom_right[1], None, top_right[1], bottom_left[1]]
 
+    # plt.plot(x_cross, y_cross, 'ro-', markersize=3, label="Cross Lines")  # Red lines with circle markers
 
-# Check if file exists; if so, load and update.
-if os.path.exists(args.toml_file):
-    try:
-        current_data = toml.load(args.toml_file)
-    except Exception as e:
-        print(f"Error loading TOML file: {e}")
-        current_data = {}
-else:
-    current_data = {}
-
-current_data.update(dict2write)
-
-with open(args.toml_file, "w") as f:
-    toml.dump(current_data, f)
+    # #plt.plot(  [bottom_left[0], top_right[0]], [bottom_right[1], top_right[1]] , 'r', lw=1)
+    # #plt.plot(  [top_left[0], bottom_right[0]],   [top_left[1], bottom_right[1]] , 'r', lw=1)
+    # plt.plot( intersection[0], intersection[1], 'x' ,color='white', lw = 5 )
+    # plt.legend()
+    # savefig =  'DM_center_in_pixel_space.png'
+    # plt.savefig(savefig, dpi=300, bbox_inches = 'tight') 
+    # plt.show()
 
 
+
+
+
+# img = c.get_data() #  full image
+# img2 = np.mean( img, axis=0)[r1:r2,c1:c2]
+
+# idm = np.array(M) @ img2.reshape(-1)
+# plt.imshow( util.get_DM_command_in_2D(idm) ); plt.savefig('delme.png')
 
 
 """

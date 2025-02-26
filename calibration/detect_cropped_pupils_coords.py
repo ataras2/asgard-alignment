@@ -30,6 +30,18 @@ half to only get the baldr beams
 # sudo lsof -i :5555 then kill the PID 
 """
 
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
+
 def percentile_based_detect_pupils(
     image, percentile=80, min_group_size=50, buffer=20, plot=True
 ):
@@ -431,25 +443,32 @@ if args.saveformat=='json':
     print(f'wrote {json_file_path}')
 
 elif args.saveformat=='toml':
-    toml_file_path = os.path.join(args.data_path, f"baldr_config.toml")  #")#f'pupils_coords.toml')
 
-    # Check if file exists; if so, load and update.
-    if os.path.exists(toml_file_path):
-        try:
-            current_data = toml.load(toml_file_path)
-        except Exception as e:
-            print(f"Error loading TOML file: {e}")
+    for beam_id in [1,2,3,4]: 
+        toml_file_path = os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
+
+        # Check if file exists; if so, load and update.
+        if os.path.exists(toml_file_path):
+            try:
+                current_data = toml.load(toml_file_path)
+            except Exception as e:
+                ui = input(f"Error loading TOML file: {e}, do you want to write a new one? (enter 1 if yes. Anybutton if no)")
+                if ui == '1':
+                    current_data = {}
+                else: 
+                    raise UserWarning('user does not want to overwrite')
+        else:
             current_data = {}
-    else:
-        current_data = {}
 
-    current_data.update(dict2write)
+        #current_data.update(dict2write)
+
+        current_data = recursive_update(current_data, dict2write)
         
-    # Write the dictionary to the TOML file
-    with open(toml_file_path, "w") as toml_file:
-        toml.dump(dict2write, toml_file)
+        # Write the dictionary to the TOML file
+        with open(toml_file_path, "w") as toml_file:
+            toml.dump(current_data, toml_file)
 
-    print(f'wrote {toml_file_path}')
+        print(f'wrote {toml_file_path}')
 
 
 ### Plot final results for check

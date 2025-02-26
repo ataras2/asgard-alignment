@@ -253,12 +253,24 @@ def save_pupil_data_toml(beam_id, ellipse_params, toml_path):
         current_data = {}
 
     # Update current data with new_data (beam specific)
-    current_data.update(new_data)
-    
+    #current_data.update(new_data)
+    current_data = recursive_update(current_data, new_data)
     # Write the updated data back to the TOML file.
     with open(toml_path, "w") as f:
         toml.dump(current_data, f)
 
+
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
 
 
 def get_bad_pixel_indicies( imgs, std_threshold = 20, mean_threshold=6):
@@ -296,12 +308,12 @@ parser.add_argument(
 )
 
 # TOML file path; default is relative to the current file's directory.
-default_toml = os.path.join("config_files", "baldr_config.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+default_toml = os.path.join("config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 parser.add_argument(
     "--toml_file",
     type=str,
     default=default_toml,
-    help="TOML file to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+    help="TOML file pattern (replace # with beam) to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
 )
 
 # Beam ids: provided as a comma-separated string and converted to a list of ints.
@@ -332,7 +344,7 @@ args=parser.parse_args()
 
 #baldr_pupils_path = toml_file#default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 # Load the TOML file
-with open(args.toml_file ) as file:
+with open(args.toml_file.replace('#',f'{args.beam_ids[0]}') ) as file:
     pupildata = toml.load(file)
 
     # Extract the "baldr_pupils" section
@@ -383,7 +395,7 @@ for beam_id in args.beam_ids:
     # mask 
     ell1 = detect_pupil(cropped_img, sigma=2, threshold=0.5, plot=args.plot,savepath=f"delme{beam_id}.png")
 
-    save_pupil_data_toml(beam_id=beam_id, ellipse_params=ell1, toml_path=args.toml_file)
+    save_pupil_data_toml(beam_id=beam_id, ellipse_params=ell1, toml_path=args.toml_file.replace('#',f'{beam_id}'))
 
 
 

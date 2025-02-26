@@ -1,0 +1,760 @@
+
+
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# sys.path.append(script_dir)
+import numpy as np
+import time 
+import zmq
+import glob
+import sys
+import os 
+import toml
+import json
+import argparse
+import matplotlib.pyplot as plt
+from astropy.io import fits
+import datetime
+from scipy.ndimage import median_filter
+from xaosim.shmlib import shm
+import asgard_alignment.controllino as co # for turning on / off source \
+from asgard_alignment.DM_shm_ctrl import dmclass
+import common.DM_basis_functions as dmbases
+import common.phasemask_centering_tool as pct
+import common.phasescreens as ps 
+import pyBaldr.utilities as util 
+
+
+try:
+    from asgard_alignment import controllino as co
+    myco = co.Controllino('172.16.8.200')
+    controllino_available = True
+    print('controllino connected')
+    
+except:
+    print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
+    controllino_available = False 
+
+
+
+"""
+convention to apply flat command on channel 0!
+convention to apply calibration shapes on channel 1!
+convention to apply DM modes on channel 2!
+dmclass.set_data() applies on channel 2!
+"""
+
+
+### using SHM camera structure
+def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
+    print(
+        f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
+    )
+    r1,r2,c1,c2 = baldr_pupils[f"{beam}"]
+    exit = 0
+    while not exit:
+        input_str = input('enter "e" to exit, else input relative movement in um: x,y')
+        if input_str == "e":
+            exit = 1
+        else:
+            try:
+                xy = input_str.split(",")
+                x = float(xy[0])
+                y = float(xy[1])
+
+                if use_multideviceserver:
+                    #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
+                    #phasemask.send_string(message)
+                    message = f"moverel BMX{beam} {x}"
+                    phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
+
+                    message = f"moverel BMY{beam} {y}"
+                    phasemask.send_string(message)
+                    response = phasemask.recv_string()
+                    print(response)
+
+                else:
+                    phasemask.move_relative([x, y])
+
+                time.sleep(0.5)
+                img = np.mean(
+                    cam.get_data(),
+                    axis=0,
+                )[r1:r2,c1:c2]
+                if savefigName != None:
+                    plt.figure()
+                    plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
+                    plt.colorbar()
+                    plt.savefig(savefigName)
+            except:
+                print('incorrect input. Try input "1,1" as an example, or "e" to exit')
+
+    plt.close()
+
+
+
+
+def get_bad_pixel_indicies( imgs, std_threshold = 20, mean_threshold=6):
+    # To get bad pixels we just take a bunch of images and look at pixel variance and mean
+
+    ## Identify bad pixels
+    mean_frame = np.mean(imgs, axis=0)
+    std_frame = np.std(imgs, axis=0)
+
+    global_mean = np.mean(mean_frame)
+    global_std = np.std(mean_frame)
+    bad_pixel_map = (np.abs(mean_frame - global_mean) > mean_threshold * global_std) | (std_frame > std_threshold * np.median(std_frame))
+
+    return bad_pixel_map
+
+
+def interpolate_bad_pixels(img, bad_pixel_map):
+    filtered_image = img.copy()
+    filtered_image[bad_pixel_map] = median_filter(img, size=3)[bad_pixel_map]
+    return filtered_image
+
+
+
+def send_and_get_response(message):
+    # st.write(f"Sending message to server: {message}")
+    state_dict["message_history"].append(
+        f":blue[Sending message to server: ] {message}\n"
+    )
+    state_dict["socket"].send_string(message)
+    response = state_dict["socket"].recv_string()
+    if "NACK" in response or "not connected" in response:
+        colour = "red"
+    else:
+        colour = "green"
+    # st.markdown(f":{colour}[Received response from server: ] {response}")
+    state_dict["message_history"].append(
+        f":{colour}[Received response from server: ] {response}\n"
+    )
+
+    return response.strip()
+
+
+def get_motor_states_as_list_of_dicts( ): 
+
+    motor_names = ["SDLA", "SDL12", "SDL34", "SSS", "BFO"]
+    motor_names_no_beams = [
+                "HFO",
+                "HTPP",
+                "HTPI",
+                "HTTP",
+                "HTTI",
+                "BDS",
+                "BTT",
+                "BTP",
+                "BMX",
+                "BMY",
+            ]
+
+
+    for motor in motor_names_no_beams:
+        for beam_number in range(1, 5):
+            motor_names.append(f"{motor}{beam_number}")
+
+    states = []
+    for name in motor_names:
+        message = f"read {name}"
+        res = send_and_get_response(message)
+
+        if "NACK" in res:
+            is_connected = False
+        else:
+            is_connected = True
+
+        state = {
+            "name": name,
+            "is_connected": is_connected,
+        }
+        if is_connected:
+            state["position"] = float(res)
+
+        states.append(state)
+
+    return states
+
+
+def save_motor_states_as_hdu(motor_states):
+    """
+    Create an HDU for motor states as a binary table.
+
+    Parameters:
+    - motor_states (list of dict): List of motor state dictionaries.
+
+    Returns:
+    - fits.BinTableHDU: The binary table HDU containing motor states.
+    """
+    # Prepare columns for the FITS binary table
+    motor_names = [state["name"] for state in motor_states]
+    is_connected = [state["is_connected"] for state in motor_states]
+    positions = [state.get("position", np.nan) for state in motor_states]  # Use NaN for missing positions
+
+    col1 = fits.Column(name="MotorName", format="20A", array=np.array(motor_names))  # ASCII strings
+    col2 = fits.Column(name="IsConnected", format="L", array=np.array(is_connected))  # Logical (boolean)
+    col3 = fits.Column(name="Position", format="E", array=np.array(positions, dtype=np.float32))  # Float32
+
+    # Create the binary table HDU
+    cols = fits.ColDefs([col1, col2, col3])
+    return fits.BinTableHDU.from_columns(cols, name="MotorStates")
+
+
+
+def process_signal( zwfs_pupil, zwfs_pupil_ref , clear_pupil, I2M):
+    s_img = (zwfs_pupil - zwfs_pupil_ref) / clear_pupil
+    s_dm = I2M @ s_img.ravel() 
+    return s_dm 
+
+
+# setting up socket to ZMQ communication to multi device server
+parser = argparse.ArgumentParser(description="Baldr Pupil Fit Configuration.")
+
+default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+
+# setting up socket to ZMQ communication to multi device server
+parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--port", type=int, default=5555, help="Server port")
+parser.add_argument(
+    "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
+)
+
+# Camera shared memory path
+parser.add_argument(
+    "--global_camera_shm",
+    type=str,
+    default="/dev/shm/cred1.im.shm",
+    help="Camera shared memory path. Default: /dev/shm/cred1.im.shm"
+)
+
+# TOML file path; default is relative to the current file's directory.
+parser.add_argument(
+    "--toml_file",
+    type=str,
+    default=default_toml,
+    help="TOML file to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+)
+
+# Beam ids: provided as a comma-separated string and converted to a list of ints.
+parser.add_argument(
+    "--beam_id",
+    type=lambda s: [int(item) for item in s.split(",")],
+    default=[2],
+    help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
+)
+
+args=parser.parse_args()
+
+## Input configuration 
+
+pupil_mask = {}
+exterior_mask = {}
+dm_flat_offsets = {}
+dm_flat_offsets = {}
+I2M_dict = {}
+for beam_id in args.beam_id:
+
+    # read in TOML as dictionary for config 
+    with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
+        config_dict = toml.load(f)
+
+        # Baldr pupils from global frame 
+        baldr_pupils = config_dict['baldr_pupils']
+        # boolean filter of the registered (clear) pupil
+        # for each local (cropped) baldr pupil frame 
+        pupil_mask[beam_id] = config_dict[f'beam{beam_id}']["pupil_mask"] 
+        # boolean filter for outside pupil where we see scattered
+        # light with phase mask in (basic Strehl proxy)
+        exterior_mask[beam_id] =  config_dict[f'beam{beam_id}']["pupil_mask"] 
+        # flat offset for DMs (mainly focus)
+        dm_flat_offsets[beam_id] = config_dict[f'beam{beam_id}']["DM_flat_offset"] 
+        # intensities interpolation matrix to registered DM actuator (from local pupil frame)
+        I2M_dict[beam_id] = config_dict[f'beam{beam_id}']['I2M']
+
+
+
+# set up ZMQ to communicate with motors 
+context = zmq.Context()
+context.socket(zmq.REQ)
+socket = context.socket(zmq.REQ)
+socket.setsockopt(zmq.RCVTIMEO, args.timeout)
+server_address = f"tcp://{args.host}:{args.port}"
+socket.connect(server_address)
+state_dict = {"message_history": [], "socket": socket}
+
+#####
+##### --- manually set up camera settings before hand
+#####
+print( 'You should manually set up camera settings before hand')
+
+# Set up global camera frame SHM 
+c = shm(args.global_camera_shm)
+
+# set up DM SHMs 
+dm_shm_dict = {}
+for beam_id in args.beam_id:
+    dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
+    # zero all channels
+    dm_shm_dict[beam_id].zero_all()
+    # activate flat (does this on channel 1)
+    dm_shm_dict[beam_id].activate_flat()
+    # apply dm flat offset (does this on channel 2)
+    dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+
+
+# Get Darks 
+if controllino_available:
+    
+    myco.turn_off("SBB")
+    time.sleep(10)
+    
+    dark_raw = c.get_data()
+
+    myco.turn_on("SBB")
+    time.sleep(10)
+
+    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+else:
+    dark_raw = c.get_data()
+
+    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+
+
+
+# check phasemask alignment 
+beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
+while beam :
+    print( 'we save images as delme.png in asgard-alignment project - open it!')
+    img = np.sum( c.get_data()  , axis = 0 ) 
+    r1,r2,c1,c2 = baldr_pupils[str(beam)]
+    #print( r1,r2,c1,c2  )
+    plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+
+    # time.sleep(5)
+
+    # manual centering 
+    pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
+
+    beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
+
+
+# Get reference pupils (later this can just be a SHM address)
+zwfs_pupils = {}
+clear_pupils = {}
+rel_offset = 200.0 #um phasemask offset for clear pupil
+
+# ZWFS Pupil
+img = np.mean( c.get_data() ,axis=0) 
+for beam_id in args.beam_id:
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+    cropped_img = img[r1:r2, c1:c2] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
+    zwfs_pupils[beam_id] = cropped_img
+
+    message = f"moverel BMX{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep( 1 )
+    message = f"moverel BMY{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep(5)
+
+
+#Clear Pupil
+img = c.get_data() 
+for beam_id in args.beam_id:
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    cropped_img = [i[r1:r2, c1:c2] for i in img]
+    clear_pupils[beam_id] = cropped_img
+
+    message = f"moverel BMX{beam_id} {-rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep(1)
+    message = f"moverel BMY{beam_id} {-rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep(5)
+
+
+
+#prepare phasescreen to put on DM 
+D = 1.8
+act_per_it = 0.5 # how many actuators does the screen pass per iteration 
+V = 10 / act_per_it  / D #m/s (10 actuators across pupil on DM)
+scaling_factor = 0.2
+I0_indicies = 10 # how many reference pupils do we get?
+scrn = ps.PhaseScreenVonKarman(nx_size= int( 12 / act_per_it ) , pixel_scale= D / 12, r0=0.1, L0=12)
+corner_indicies = [0, 11, 11 * 12, -1] # DM corner indidices
+number_of_rolls = 50
+
+DM_command_sequence = [np.zeros([12,12]) for _ in range(I0_indicies)]
+for i in range(number_of_rolls):
+    scrn.add_row()
+    # bin phase screen onto DM space 
+    dm_scrn = util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scaling_factor, drop_indicies = [0, 11, 11 * 12, -1] , plot_cmd=False)
+    # update DM command 
+    #plt.figure(i)
+    #plt.imshow(  util.get_DM_command_in_2D(dm_scrn) )
+    #plt.colorbar()
+
+    # put in SHM format 140 1D cmd -> 144 square 
+    twoDized = np.nan_to_num( util.get_DM_command_in_2D(dm_scrn), 0 )
+    DM_command_sequence.append( twoDized )
+
+
+# --- additional labels to append to fits file to keep information about the sequence applied
+additional_header_labels = [
+    ("number_of_rolls", number_of_rolls),
+    ('I0_indicies','0-10'),
+    ('act_per_it',act_per_it),
+    ('D',D),
+    ('V',V),
+    ('scaling_factor', scaling_factor),
+    ("Nact", 140),
+    ('fps', 500),
+    ('gain', 5)
+]
+
+
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
+tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
+
+sleeptime_between_commands = 10
+image_list = {b:[] for b in args.beam_id}
+for cmd_indx, cmd in enumerate(DM_command_sequence):
+    print(f"executing cmd_indx {cmd_indx} / {len(DM_command_sequence)}")
+    # wait a sec
+
+    # ok, now apply command
+    for beam_id in args.beam_id:
+        dm_shm_dict[beam_id].set_data( dm_flat_offsets[beam_id] + cmd)
+
+    # wait a sec
+    time.sleep(sleeptime_between_commands)
+
+    # get the image
+    ims_tmp = np.mean(
+            c.get_data() , axis = 0
+        )
+    
+    # get the pupil cropped images
+    for beam_id in args.beam_id:
+        r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+        # add additional nested list, since some times we may make many measurements per iteration 
+        image_list[beam_id].append([ims_tmp[r1:r2, c1:c2]])
+
+
+# init fits files if necessary
+# should_we_record_images = True
+take_mean_of_images = True
+save_dm_cmds = True
+
+
+
+
+# ====== make references fits files
+
+
+for beam_id in args.beam_id:
+    save_fits = "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" # _{tstamp}.fits"    
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+
+
+    data = fits.HDUList([])  # init main fits file to append things to
+
+    cam_fits = fits.PrimaryHDU( image_list[beam_id] )
+    dm_fits = fits.PrimaryHDU(DM_command_sequence)
+
+    flat_DMoffset_fits = fits.PrimaryHDU(dm_flat_offsets[beam_id])
+    flat_DM_fits = fits.PrimaryHDU(dm_shm_dict[beam_id].shms[0].get_data())
+    I2M_fits = fits.PrimaryHDU([I2M_dict[beam_id]])
+
+    I0_fits = fits.PrimaryHDU(clear_pupils[beam_id])
+    N0_fits = fits.PrimaryHDU(clear_pupils[beam_id])
+    DARK_fits = fits.PrimaryHDU([d[r1:r2,c1:c2] for d in dark_raw])
+    
+    
+    # headers
+    cam_fits.header.set('EXTNAME', "SEQUENCE_IMGS")
+    if additional_header_labels != None:
+        if type(additional_header_labels) == list:
+            for i, h in enumerate(additional_header_labels):
+                cam_fits.header.set(h[0], h[1])
+        else:
+            cam_fits.header.set(additional_header_labels[0], additional_header_labels[1])
+
+
+    dm_fits.header.set("timestamp", str(datetime.datetime.now()))
+    dm_fits.header.set("EXTNAME", "DM_CMD_SEQUENCE")
+
+
+    flat_DMoffset_fits.header.set("EXTNAME", "FLAT_DM_OFFSET_CMD")
+    flat_DM_fits.header.set("EXTNAME", "FLAT_DM_CMD")
+    I2M_fits.header.set("EXTNAME", "I2M")
+
+    I0_fits.header.set("EXTNAME", "FPM_IN")
+    N0_fits.header.set("EXTNAME", "FPM_OUT")
+    DARK_fits.header.set("EXTNAME", "DARK")
+
+
+    # motor states 
+    motor_states = get_motor_states_as_list_of_dicts()
+    bintab_fits = save_motor_states_as_hdu( motor_states )
+
+
+    # append to the data
+    data.append(cam_fits)
+    data.append(dm_fits)
+    data.append(flat_DM_fits)
+    data.append(flat_DMoffset_fits)
+    data.append(I2M_fits)
+    data.append(I0_fits)
+    data.append(N0_fits)
+    data.append(DARK_fits)
+    data.append(bintab_fits )
+
+
+
+
+    if save_fits != None:
+        if type(save_fits) == str:
+            data.writeto(save_fits) #, overwrite=True)
+        else:
+            raise TypeError(
+                "save_images needs to be either None or a string indicating where to save file"
+            )
+        
+
+
+
+for beam_id in args.beam_id:
+
+    # zero all channels
+    dm_shm_dict[beam_id].zero_all()
+    # activate flat (does this on channel 1)
+    dm_shm_dict[beam_id].activate_flat()
+    # apply dm flat offset (does this on channel 2)
+    dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+
+
+
+##### END 
+
+# play 
+
+d = fits.open( "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" )
+
+I2M = d["I2M"].data[0]
+imgs = d["SEQUENCE_IMGS"].data[:,0,:,:]
+cmds = d["DM_CMD_SEQUENCE"].data 
+I0 =  np.mean( d["FPM_IN"].data, axis = 0)  
+N0 =  np.mean( d["FPM_OUT"].data ,axis=0)
+Nx_act_DM = 12 
+corner_indices = [0, Nx_act_DM-1, Nx_act_DM * (Nx_act_DM-1), -1]
+
+cmds1D = []
+for arr in cmds:
+    flat_arr = arr.flatten()  # Flatten the 2D array
+    remaining_values = np.delete(flat_arr, corner_indices)  # Remove specified indices
+    cmds1D.append(remaining_values.tolist())  # Convert back to list
+
+
+idm = [I2M @ (( i.reshape(-1) - I0.reshape(-1) ) / N0.reshape(-1)) for i in imgs]
+
+plt.figure(); 
+plt.plot( [c[65] for c in cmds1D], [i[65] for i in idm], '.' ); 
+plt.xlabel('dm cmd (act 65)')
+plt.ylabel('interpolated intensity (act 65)')
+plt.title('Kolmogorov phase screen on DM')
+plt.savefig('delme.png')
+#plt.imshow(util.get_DM_command_in_2D( I2M_dict[beam_id] @ image_list[beam_id][30][0].reshape(-1)) ) ;plt.savefig('delme.png')
+
+
+#display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None,save_path="output_movie.mp4", fps=5)
+#display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None, save_path="users/bencb/Downloads/output_movie.mp4", fps=5)
+
+
+
+
+
+def display_images_with_slider(image_lists, plot_titles=None, cbar_labels=None):
+    """
+    Displays multiple images or 1D plots from a list of lists with a slider to control the shared index.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    """
+    import math
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Slider for selecting the frame index
+    ax_slider = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
+
+    # Update function for the slider
+    def update(val):
+        index = int(frame_slider.val)  # Get the selected index from the slider
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][index])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the selected index)
+                line_display.set_data(np.arange(index), image_lists[i][:index])
+        fig.canvas.draw_idle()  # Redraw the figure
+
+    # Connect the slider to the update function
+    frame_slider.on_changed(update)
+
+    plt.show()
+
+
+
+
+def display_images_as_movie(image_lists, plot_titles=None, cbar_labels=None, save_path="output_movie.mp4", fps=5):
+    """
+    Creates an animation from multiple images or 1D plots from a list of lists and saves it as a movie.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    - save_path: path where the output movie will be saved.
+    - fps: frames per second for the output movie.
+    """
+    import math 
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Function to update the frames
+    def update_frame(frame_idx):
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][frame_idx])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the current index)
+                line_display.set_data(np.arange(frame_idx), image_lists[i][:frame_idx])
+        return img_displays + line_displays
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
+
+    # Save the animation as a movie file
+    ani.save(save_path, fps=fps, writer='ffmpeg')
+
+    plt.show()
+

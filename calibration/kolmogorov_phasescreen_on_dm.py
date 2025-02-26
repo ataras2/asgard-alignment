@@ -68,7 +68,7 @@ def get_motor_states_as_list_of_dicts( ):
 
     states = []
     for name in motor_names:
-        message = f"!read {name}"
+        message = f"read {name}"
         res = send_and_get_response(message)
 
         if "NACK" in res:
@@ -284,7 +284,7 @@ c.start_camera()
 
 # phasemask
 for beam in [1,2,3,4]:
-    message = f"!fpm_movetomask phasemask{beam} {args.phasemask_name}"
+    message = f"fpm_movetomask phasemask{beam} {args.phasemask_name}"
     res = send_and_get_response(message)
     print(res)
     time.sleep(2)
