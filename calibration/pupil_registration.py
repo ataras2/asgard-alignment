@@ -427,85 +427,88 @@ for beam_id in args.beam_ids:
 
 if __name__ == "__main__":
 
+    print('done')
 
-    Nx, Ny = 24, 24
-    R = 6
-    r = 1
-    noise_rms = 0.1
+    # below is a simulation of this algorithm and defining aline transforms of pupils
+    
+    # Nx, Ny = 24, 24
+    # R = 6
+    # r = 1
+    # noise_rms = 0.1
 
-    x_pixels = np.arange(Nx)
-    y_pixels = np.arange(Ny)
-    X, Y = np.meshgrid(x_pixels, y_pixels)
+    # x_pixels = np.arange(Nx)
+    # y_pixels = np.arange(Ny)
+    # X, Y = np.meshgrid(x_pixels, y_pixels)
 
-    # Create a base pupil image (Frame 1)
-    pup = np.zeros((Ny, Nx))
-    filt = ((X - Nx//2)**2 + (Y/1.2 - Ny//2)**2 < R**2) & \
-           ((X - Nx//2)**2 + (Y/1.2 - Ny//2)**2 > r**2)
-    pup[filt] = 1
-    img1 = pup + noise_rms * np.random.randn(Ny, Nx)
+    # # Create a base pupil image (Frame 1)
+    # pup = np.zeros((Ny, Nx))
+    # filt = ((X - Nx//2)**2 + (Y/1.2 - Ny//2)**2 < R**2) & \
+    #        ((X - Nx//2)**2 + (Y/1.2 - Ny//2)**2 > r**2)
+    # pup[filt] = 1
+    # img1 = pup + noise_rms * np.random.randn(Ny, Nx)
 
-    plt.figure()
-    plt.imshow(img1, cmap="gray")
-    plt.title("Frame 1")
-    plt.show()
+    # plt.figure()
+    # plt.imshow(img1, cmap="gray")
+    # plt.title("Frame 1")
+    # plt.show()
 
-    # Define a known affine transform: scale, rotation, translation
-    angle_deg = 15
-    angle_rad = np.deg2rad(angle_deg)
-    scale_x = 1.2
-    scale_y = 0.8
-    tx, ty = (2, -1)
+    # # Define a known affine transform: scale, rotation, translation
+    # angle_deg = 15
+    # angle_rad = np.deg2rad(angle_deg)
+    # scale_x = 1.2
+    # scale_y = 0.8
+    # tx, ty = (2, -1)
 
-    # Build T_known (input -> output)
-    cos_a = np.cos(angle_rad)
-    sin_a = np.sin(angle_rad)
-    T_known = np.array([
-        [scale_x * cos_a, -scale_y * sin_a, tx],
-        [scale_x * sin_a,  scale_y * cos_a, ty],
-        [0,               0,               1 ]
-    ])
+    # # Build T_known (input -> output)
+    # cos_a = np.cos(angle_rad)
+    # sin_a = np.sin(angle_rad)
+    # T_known = np.array([
+    #     [scale_x * cos_a, -scale_y * sin_a, tx],
+    #     [scale_x * sin_a,  scale_y * cos_a, ty],
+    #     [0,               0,               1 ]
+    # ])
 
-    # Generate "Frame 2" by warping Frame 1 with T_known
-    img2 = warp_image_manual(img1, T_known, output_shape=(Ny, Nx), method='bilinear')
-    img2 += noise_rms * np.random.randn(Ny, Nx)
+    # # Generate "Frame 2" by warping Frame 1 with T_known
+    # img2 = warp_image_manual(img1, T_known, output_shape=(Ny, Nx), method='bilinear')
+    # img2 += noise_rms * np.random.randn(Ny, Nx)
 
-    plt.figure()
-    plt.imshow(img2, cmap="gray")
-    plt.title("Frame 2 (Simulated)")
-    plt.show()
+    # plt.figure()
+    # plt.imshow(img2, cmap="gray")
+    # plt.title("Frame 2 (Simulated)")
+    # plt.show()
 
-    # Detect ellipses in both frames (returns ellipse params + pupil mask)
-    ell1 = detect_pupil(img1, sigma=2, threshold=0.5, plot=True)
-    ell2 = detect_pupil(img2, sigma=2, threshold=0.5, plot=True)
-    print("Ellipse 1:", ell1[:5])
-    print("Ellipse 2:", ell2[:5])
+    # # Detect ellipses in both frames (returns ellipse params + pupil mask)
+    # ell1 = detect_pupil(img1, sigma=2, threshold=0.5, plot=True)
+    # ell2 = detect_pupil(img2, sigma=2, threshold=0.5, plot=True)
+    # print("Ellipse 1:", ell1[:5])
+    # print("Ellipse 2:", ell2[:5])
 
-    # Example: save beam=1 data from the first frame
-    save_pupil_data_toml(beam_id=1, ellipse_params=ell1, toml_path="beam1_test.toml")
+    # # Example: save beam=1 data from the first frame
+    # save_pupil_data_toml(beam_id=1, ellipse_params=ell1, toml_path="beam1_test.toml")
 
-    # 5) Compute the estimated transform from ellipse parameters
-    T_est, T_est_inv = compute_affine_from_ellipse(ell1, ell2)
-    print("T_est:\n", T_est)
-    print("T_est_inv:\n", T_est_inv)
+    # # 5) Compute the estimated transform from ellipse parameters
+    # T_est, T_est_inv = compute_affine_from_ellipse(ell1, ell2)
+    # print("T_est:\n", T_est)
+    # print("T_est_inv:\n", T_est_inv)
 
-    # 6) Warp Frame 1 with the estimated transform
-    img1_to_2 = warp_image_manual(img1, T_est, output_shape=(Ny, Nx), method='nearest')
+    # # 6) Warp Frame 1 with the estimated transform
+    # img1_to_2 = warp_image_manual(img1, T_est, output_shape=(Ny, Nx), method='nearest')
 
-    # 7) Display results
-    plt.figure(figsize=(12,4))
-    plt.subplot(1,3,1)
-    plt.imshow(img2, cmap="gray")
-    plt.title("Frame 2 (Simulated)")
+    # # 7) Display results
+    # plt.figure(figsize=(12,4))
+    # plt.subplot(1,3,1)
+    # plt.imshow(img2, cmap="gray")
+    # plt.title("Frame 2 (Simulated)")
 
-    plt.subplot(1,3,2)
-    plt.imshow(img1_to_2, cmap="gray")
-    plt.title("Frame 1 warped by T_est")
+    # plt.subplot(1,3,2)
+    # plt.imshow(img1_to_2, cmap="gray")
+    # plt.title("Frame 1 warped by T_est")
 
-    plt.subplot(1,3,3)
-    resid = img2 - img1_to_2
-    plt.imshow(resid, cmap="gray")
-    plt.title("Residual (Frame 2 - Warped Frame 1)")
-    plt.show()
+    # plt.subplot(1,3,3)
+    # resid = img2 - img1_to_2
+    # plt.imshow(resid, cmap="gray")
+    # plt.title("Residual (Frame 2 - Warped Frame 1)")
+    # plt.show()
 
 
 

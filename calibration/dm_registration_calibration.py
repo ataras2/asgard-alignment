@@ -242,7 +242,8 @@ bilin_interp_matricies = []
 
 number_of_pokes = 2
 # poking DM and getting images 
-print('GOING VERY SLOW DUE TO SHM DELAY DM')
+sleeptime = 10
+print(f'GOING VERY SLOW ({sleeptime}s delays) DUE TO SHM DELAY DM')
 for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2D map)
     print(f"actuator {act}")
     img_list_push = [[] for _ in args.beam_id]
@@ -253,8 +254,9 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         poke_vector[act] = (-1)**nn * poke_amplitude
         # send DM commands 
         for ii, beam_id in enumerate( args.beam_id):
-            dm_shm_dict[beam_id].set_data( DM_flat_offset[beam_id] + dm_shm_dict[beam_id].cmd_2_map2D(poke_vector, fill=0) )
-        time.sleep(20)
+            dm_shm_dict[beam_id].set_data( dm_shm_dict[beam_id].cmd_2_map2D(poke_vector, fill=0) ) 
+            ## Try without #DM_flat_offset[beam_id]  )
+        time.sleep(sleeptime)
         # get the images 
         img = np.mean( c.get_data() , axis=0)
         for ii, bb in enumerate( args.beam_id ):
@@ -269,7 +271,7 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         if dm_turbulence: 
             # current_cmd_list
             # roll dm screen 
-            print('to do')
+            print('to do for on sky test')
 
     for ii, _ in enumerate( args.beam_id):
         delta_img = abs( np.mean(img_list_push[ii],axis=0) - np.mean(img_list_pull[ii],axis=0) )

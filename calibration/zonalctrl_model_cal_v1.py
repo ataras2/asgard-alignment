@@ -14,6 +14,7 @@ import argparse
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import datetime
+from scipy.stats import pearsonr
 from scipy.ndimage import median_filter
 from xaosim.shmlib import shm
 import asgard_alignment.controllino as co # for turning on / off source \
@@ -45,7 +46,7 @@ dmclass.set_data() applies on channel 2!
 
 
 ### using SHM camera structure
-def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
+def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True):
     print(
         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
     )
@@ -77,14 +78,14 @@ def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=
                 else:
                     phasemask.move_relative([x, y])
 
-                time.sleep(0.5)
+                time.sleep(3)
                 img = np.mean(
                     cam.get_data(),
                     axis=0,
                 )[r1:r2,c1:c2]
                 if savefigName != None:
                     plt.figure()
-                    plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
+                    plt.imshow( np.log10( img ) )
                     plt.colorbar()
                     plt.savefig(savefigName)
             except:
@@ -92,6 +93,57 @@ def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=
 
     plt.close()
 
+
+def get_row_col(actuator_index):
+    # Function to get row and column for a given actuator index (for plotting)
+    rows, cols = 12, 12
+
+    # Missing corners
+    missing_corners = [(0, 0), (0, 11), (11, 0), (11, 11)]
+
+    # Create a flattened index map for valid positions
+    valid_positions = [(r, c) for r in range(rows) for c in range(cols) if (r, c) not in missing_corners]
+
+    if actuator_index < 0 or actuator_index >= len(valid_positions):
+        raise ValueError(f"Invalid actuator index: {actuator_index}")
+    return valid_positions[actuator_index]
+
+
+
+
+def DM_actuator_mosaic_plot( xx, yy , filter_crosscoupling = False ):
+    """
+    xx and yy are 2D array like, rows are samples, columns are actuators.
+    plots x vs y for each actuator in a mosaic plot with the same grid layout 
+    as the BMC multi-3.5 DM.   
+    """
+    fig, axes = plt.subplots(12, 12, figsize=(10, 10), sharex=True, sharey=True)
+    fig.tight_layout(pad=2.0) 
+    for axx in axes.reshape(-1):
+        axx.axis('off')
+
+    for act in range(140):
+
+        # Select data for the current actuator and label data
+        x = xx[:, act]
+        y = yy[:, act]
+
+        if filter_crosscoupling:
+            filt = x != 0
+        else:
+            filt = None
+            
+
+        ax = axes[get_row_col(act)]
+        # Data points
+        ax.plot(x[filt], y[filt], '.', label='Data')
+        # Plot setup
+        ax.set_xlabel([]) 
+        ax.set_ylabel([]) 
+        ax.set_title(f'act#{act+1}')
+        plt.grid(True)
+
+    return( fig, axes )
 
 
 
@@ -202,11 +254,24 @@ def save_motor_states_as_hdu(motor_states):
     return fits.BinTableHDU.from_columns(cols, name="MotorStates")
 
 
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
 
-def process_signal( zwfs_pupil, zwfs_pupil_ref , clear_pupil, I2M):
-    s_img = (zwfs_pupil - zwfs_pupil_ref) / clear_pupil
-    s_dm = I2M @ s_img.ravel() 
-    return s_dm 
+
+def process_signal( i, I0, N0):
+    # i is intensity, I0 reference intensity (zwfs in), N0 clear pupil (zwfs out)
+    return ( i - I0 ) / N0 
+
+
 
 
 # setting up socket to ZMQ communication to multi device server
@@ -245,7 +310,59 @@ parser.add_argument(
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
+parser.add_argument(
+    "--phasemask",
+    type=str,
+    default=None,
+    help="select which phasemask we're calibrating the model for. Default: None - in which case the user is prompted to enter the phasemask"
+)
+
+parser.add_argument(
+    "--reconstructor_model",
+    type=str,
+    default="zonal_linear",
+    help="Reconstructor model to use. Default is 'zonal_linear'."
+)
+
+parser.add_argument(
+    "--model_metric_threshold",
+    type=float,
+    default=None,
+    help="Model metric threshold (DM units). Default is None."
+)
+
+parser.add_argument(
+    "--act_filter_method",
+    type=str,
+    default="act_rad-4",
+    help="Actuator filter method. Default is 'act_rad-4'."
+)
+
+parser.add_argument(
+    "--number_of_rolls",
+    type=int,
+    default=1000,
+    help="Number of rolls. Default is 500."
+)
+
+parser.add_argument(
+    "--scaling_factor",
+    type=float,
+    default=0.2,
+    help="Scaling factor. Default is 0.2."
+)
+
+
+#--act_filter_method pearson_R --model_metric_threshold 0.65
+
 args=parser.parse_args()
+
+
+reconstructor_model = args.reconstructor_model
+model_metric_threshold = args.model_metric_threshold
+act_filter_method = args.act_filter_method 
+number_of_rolls = args.number_of_rolls
+scaling_factor = args.scaling_factor
 
 ## Input configuration 
 
@@ -301,7 +418,74 @@ for beam_id in args.beam_id:
     # activate flat (does this on channel 1)
     dm_shm_dict[beam_id].activate_flat()
     # apply dm flat offset (does this on channel 2)
-    dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+    #dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+
+
+# set up phasemask 
+# # This could be moved to function in pahsemask_centering_tools.py (input beam_id, phasemask, baldr_pupils, state_dict['socket'])
+for beam_id in args.beam_id:
+    valid_reference_position_files = glob.glob(
+        f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{args.beam_id}/*json"
+        )
+
+
+    with open(max(valid_reference_position_files, key=os.path.getmtime), "r") as file:
+        print(f"using most recent phasemask position file for beam {beam_id}:\n({file}")
+        phasemask_positions = json.load(file)
+
+
+    valid_input_phasemasks = [f"H{i}" for i in range(1,6)] + [f"J{i}" for i in range(1,6)] + ["undefined"]
+    if (args.phasemask not in valid_input_phasemasks) and (args.phasemask is not None)  :
+        raise UserWarning(f"invalid phasemask position. Try one of the following: {valid_input_phasemasks}")
+
+    if args.phasemask is None:
+        userInput = 1
+        ui = input("\ninput mask label. Try H1-5, J1-5 or undefined. This will be input to TOML config file.\n")
+        invalid = ui not in valid_input_phasemasks
+        while invalid:
+            ui = input(f"\nInvalid entry. input mask label. Try 'undefined' for example. Valid options are: {valid_input_phasemasks}\n")
+            invalid = ui not in valid_input_phasemasks
+        
+        # Define phasemask label to write in TOML 
+        args.phasemask = ui 
+
+
+    ui = input("\nEnter 1 to continue in current position or 0 to move to specific position\n")
+    invalid = ui not in ['0', '1']
+    while invalid :
+        ui = input("\nInvalid entry. Press 1 to continue in current position or 0 to move to specific position\n")
+        invalid = ui not in ['0', '1']
+
+    if ui == '1':
+        print(f"\nwe continue in current position. registering it as phasemask { args.phasemask}\n")
+    elif ui =='0':
+        if args.phasemask == 'undefined':
+            print( '\nundefined mask position. we just continue in current position\n')
+        else:
+            Xpos0 = phasemask_positions[args.phasemask][0]
+            Ypos0 = phasemask_positions[args.phasemask][1]
+        
+            print(f"\nmoving to mask {args.phasemask} on beam {beam_id} at X,Y = {round(Xpos0)}um, {round(Ypos0)}um\n")
+
+            # move to position 
+            message = f"moveabs BMX{beam_id} {Xpos0}"
+            send_and_get_response(message)
+            time.sleep(3)
+            message = f"moveabs BMY{beam_id} {Ypos0}"
+            send_and_get_response(message)
+
+            ui = input("\nEnter 1 to adjust mask position or 0 to continue\n")
+            invalid = ui not in ['0', '1']
+            while invalid :
+                ui = input("\nInvalid entry. Press 1 to continue in current position or 0 to move to specific position\n")
+                invalid = ui not in ['0', '1']
+
+            if ui == '1':
+                move_relative_and_get_image(cam=c, beam=beam_id, baldr_pupils = baldr_pupils, phasemask=state_dict["socket"],  savefigName='delme.png', use_multideviceserver=True )
+
+
+
+
 
 
 # Get Darks 
@@ -324,7 +508,7 @@ else:
 
 
 # check phasemask alignment 
-beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
+beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
 while beam :
     print( 'we save images as delme.png in asgard-alignment project - open it!')
     img = np.sum( c.get_data()  , axis = 0 ) 
@@ -335,7 +519,7 @@ while beam :
     # time.sleep(5)
 
     # manual centering 
-    pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
+    move_relative_and_get_image(cam=c, beam=beam, baldr_pupils = baldr_pupils, phasemask=state_dict["socket"],  savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
 
     beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
 
@@ -360,14 +544,14 @@ for beam_id in args.beam_id:
     message = f"moverel BMY{beam_id} {rel_offset}"
     res = send_and_get_response(message)
     print(res) 
-    time.sleep(5)
+    time.sleep(10)
 
 
 #Clear Pupil
-img = c.get_data() 
+img = np.mean( c.get_data() ,axis=0) 
 for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-    cropped_img = [i[r1:r2, c1:c2] for i in img]
+    cropped_img = img[r1:r2, c1:c2]
     clear_pupils[beam_id] = cropped_img
 
     message = f"moverel BMX{beam_id} {-rel_offset}"
@@ -377,19 +561,44 @@ for beam_id in args.beam_id:
     message = f"moverel BMY{beam_id} {-rel_offset}"
     res = send_and_get_response(message)
     print(res) 
-    time.sleep(5)
+    time.sleep(10)
 
+
+## check them 
+dark = {}
+for beam_id in args.beam_id:
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+
+
+    # checks 
+    cbar_label_list = ['[adu]','[adu]', '[adu]']
+    title_list = ['DARK', 'CLEAR PUPIL', 'ZWFS PUPIL']
+    xlabel_list = ['','','']
+    ylabel_list = ['','','']
+
+    dark[beam_id] = np.mean( dark_raw[:,r1:r2,c1:c2], axis=0)
+
+    im_list = [dark[beam_id], clear_pupils[beam_id], zwfs_pupils[beam_id] ]
+    util.nice_heatmap_subplots( im_list , 
+                                cbar_label_list = cbar_label_list,
+                                title_list=title_list,
+                                xlabel_list=xlabel_list,
+                                ylabel_list=ylabel_list,
+                                savefig='delme.png' )
+
+    plt.show()
+    
 
 
 #prepare phasescreen to put on DM 
 D = 1.8
 act_per_it = 0.5 # how many actuators does the screen pass per iteration 
 V = 10 / act_per_it  / D #m/s (10 actuators across pupil on DM)
-scaling_factor = 0.2
+#scaling_factor = 0.2
 I0_indicies = 10 # how many reference pupils do we get?
 scrn = ps.PhaseScreenVonKarman(nx_size= int( 12 / act_per_it ) , pixel_scale= D / 12, r0=0.1, L0=12)
 corner_indicies = [0, 11, 11 * 12, -1] # DM corner indidices
-number_of_rolls = 50
+#number_of_rolls = 500
 
 DM_command_sequence = [np.zeros([12,12]) for _ in range(I0_indicies)]
 for i in range(number_of_rolls):
@@ -415,15 +624,17 @@ additional_header_labels = [
     ('V',V),
     ('scaling_factor', scaling_factor),
     ("Nact", 140),
-    ('fps', 500),
-    ('gain', 5)
+    ('fps', 200),
+    ('gain', 1)
 ]
 
 
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
-sleeptime_between_commands = 10
+
+sleeptime_between_commands = 3 
+print(f'GOING SLOW FOR SHM LAG {sleeptime_between_commands}s DELAY')
 image_list = {b:[] for b in args.beam_id}
 for cmd_indx, cmd in enumerate(DM_command_sequence):
     print(f"executing cmd_indx {cmd_indx} / {len(DM_command_sequence)}")
@@ -431,7 +642,8 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
 
     # ok, now apply command
     for beam_id in args.beam_id:
-        dm_shm_dict[beam_id].set_data( dm_flat_offsets[beam_id] + cmd)
+        #without dmflat offset 
+        dm_shm_dict[beam_id].set_data( cmd ) #dm_flat_offsets[beam_id] + cmd)
 
     # wait a sec
     time.sleep(sleeptime_between_commands)
@@ -450,17 +662,19 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
 
 # init fits files if necessary
 # should_we_record_images = True
-take_mean_of_images = True
-save_dm_cmds = True
+# take_mean_of_images = True
+# save_dm_cmds = True
 
 
+
+# show the fits !! 
 
 
 # ====== make references fits files
 
-
+save_fits = {}
 for beam_id in args.beam_id:
-    save_fits = "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" # _{tstamp}.fits"    
+    save_fits[beam_id] = "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" # _{tstamp}.fits"    
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
 
 
@@ -520,13 +734,13 @@ for beam_id in args.beam_id:
 
 
 
-    if save_fits != None:
-        if type(save_fits) == str:
-            data.writeto(save_fits) #, overwrite=True)
-        else:
-            raise TypeError(
-                "save_images needs to be either None or a string indicating where to save file"
-            )
+    if type(save_fits[beam_id]) == str:
+        print(f'saving {save_fits[beam_id]}')
+        data.writeto(save_fits[beam_id], overwrite=True)
+    else:
+        raise TypeError(
+            "save_images needs to be either None or a string indicating where to save file"
+        )
         
 
 
@@ -542,219 +756,392 @@ for beam_id in args.beam_id:
 
 
 
-##### END 
+
+
+
+for beam_id in args.beam_id:
+
+    d = fits.open( save_fits[beam_id] ) 
+
+    # what index do we start rolling phasescreen
+    iStart = int(d["SEQUENCE_IMGS"].header['HIERARCH I0_indicies'].split('-')[-1])
+    I2M = d["I2M"].data[0]
+    imgs = d["SEQUENCE_IMGS"].data[iStart:,0,:,:]
+    cmds = d["DM_CMD_SEQUENCE"].data[iStart:]
+    I0 =   d["FPM_IN"].data
+    I0dm = I2M @ I0.reshape(-1)
+    N0 =   d["FPM_OUT"].data
+    N0dm = I2M @ N0.reshape(-1)
+
+    Nx_act_DM = 12 
+    corner_indices = [0, Nx_act_DM-1, Nx_act_DM * (Nx_act_DM-1), -1]
+
+    cmds1D = []
+    for arr in cmds:
+        flat_arr = arr.flatten()  # Flatten the 2D array
+        remaining_values = np.delete(flat_arr, corner_indices)  # Remove specified indices
+        cmds1D.append(remaining_values.tolist())  # Convert back to list
+
+
+    idm = [I2M @ i.reshape(-1) for i in imgs]
+
+    # look at the correlation between the DM command and the interpolated intensity (Pearson R) 
+    R_list = []
+    for act in range(140):
+        R_list.append( pearsonr([a[act] for a in idm ], [a[act] for a in cmds1D]).statistic )
+
+
+    plt.figure() 
+    plt.imshow( util.get_DM_command_in_2D( R_list ) )
+    plt.colorbar(label='Pearson R') 
+    plt.title( 'Pearson R between DM command and \ninterpolated intensity onto DM actuator space')
+    #plt.savefig('delme.png') # fig_path + f'pearson_r_dmcmd_dmIntensity_dm_interactuator_coupling-{zwfs_ns.dm.actuator_coupling_factor}.png')
+    plt.show()  
+    plt.close() 
+
+    # xtmp=np.
+    # actuator_filter = np.zeros([12,12]).astype(bool)
+
+
+    X = process_signal( idm ,  I0dm,  N0dm ) 
+    Y = np.array(cmds1D)
+
+    if reconstructor_model == 'zonal_linear':
+        coe, interc, res = [],[], []
+        for a in range(len(X.T)):
+            M, c = np.polyfit( X.T[a], Y.T[a], 1 )
+            coe.append( M )
+            interc.append( c )
+
+            res.append( Y.T[a] -  M * X.T[a] + c  )
+
+    else:
+        raise UserWarning('not a valid model. Try zonal_linear')
+        
+    # simple check on center actuator 
+    plt.plot( X.T[65], Y.T[65] , '.' ); plt.plot( X.T[65], coe[65] * X.T[65] + interc[65], ls='-') ; plt.savefig('delme.png') ; plt.show()
+
+    fig, ax = DM_actuator_mosaic_plot( X, Y , filter_crosscoupling = False )
+    plt.savefig('delme2.png')
+
+    # we filter a little tighter (4 actuator radius) because edge effects are bad 
+    if act_filter_method == 'pearson_R' :
+        act_filt = ( np.array( R_list ) > model_metric_threshold ) 
+    elif act_filter_method == 'residuals' :
+        act_filt = ( np.std(res,axis=1) > model_metric_threshold ) 
+    elif 'act_rad' in act_filter_method:
+        # pattern 'act_rad-<actuator radius>'
+        rad = int(act_filter_method.split('-')[-1])
+        act_filt = util.get_circle_DM_command(radius= rad, Nx_act=12).astype(bool) 
+    else:
+        print('ALERT: Using set DM actuator radius = 4 actuators for control region')
+        act_filt = util.get_circle_DM_command(radius= 5, Nx_act=12).astype(bool)
+    
+    plt.close('all')
+
+    plt.figure()
+    plt.imshow( util.get_DM_command_in_2D( np.std(res,axis=1) ) ) ;
+    plt.colorbar(); 
+    plt.show()
+    plt.title(f'residuals {reconstructor_model}')
+    plt.savefig('delme1.png')
+
+    #res_cov =  np.cov( res ) 
+    M2C = [coe, interc]
+
+    # write to tomlo 
+
+
+    ### Add to toml 
+    new_data = {
+        f"beam{beam_id}": 
+            {f"{args.phasemask}": {
+                "reconstructor_model":{
+                    "reconstructor_model":reconstructor_model,
+                    "model_metric_threshold":model_metric_threshold,
+                    "act_filter_method":act_filter_method,
+                    "linear_model_dm_actuator_filter": act_filt.tolist() ,
+                    "linear_model_coes": np.array(coe).tolist(),
+                    "linear_model_interc" : np.array(interc).tolist(),
+                    "linear_model_train_residuals" : np.array(res).tolist(),
+                    "M2C" : np.array(M2C).tolist(),
+                    "I0" :np.array(I0).tolist() ,
+                    "N0" :np.array(N0).tolist() 
+                }
+            }
+        }
+    }
+
+    # with open("/Users/bencb/Documents/test.toml", "w") as f:
+    #     toml.dump(new_data, f)
+
+    # Check if file exists; if so, load and update.
+    if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+        try:
+            current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+        except Exception as e:
+            raise UserWarning(f"Error loading TOML file: {e}")
+            #current_data = {}
+    else:
+        raise UserWarning(f"Error loading TOML file:")
+        #current_data = {}
+
+    # Update current data with new_data (beam specific)
+    current_data = recursive_update(current_data, new_data)
+ 
+ 
+    # Write the updated data back to the TOML file.
+    with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+        toml.dump(current_data, f)
+
+
+
+## Make this a seperate file 
+
+# ##### END 
+
+#### Get some noise estimates 
+# """
+# Distribution of signal (idm(t) - I0dm) / N0dm 
+# Heatmap of std projected on DM actuators for beam 2, fitted coefficients m , and therefore Model noise cmd = |m| * sigma """
+
+
+# b = 2 
+# r1,r2,c1,c2 = baldr_pupils[f"{b}"]
+# I0 =  np.array( zwfs_pupils[b] )
+# N0 =  np.array( np.mean( clear_pupils[b], axis=0) ) # fix later
+
+# i = []
+# for _ in range(100):
+#     i.append( np.mean( c.get_data() ,axis=0 )[r1:r2,c1:c2] )
+
+
+# i0dm = I2M_dict[b] @ I0.reshape(-1)
+# n0dm = I2M_dict[b] @ N0.reshape(-1)
+# idm = np.array( [I2M_dict[b] @ ii.reshape(-1) for ii in i] )
+
+# imgs = np.std( ( idm - np.mean(idm,axis=0) ) / n0dm, axis = 0 )
+
+# xlabel_list=['']
+# ylabel_list=['']
+# title_list = ['']
+# cbar_label_list = ['std (I-I0)/N0']
+# util.nice_heatmap_subplots( [util.get_DM_command_in_2D( imgs ) ], xlabel_list=xlabel_list, ylabel_list=ylabel_list , title_list=title_list, cbar_label_list=cbar_label_list, savefig='delme.png')
+
 
 # play 
 
-d = fits.open( "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" )
+# d = fits.open( "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" )
 
-I2M = d["I2M"].data[0]
-imgs = d["SEQUENCE_IMGS"].data[:,0,:,:]
-cmds = d["DM_CMD_SEQUENCE"].data 
-I0 =  np.mean( d["FPM_IN"].data, axis = 0)  
-N0 =  np.mean( d["FPM_OUT"].data ,axis=0)
-Nx_act_DM = 12 
-corner_indices = [0, Nx_act_DM-1, Nx_act_DM * (Nx_act_DM-1), -1]
+# I2M = d["I2M"].data[0]
+# imgs = d["SEQUENCE_IMGS"].data[:,0,:,:]
+# cmds = d["DM_CMD_SEQUENCE"].data 
+# I0 =  np.mean( d["FPM_IN"].data, axis = 0)  
+# N0 =  np.mean( d["FPM_OUT"].data ,axis=0)
+# Nx_act_DM = 12 
+# corner_indices = [0, Nx_act_DM-1, Nx_act_DM * (Nx_act_DM-1), -1]
 
-cmds1D = []
-for arr in cmds:
-    flat_arr = arr.flatten()  # Flatten the 2D array
-    remaining_values = np.delete(flat_arr, corner_indices)  # Remove specified indices
-    cmds1D.append(remaining_values.tolist())  # Convert back to list
-
-
-idm = [I2M @ (( i.reshape(-1) - I0.reshape(-1) ) / N0.reshape(-1)) for i in imgs]
-
-plt.figure(); 
-plt.plot( [c[65] for c in cmds1D], [i[65] for i in idm], '.' ); 
-plt.xlabel('dm cmd (act 65)')
-plt.ylabel('interpolated intensity (act 65)')
-plt.title('Kolmogorov phase screen on DM')
-plt.savefig('delme.png')
-#plt.imshow(util.get_DM_command_in_2D( I2M_dict[beam_id] @ image_list[beam_id][30][0].reshape(-1)) ) ;plt.savefig('delme.png')
+# cmds1D = []
+# for arr in cmds:
+#     flat_arr = arr.flatten()  # Flatten the 2D array
+#     remaining_values = np.delete(flat_arr, corner_indices)  # Remove specified indices
+#     cmds1D.append(remaining_values.tolist())  # Convert back to list
 
 
-#display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None,save_path="output_movie.mp4", fps=5)
-#display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None, save_path="users/bencb/Downloads/output_movie.mp4", fps=5)
+# idm = [I2M @ (( i.reshape(-1) - I0.reshape(-1) ) / N0.reshape(-1)) for i in imgs]
+
+# plt.figure(); 
+# plt.plot( [c[65] for c in cmds1D], [i[65] for i in idm], '.' ); 
+# plt.xlabel('dm cmd (act 65)')
+# plt.ylabel('interpolated intensity (act 65)')
+# plt.title('Kolmogorov phase screen on DM')
+# plt.savefig('delme.png')
+# #plt.imshow(util.get_DM_command_in_2D( I2M_dict[beam_id] @ image_list[beam_id][30][0].reshape(-1)) ) ;plt.savefig('delme.png')
 
 
+# #display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None,save_path="output_movie.mp4", fps=5)
+# #display_images_as_movie(image_lists=[imgs, cmds], plot_titles=None, cbar_labels=None, save_path="users/bencb/Downloads/output_movie.mp4", fps=5)
 
 
 
-def display_images_with_slider(image_lists, plot_titles=None, cbar_labels=None):
-    """
-    Displays multiple images or 1D plots from a list of lists with a slider to control the shared index.
+
+
+# def display_images_with_slider(image_lists, plot_titles=None, cbar_labels=None):
+#     """
+#     Displays multiple images or 1D plots from a list of lists with a slider to control the shared index.
     
-    Parameters:
-    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
-                   The inner lists must all have the same length.
-    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
-    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
-    """
-    import math
-    # Check that all inner lists have the same length
-    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+#     Parameters:
+#     - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+#                    The inner lists must all have the same length.
+#     - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+#     - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+#     """
+#     import math
+#     # Check that all inner lists have the same length
+#     assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
     
-    # Number of rows and columns based on the number of plots
-    num_plots = len(image_lists)
-    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
-    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+#     # Number of rows and columns based on the number of plots
+#     num_plots = len(image_lists)
+#     ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+#     nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
     
-    num_frames = len(image_lists[0])
+#     num_frames = len(image_lists[0])
 
-    # Create figure and axes
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
-    plt.subplots_adjust(bottom=0.2)
+#     # Create figure and axes
+#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+#     plt.subplots_adjust(bottom=0.2)
 
-    # Flatten axes array for easier iteration
-    axes = axes.flatten() if num_plots > 1 else [axes]
+#     # Flatten axes array for easier iteration
+#     axes = axes.flatten() if num_plots > 1 else [axes]
 
-    # Store the display objects for each plot (either imshow or line plot)
-    img_displays = []
-    line_displays = []
+#     # Store the display objects for each plot (either imshow or line plot)
+#     img_displays = []
+#     line_displays = []
     
-    # Get max/min values for 1D arrays to set static axis limits
-    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
-    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+#     # Get max/min values for 1D arrays to set static axis limits
+#     max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+#     min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
 
-    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
-        # Check if the first item in the list is a 2D array (an image) or a scalar
-        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
-            # Use imshow for 2D data (images)
-            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
-            img_displays.append(img_display)
-            line_displays.append(None)  # Placeholder for line plots
+#     for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+#         # Check if the first item in the list is a 2D array (an image) or a scalar
+#         if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+#             # Use imshow for 2D data (images)
+#             img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+#             img_displays.append(img_display)
+#             line_displays.append(None)  # Placeholder for line plots
             
-            # Add colorbar if it's an image
-            cbar = fig.colorbar(img_display, ax=ax)
-            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
-                cbar.set_label(cbar_labels[i])
+#             # Add colorbar if it's an image
+#             cbar = fig.colorbar(img_display, ax=ax)
+#             if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+#                 cbar.set_label(cbar_labels[i])
 
-        else:
-            # Plot the list of scalar values up to the initial index
-            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
-            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
-            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
-            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
-            line_displays.append(line_display)
-            img_displays.append(None)  # Placeholder for image plots
+#         else:
+#             # Plot the list of scalar values up to the initial index
+#             line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+#             line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+#             ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+#             ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+#             line_displays.append(line_display)
+#             img_displays.append(None)  # Placeholder for image plots
 
-        # Set plot title if provided
-        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
-            ax.set_title(plot_titles[i])
+#         # Set plot title if provided
+#         if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+#             ax.set_title(plot_titles[i])
 
-    # Remove any unused axes
-    for ax in axes[num_plots:]:
-        ax.remove()
+#     # Remove any unused axes
+#     for ax in axes[num_plots:]:
+#         ax.remove()
 
-    # Slider for selecting the frame index
-    ax_slider = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgoldenrodyellow')
-    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
+#     # Slider for selecting the frame index
+#     ax_slider = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+#     frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
 
-    # Update function for the slider
-    def update(val):
-        index = int(frame_slider.val)  # Get the selected index from the slider
-        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
-            if img_display is not None:
-                # Update the image data for 2D data
-                img_display.set_data(image_lists[i][index])
-            if line_display is not None:
-                # Update the line plot for scalar values (plot up to the selected index)
-                line_display.set_data(np.arange(index), image_lists[i][:index])
-        fig.canvas.draw_idle()  # Redraw the figure
+#     # Update function for the slider
+#     def update(val):
+#         index = int(frame_slider.val)  # Get the selected index from the slider
+#         for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+#             if img_display is not None:
+#                 # Update the image data for 2D data
+#                 img_display.set_data(image_lists[i][index])
+#             if line_display is not None:
+#                 # Update the line plot for scalar values (plot up to the selected index)
+#                 line_display.set_data(np.arange(index), image_lists[i][:index])
+#         fig.canvas.draw_idle()  # Redraw the figure
 
-    # Connect the slider to the update function
-    frame_slider.on_changed(update)
+#     # Connect the slider to the update function
+#     frame_slider.on_changed(update)
 
-    plt.show()
-
-
+#     plt.show()
 
 
-def display_images_as_movie(image_lists, plot_titles=None, cbar_labels=None, save_path="output_movie.mp4", fps=5):
-    """
-    Creates an animation from multiple images or 1D plots from a list of lists and saves it as a movie.
+
+
+# def display_images_as_movie(image_lists, plot_titles=None, cbar_labels=None, save_path="output_movie.mp4", fps=5):
+#     """
+#     Creates an animation from multiple images or 1D plots from a list of lists and saves it as a movie.
     
-    Parameters:
-    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
-                   The inner lists must all have the same length.
-    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
-    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
-    - save_path: path where the output movie will be saved.
-    - fps: frames per second for the output movie.
-    """
-    import math 
-    # Check that all inner lists have the same length
-    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+#     Parameters:
+#     - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+#                    The inner lists must all have the same length.
+#     - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+#     - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+#     - save_path: path where the output movie will be saved.
+#     - fps: frames per second for the output movie.
+#     """
+#     import math 
+#     # Check that all inner lists have the same length
+#     assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
     
-    # Number of rows and columns based on the number of plots
-    num_plots = len(image_lists)
-    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
-    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+#     # Number of rows and columns based on the number of plots
+#     num_plots = len(image_lists)
+#     ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+#     nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
     
-    num_frames = len(image_lists[0])
+#     num_frames = len(image_lists[0])
 
-    # Create figure and axes
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
-    plt.subplots_adjust(bottom=0.2)
+#     # Create figure and axes
+#     fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+#     plt.subplots_adjust(bottom=0.2)
 
-    # Flatten axes array for easier iteration
-    axes = axes.flatten() if num_plots > 1 else [axes]
+#     # Flatten axes array for easier iteration
+#     axes = axes.flatten() if num_plots > 1 else [axes]
 
-    # Store the display objects for each plot (either imshow or line plot)
-    img_displays = []
-    line_displays = []
+#     # Store the display objects for each plot (either imshow or line plot)
+#     img_displays = []
+#     line_displays = []
     
-    # Get max/min values for 1D arrays to set static axis limits
-    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
-    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+#     # Get max/min values for 1D arrays to set static axis limits
+#     max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+#     min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
 
-    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
-        # Check if the first item in the list is a 2D array (an image) or a scalar
-        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
-            # Use imshow for 2D data (images)
-            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
-            img_displays.append(img_display)
-            line_displays.append(None)  # Placeholder for line plots
+#     for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+#         # Check if the first item in the list is a 2D array (an image) or a scalar
+#         if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+#             # Use imshow for 2D data (images)
+#             img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+#             img_displays.append(img_display)
+#             line_displays.append(None)  # Placeholder for line plots
             
-            # Add colorbar if it's an image
-            cbar = fig.colorbar(img_display, ax=ax)
-            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
-                cbar.set_label(cbar_labels[i])
+#             # Add colorbar if it's an image
+#             cbar = fig.colorbar(img_display, ax=ax)
+#             if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+#                 cbar.set_label(cbar_labels[i])
 
-        else:
-            # Plot the list of scalar values up to the initial index
-            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
-            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
-            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
-            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
-            line_displays.append(line_display)
-            img_displays.append(None)  # Placeholder for image plots
+#         else:
+#             # Plot the list of scalar values up to the initial index
+#             line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+#             line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+#             ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+#             ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+#             line_displays.append(line_display)
+#             img_displays.append(None)  # Placeholder for image plots
 
-        # Set plot title if provided
-        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
-            ax.set_title(plot_titles[i])
+#         # Set plot title if provided
+#         if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+#             ax.set_title(plot_titles[i])
 
-    # Remove any unused axes
-    for ax in axes[num_plots:]:
-        ax.remove()
+#     # Remove any unused axes
+#     for ax in axes[num_plots:]:
+#         ax.remove()
 
-    # Function to update the frames
-    def update_frame(frame_idx):
-        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
-            if img_display is not None:
-                # Update the image data for 2D data
-                img_display.set_data(image_lists[i][frame_idx])
-            if line_display is not None:
-                # Update the line plot for scalar values (plot up to the current index)
-                line_display.set_data(np.arange(frame_idx), image_lists[i][:frame_idx])
-        return img_displays + line_displays
+#     # Function to update the frames
+#     def update_frame(frame_idx):
+#         for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+#             if img_display is not None:
+#                 # Update the image data for 2D data
+#                 img_display.set_data(image_lists[i][frame_idx])
+#             if line_display is not None:
+#                 # Update the line plot for scalar values (plot up to the current index)
+#                 line_display.set_data(np.arange(frame_idx), image_lists[i][:frame_idx])
+#         return img_displays + line_displays
 
-    # Create the animation
-    ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
+#     # Create the animation
+#     ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
 
-    # Save the animation as a movie file
-    ani.save(save_path, fps=fps, writer='ffmpeg')
+#     # Save the animation as a movie file
+#     ani.save(save_path, fps=fps, writer='ffmpeg')
 
-    plt.show()
+#     plt.show()
+
+
 

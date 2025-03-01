@@ -691,6 +691,41 @@ def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n,
     return new_pupil
 
 
+def get_circle_DM_command(radius, Nx_act=12):
+    """
+    Generates a DM command that forms a circular shape of the given radius.
+
+    Parameters:
+        radius (float): Desired radius in actuator units.
+        Nx_act (int, optional): Number of actuators per side of the DM (default 12).
+
+    Returns:
+        cmd (ndarray): A 140-length DM command vector with a circular shape.
+    """
+    # Generate actuator coordinate grid
+    x = np.arange(Nx_act)
+    y = np.arange(Nx_act)
+    X, Y = np.meshgrid(x, y)
+
+    # Compute distances from the center of the DM grid
+    center = (Nx_act - 1) / 2  # DM is 12x12, so center is at (5.5, 5.5)
+    distances = np.sqrt((X - center) ** 2 + (Y - center) ** 2)
+
+    # Mask actuators inside the desired radius
+    mask = distances <= radius
+
+    # Flatten the mask and remove corner actuators
+    mask_flattened = mask.flatten()
+    corner_indices = [0, Nx_act-1, Nx_act*(Nx_act-1), Nx_act*Nx_act-1]
+    mask_flattened = np.delete(mask_flattened, corner_indices)
+
+    # Create the DM command vector of length 140
+    cmd = np.zeros(140)
+    cmd[mask_flattened] = 1  # Set selected actuators to 1
+
+    return cmd
+
+
 # Planck's law function for spectral radiance
 def planck_law(wavelength, T):
     """Returns spectral radiance (Planck's law) at a given wavelength and temperature."""

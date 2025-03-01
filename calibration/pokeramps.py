@@ -10,37 +10,53 @@ import datetime
 import sys
 import pandas as pd
 import argparse
+import glob
 import zmq
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter, label, find_objects
 import atexit
 
-from asgard_alignment import FLI_Cameras as FLI
+#from asgard_alignment import FLI_Cameras as FLI
 import common.DM_basis_functions
 import common.phasescreens as ps
 import pyBaldr.utilities as util
 from common import phasemask_centering_tool as pct
 
-sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
-import bmc
+from xaosim.shmlib import shm
+from asgard_alignment.DM_shm_ctrl import dmclass
 
-import matplotlib 
-matplotlib.use('Agg') # helps avoid freezing in remote sessions
+try:
+    from asgard_alignment import controllino as co
+    myco = co.Controllino('172.16.8.200')
+    controllino_available = True
+    print('controllino connected')
+    
+except:
+    print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
+    controllino_available = False 
+
+
+
+#sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
+#import bmc
+
+#import matplotlib 
+#matplotlib.use('Agg') # helps avoid freezing in remote sessions
 """
 pokes each actuator on the DMs over a +/- range of values and records images on the CRED ONE
 default mode globalresetcds with setup taken from default_cred1_config.json
 user can change fps and gain as desired, also the modal basis to ramp over
 """
 
-def close_all_dms():
-    try:
-        for b in dm:
-            dm[b].close_dm()
-        print("All DMs have been closed.")
-    except Exception as e:
-        print(f"dm object doesn't seem to exist, probably already closed")
-# Register the cleanup function to run at script exit
-atexit.register(close_all_dms)
+# def close_all_dms():
+#     try:
+#         for b in dm:
+#             dm[b].close_dm()
+#         print("All DMs have been closed.")
+#     except Exception as e:
+#         print(f"dm object doesn't seem to exist, probably already closed")
+# # Register the cleanup function to run at script exit
+# atexit.register(close_all_dms)
 
 
 def get_motor_states_as_list_of_dicts( ): 
@@ -303,25 +319,35 @@ def send_and_get_response(message):
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
-# default data paths 
-with open( "config_files/file_paths.json") as f:
-    default_path_dict = json.load(f)
+# # default data paths 
+# with open( "config_files/file_paths.json") as f:
+#     default_path_dict = json.load(f)
 
-baldr_pupils_path = default_path_dict["pupil_crop_toml"]  # "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+# baldr_pupils_path = default_path_dict["pupil_crop_toml"]  # "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
-# with open(baldr_pupils_path, "r") as json_file:
-#     baldr_pupils = json.load(json_file)
+# # with open(baldr_pupils_path, "r") as json_file:
+# #     baldr_pupils = json.load(json_file)
 
-# Load the TOML file
-with open(baldr_pupils_path) as file:
-    pupildata = toml.load(file)
+# # Load the TOML file
+# with open(baldr_pupils_path) as file:
+#     pupildata = toml.load(file)
 
-# Extract the "baldr_pupils" section
-baldr_pupils = pupildata.get("baldr_pupils", {})
+# # Extract the "baldr_pupils" section
+# baldr_pupils = pupildata.get("baldr_pupils", {})
+
+default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+
+# just open 2 - they should be all the same
+with open(default_toml.replace('#','2'), "r") as f:
+    config_dict = toml.load(f)
+
+    # Baldr pupils from global frame 
+    baldr_pupils = config_dict['baldr_pupils']
+
 
 
 # positions to put thermal source on and take it out to empty position to get dark
-source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
+# source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
 
 # setting up socket to ZMQ communication to multi device server
@@ -332,11 +358,17 @@ parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
 )
 
+# parser.add_argument(
+#     '--dm_config_path',
+#     type=str,
+#     default="/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json",
+#     help="Path to the DM configuration file. Default: %(default)s"
+# )
 parser.add_argument(
-    '--dm_config_path',
+    "--global_camera_shm",
     type=str,
-    default="/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json",
-    help="Path to the DM configuration file. Default: %(default)s"
+    default="/dev/shm/cred1.im.shm",
+    help="Camera shared memory path. Default: /dev/shm/cred1.im.shm"
 )
 parser.add_argument(
     '--DMshapes_path',
@@ -347,7 +379,7 @@ parser.add_argument(
 parser.add_argument(
     '--data_path',
     type=str,
-    default=f"/home/heimdallr/data/baldr_calibration/{tstamp_rough}/",
+    default=f"/home/asg/Videos/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 
@@ -432,29 +464,45 @@ state_dict = {"message_history": [], "socket": socket}
 #dm_config_path = #"/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
 # data_path = f"/home/heimdallr/data/pokeramp/{tstamp_rough}/"
 if not os.path.exists(args.data_path):
-     os.makedirs(args.data_path)
+    os.makedirs(args.data_path)
 
 
 ########## ########## ##########
 ########## set up camera object
-roi = [None, None, None, None]
-c = FLI.fli(cameraIndex=0, roi=roi)
-# configure with default configuration file
-config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
-c.configure_camera(config_file_name)
+# roi = [None, None, None, None]
+# c = FLI.fli(cameraIndex=0, roi=roi)
+# # configure with default configuration file
+# config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
+# c.configure_camera(config_file_name)
 
-with open(config_file_name, "r") as file:
-    camera_config = json.load(file)
+# with open(config_file_name, "r") as file:
+#     camera_config = json.load(file)
 
-apply_manual_reduction = True
+# apply_manual_reduction = True
 
-c.send_fli_cmd("set mode globalresetcds")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# c.send_fli_cmd("set mode globalresetcds")
+# time.sleep(1)
+# c.send_fli_cmd(f"set gain {args.cam_gain}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
-c.start_camera()
+# c.start_camera()
+
+
+# Set up global camera frame SHM 
+c = shm(args.global_camera_shm)
+
+# set up DM SHMs 
+dm = {}
+for beam_id in [1,2,3,4]:
+    dm[beam_id] = dmclass( beam_id=beam_id )
+    # zero all channels
+    dm[beam_id].zero_all()
+    # activate flat (does this on channel 1)
+    dm[beam_id].activate_flat()
+    # apply dm flat offset (does this on channel 2)
+    #dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+
 
 
 #bad_pixels = c.get_bad_pixel_indicies(  no_frames = 200, std_threshold = 10 , flatten=False)
@@ -473,25 +521,25 @@ c.start_camera()
 # bad_pixel_map = (np.abs(mean_frame - global_mean) > 5 * global_std) | (std_frame > 5 * np.median(std_frame))
 
 
-########## set up DMs
-with open(args.dm_config_path, "r") as f:
-    dm_serial_numbers = json.load(f)
+# ########## set up DMs
+# with open(args.dm_config_path, "r") as f:
+#     dm_serial_numbers = json.load(f)
 
-dm = {}
-dm_err_flag = {}
-for beam, serial_number in dm_serial_numbers.items():
-    dm[beam] = bmc.BmcDm()  # init DM object
-    dm_err_flag[beam] = dm[beam].open_dm(serial_number)  # open DM
-    if not dm_err_flag:
-        print(f"Error initializing DM {beam}")
+# dm = {}
+# dm_err_flag = {}
+# for beam, serial_number in dm_serial_numbers.items():
+#     dm[beam] = bmc.BmcDm()  # init DM object
+#     dm_err_flag[beam] = dm[beam].open_dm(serial_number)  # open DM
+#     if not dm_err_flag:
+#         print(f"Error initializing DM {beam}")
 
 
-flatdm = {}
-for beam, serial_number in dm_serial_numbers.items():
-    flatdm[beam] = pd.read_csv(
-        args.DMshapes_path + f"{serial_number}_FLAT_MAP_COMMANDS.csv",
-        header=None,
-    )[0].values
+# flatdm = {}
+# for beam, serial_number in dm_serial_numbers.items():
+#     flatdm[beam] = pd.read_csv(
+#         args.DMshapes_path + f"{serial_number}_FLAT_MAP_COMMANDS.csv",
+#         header=None,
+#     )[0].values
 
 #modal_basis = np.eye(140)
 modal_basis = common.DM_basis_functions.construct_command_basis(
@@ -503,8 +551,8 @@ modal_basis = common.DM_basis_functions.construct_command_basis(
     without_piston=True,
 ).T # note transpose so modes are rows, cmds are columns
 
-for b in dm_serial_numbers:
-    dm[b].send_data(flatdm[f"{b}"])
+# for b in dm_serial_numbers:
+#     dm[b].send_data(flatdm[f"{b}"])
 
 # number_images_recorded_per_cmd = 5
 # number_amp_samples = 18
@@ -513,29 +561,56 @@ ramp_values = np.linspace(-args.amp_max, args.amp_max, args.number_amp_samples)
 
 
 # phasemask
+
+
+
 for beam in [1,2,3,4]:
-    message = f"!fpm_movetomask phasemask{beam} {args.phasemask_name}"
-    res = send_and_get_response(message)
-    print(res)
+
+
+
+    # ensuring using most recent file (sometimes MDS not up to date if not reset )
+    # # get all available files 
+    valid_reference_position_files = glob.glob(
+        f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+        )
+
+    # read in the most recent and make initial posiition the most recent one for given mask 
+    with open(max(valid_reference_position_files, key=os.path.getmtime)
+    , "r") as file:
+        start_position_dict = json.load(file)
+
+        Xpos0 = start_position_dict[args.phasemask_name][0]
+        Ypos0 = start_position_dict[args.phasemask_name][1]
+
+    #message = f"fpm_movetomask phasemask{beam} {args.phasemask_name}"
+    #res = send_and_get_response(message)
+    #print(res)
+    
+        # check and manually move to best 
+    message = f"moveabs BMX{beam} {Xpos0}"
+    send_and_get_response(message)
+    time.sleep(2)
+    message = f"moveabs BMY{beam} {Ypos0}"
+    send_and_get_response(message)
     time.sleep(2)
 
 
 
-beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
+# beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
 
-while beam :
-    print( 'we save images as delme.png in asgard-alignment project - open it!')
-    img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
-    r1,r2,c1,c2 = baldr_pupils[str(beam)]
-    #print( r1,r2,c1,c2  )
-    plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
+# while beam :
+#     print( 'we save images as delme.png in asgard-alignment project - open it!')
+#     img = np.sum( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
+#     r1,r2,c1,c2 = baldr_pupils[str(beam)]
+#     #print( r1,r2,c1,c2  )
+#     plt.figure(); plt.imshow( np.log10( img[r1:r2,c1:c2] ) ) ; plt.colorbar(); plt.savefig('delme.png')
 
-    # time.sleep(5)
+#     # time.sleep(5)
 
-    # manual centering 
-    pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
+#     # manual centering 
+#     pct.move_relative_and_get_image(cam=c, beam=beam, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True, roi=[r1,r2,c1,c2 ])
 
-    beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
+#     beam = int( input( "do you want to check the phasemask alignment for a particular beam. Enter beam number (1,2,3,4) or 0 to continue") )
 
 
 
@@ -545,24 +620,44 @@ while beam :
 # ACTION
 # ======== Source out first for dark
 
-state_dict["socket"].send_string(f"!moveabs SSS {source_positions['SSS']['empty']}")
-res = socket.recv_string()
-print(f"Response: {res}")
+# state_dict["socket"].send_string(f"moveabs SSS {source_positions['SSS']['empty']}")
+# res = socket.recv_string()
+# print(f"Response: {res}")
 
-time.sleep(5)
-
-
-DARK_list = []
-DARK_list = c.get_some_frames(number_of_frames=100, apply_manual_reduction=True)
-
-time.sleep(1)
+# time.sleep(5)
 
 
-state_dict["socket"].send_string(f"!moveabs SSS {source_positions['SSS']['SBB']}")
-res = socket.recv_string()
-print(f"Response: {res}")
+# DARK_list = []
+# DARK_list = c.get_data() # c.get_some_frames(number_of_frames=100, apply_manual_reduction=True)
 
-time.sleep(5)
+# time.sleep(1)
+
+
+# state_dict["socket"].send_string(f"moveabs SSS {source_positions['SSS']['SBB']}")
+# res = socket.recv_string()
+# print(f"Response: {res}")
+
+# time.sleep(5)
+
+
+# Get Darks 
+if controllino_available:
+    
+    myco.turn_off("SBB")
+    time.sleep(10)
+    
+    DARK_list = c.get_data()
+
+    myco.turn_on("SBB")
+    time.sleep(10)
+
+    #bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+else:
+    DARK_list = c.get_data()
+
+    #bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+
+
 
 # ======== reference image with FPM OUT
 # fourier tip to go off phase mask
@@ -577,24 +672,30 @@ fourier_basis = common.DM_basis_functions.construct_command_basis(
 
 tip = fourier_basis[:, 0]
 print("applying 2*tip cmd in Fourier basis to go off phase mask")
-for b in dm_serial_numbers:
-    dm[b].send_data(flatdm[b] + 1.8 * tip)
+# for b in dm_serial_numbers:
+#     dm[b].send_data(flatdm[b] + 1.8 * tip)
 
 time.sleep(1)
-N0_list = c.get_some_frames(
-    number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
-)
+N0_list = c.get_data()
+# c.get_some_frames(
+#     number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
+# )
 N0 = np.mean(N0_list, axis=0)
 
 # ======== reference image with FPM IN
 print("going back to DM flat to put beam ON phase mask")
-for b in dm_serial_numbers:
-    dm[b].send_data(flatdm[b])
+for b in dm:
+    dm[b].activate_flat() #.send_data(flatdm[b])
 time.sleep(2)
-I0_list = c.get_some_frames(
-    number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
-)
+I0_list = c.get_data()
+#c.get_some_frames(
+#    number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
+#)
 I0 = np.mean(I0_list, axis=0)
+
+
+
+
 
 
 # ====== make references fits files
@@ -622,11 +723,11 @@ DM_command_sequence = [np.zeros(140)] + list(
 )
 
 # --- additional labels to append to fits file to keep information about the sequence applied
+# ("cp_x1", roi[0]),
+# ("cp_x2", roi[1]),
+# ("cp_y1", roi[2]),
+# ("cp_y2", roi[3]),
 additional_header_labels = [
-    ("cp_x1", roi[0]),
-    ("cp_x2", roi[1]),
-    ("cp_y1", roi[2]),
-    ("cp_y2", roi[3]),
     ("in-poke max amp", np.max(ramp_values)),
     ("out-poke max amp", np.min(ramp_values)),
     ("#ramp steps", args.number_amp_samples),
@@ -646,18 +747,19 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
     time.sleep(sleeptime_between_commands)
     # ok, now apply command
     for b in dm:
-        dm[b].send_data(flatdm[b] + cmd)
+        dm[b].set_data( dm[b].cmd_2_map2D(cmd ) )#send_data(flatdm[b] + cmd)
 
     # wait a sec
     time.sleep(sleeptime_between_commands)
 
+    # c.get_some_frames(
+    #     number_of_frames=args.number_images_recorded_per_cmd,
+    #     apply_manual_reduction=True,
+    # )
     # get the image
     ims_tmp = [
         np.mean(
-            c.get_some_frames(
-                number_of_frames=args.number_images_recorded_per_cmd,
-                apply_manual_reduction=True,
-            ),
+            c.get_data(),
             axis=0,
         )
     ]  # [np.median([zwfs.get_image() for _ in range(args.number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_mean_of_images=False
@@ -679,9 +781,9 @@ cam_fits = fits.PrimaryHDU(image_list)
 
 cam_fits.header.set("EXTNAME", "SEQUENCE_IMGS")
 
-cam_config_dict = c.get_camera_config()
-for k, v in cam_config_dict.items():
-    cam_fits.header.set(k, v)
+# cam_config_dict = c.get_camera_config()
+# for k, v in cam_config_dict.items():
+#     cam_fits.header.set(k, v)
 
 cam_fits.header.set("#images per DM command", args.number_images_recorded_per_cmd)
 cam_fits.header.set("take_mean_of_images", take_mean_of_images)
@@ -710,15 +812,18 @@ dm_fits.header.set("EXTNAME", "DM_CMD_SEQUENCE")
 # dm_fits.header.set('#actuators', DM.... )
 
 
-flat_DM_fits = fits.PrimaryHDU([flatdm[b] for b in dm])
+
+for b in dm:
+    dm[b].zero_all()
+    dm[b].activate_flat() #send_data(flatdm[b])
+
+flat_DM_fits = fits.PrimaryHDU([dm[b].shm0.get_data() for b in dm])
 flat_DM_fits.header.set("EXTNAME", "FLAT_DM_CMD")
 
 # motor states 
 motor_states = get_motor_states_as_list_of_dicts()
 bintab_fits = save_motor_states_as_hdu( motor_states )
 
-for b in dm:
-    dm[b].send_data(flatdm[b])
 
 # append to the data
 data.append(cam_fits)
@@ -743,6 +848,6 @@ if save_fits != None:
 # close the data and DMs
 data.close() 
 
-for b in dm:
-    dm[b].close_dm()
+# for b in dm:
+#     dm[b].close_dm()
 

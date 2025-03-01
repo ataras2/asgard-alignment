@@ -12,6 +12,7 @@ from scipy.stats import linregress
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 from fpdf import FPDF
 import argparse
+import toml
 #sys.path.insert(1, "/Users/bencb/Documents/ASGARD/BaldrApp" )
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(script_dir)
@@ -25,8 +26,12 @@ matplotlib.use('Agg')
 # default paths from one file
 with open( "config_files/file_paths.json") as f:
     default_path_dict = json.load(f)
+    ## +I SHOULD NOT RELY ON THIS NOW - OBSOLETE 
 
-default_data_calibration_path =  default_path_dict["baldr_calibration_data"] # default path to look for most recent calibration files. HARD CODED 
+default_data_calibration_path =  'home/asg/Videos/' #default_path_dict["baldr_calibration_data"] # default path to look for most recent calibration files. HARD CODED 
+
+print(f"looking for most recent files HERE {default_data_calibration_path}. Update if needed")
+
 ramp_file_pattern = 'calibration_Zonal*.fits' # pattern to ffind the most recent pokeramp calibration file 
 kolmogorov_file_pattern = 'kolmogorov_calibration*.fits'# pattern to ffind the most recent kolmogorov calibration file (if specified)
 
@@ -248,10 +253,14 @@ def parse_arguments():
 #     1:(271, 320, 149, 206)
 #     }
 
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"config_files/baldr_pupils_coords.json"
+# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"config_files/baldr_pupils_coords.json"
 
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupil_regions = json.load(json_file)
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupil_regions = json.load(json_file)
+
+
+default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+
 
 plt.ion() 
 
@@ -260,6 +269,14 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 
 
 args = parse_arguments()
+
+
+# just open 2 - they should be all the same
+with open(default_toml.replace('#',f'{args.beam}'), "r") as f:
+    config_dict = toml.load(f)
+
+    # Baldr pupils from global frame 
+    baldr_pupil_regions = config_dict['baldr_pupils']
 
 # Redefine variables based on parsed arguments
 ramp_file = args.ramp_file
@@ -335,7 +352,8 @@ if write_report:
 
 #===========================
 
-#ramp_file = '/home/heimdallr/data/baldr_calibration/08-12-2024/calibration_Zonal_08-12-2024T08.47.26.fits'
+#ramp_file = "/home/asg/Videos/27-02-2025/calibration_Zonal_27-02-2025T12.00.50.fits"
+#'/home/heimdallr/data/baldr_calibration/08-12-2024/calibration_Zonal_08-12-2024T08.47.26.fits'
 
 recon_data = fits.open( ramp_file )
 
@@ -361,6 +379,7 @@ x_start, x_end , y_start, y_end= baldr_pupil_regions[str(beam)]
 # average over axis 1 which is number of frames taken per iteration 
 poke_imgs_cropped = poke_imgs[:,:, x_start:x_end, y_start:y_end] #np.mean( recon_data['SEQUENCE_IMGS'].data[:,:, y_start:y_end, x_start:x_end] , axis=1)
 
+#plt.imshow( poke_imgs_cropped[15][65] - poke_imgs_cropped[5][65]  ) ;plt.savefig('delme.png')
 
 ## Identify bad pixels
 fits_extensions = [hdu.name for hdu in recon_data]

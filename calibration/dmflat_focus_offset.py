@@ -388,41 +388,42 @@ if need_mask_align:
 
     move_relative_and_get_image(cam=c, beam=2,baldr_pupils=baldr_pupils, phasemask=state_dict["socket"], savefigName='delme.png', use_multideviceserver=True)
 
-
+########################
 # course focus scan  
-amp=0.03
-imlist = [] 
-amps = np.linspace( -0.1, 0.1, 36)
-for amp in amps:
-    print(amp)
+########################
+# amp=0.03
+# imlist = [] 
+# amps = np.linspace( -0.1, 0.1, 36)
+# for amp in amps:
+#     print(amp)
     
-    bb=2
-    dm_shm_dict[bb].set_data( amp * zbasis[3] )
-    #dm_shm_dict[bb].shms[2].set_data(amp * zbasis[3])
-    time.sleep(1)
-    img = np.mean( c.get_data() ,axis = 0 ) 
-    r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
-    imlist.append( img[r1:r2, c1:c2] )
-    #print( np.mean( img[r1:r2, c1:c2][strehl_mask[beam_id]]))
+#     bb=2
+#     dm_shm_dict[bb].set_data( amp * zbasis[3] )
+#     #dm_shm_dict[bb].shms[2].set_data(amp * zbasis[3])
+#     time.sleep(1)
+#     img = np.mean( c.get_data() ,axis = 0 ) 
+#     r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
+#     imlist.append( img[r1:r2, c1:c2] )
+#     #print( np.mean( img[r1:r2, c1:c2][strehl_mask[beam_id]]))
 
-fig,ax = plt.subplots( 5,5, figsize=(15,15))
-for i, a, axx in zip( imlist, amps, ax.reshape(-1)):
-    axx.imshow(i ) 
-    axx.set_title( f'amp={round(a,3)}')
-plt.savefig('delme1.png') 
+# fig,ax = plt.subplots( 5,5, figsize=(15,15))
+# for i, a, axx in zip( imlist, amps, ax.reshape(-1)):
+#     axx.imshow(i ) 
+#     axx.set_title( f'amp={round(a,3)}')
+# plt.savefig('delme1.png') 
 
 
 
-### Try get exterior pixel mask for strehl proxy 
+# ### Try get exterior pixel mask for strehl proxy 
 
-# apply roughly a good focus offset based on results 
+# # apply roughly a good focus offset based on results 
 
-amp = 0.02
-dm_shm_dict[beam_id].set_data( amp * zbasis[3] )
-#dm_shm_dict[bb].shms[2].set_data(amp * zbasis[3])
-time.sleep(1)
-img = np.mean( c.get_data() ,axis = 0 ) 
-r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# amp = 0.02
+# dm_shm_dict[beam_id].set_data( amp * zbasis[3] )
+# #dm_shm_dict[bb].shms[2].set_data(amp * zbasis[3])
+# time.sleep(1)
+# img = np.mean( c.get_data() ,axis = 0 ) 
+# r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
 
 
 
@@ -598,12 +599,14 @@ for beam_id in args.beam_id:
     # plt.savefig('delme.png')
 
 
+###!!!!! 
+## FOR NOW WE JUST SET FOCUS OFFSET TO ZERO _ SEEMS FINE FOR BEAM 2
 for beam_id in args.beam_id:
     ### Add to toml 
     new_data = {
         f"beam{beam_id}": {
             "strehl_mask": strehl_mask[beam_id] ,
-            "DM_flat_offset": (best_amp[beam_id] * zbasis[3]).tolist()
+            "DM_flat_offset": ( 0 *zbasis[3]).tolist() # best_amp[beam_id] * zbasis[3]).tolist()
         }
     }
 
