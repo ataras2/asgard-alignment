@@ -564,35 +564,35 @@ ramp_values = np.linspace(-args.amp_max, args.amp_max, args.number_amp_samples)
 
 
 
-for beam in [1,2,3,4]:
+# for beam in [1,2,3,4]:
 
 
 
-    # ensuring using most recent file (sometimes MDS not up to date if not reset )
-    # # get all available files 
-    valid_reference_position_files = glob.glob(
-        f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
-        )
+#     # ensuring using most recent file (sometimes MDS not up to date if not reset )
+#     # # get all available files 
+#     valid_reference_position_files = glob.glob(
+#         f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+#         )
 
-    # read in the most recent and make initial posiition the most recent one for given mask 
-    with open(max(valid_reference_position_files, key=os.path.getmtime)
-    , "r") as file:
-        start_position_dict = json.load(file)
+#     # read in the most recent and make initial posiition the most recent one for given mask 
+#     with open(max(valid_reference_position_files, key=os.path.getmtime)
+#     , "r") as file:
+#         start_position_dict = json.load(file)
 
-        Xpos0 = start_position_dict[args.phasemask_name][0]
-        Ypos0 = start_position_dict[args.phasemask_name][1]
+#         Xpos0 = start_position_dict[args.phasemask_name][0]
+#         Ypos0 = start_position_dict[args.phasemask_name][1]
 
-    #message = f"fpm_movetomask phasemask{beam} {args.phasemask_name}"
-    #res = send_and_get_response(message)
-    #print(res)
+#     #message = f"fpm_movetomask phasemask{beam} {args.phasemask_name}"
+#     #res = send_and_get_response(message)
+#     #print(res)
     
-        # check and manually move to best 
-    message = f"moveabs BMX{beam} {Xpos0}"
-    send_and_get_response(message)
-    time.sleep(2)
-    message = f"moveabs BMY{beam} {Ypos0}"
-    send_and_get_response(message)
-    time.sleep(2)
+#         # check and manually move to best 
+#     message = f"moveabs BMX{beam} {Xpos0}"
+#     send_and_get_response(message)
+#     time.sleep(2)
+#     message = f"moveabs BMY{beam} {Ypos0}"
+#     send_and_get_response(message)
+#     time.sleep(2)
 
 
 
@@ -739,7 +739,7 @@ additional_header_labels = [
     ("number_of_modes", args.number_of_modes)
 ]
 
-sleeptime_between_commands = 0.05
+sleeptime_between_commands = 1
 image_list = []
 for cmd_indx, cmd in enumerate(DM_command_sequence):
     print(f"executing cmd_indx {cmd_indx} / {len(DM_command_sequence)}")

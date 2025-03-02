@@ -674,7 +674,7 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
 
 save_fits = {}
 for beam_id in args.beam_id:
-    save_fits[beam_id] = "~/Downloads/" + f"kolmogorov_calibration_{beam_id}.fits" # _{tstamp}.fits"    
+    save_fits[beam_id] = "/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/" + f"kolmogorov_calibration_{beam_id}.fits" # _{tstamp}.fits"    
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
 
 

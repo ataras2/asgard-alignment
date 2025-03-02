@@ -222,7 +222,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1, 2, 3, 4],
+    default=[1], #, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -284,21 +284,21 @@ for beam_id in args.beam_id:
 
 
 # try get dark and build bad pixel mask 
-if controllino_available:
+# if controllino_available:
     
-    myco.turn_off("SBB")
-    time.sleep(2)
+#     myco.turn_off("SBB")
+#     time.sleep(2)
     
-    dark_raw = c.get_data()
+#     dark_raw = c.get_data()
 
-    myco.turn_on("SBB")
-    time.sleep(2)
+#     myco.turn_on("SBB")
+#     time.sleep(2)
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-else:
-    dark_raw = c.get_data()
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+# else:
+#     dark_raw = c.get_data()
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
 
 
 context = zmq.Context()
@@ -316,8 +316,8 @@ socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
 
-phasemask_name = 'H5'
-beam_id = 2
+phasemask_name = 'J4'
+beam_id = 1
 
 # # get all available files 
 valid_reference_position_files = glob.glob(
@@ -342,8 +342,10 @@ with open(max(valid_reference_position_files, key=os.path.getmtime)
 # Ypos = float(send_and_get_response(message))
 
 # print(Xpos, Ypos)
+#X~8390, Y1~1400, Y2 ~2400
 
 
+Xpos0, Ypos0 =  2759.9878124999987, 4010.0011874999987
 search_dict = spiral_square_search_and_save_images(
     cam=c,
     beam=beam_id,
@@ -351,17 +353,50 @@ search_dict = spiral_square_search_and_save_images(
     phasemask=state_dict["socket"],
     starting_point=[Xpos0, Ypos0], #[Xpos0, Ypos0],
     step_size=20,
-    search_radius=40,
+    search_radius=300,
     sleep_time=1,
     use_multideviceserver=True,
 )
 
+# for small grid searches this is good for simple manual check
 pct.plot_image_grid(search_dict, savepath='delme.png')
 
+# larger searches best to use cluster analuysis 
+image_list = np.array( list(search_dict.values() ) ) 
+res = pct.cluster_analysis_on_searched_images(images= image_list,
+                                          detect_circle_function=pct.detect_circle, 
+                                          n_clusters=6, 
+                                          plot_clusters=False)
+
+
+positions = [eval(str(key)) for key in search_dict.keys()]
+x_positions, y_positions = zip(*positions)
+plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
+plt.savefig('delme.png')
+
+
+
+
+# Current position BMX1: 8408.003249999996 um
+# Current position BMY1: 2434.9948124999987 um
+
+#Current position BMX1: 8388.000749999996 um
+#Current position BMY1: 1424.9876249999993 um
+
+#Current position BMX1: 8367.998249999997 um
+#Current position BMY1: 424.9816874999998 um
+
+posss = {1:[8367.9,424.9 ],2:[8388.0, 1424.9], 3:[8408.0,2434.9]}
+allposs = pct.complete_collinear_points(known_points=posss, separation=1000, tolerance=20)
+
+
+
 # check and manually move to best 
-message = f"moveabs BMX{beam_id} 6130.0"
+message = f"moveabs BMX{beam_id} 2750.0"
 send_and_get_response(message)
-message = f"moveabs BMY{beam_id} 1580.0"
+time.sleep(1)
+
+message = f"moveabs BMY{beam_id} 4025.0"
 send_and_get_response(message)
 
 

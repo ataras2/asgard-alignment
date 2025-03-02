@@ -497,7 +497,7 @@ def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, re
     
     return basis_norm
 
-def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, eta=0, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, coldstop_diam=None, eta=0, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
     """
     get theoretical reference pupil intensities of ZWFS with / without phasemask 
     
@@ -512,6 +512,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
             if diameter_in_angular_units=True than this has diffraction limit units ( 1.22 * f * lambda/D )
             if  diameter_in_angular_units=False than this has physical units (m) determined by F_number and wavelength
         DESCRIPTION. The default is 1.2.
+    coldstop_diam : diameter in lambda / D of focal plane coldstop
     eta : ratio of secondary obstruction radius (r_2/r_1), where r2 is secondary, r1 is primary. 0 meams no secondary obstruction
     diameter_in_angular_units : TYPE, optional
         DESCRIPTION. The default is True.
@@ -534,7 +535,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     pupil_radius = 1  # Pupil radius in meters
 
     # Define the grid in the pupil plane
-    N = 2**9 + 1 #256  # Number of grid points (assumed to be square)
+    N = 2**9+1  # for parity (to not introduce tilt) works better ODD!  # Number of grid points (assumed to be square)
     L_pupil = 2 * pupil_radius  # Pupil plane size (physical dimension)
     dx_pupil = L_pupil / N  # Sampling interval in the pupil plane
     x_pupil = np.linspace(-L_pupil/2, L_pupil/2, N)   # Pupil plane coordinates
@@ -550,9 +551,17 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     # Zero padding to increase resolution
     # Increase the array size by padding (e.g., 4x original size)
     N_padded = N * padding_factor
+    if (N % 2) != (N_padded % 2):  
+        N_padded += 1  # Adjust to maintain parity
+        
     pupil_padded = np.zeros((N_padded, N_padded))
-    start_idx = (N_padded - N) // 2
-    pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+    #start_idx = (N_padded - N) // 2
+    #pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+
+    start_idx_x = (N_padded - N) // 2
+    start_idx_y = (N_padded - N) // 2  # Explicitly ensure symmetry
+
+    pupil_padded[start_idx_y:start_idx_y+N, start_idx_x:start_idx_x+N] = pupil
 
     # Perform the Fourier transform on the padded array (normalizing for the FFT)
     pupil_ft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)))
@@ -564,6 +573,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     L_image = wavelength * F_number / dx_pupil  # Total size in the image plane
     dx_image_padded = L_image / N_padded  # Sampling interval in the image plane with padding
     
+
     if diameter_in_angular_units:
         x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale  # Image plane coordinates in Airy units
         y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale
@@ -578,7 +588,15 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     else: 
         mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 4
         
-    psi_B = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)) )
+    if coldstop_diam is not None:
+        coldmask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= coldstop_diam / 4
+    else:
+        coldmask = np.ones(X_image_padded.shape)
+
+    pupil_ft = np.fft.fft2(np.fft.ifftshift(pupil_padded))  # Remove outer fftshift
+    pupil_ft = np.fft.fftshift(pupil_ft)  # Shift only once at the end
+
+    psi_B = coldmask * pupil_ft
                             
     b = np.fft.fftshift( np.fft.ifft2( mask * psi_B ) ) 
 
@@ -645,6 +663,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
     
         return( P, Ic )
+
 
 
 

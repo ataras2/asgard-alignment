@@ -200,7 +200,7 @@ def init_telem_dict():
 
 
 def send_and_get_response(message):
-    # st.write(f"Sending message to server: {message}")
+    st.write(f"Sending message to server: {message}")
     state_dict["message_history"].append(
         f":blue[Sending message to server: ] {message}\n"
     )
@@ -210,7 +210,7 @@ def send_and_get_response(message):
         colour = "red"
     else:
         colour = "green"
-    # st.markdown(f":{colour}[Received response from server: ] {response}")
+    st.markdown(f":{colour}[Received response from server: ] {response}")
     state_dict["message_history"].append(
         f":{colour}[Received response from server: ] {response}\n"
     )
@@ -269,12 +269,22 @@ parser.add_argument(
 parser.add_argument(
     "--phasemask",
     type=str,
-    default="H5", #### should update this 
+    default="H3", #### should update this 
     help="select which phasemask we're calibrating the model for. Default: None - in which case the user is prompted to enter the phasemask"
 )
 
 
 args=parser.parse_args()
+
+# set up ZMQ to communicate with motors 
+context = zmq.Context()
+context.socket(zmq.REQ)
+socket = context.socket(zmq.REQ)
+socket.setsockopt(zmq.RCVTIMEO, args.timeout)
+server_address = f"tcp://{args.host}:{args.port}"
+socket.connect(server_address)
+state_dict = {"message_history": [], "socket": socket}
+
 
 pupil_mask = {}
 exterior_mask = {}
@@ -286,6 +296,7 @@ I0 = {} # zwfs pupil
 N0 = {} # clear pupil
 dm_act_filt = {} # filter for registered DM actuators (that have response in WFS)
 res = {}
+
 for beam_id in args.beam_id:
 
     # read in TOML as dictionary for config 
@@ -305,14 +316,16 @@ for beam_id in args.beam_id:
         # intensities interpolation matrix to registered DM actuator (from local pupil frame)
         I2M[beam_id] = np.array( config_dict[f'beam{beam_id}']['I2M'] )
         #reco_dict[beam_id] = config_dict[f'beam{beam_id}']['reconstructor_model']
-        reconstructor_model[beam_id] = config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']['reconstructor_model'] 
-        M2C[beam_id] = np.array( config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']['M2C'] ) #[ coes, interc]
-        N0[beam_id] = np.array( config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']['I0'] ).astype(float)
-        I0[beam_id] = np.array( config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']['N0'] ).astype(float)
-        dm_act_filt[beam_id] = np.array( config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']['linear_model_dm_actuator_filter'] )
+        reconstructor_model[beam_id] = config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['reconstructor_model'] 
+        M2C[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['M2C'] ) #[ coes, interc]
+        N0[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['I0'] ).astype(float)
+        I0[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['N0'] ).astype(float)
+        dm_act_filt[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['linear_model_dm_actuator_filter'] )
 
-        res[beam_id] = np.array( config_dict[f'beam{beam_id}']['reconstructor_model'][f'{args.phasemask}']["linear_model_train_residuals"] )
+        res[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']["linear_model_train_residuals"] )
 
+
+#plt.figure(); plt.imshow(util.get_DM_command_in_2D( dm_act_filt[beam_id] ) );plt.savefig('delme.png')
 
 #####
 ##### --- manually set up camera settings before hand
@@ -353,6 +366,75 @@ else:
 
 
 
+
+# # Get reference pupils (later this can just be a SHM address)
+# zwfs_pupils = {}
+# clear_pupils = {}
+# rel_offset = 200.0 #um phasemask offset for clear pupil
+
+# # ZWFS Pupil
+# img = np.mean( c.get_data() ,axis=0) 
+# for beam_id in args.beam_id:
+#     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+#     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+#     cropped_img = img[r1:r2, c1:c2] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
+#     zwfs_pupils[beam_id] = cropped_img
+
+#     message = f"moverel BMX{beam_id} {rel_offset}"
+#     res = send_and_get_response(message)
+#     print(res) 
+#     time.sleep( 1 )
+#     message = f"moverel BMY{beam_id} {rel_offset}"
+#     res = send_and_get_response(message)
+#     print(res) 
+#     time.sleep(10)
+
+
+# #Clear Pupil
+# img = np.mean( c.get_data() ,axis=0) 
+# for beam_id in args.beam_id:
+#     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+#     cropped_img = img[r1:r2, c1:c2]
+#     clear_pupils[beam_id] = cropped_img
+
+#     message = f"moverel BMX{beam_id} {-rel_offset}"
+#     res = send_and_get_response(message)
+#     print(res) 
+#     time.sleep(1)
+#     message = f"moverel BMY{beam_id} {-rel_offset}"
+#     res = send_and_get_response(message)
+#     print(res) 
+#     time.sleep(10)
+
+
+# r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# I0_dm = I2M[beam_id] @ zwfs_pupils[beam_id].reshape(-1) #np.array( config['interpolated_I0'] )
+# N0_dm = I2M[beam_id] @ clear_pupils[beam_id].reshape(-1) #np.array( config['interpolated_N0'] )
+
+# i = []
+# for _ in range(100): 
+#     i.append( c.get_data()  )
+
+# i = np.array( i ).reshape(-1,256, 320)
+
+# idm = np.array( [I2M[beam_id] @ ii[r1:r2,c1:c2].reshape(-1) for ii in i]  )
+
+# s = (idm - I0_dm ) / N0_dm
+
+
+# mean_sig =  np.mean( s ,axis=0 )
+# plt.figure(); plt.imshow( util.get_DM_command_in_2D( np.mean( s ,axis=0) ) ) ; plt.colorbar(); plt.savefig('delme.png'); plt.show() 
+
+# plt.figure(); plt.imshow( util.get_DM_command_in_2D( slopes * np.mean( s ,axis=0)  ) ) ; plt.colorbar(); plt.savefig('delme.png'); plt.show() 
+
+# #dm_shm_dict[beam_id].set_data( np.nan_to_num( dm_shm_dict[beam_id].cmd_2_map2D(  mean_sig  ) ) ) 
+
+# plt.figure(); plt.imshow( util.get_DM_command_in_2D( np.std( s ,axis=0)  ) ); plt.colorbar(); plt.savefig('delme.png'); plt.show() 
+
+# plt.figure(); plt.imshow( util.get_DM_command_in_2D( slopes * np.std( s ,axis=0)  + intercepts) ) ; plt.colorbar(); plt.savefig('delme.png'); plt.show() 
+
+# plt.figure() ; plt.hist( s[:,65], bins=50); plt.savefig('delme.png')
+
 # # check phasemask alignment 
 # beam = int( input( "do you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue") )
 # while beam :
@@ -377,7 +459,6 @@ else:
 
 beam_id = 2 
 
-
 r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
 
 disturbance = np.zeros( 140 )
@@ -391,13 +472,19 @@ N0_dm = I2M[beam_id] @ N0[beam_id].reshape(-1) #np.array( config['interpolated_N
 if reconstructor_model[beam_id] == 'zonal_linear':
     slopes = np.array( [ m[0] for m in M2C[beam_id].T] )
     intercepts = np.array( [ m[1] for m in M2C[beam_id].T] )
+
+    ##!!!!!!!!!!# ignore bias 
+    intercepts * = 0 
 else:
     raise UserWarning(f"reconstructor_model:{reconstructor_model} undefined. Try, for example zonal_linear")
+
+plt.figure(); plt.imshow( util.get_DM_command_in_2D(  slopes ));plt.colorbar(); plt.savefig('delme.png')
+plt.figure(); plt.imshow( util.get_DM_command_in_2D(  intercepts ));plt.colorbar(); plt.savefig('delme.png')
 
 # Controller
 N = 140 
 kp = 0. * np.ones( N)
-ki = 0.3 * np.ones( N )
+ki = 0.2 * np.ones( N )
 kd = 0. * np.ones( N )
 setpoint = np.zeros( N )
 lower_limit_pid = -100 * np.ones( N )
@@ -409,10 +496,20 @@ ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 record_telemetry = True
 telem = SimpleNamespace( **init_telem_dict() )
 
+
+###### TRY A SINGLE ACTUATOR 
+dm_act_filt[beam_id] *= False
+dm_act_filt[beam_id][65] = True
+
+plt.figure(); plt.imshow( util.get_DM_command_in_2D( dm_act_filt[beam_id] ) ); plt.show() 
+
+
+
 closed = True 
 cnt = 0
 delta_cmd= np.zeros( 140 )
-while closed and (cnt < 200):
+close_after = 20
+while closed and (cnt < 50):
     print(cnt)
     time.sleep(3) # sleep for 
 
@@ -442,6 +539,8 @@ while closed and (cnt < 200):
 
     cmd = -delta_cmd #disturbance - delta_cmd 
 
+    print( np.std( delta_cmd ) )
+
     # record telemetry with the new image and processed signals but the current DM commands (not updated)
     if record_telemetry :
         telem.i_list.append( cropped_image )
@@ -460,20 +559,21 @@ while closed and (cnt < 200):
         telem.current_dm_ch2.append( dm_shm_dict[beam_id].shms[2].get_data() )
         telem.current_dm_ch3.append( dm_shm_dict[beam_id].shms[3].get_data() )
         # sum of all DM channels (Full command currently applied to DM)
-        telem.current_dm.append( dm_shm_dict[beam_id].shms0.get_data() )
+        telem.current_dm.append( dm_shm_dict[beam_id].shm0.get_data() )
 
-    if np.std( delta_cmd ) > 0.15:
+    if np.std( delta_cmd[ dm_act_filt[beam_id] ] ) > 0.1:
         print('going bad')
         dm_shm_dict[beam_id].zero_all()
         dm_shm_dict[beam_id].activate_flat()
         closed = False
 
+    if cnt > close_after :
+        # reformat for SHM 
+        cmd_shm = np.nan_to_num( dm_shm_dict[beam_id].cmd_2_map2D( cmd ) ) 
+        
+        #send the command off 
+        dm_shm_dict[beam_id].set_data( cmd_shm ) # on Channel 2 
 
-    # reformat for SHM 
-    cmd_shm = np.nan_to_num( dm_shm_dict[beam_id].cmd_2_map2D( cmd ) ) 
-    
-    #send the command off 
-    dm_shm_dict[beam_id].set_data( cmd_shm ) # on Channel 2 
 
     cnt+=1
 
@@ -502,7 +602,7 @@ for list_name, data_list in vars(telem).items():
     hdul.append(hdu)
 
 # Write the HDU list to a FITS file
-fits_file = '/home/asg/Videos/' + f'CL_{beam_id}.fits' #_{args.phasemask}.fits'
+fits_file = '/home/asg/Videos/' + f'CL_{args.phasemask}_beam{beam_id}.fits' #_{args.phasemask}.fits'
 hdul.writeto(fits_file, overwrite=True)
 
-print('wrote telemetry to \n{fits_file}')
+print(f'wrote telemetry to \n{fits_file}')

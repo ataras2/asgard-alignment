@@ -1,6 +1,7 @@
 /data
 /tmp
 /calibration/reports/
+/calibration/cal_data/
 *.ipynb
 *.pyc
 

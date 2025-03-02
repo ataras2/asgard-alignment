@@ -123,6 +123,8 @@ def handle_phasemask():
     # phasemask interface
     st.subheader("Phasemask Interface")
 
+    st.image("figs/theoretical_ZWFS_intensities.png", caption="ZWFS Theoretical Intensities (4.5 lamda/D cold stop)", use_column_width=True)
+
     beam = targets[0].split("phasemask")[1]
 
     st.session_state["selected_beam"] = beam

@@ -22,26 +22,28 @@ phasemask_parameters = {
 email from Mike 5/12/24 ("dichroic curves")
 optically you have 1380-1820nm (50% points) optically, 
 and including the atmosphere it is ~1420-1820nm. 
-I think the photon flux-weighted central wavelength is 
-also the central wavelength of 1620nm."""
+"""
+
 
 T = 1900 #K lab thermal source temperature 
 lambda_cut_on, lambda_cut_off =  1.38, 1.82 # um
 wvl = util.find_central_wavelength(lambda_cut_on, lambda_cut_off, T) # central wavelength of Nice setup
-mask = "H4"
+mask = "J5"
 F_number = 21.2
+coldstop_diam = 4.5
 mask_diam = 1.22 * F_number * wvl / phasemask_parameters[mask]['diameter']
-eta = 1/8 # ratio of secondary obstruction (UTs)
+eta = 0.647/4.82 #~= 1.1/8.2 (i.e. UTs) # ratio of secondary obstruction (UTs)
 P, Ic = util.get_theoretical_reference_pupils( wavelength = wvl ,
                                               F_number = F_number , 
                                               mask_diam = mask_diam, 
+                                              coldstop_diam=coldstop_diam,
                                               eta = eta, 
                                               diameter_in_angular_units = True, 
                                               get_individual_terms=False, 
-                                              phaseshift = np.pi/2 , 
-                                              padding_factor = 4, 
+                                              phaseshift = util.get_phasemask_phaseshift(wvl=wvl, depth = phasemask_parameters[mask]['depth'], dot_material='N_1405') , 
+                                              padding_factor = 6, 
                                               debug= False, 
-                                              analytic_solution = True )
+                                              analytic_solution = False )
 
 ############################################
 ## Plot theoretical intensities on fine grid 
@@ -49,7 +51,16 @@ imgs = [P, Ic]
 titles=['Clear Pupil', 'ZWFS Pupil']
 cbars = ['Intensity', 'Intensity']
 xlabel_list, ylabel_list = ['',''], ['','']
-util.nice_heatmap_subplots(im_list=imgs , xlabel_list=xlabel_list, ylabel_list=ylabel_list, title_list=titles, cbar_label_list=cbars, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None)
+util.nice_heatmap_subplots(im_list=imgs ,
+                            xlabel_list=xlabel_list, 
+                            ylabel_list=ylabel_list, 
+                            title_list=titles, 
+                            cbar_label_list=cbars, 
+                            fontsize=15, 
+                            cbar_orientation = 'bottom', 
+                            axis_off=True, 
+                            vlims=None, 
+                            savefig='delme.png')
 plt.show()
 
 ############################################
@@ -74,5 +85,14 @@ imgs = [detector_intensity]
 titles=[ 'Detected\nZWFS Pupil']
 cbars = ['Intensity']
 xlabel_list, ylabel_list = [''], ['']
-util.nice_heatmap_subplots(im_list=imgs , title_list=titles,xlabel_list=xlabel_list, ylabel_list=ylabel_list, cbar_label_list=cbars, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None)
+util.nice_heatmap_subplots(im_list=imgs ,
+                            title_list=titles,
+                            xlabel_list=xlabel_list, 
+                            ylabel_list=ylabel_list, 
+                            cbar_label_list=cbars, 
+                            fontsize=15, 
+                            cbar_orientation = 'bottom', 
+                            axis_off=True, 
+                            vlims=None, 
+                            savefig='delme2.png')
 plt.show()

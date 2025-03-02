@@ -597,10 +597,10 @@ x_positions, y_positions = zip(*positions)
 
 
 plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
-plt.savefig('delme.png')
+plt.savefig(args.data_path + f'cluster_search_heatmap_beam{args.beam}.png')
 
 pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="std")
-plt.savefig('delme2.png')
+plt.savefig(args.data_path + f'clusters_heatmap_beam{args.beam}.png')
 
 
 plt.close('all')

@@ -89,6 +89,73 @@ def complete_collinear_points(known_points, separation, tolerance=20):
     return ordered_result
 
 
+
+def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
+    """
+    Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
+
+    Parameters:
+        x_positions (list or array): List of x positions.
+        y_positions (list or array): List of y positions.
+        clusters (list or array): Cluster numbers corresponding to the x, y positions.
+        show_grid (bool): If True, overlays a grid on the heatmap.
+        grid_color (str): Color of the grid lines (default is 'white').
+        grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
+
+    Returns:
+        None
+    """
+    # Convert inputs to NumPy arrays
+    x_positions = np.array(x_positions)
+    y_positions = np.array(y_positions)
+    clusters = np.array(clusters)
+
+    # Ensure inputs have the same length
+    if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
+        raise ValueError("x_positions, y_positions, and clusters must have the same length.")
+
+    # Get unique x and y positions to define the grid
+    unique_x = np.unique(x_positions)
+    unique_y = np.unique(y_positions)
+
+    # Create an empty grid to store cluster numbers
+    heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
+
+    # Map each (x, y) to grid indices
+    x_indices = np.searchsorted(unique_x, x_positions)
+    y_indices = np.searchsorted(unique_y, y_positions)
+
+    # Fill the heatmap with cluster values
+    for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
+        heatmap[y_idx, x_idx] = cluster
+
+    # Plot the heatmap
+    fig, ax = plt.subplots(figsize=(8, 6))
+    cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
+    cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
+
+    # Add colorbar
+    cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
+    cbar.set_label('Cluster Number', fontsize=12)
+
+    # Label the axes
+    ax.set_xlabel('X Position', fontsize=12)
+    ax.set_ylabel('Y Position', fontsize=12)
+    ax.set_title('Cluster Heatmap', fontsize=14)
+
+    # Add grid overlay if requested
+    if show_grid:
+        ax.set_xticks(unique_x, minor=True)
+        ax.set_yticks(unique_y, minor=True)
+        ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
+        ax.tick_params(which="minor", length=0)  # Hide minor tick marks
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+
 def compute_image_difference(img1, img2):
     # normalize both images first
     img1 = img1.copy() / np.sum(img1)
@@ -990,11 +1057,11 @@ def cluster_analysis_on_searched_images(images, detect_circle_function, n_cluste
     if len(centers_array) < n_clusters:
         raise ValueError("Number of valid centers is less than the number of clusters.")
 
-    # Step 2: Perform k-means clustering using scipy
+    # Perform k-means clustering using scipy
     centroids, _ = kmeans(centers_array, n_clusters)
     cluster_labels, _ = vq(centers_array, centroids)
 
-    # Step 3: Assign cluster labels back to all images (use NaN for failed detections)
+    #  Assign cluster labels back to all images (use NaN for failed detections)
     cluster_assignments = []
     idx_center = 0
     for center in centers:
@@ -1004,7 +1071,7 @@ def cluster_analysis_on_searched_images(images, detect_circle_function, n_cluste
             cluster_assignments.append(cluster_labels[idx_center])
             idx_center += 1
 
-    # Step 4: Plot clustering results (optional)
+    # Plot clustering results (optional)
     if plot_clusters:
         plt.figure(figsize=(8, 6))
         for cluster_id in range(n_clusters):
