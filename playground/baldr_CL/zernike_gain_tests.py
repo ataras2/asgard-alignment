@@ -14,6 +14,7 @@ from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_basis_functions as dmbases
 import asgard_alignment.controllino as co
 import common.phasemask_centering_tool as pct
+import common.phasescreens as ps 
 import pyBaldr.utilities as util 
 from xaosim.shmlib import shm
 
@@ -161,7 +162,6 @@ class PIDController:
 
         plt.tight_layout()
         plt.show()
-
 
 
 
@@ -463,13 +463,17 @@ util.nice_heatmap_subplots( im_list = [  dark, I0 - dark, N0-dark ] ,
                             savefig='delme.png' )
 
 
-Nmodes = 10
-modal_basis = dmbases.zer_bank(2, Nmodes )
+Nmodes = 30
+modal_basis = dmbases.zer_bank(2, Nmodes+2 )
 M2C = modal_basis.copy() # mode 2 command matrix 
 poke_amp = 0.02
 inverse_method = 'pinv'
 phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
 noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
+
+I0_dm = interpMatrix @ I0.reshape(-1)
+N0_dm = interpMatrix @ N0.reshape(-1)
+
 
 IM = []
 for i,m in enumerate(modal_basis):
@@ -509,7 +513,7 @@ dms[beam_id].activate_flat()
 ## SOME CHECKS 
 print( f'condition of IM = {np.linalg.cond(IM)}')
 
-imgs = [util.get_DM_command_in_2D( i) for i in IM ][1:7]
+imgs = [util.get_DM_command_in_2D( i) for i in IM ][:7]
 titles = ['' for _ in imgs]
 cbars = ['' for _ in imgs]
 xlabel_list = ['' for _ in imgs]
@@ -529,7 +533,7 @@ reco = I2M.T @ sig
 print( f'mean mode reco = {np.mean( reco , axis = 1)}') 
 print( f'std mode reco = {np.std( reco, axis = 1 )}')
 
-plt.figure(); plt.imshow( np.cov( IM ) ) ;  plt.colorbar(); plt.savefig('delme.png')
+plt.figure(); plt.imshow( np.cov( IM ) / poke_amp ) ;  plt.colorbar(); plt.savefig('delme.png')
 
 
 # lets look at the command recosntruction
@@ -538,135 +542,242 @@ delta_cmd = (M2C.T @ reco).T
 i= 30
 plt.figure() ; plt.imshow( delta_cmd[22]); plt.colorbar(); plt.savefig('delme.png')
 
+
+### Apply command and see if reconstruct amplitude 
+dms[beam_id].zero_all()
+dms[beam_id].activate_flat()
+
+abb = 1 * poke_amp * modal_basis[0] 
+time.sleep(2)
+dms[beam_id].shms[1].set_data(  abb ) 
+time.sleep( 10 )
+
+cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+
+i_dm = interpMatrix @ cropped_image.reshape(-1)
+
+# current model has no normalization 
+sig = process_signal( i_dm, I0_dm, N0_dm )
+
+#plt.imshow( util.get_DM_command_in_2D(sig) ); plt.savefig('delme.png')
+# (4) apply linear model to get reconstructor 
+e_HO = I2M.T @ sig #slopes * sig + intercepts
+
+print(e_HO)
+
+delta_cmd = 2*poke_amp * (M2C.T @ e_HO).T
+ 
+dm_filt = util.get_DM_command_in_2D( util.get_circle_DM_command(radius=5, Nx_act=12) )
+imgs = [ abb ,util.get_DM_command_in_2D(sig), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]
+titles = ['DM disturbance', 'ZWFS signal', 'DM reconstruction', 'DM residual']
+cbars = ['' for _ in imgs]
+xlabel_list = ['' for _ in imgs]
+ylabel_list = ['' for _ in imgs]
+util.nice_heatmap_subplots( imgs ,title_list=titles,xlabel_list=xlabel_list, ylabel_list=ylabel_list, cbar_label_list=cbars, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig='delme.png' )
+
+
+
 ### TRY CLOSE LOOP 
 
-
-# Controller
-N = Nmodes - 1
-kp = 0. * np.ones( N)
-ki = 0.1 * np.ones( N )
-kd = 0. * np.ones( N )
-setpoint = np.zeros( N )
-lower_limit_pid = -0.05 * np.ones( N )
-upper_limit_pid = 0.05 * np.ones( N )
-
-ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
+dms[beam_id].zero_all()
+dms[beam_id].activate_flat()
 
 I0_dm = interpMatrix @ I0.reshape(-1)
 N0_dm = interpMatrix @ N0.reshape(-1)
 
 record_telemetry = True
-telem = SimpleNamespace( **init_telem_dict() )
 
 
-closed = True 
-cnt = 0
-delta_cmd= np.zeros( 140 )
+#prepare phasescreen to put on DM 
+D = 1.8
+act_per_it = 0.2 # how many actuators does the screen pass per iteration 
+V = 10 / act_per_it  / D #m/s (10 actuators across pupil on DM)
+#scaling_factor = 0.2
+I0_indicies = 10 # how many reference pupils do we get?
+
+corner_indicies = [0, 11, 11 * 12, -1] # DM corner indidices
+
+scaling_factor = 0.13
+#number_of_rolls = 500
+
+
+
 close_after = 20
-while closed and (cnt < 50):
-    print(cnt)
-    time.sleep(3) # sleep for 
+ki_grid = [0.2, 0.5, 0.8, 0.9, 0.97]
 
-    # Crop the pupil region
-    cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+for ki_v in ki_grid:
+    print(f"\n\nSETTING ki={ki_v}\n\n")
+    dms[beam_id].zero_all()
+    time.sleep(1)
+    dms[beam_id].activate_flat()
 
-    # (2) interpolate intensities to DM 
-    i_dm = interpMatrix @ cropped_image.reshape(-1)
+    telem = SimpleNamespace( **init_telem_dict() )
 
-    # (3) normalise 
-    # current model has no normalization 
-    sig = process_signal( i_dm, I0_dm, N0_dm)
-    
-    # (4) apply linear model to get reconstructor 
-    e_HO = I2M.T @ sig #slopes * sig + intercepts
+    # Controller
+    N = I2M.shape[1]
+    kp = 0. * np.ones( N)
+    ki = 0. * np.ones( N )
+    kd = 0. * np.ones( N )
+    setpoint = np.zeros( N )
+    lower_limit_pid = -100 * np.ones( N )
+    upper_limit_pid = 100 * np.ones( N )
 
-    # turn off tip/tilt
-    e_HO[2:] = 0
-    # PID 
-    u_HO = ctrl_HO.process( e_HO )
-    
-    # forcefully remove piston 
-    #u_HO -= np.mean( u_HO )
-    
-    # send command (filter piston)
-    #delta_cmd = np.zeros( len(zwfs_ns.dm.dm_flat ) )
-    #delta_cmd zwfs_ns.reco.linear_zonal_model.act_filt_recommended ] = u_HO
-    delta_cmd = M2C.T @ u_HO #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
 
-    cmd = -delta_cmd #disturbance - delta_cmd 
 
-    print( np.std( delta_cmd ) )
+    ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
-    # record telemetry with the new image and processed signals but the current DM commands (not updated)
-    if record_telemetry :
-        telem.i_list.append( cropped_image )
-        telem.i_dm_list.append( i_dm )
-        telem.s_list.append( sig )
-        telem.e_TT_list.append( np.zeros( len(e_HO) ) )
-        telem.u_TT_list.append( np.zeros( len(e_HO) ) )
-        telem.c_TT_list.append( np.zeros( len(delta_cmd) ) )
 
-        telem.e_HO_list.append( e_HO )
-        telem.u_HO_list.append( u_HO )
-        telem.c_HO_list.append( delta_cmd ) # the next DM command to be applied to channel 2 (default of dm_shm_dict[beam_id].set_data()  )
+    closed = True 
+    cnt = 0
+    delta_cmd= np.zeros( 140 )
+    scrn = ps.PhaseScreenVonKarman(nx_size= int( 12 / act_per_it ) , 
+                               pixel_scale= D / 12, 
+                               r0=0.1, 
+                               L0=12,
+                               random_seed=1)
+    while closed and (cnt < 100):
 
-        telem.current_dm_ch0.append( dms[beam_id].shms[0].get_data() )
-        telem.current_dm_ch1.append( dms[beam_id].shms[1].get_data() )
-        telem.current_dm_ch2.append( dms[beam_id].shms[2].get_data() )
-        telem.current_dm_ch3.append( dms[beam_id].shms[3].get_data() )
-        # sum of all DM channels (Full command currently applied to DM)
-        telem.current_dm.append( dms[beam_id].shm0.get_data() )
+        scrn.add_row()
+        # bin phase screen onto DM space 
+        dm_scrn = util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scaling_factor, drop_indicies = [0, 11, 11 * 12, -1] , plot_cmd=False)
+        # update DM command 
+        # put in SHM format 140 1D cmd -> 144 square 
+        twoDized = np.nan_to_num( util.get_DM_command_in_2D(dm_scrn), 0 )
 
-    if np.std( delta_cmd ) > 0.1:
-        print('going bad')
-        dms[beam_id].zero_all()
-        dms[beam_id].activate_flat()
-        closed = False
+        # apply atm disturbance on channel 2 
+        dms[beam_id].shms[2].set_data( twoDized  ) 
 
-    # Carefull - controller integrates even so this doesnt work
-    if cnt > 0 : # close_after :
-        # reformat for SHM 
-        #cmd_shm = np.nan_to_num( dms[beam_id].cmd_2_map2D( cmd ) ) 
+        print(cnt)
+        time.sleep(3) # sleep for 
+
+        # Crop the pupil region
+        cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+
+        # (2) interpolate intensities to DM 
+        i_dm = interpMatrix @ cropped_image.reshape(-1)
+
+        # (3) normalise 
+        # current model has no normalization 
+        sig = process_signal( i_dm, I0_dm, N0_dm)
         
-        #send the command off 
-        dms[beam_id].set_data( cmd  ) #cmd_shm ) # on Channel 2 
+        # (4) apply linear model to get reconstructor 
+        e_HO = I2M.T @ sig #slopes * sig + intercepts
+
+        print( f'e_HO = {e_HO[:10]}' )
+        # turn off tip/tilt
+        #e_HO[:2] = 0
+        # correct first 8 HO modes 
+        #e_HO[10:] = 0
+        # PID 
+        u_HO = ctrl_HO.process( e_HO )
+        
+        # forcefully remove piston 
+        #u_HO -= np.mean( u_HO )
+        
+        # send command (filter piston)
+        #delta_cmd = np.zeros( len(zwfs_ns.dm.dm_flat ) )
+        #delta_cmd zwfs_ns.reco.linear_zonal_model.act_filt_recommended ] = u_HO
+        # factor of 2 since reflection
+        delta_cmd = 2 * poke_amp * (M2C.T @ u_HO).T  #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
+        # be careful with tranposes , made previouos mistake tip was tilt etc (90 degree erroneous rotation)
+        #cmd = -delta_cmd #disturbance - delta_cmd 
+
+        print( np.std( delta_cmd ) )
+
+        # record telemetry with the new image and processed signals but the current DM commands (not updated)
+        if record_telemetry :
+            telem.i_list.append( cropped_image )
+            telem.i_dm_list.append( i_dm )
+            telem.s_list.append( sig )
+            telem.e_TT_list.append( np.zeros( len(e_HO) ) )
+            telem.u_TT_list.append( np.zeros( len(e_HO) ) )
+            telem.c_TT_list.append( np.zeros( len(delta_cmd) ) )
+
+            telem.e_HO_list.append( e_HO )
+            telem.u_HO_list.append( u_HO )
+            telem.c_HO_list.append( delta_cmd ) # the next DM command to be applied to channel 2 (default of dm_shm_dict[beam_id].set_data()  )
+
+            telem.current_dm_ch0.append( dms[beam_id].shms[0].get_data() )
+            telem.current_dm_ch1.append( dms[beam_id].shms[1].get_data() )
+            telem.current_dm_ch2.append( dms[beam_id].shms[2].get_data() )
+            telem.current_dm_ch3.append( dms[beam_id].shms[3].get_data() )
+            # sum of all DM channels (Full command currently applied to DM)
+            telem.current_dm.append( dms[beam_id].shm0.get_data() )
+
+        if np.std( delta_cmd ) > 0.2:
+            print('going bad')
+            dms[beam_id].zero_all()
+            dms[beam_id].activate_flat()
+            closed = False
+
+        # Carefull - controller integrates even so this doesnt work
+        if cnt > close_after :
+            ctrl_HO.ki = ki_v * np.ones(len(ki))
+            # turn off tip/tilt
+            #ctrl_HO.ki[:2] = 0
+            # correct first 8 HO modes 
+            #ki[30:] = 0
+            # reformat for SHM 
+            #cmd_shm = np.nan_to_num( dms[beam_id].cmd_2_map2D( cmd ) ) 
+            
+            #send the command off 
+            # apply to ch1 so we can apply impulse aberrations on ch2 
+        
+        dms[beam_id].shms[1].set_data( -delta_cmd  ) #cmd_shm ) # on Channel 2 
 
 
-    cnt+=1
-
-
-dms[beam_id].zero_all()
-dms[beam_id].activate_flat()
-
-
-plt.figure(); plt.imshow( cmd) ;plt.colorbar(); plt.savefig('delme.png')
-# plt.figure(); plt.imshow( telem.e_HO_list ) ;plt.colorbar(); plt.savefig('delme.png')
-
-# plt.figure(); plt.imshow( telem.current_dm_ch2[-2] ) ;plt.colorbar(); plt.savefig('delme.png')
+        cnt+=1
 
 
 
-# save telemetry
-runn=2
-# Create a list of HDUs (Header Data Units)
-hdul = fits.HDUList()
+    dms[beam_id].zero_all()
+    dms[beam_id].activate_flat()
 
-# Add each list to the HDU list as a new extension
-for list_name, data_list in vars(telem).items():
-    # Convert list to numpy array for FITS compatibility
-    data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+    # plt.figure() ; plt.imshow( telem.u_HO_list) ;plt.colorbar(); plt.savefig('delme.png')
 
-    # Create a new ImageHDU with the data
-    hdu = fits.ImageHDU(data_array)
+    # plt.figure() ; plt.plot( [t[3] for t in telem.u_HO_list]); plt.savefig('delme.png')
 
-    # Set the EXTNAME header to the variable name
-    hdu.header['EXTNAME'] = list_name
+    # plt.figure(); plt.imshow( cmd) ;plt.colorbar(); plt.savefig('delme.png')
+    # # plt.figure(); plt.imshow( telem.e_HO_list ) ;plt.colorbar(); plt.savefig('delme.png')
 
-    # Append the HDU to the HDU list
+    # plt.figure(); plt.imshow( telem.current_dm_ch2[-2] ) ;plt.colorbar(); plt.savefig('delme.png')
+
+
+
+    # save telemetry
+    runn=f'kol_truncate30modes_wTT_100its_{act_per_it}actdelay_ki{ki_v}_scrnScale{scaling_factor}'
+    # Create a list of HDUs (Header Data Units)
+    hdul = fits.HDUList()
+
+    hdu = fits.ImageHDU(IM)
+    hdu.header['EXTNAME'] = 'IM'
     hdul.append(hdu)
 
-# Write the HDU list to a FITS file
-fits_file = '/home/asg/Videos/' + f'CL_zernike_{Nmodes}modes_beam{beam_id}_v{runn}.fits' #_{args.phasemask}.fits'
-hdul.writeto(fits_file, overwrite=True)
+    hdu = fits.ImageHDU(I2M)
+    hdu.header['EXTNAME'] = 'I2M'
+    hdul.append(hdu)
 
-print(f'wrote telemetry to \n{fits_file}')
+    hdu = fits.ImageHDU(interpMatrix)
+    hdu.header['EXTNAME'] = 'interpMatrix'
+    hdul.append(hdu)
+
+    # Add each list to the HDU list as a new extension
+    for list_name, data_list in vars(telem).items():
+        # Convert list to numpy array for FITS compatibility
+        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+
+        # Create a new ImageHDU with the data
+        hdu = fits.ImageHDU(data_array)
+
+        # Set the EXTNAME header to the variable name
+        hdu.header['EXTNAME'] = list_name
+
+        # Append the HDU to the HDU list
+        hdul.append(hdu)
+
+
+    # Write the HDU list to a FITS file
+    fits_file = '/home/asg/Videos/' + f'CL_zernike_{Nmodes}modes_beam{beam_id}_v{runn}_working.fits' #_{args.phasemask}.fits'
+    hdul.writeto(fits_file, overwrite=True)
+
+    print(f'wrote telemetry to \n{fits_file}')

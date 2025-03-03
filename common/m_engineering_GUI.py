@@ -7,6 +7,7 @@ import json
 import os
 import glob
 import sys
+from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from io import StringIO
 
@@ -1062,6 +1063,7 @@ with col_main:
                 "Move image/pupil",
                 "Save state",
                 "Load state",
+                "See All States",
                 "Health",
             ],
             key="routine_options",
@@ -1403,6 +1405,172 @@ with col_main:
                             if state["is_connected"]:
                                 message = f"moveabs {state['name']} {state['position']}"
                                 send_and_get_response(message)
+
+
+        if routine_options == "See All States":
+
+            # Mapping dictionary for the motor data on the image
+            position_map = {
+                "SDLA":   (50,  20),
+                "SDL12":  (150, 20),
+                "SDL34":  (250, 20),
+                "SSS":    (350, 20),
+                "SSF":    (450, 20),
+                "HFO1":   (50,  50),
+                "HFO2":   (150, 50),
+                "HFO3":   (250, 50),
+                "HFO4":   (350, 50),
+                "HTPP1":  (50,  80),
+                "HTPP2":  (150, 80),
+                "HTPP3":  (250, 80),
+                "HTPP4":  (350, 80),
+                "HTPI1":  (50,  110),
+                "HTPI2":  (150, 110),
+                "HTPI3":  (250, 110),
+                "HTPI4":  (350, 110),
+                "HTTP1":  (50,  140),
+                "HTTP2":  (150, 140),
+                "HTTP3":  (250, 140),
+                "HTTP4":  (350, 140),
+                "HTTI1":  (50,  170),
+                "HTTI2":  (150, 170),
+                "HTTI3":  (250, 170),
+                "HTTI4":  (350, 170),
+                "BFO":    (1200,  200),
+                "BOTT2":  (150, 200),
+                "BOTT3":  (250, 200),
+                "BOTT4":  (350, 200),
+                "BOTP2":  (50,  230),
+                "BOTP3":  (150, 230),
+                "BOTP4":  (250, 230),
+                "BDS1":   (350, 230),
+                "BDS2":   (50,  260),
+                "BDS3":   (150, 260),
+                "BDS4":   (250, 260),
+                "BTT1":   (350, 260),
+                "BTT2":   (50,  290),
+                "BTT3":   (150, 290),
+                "BTT4":   (250, 290),
+                "BTP1":   (350, 290),
+                "BTP2":   (50,  320),
+                "BTP3":   (150, 320),
+                "BTP4":   (250, 320),
+                "BMX1":   (1100, 500),
+                "BMX2":   (1000, 400),
+                "BMX3":   (900, 300),
+                "BMX4":   (800, 200),
+                "BMY1":   (350, 350),
+                "BMY2":   (50,  380),
+                "BMY3":   (150, 380),
+                "BMY4":   (250, 380),
+                "BLF1":   (350, 380),
+                "BLF2":   (50,  410),
+                "BLF3":   (150, 410),
+                "BLF4":   (250, 410)
+            }
+
+            # Load the images from local files.
+            try:
+                im_top = Image.open("figs/BaldrHeim_optics.png")
+                #im_bottom = Image.open("figs/asgard_lower_top.png")
+            except Exception as e:
+                st.error(f"Error loading images: {e}")
+                
+            if st.button("Update Annotations"):
+                draw = ImageDraw.Draw(im_top)
+                font = ImageFont.truetype( "/home/asg/fonts/montserrat/Montserrat-MediumItalic.otf", size=18)
+
+                motor_names = []
+                instr = "All"
+                if instr == "Solarstein" or instr == "All":
+                    motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
+                if instr == "Heimdallr" or instr == "All":
+                    motor_names_all_beams = [
+                        "HFO",
+                        "HTPP",
+                        "HTPI",
+                        "HTTP",
+                        "HTTI",
+                    ]
+
+                    for motor in motor_names_all_beams:
+                        for beam_number in range(1, 5):
+                            motor_names.append(f"{motor}{beam_number}")
+                if instr == "Baldr" or instr == "All":
+                    motor_names += ["BFO"]
+
+                    motor_names_all_beams = [
+                        "BDS",
+                        "BTT",
+                        "BTP",
+                        "BMX",
+                        "BMY",
+                        "BLF",
+                    ]
+
+                    partially_common_motors = [
+                        "BOTT",
+                        "BOTP",
+                    ]
+
+                    for motor in partially_common_motors:
+                        for beam_number in range(2, 5):
+                            motor_names.append(f"{motor}{beam_number}")
+
+                    for motor in motor_names_all_beams:
+                        for beam_number in range(1, 5):
+                            motor_names.append(f"{motor}{beam_number}")
+
+                states = []
+                for name in motor_names:
+                    message = f"read {name}"
+                    res = send_and_get_response(message)
+
+                    if "NACK" in res:
+                        is_connected = False
+                    else:
+                        is_connected = True
+
+                    state = {
+                        "name": name,
+                        "is_connected": is_connected,
+                    }
+                    print(res, type(res), is_connected)
+                    if is_connected: 
+                        if res != 'None':
+                            state["position"] = float(res)
+                        print()
+                    states.append(state)
+
+                
+                for motor in states:
+                    #st.write( motor.values() )
+                    name = motor["name"]
+                    pos_value = motor.get("position", -999)
+                    is_connected = motor.get("is_connected", False)
+                    # Look up the motor's image position from the mapping dictionary.
+                    if name in position_map:
+                        x, y = position_map[name]
+                        status = "Connected" if is_connected else "Disconnected"
+                        # Create annotation text (showing the position value and connection status).
+                        text = f"{name}:{pos_value:.3f}" # ({status})"
+                        if status == "Connected":
+                            color="green"
+                        elif status == "Disconnected":
+                            color="red"
+
+                    
+                        #text_width, text_height = draw.textsize(text, font=font)
+                        text_width, text_height = 130, 30 #font.getsize(text)
+                        draw.rectangle((x, y, x + text_width, y + text_height), fill="white")
+                        draw.text((x, y), text, fill=color, font=font)
+
+                    else:
+                        st.warning(f"No position mapping found for motor: {name}")
+                
+                st.image( im_top, caption="HEIMDALLR & BALDR IN ALL ITS GLORY", use_column_width=True)
+                #st.image( im_bottom )
+
 
         if routine_options == "Health":
             message = "health"

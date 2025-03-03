@@ -839,6 +839,7 @@ data.append(bintab_fits)
 if save_fits != None:
     if type(save_fits) == str:
         data.writeto(save_fits)
+        print(f'saved fits to {save_fits}')
     else:
         raise TypeError(
             "save_images needs to be either None or a string indicating where to save file"
