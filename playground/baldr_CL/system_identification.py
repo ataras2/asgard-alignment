@@ -436,6 +436,13 @@ parser.add_argument(
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
+parser.add_argument(
+    "--phasemask",
+    type=str,
+    default="H3",
+    help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
+)
+
 args=parser.parse_args()
 
 c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
@@ -786,75 +793,75 @@ while closed and (cnt < no_its):
 
 
     # Write the HDU list to a FITS file
-    fits_file = '/home/asg/Videos/' + f'CL_beam{beam_id}_{runn}.fits' #_{args.phasemask}.fits'
+    fits_file = '/home/asg/Videos/' + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
     hdul.writeto(fits_file, overwrite=True)
     print(f'wrote telemetry to \n{fits_file}')
 
 
 
-import numpy as np
-import scipy.signal as signal
-import matplotlib.pyplot as plt
-from astropy.io import fits
+# import numpy as np
+# import scipy.signal as signal
+# import matplotlib.pyplot as plt
+# from astropy.io import fits
 
-# Load telemetry FITS file
-fits_file = '/home/asg/Videos/CL_beam2_TT_CL_sysID_v1.fits'
-hdul = fits.open(fits_file)
+# # Load telemetry FITS file
+# fits_file = '/home/asg/Videos/CL_beam2_TT_CL_sysID_v1.fits'
+# hdul = fits.open(fits_file)
 
-# Extract telemetry data
-e_HO = hdul['e_HO_list'].data  # Modal errors (size: no_its x N_modes)
-u_HO = hdul['u_HO_list'].data  # Control commands (size: no_its x N_modes)
-modal_disturbances = hdul['modal_disturb_list'].data  # Injected disturbances (size: no_its x N_modes)
+# # Extract telemetry data
+# e_HO = hdul['e_HO_list'].data  # Modal errors (size: no_its x N_modes)
+# u_HO = hdul['u_HO_list'].data  # Control commands (size: no_its x N_modes)
+# modal_disturbances = hdul['modal_disturb_list'].data  # Injected disturbances (size: no_its x N_modes)
 
-# Sampling frequency (estimated from loop time)
-dt = 3  # Loop time in seconds
-fs = 1 / dt  # Sampling frequency
+# # Sampling frequency (estimated from loop time)
+# dt = 3  # Loop time in seconds
+# fs = 1 / dt  # Sampling frequency
 
-N_modes = e_HO.shape[1]  # Number of controlled modes
-f, Pdd = signal.welch(modal_disturbances, fs=fs, axis=0, nperseg=256)  # Disturbance PSD
-_, Ped = signal.csd(e_HO, modal_disturbances, fs=fs, axis=0, nperseg=256)  # CSD between errors and disturbances
-_, Peu = signal.csd(e_HO, u_HO, fs=fs, axis=0, nperseg=256)  # CSD between errors and commands
-_, Puu = signal.welch(u_HO, fs=fs, axis=0, nperseg=256)  # Control command PSD
+# N_modes = e_HO.shape[1]  # Number of controlled modes
+# f, Pdd = signal.welch(modal_disturbances, fs=fs, axis=0, nperseg=256)  # Disturbance PSD
+# _, Ped = signal.csd(e_HO, modal_disturbances, fs=fs, axis=0, nperseg=256)  # CSD between errors and disturbances
+# _, Peu = signal.csd(e_HO, u_HO, fs=fs, axis=0, nperseg=256)  # CSD between errors and commands
+# _, Puu = signal.welch(u_HO, fs=fs, axis=0, nperseg=256)  # Control command PSD
 
-# Compute the closed-loop transfer function H(jω)
-Hjw = Ped / Pdd  
+# # Compute the closed-loop transfer function H(jω)
+# Hjw = Ped / Pdd  
 
-# Estimate the open-loop transfer function G(jω)
-Cjw = np.zeros_like(Hjw)  # Placeholder for controller transfer function (to be defined)
-Gjw = Hjw / (1 - Hjw * Cjw)  
+# # Estimate the open-loop transfer function G(jω)
+# Cjw = np.zeros_like(Hjw)  # Placeholder for controller transfer function (to be defined)
+# Gjw = Hjw / (1 - Hjw * Cjw)  
 
-# Find maximum stable ki for each mode
-ki_max = np.zeros(N_modes)
+# # Find maximum stable ki for each mode
+# ki_max = np.zeros(N_modes)
 
-for mode in range(N_modes):
-    for ki in np.logspace(-3, 1, 50):  # Sweep ki values
-        Cjw[:, mode] = ki / (1j * 2 * np.pi * f)  # Integral control transfer function
-        Gjw_test = Hjw[:, mode] / (1 - Hjw[:, mode] * Cjw[:, mode])
+# for mode in range(N_modes):
+#     for ki in np.logspace(-3, 1, 50):  # Sweep ki values
+#         Cjw[:, mode] = ki / (1j * 2 * np.pi * f)  # Integral control transfer function
+#         Gjw_test = Hjw[:, mode] / (1 - Hjw[:, mode] * Cjw[:, mode])
         
-        # Find frequencies where the open-loop gain is close to 1
-        unity_gain_indices = np.where(np.abs(Gjw_test * Cjw[:, mode]) >= 1)[0]
+#         # Find frequencies where the open-loop gain is close to 1
+#         unity_gain_indices = np.where(np.abs(Gjw_test * Cjw[:, mode]) >= 1)[0]
 
-        # Stability condition: |G(jω)C(jω)| < 1
-        # For a system to be robustly stable, it is not enough to just be greater than -180°. Instead, we define phase margin as the difference between -180° and the actual phase at unity gain
-        if len(unity_gain_indices) > 0:
+#         # Stability condition: |G(jω)C(jω)| < 1
+#         # For a system to be robustly stable, it is not enough to just be greater than -180°. Instead, we define phase margin as the difference between -180° and the actual phase at unity gain
+#         if len(unity_gain_indices) > 0:
             
-            min_phase_at_unity_gain = np.nanmin(np.angle(Gjw_test[unity_gain_indices] * Cjw[unity_gain_indices, mode], deg=True))
-            print(min_phase_at_unity_gain )
-            if min_phase_at_unity_gain > -150:  # Ensures at least 30° phase margin
-                ki_max[mode] = ki
+#             min_phase_at_unity_gain = np.nanmin(np.angle(Gjw_test[unity_gain_indices] * Cjw[unity_gain_indices, mode], deg=True))
+#             print(min_phase_at_unity_gain )
+#             if min_phase_at_unity_gain > -150:  # Ensures at least 30° phase margin
+#                 ki_max[modpase] = ki
                 
 
-# Plot results
-plt.figure(figsize=(8, 5))
-plt.semilogy(range(N_modes), ki_max, 'o-', label='Max Stable $k_i$')
-plt.xlabel("Mode Index")
-plt.ylabel("Max Stable Integral Gain $k_i$")
-plt.title("Estimated Maximum Stable Integral Gains")
-plt.grid()
-plt.legend()
-plt.show()
+# # Plot results
+# plt.figure(figsize=(8, 5))
+# plt.semilogy(range(N_modes), ki_max, 'o-', label='Max Stable $k_i$')
+# plt.xlabel("Mode Index")
+# plt.ylabel("Max Stable Integral Gain $k_i$")
+# plt.title("Estimated Maximum Stable Integral Gains")
+# plt.grid()
+# plt.legend()
+# plt.show()
 
-print("Estimated max stable gains:", ki_max)
+# print("Estimated max stable gains:", ki_max)
 
 
 
