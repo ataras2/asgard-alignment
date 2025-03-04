@@ -22,6 +22,13 @@ phasemask_parameters = {
 email from Mike 5/12/24 ("dichroic curves")
 optically you have 1380-1820nm (50% points) optically, 
 and including the atmosphere it is ~1420-1820nm. 
+
+coldstop is has diameter 2.145 mm
+baldr beams (30mm collimating lens) fratio 21.2 at focal plane focused by 254mm OAP
+is xmm with 200mm imaging lens
+2.145e-3 / ( 2 * 200 / (254 / 21.2 * 30 / 254 ) * 1.56e-6 )
+wvl = 1.56um
+coldstop_diam  ~ 4.8 lambda/D 
 """
 
 
@@ -30,7 +37,7 @@ lambda_cut_on, lambda_cut_off =  1.38, 1.82 # um
 wvl = util.find_central_wavelength(lambda_cut_on, lambda_cut_off, T) # central wavelength of Nice setup
 mask = "J5"
 F_number = 21.2
-coldstop_diam = 4.5
+coldstop_diam = 4.8
 mask_diam = 1.22 * F_number * wvl / phasemask_parameters[mask]['diameter']
 eta = 0.647/4.82 #~= 1.1/8.2 (i.e. UTs) # ratio of secondary obstruction (UTs)
 P, Ic = util.get_theoretical_reference_pupils( wavelength = wvl ,

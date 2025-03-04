@@ -388,7 +388,7 @@ for beam_id in args.beam_id:
         # flat offset for DMs (mainly focus)
         dm_flat_offsets[beam_id] = config_dict[f'beam{beam_id}']["DM_flat_offset"] 
         # intensities interpolation matrix to registered DM actuator (from local pupil frame)
-        I2M_dict[beam_id] = config_dict[f'beam{beam_id}']['I2M']
+        I2M_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A'] #['I2M']
 
 
 

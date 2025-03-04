@@ -307,7 +307,8 @@ for ii, beam_id in enumerate( args.beam_id ):
 
     bilin_interp_matricies.append( M )
 
-    dict2write[f"beam{beam_id}"] = {"I2M":M.tolist()}
+    # update I2A instead of I2M
+    dict2write[f"beam{beam_id}"] = {"I2A":M.tolist()}
 
     # Check if file exists; if so, load and update.
     if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):

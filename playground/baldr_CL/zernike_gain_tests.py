@@ -281,7 +281,7 @@ def setup(beam_ids, global_camera_shm, toml_file) :
 
     print( 'Reading in configurations') 
 
-    I2M_dict = {}
+    I2A_dict = {}
     for beam_id in beam_ids:
 
         # read in TOML as dictionary for config 
@@ -289,7 +289,7 @@ def setup(beam_ids, global_camera_shm, toml_file) :
             config_dict = toml.load(f)
             # Baldr pupils from global frame 
             baldr_pupils = config_dict['baldr_pupils']
-            I2M_dict[beam_id] = config_dict[f'beam{beam_id}']['I2M']
+            I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
 
 
     # Set up global camera frame SHM 
@@ -395,7 +395,7 @@ def setup(beam_ids, global_camera_shm, toml_file) :
         cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
         zwfs_pupils[beam_id] = cropped_img
 
-    return c, dm_shm_dict, dark_dict, zwfs_pupils, clear_pupils, baldr_pupils, I2M_dict
+    return c, dm_shm_dict, dark_dict, zwfs_pupils, clear_pupils, baldr_pupils, I2A_dict
 
 
 def process_signal( i, I0, N0):
@@ -439,8 +439,10 @@ c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
                               args.toml_file) 
 
 
-
+#############
 beam_id = 2 
+############
+
 r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
 
 dark = np.mean( darks_dict[beam_id],axis=0)
@@ -565,7 +567,7 @@ e_HO = I2M.T @ sig #slopes * sig + intercepts
 
 print(e_HO)
 
-delta_cmd = 2*poke_amp * (M2C.T @ e_HO).T
+delta_cmd = 2 * poke_amp * (M2C.T @ e_HO).T
  
 dm_filt = util.get_DM_command_in_2D( util.get_circle_DM_command(radius=5, Nx_act=12) )
 imgs = [ abb ,util.get_DM_command_in_2D(sig), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]

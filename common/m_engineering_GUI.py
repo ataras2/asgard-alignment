@@ -13,7 +13,10 @@ from io import StringIO
 
 import asgard_alignment.Engineering
 import common.DM_basis_functions
-
+try:
+    import common.phasemask_centering_tool as pct
+except:
+    print( "CANT IMPORT PHASEMASK CENTERING TOOL!")
 
 try:
     from baldr import _baldr as ba
@@ -151,8 +154,14 @@ def handle_phasemask():
             valid_pos,
             key="preset_position",
         )
+        
+        register_mask = st.form_submit_button("Update (register the mask)")
+        submit = st.form_submit_button("Move to this mask")
+        
 
-        submit = st.form_submit_button("Move")
+    if register_mask :
+        # we update the session state here so can register positions without moving! 
+        st.session_state["selected_mask"] = [preset_position]
 
     if submit:
 
@@ -264,6 +273,8 @@ def handle_phasemask():
                 else:
                     st.error(f"Cannot update mask position with 'Unknown' mask.")
 
+
+
     with save_col:
 
         st.write("Default save path is: 'config_files/phasemask_positions/'")
@@ -292,6 +303,45 @@ def handle_phasemask():
                 st.error(f"Cannot update mask position with 'Unknown' mask.")
 
     # message = "fpm_updateallmaskpos {} {} {}"
+
+    with st.form("raster_scan_form"):
+
+        st.write(f"Proposed Raster Scan Parameters for beam {beam}")
+
+        x0 = st.number_input("x0", value=10.0, step=10.0)
+        y0 = st.number_input("y0", value=10.0, step=10.0)
+        dx = st.number_input("dx", value=20.0, step=10.0)
+        dy = st.number_input("dy", value=20.0, step=10.0)
+        width = st.number_input("Width", value=100.0, step=10.0)
+        height = st.number_input("Height", value=100.0, step=10.0)
+        orientation = st.number_input("Orientation", value=0.0, step=10.0)
+
+        submit_raster = st.form_submit_button("Update Raster Scan Parameters")
+    
+
+    if submit_raster:
+        st.write("Raster scan updated with new parameters.")
+
+        starting_point =  [x0,y0]
+
+        raster_points = pct.raster_scan_with_orientation(starting_point, dx, dy, width, height, orientation)
+
+        # Extract x and y coordinates
+        x_coords, y_coords = zip(*raster_points)
+
+        # Plot the scan points
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.scatter(x_coords, y_coords, color="blue", label="Scan Points")
+        ax.plot(x_coords, y_coords, linestyle="--", color="gray", alpha=0.7)
+        ax.set_title(f"Raster Scan Pattern with {orientation}° Rotation", fontsize=14)
+        ax.set_xlabel("X", fontsize=12)
+        ax.set_ylabel("Y", fontsize=12)
+        ax.legend()
+        ax.grid(True)
+        ax.set_aspect("equal")  # Ensure equal axis scaling
+
+        # Show the updated figure
+        st.pyplot(fig)
 
 
 def handle_deformable_mirror():
@@ -1061,6 +1111,7 @@ with col_main:
                 "Quick buttons",
                 "Illumination",
                 "Move image/pupil",
+                "Phasemask Alignment",
                 "Save state",
                 "Load state",
                 "See All States",
@@ -1299,6 +1350,20 @@ with col_main:
                     st.write("No pupil (yet)")
                 elif config == "intermediate_focus":
                     st.image("figs/pupil_plane_KE.png")
+
+
+        if routine_options == "Phasemask Alignment":
+            
+            beam_numbers = [1, 2, 3, 4]
+            beam_number = st.selectbox(
+                    "Select Beam Number",
+                    beam_numbers,
+                    key="beam_number",
+                )
+
+            targets = [f"phasemask{beam_number}"]
+                            
+            handle_phasemask() 
 
         if routine_options == "Save state":
             instruments = ["Heimdallr", "Baldr", "Solarstein", "All"]

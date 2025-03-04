@@ -289,7 +289,7 @@ state_dict = {"message_history": [], "socket": socket}
 pupil_mask = {}
 exterior_mask = {}
 dm_flat_offsets = {}
-I2M = {} # intensity 2 modes 
+I2A = {} # intensity 2 modes 
 reconstructor_model = {} # model name instructs how to apply M2C
 M2C = {} # mode 2 command
 I0 = {} # zwfs pupil
@@ -314,7 +314,7 @@ for beam_id in args.beam_id:
         # flat offset for DMs (mainly focus)
         dm_flat_offsets[beam_id] = config_dict[f'beam{beam_id}']["DM_flat_offset"] 
         # intensities interpolation matrix to registered DM actuator (from local pupil frame)
-        I2M[beam_id] = np.array( config_dict[f'beam{beam_id}']['I2M'] )
+        I2A[beam_id] = np.array( config_dict[f'beam{beam_id}']['I2A'] )
         #reco_dict[beam_id] = config_dict[f'beam{beam_id}']['reconstructor_model']
         reconstructor_model[beam_id] = config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['reconstructor_model'] 
         M2C[beam_id] = np.array( config_dict[f'beam{beam_id}'][f'{args.phasemask}']['reconstructor_model']['M2C'] ) #[ coes, interc]
@@ -408,8 +408,8 @@ else:
 
 
 # r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-# I0_dm = I2M[beam_id] @ zwfs_pupils[beam_id].reshape(-1) #np.array( config['interpolated_I0'] )
-# N0_dm = I2M[beam_id] @ clear_pupils[beam_id].reshape(-1) #np.array( config['interpolated_N0'] )
+# I0_dm = I2A[beam_id] @ zwfs_pupils[beam_id].reshape(-1) #np.array( config['interpolated_I0'] )
+# N0_dm = I2A[beam_id] @ clear_pupils[beam_id].reshape(-1) #np.array( config['interpolated_N0'] )
 
 # i = []
 # for _ in range(100): 
@@ -417,7 +417,7 @@ else:
 
 # i = np.array( i ).reshape(-1,256, 320)
 
-# idm = np.array( [I2M[beam_id] @ ii[r1:r2,c1:c2].reshape(-1) for ii in i]  )
+# idm = np.array( [I2A[beam_id] @ ii[r1:r2,c1:c2].reshape(-1) for ii in i]  )
 
 # s = (idm - I0_dm ) / N0_dm
 
@@ -465,8 +465,8 @@ disturbance = np.zeros( 140 )
 
 
 # reference intensities interpolated onto registered DM actuators in pixel space
-I0_dm = I2M[beam_id] @ I0[beam_id].reshape(-1) #np.array( config['interpolated_I0'] )
-N0_dm = I2M[beam_id] @ N0[beam_id].reshape(-1) #np.array( config['interpolated_N0'] )
+I0_dm = I2A[beam_id] @ I0[beam_id].reshape(-1) #np.array( config['interpolated_I0'] )
+N0_dm = I2A[beam_id] @ N0[beam_id].reshape(-1) #np.array( config['interpolated_N0'] )
 
 # Control model
 if reconstructor_model[beam_id] == 'zonal_linear':
@@ -517,7 +517,7 @@ while closed and (cnt < 50):
     cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
 
     # (2) interpolate intensities to DM 
-    i_dm = I2M[beam_id] @ cropped_image.reshape(-1)
+    i_dm = I2A[beam_id] @ cropped_image.reshape(-1)
 
     # (3) normalise 
     # current model has no normalization 
