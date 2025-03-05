@@ -176,7 +176,7 @@ def init_telem_dict():
     # u_* is control signals (e.g. after PID control)
     # c_* is DM command signals 
     telemetry_dict = {
-        "time" : []
+        "time" : [],
         "i_list" : [],
         "i_dm_list":[], 
         "s_list" : [],
@@ -190,9 +190,9 @@ def init_telem_dict():
         "current_dm_ch1" : [], # the current DM cmd on ch2
         "current_dm_ch2" : [], # the current DM cmd on ch3
         "current_dm_ch3" : [], # the current DM cmd on ch4
-        "current_dm":[] # the current DM cmd (sum of all channels)
+        "current_dm":[], # the current DM cmd (sum of all channels)
         "modal_disturb_list":[],
-        "dm_disturb_list" : [],
+        "dm_disturb_list" : []
         # "dm_disturb_list" : [],
         # "rmse_list" : [],
         # "flux_outside_pupil_list" : [],
@@ -575,7 +575,7 @@ e_HO = I2M.T @ sig #slopes * sig + intercepts
 
 print(e_HO)
 
-delta_cmd = 2 * poke_amp * (M2C.T @ e_HO).T
+delta_cmd =  poke_amp * (M2C.T @ e_HO).T
  
 dm_filt = util.get_DM_command_in_2D( util.get_circle_DM_command(radius=5, Nx_act=12) )
 imgs = [ abb ,util.get_DM_command_in_2D(sig), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]
@@ -586,7 +586,7 @@ ylabel_list = ['' for _ in imgs]
 util.nice_heatmap_subplots( imgs ,title_list=titles,xlabel_list=xlabel_list, ylabel_list=ylabel_list, cbar_label_list=cbars, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig='delme.png' )
 
 
-
+plt.close()
 
 
 
@@ -627,14 +627,17 @@ upper_limit_pid = 100 * np.ones( N )
 ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
 # gain to apply after "close_after" iterations
-ki_v = 0.9
+ki_v = 0.5
+ki_array = np.linspace(1e-3, 0.5, N)
+ki_array[0] = 0.5
+ki_array[1] = 0.5
 
 # Kolmogorov Phasescreen 
 D = 1.8
 act_per_it = 0.2 # how many actuators does the screen pass per iteration 
 V = 10 / act_per_it  / D #m/s (10 actuators across pupil on DM)
 corner_indicies = [0, 11, 11 * 12, -1] # DM corner indidices
-scaling_factor = 0.13
+scaling_factor = 0.1
 phasescreen_nx_size = int( 12 / act_per_it )
 scrn = ps.PhaseScreenVonKarman(nx_size= phasescreen_nx_size , 
                             pixel_scale= D / 12, 
@@ -642,15 +645,22 @@ scrn = ps.PhaseScreenVonKarman(nx_size= phasescreen_nx_size ,
                             L0=12,
                             random_seed=1)
 
+disturbances_on = False 
+closed = True
+
 modal_disturbances = []
-for _ in no_its:
-    scrn.add_row()
+for _ in range(no_its):
+    if disturbances_on:
+        scrn.add_row()
 
-    dm_scrn = util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scaling_factor, drop_indicies = [0, 11, 11 * 12, -1] , plot_cmd=False)
+        dm_scrn = util.create_phase_screen_cmd_for_DM(scrn,  scaling_factor=scaling_factor, drop_indicies = [0, 11, 11 * 12, -1] , plot_cmd=False)
 
-    dm_scrn_2D = np.nan_to_num( util.get_DM_command_in_2D(dm_scrn), 0 )
-    modal_disturbances.append( [np.sum( m * dm_scrn_2D ) / np.sum( modal_basis[1]>0 )  if i > Nmodes for i,m in enumerate( modal_basis )] )
+        dm_scrn_2D = np.nan_to_num( util.get_DM_command_in_2D(dm_scrn), 0 )
+        modal_disturbances.append( [np.sum( m * dm_scrn_2D ) / np.sum( modal_basis[1]>0 )  if i > Nmodes else 0 for i,m in enumerate( modal_basis )] )
+    else:
+        modal_disturbances.append( [0 for i,m in enumerate( modal_basis )] ) 
 
+modal_disturbances = np.array( modal_disturbances )
 
 ## additional TT disturbances (lab turbulance) - 1/f spectra
 a_tip = np.cumsum( np.random.randn( no_its ) )
@@ -669,15 +679,17 @@ tilt_rms = 0.02
 a_tip *= tip_rms
 a_tilt *= tilt_rms
 
-modal_disturbances[0] = a_tip
-modal_disturbances[1] = a_tilt
+if disturbances_on: 
+    modal_disturbances[0] = a_tip
+    modal_disturbances[1] = a_tilt
 
 
 while closed and (cnt < no_its):
     
-    disturbance = M2C @ modal_disturbances[cnt]
+    disturbance = M2C.T @ modal_disturbances[cnt]
 
-    disturbance2D = np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
+    # ensure correct format for SHM 
+    disturbance2D = disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
     
     # apply atm disturbance on channel 2 
     dms[beam_id].shms[2].set_data( disturbance2D  ) 
@@ -697,7 +709,7 @@ while closed and (cnt < no_its):
     # apply linear reconstructor to signal to get modal errors
     e_HO = I2M.T @ sig 
 
-    print( f'e_HO = {e_HO[:10]}' )
+    print( f'e_HO(first ten) = {e_HO[:10]}' )
 
     # apply PID controller 
     u_HO = ctrl_HO.process( e_HO )
@@ -717,7 +729,9 @@ while closed and (cnt < no_its):
 
     # record telemetry with the new image and processed signals but the current DM commands (not updated)
     if record_telemetry :
-        telem.time.append( datetime.now().strftime('%Y-%m-%d %H:%M:%S') )
+        ttt = t = datetime.datetime.now().time()
+        seconds = (ttt.hour * 60 + ttt.minute) * 60 + ttt.second
+        telem.time.append( float(seconds) ) #datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') )
         telem.i_list.append( cropped_image )
         telem.i_dm_list.append( i_dm )
         telem.s_list.append( sig )
@@ -751,51 +765,53 @@ while closed and (cnt < no_its):
     #Carefull - controller integrates even so this doesnt work
     if cnt > close_after :
         #close tip/tilt only 
-        ctrl_HO.ki[:2] = ki_v * np.ones(len(ki))
+        #ctrl_HO.ki[:2] = ki_v * np.ones(len(ki))
+        ctrl_HO.ki = ki_array
 
     cnt+=1
 
-    dms[beam_id].zero_all()
-    dms[beam_id].activate_flat()
+
+# Finsh - Flatten DMs
+dms[beam_id].zero_all()
+dms[beam_id].activate_flat()
 
 
+# save telemetry
+runn=f'30modes_disturbs-{disturbances_on}_CL_sysID_v1'
+# Create a list of HDUs (Header Data Units)
+hdul = fits.HDUList()
 
-    # save telemetry
-    runn=f'TT_CL_sysID_v1'
-    # Create a list of HDUs (Header Data Units)
-    hdul = fits.HDUList()
+hdu = fits.ImageHDU(IM)
+hdu.header['EXTNAME'] = 'IM'
+hdul.append(hdu)
 
-    hdu = fits.ImageHDU(IM)
-    hdu.header['EXTNAME'] = 'IM'
+hdu = fits.ImageHDU(I2M)
+hdu.header['EXTNAME'] = 'I2M'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(interpMatrix)
+hdu.header['EXTNAME'] = 'interpMatrix'
+hdul.append(hdu)
+
+# Add each list to the HDU list as a new extension
+for list_name, data_list in vars(telem).items():
+    # Convert list to numpy array for FITS compatibility
+    data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+
+    # Create a new ImageHDU with the data
+    hdu = fits.ImageHDU(data_array)
+
+    # Set the EXTNAME header to the variable name
+    hdu.header['EXTNAME'] = list_name
+
+    # Append the HDU to the HDU list
     hdul.append(hdu)
 
-    hdu = fits.ImageHDU(I2M)
-    hdu.header['EXTNAME'] = 'I2M'
-    hdul.append(hdu)
 
-    hdu = fits.ImageHDU(interpMatrix)
-    hdu.header['EXTNAME'] = 'interpMatrix'
-    hdul.append(hdu)
-
-    # Add each list to the HDU list as a new extension
-    for list_name, data_list in vars(telem).items():
-        # Convert list to numpy array for FITS compatibility
-        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
-
-        # Create a new ImageHDU with the data
-        hdu = fits.ImageHDU(data_array)
-
-        # Set the EXTNAME header to the variable name
-        hdu.header['EXTNAME'] = list_name
-
-        # Append the HDU to the HDU list
-        hdul.append(hdu)
-
-
-    # Write the HDU list to a FITS file
-    fits_file = '/home/asg/Videos/' + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
-    hdul.writeto(fits_file, overwrite=True)
-    print(f'wrote telemetry to \n{fits_file}')
+# Write the HDU list to a FITS file
+fits_file = '/home/asg/Videos/' + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
+hdul.writeto(fits_file, overwrite=True)
+print(f'wrote telemetry to \n{fits_file}')
 
 
 
