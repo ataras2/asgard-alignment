@@ -16,7 +16,7 @@ def get_matricies(config):
     Parameters
     ----------
     config : str
-        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus" or "baldr"
 
     Returns
     -------
@@ -26,28 +26,7 @@ def get_matricies(config):
         A dictionary of matricies for moving the image
     """
     if config == "c_red_one_focus":
-        # this is the N0, Cred one matrix:
-        # the first row is the pupil mirror, the second is the image mirror
-        #pup_img_mat = {
-        #    1: np.array([[0.44157, -0.002], [-0.18453, 0.00132]]),
-        #    2: np.array([[0.49721, -0.00225], [-0.24038, 0.00157]]),
-        #    3: np.array([[0.55664, -0.00252], [-0.30004, 0.00184]]),
-        #    4: np.array([[0.63688, -0.00289], [-0.38058, 0.00221]]),
-        #}
-        """
-Pupil and Image Matrix for beam 1
-[[ 0.50252 -0.00057]
- [-0.21     0.00072]]
-Pupil and Image Matrix for beam 2
-[[ 0.56627 -0.00064]
- [-0.27377  0.00079]]
-Pupil and Image Matrix for beam 3
-[[ 0.63447 -0.00072]
- [-0.34199  0.00087]]
-Pupil and Image Matrix for beam 4
-[[ 0.72672 -0.00083]
- [-0.43427  0.00097]]
-        """
+        # this is the N1, Cred one matrix:
         pup_img_mat = {
             1: np.array([[0.50252, -0.00057], [-0.21, 0.00072]]),
             2: np.array([[0.56627, -0.00064], [-0.27377, 0.00079]]),
@@ -61,6 +40,14 @@ Pupil and Image Matrix for beam 4
             2: np.array([[-0.08426023, 0.0001939], [0.04124538, -0.00004549]]),
             3: np.array([[-0.09453813, 0.00021755], [0.05152328, -0.00006915]]),
             4: np.array([[-0.10848638, 0.00024964], [0.06547153, -0.00010124]]),
+        }
+    elif config == "baldr":
+        # Baldr matrix from 5/3/25 calculation
+        pup_img_mat = {
+            1: np.array([[0.06809, -0.04768], [-0.00804, 0.02254]]),
+            2: np.array([[0.01589, -0.01113], [-0.00188, 0.01823]]),
+            3: np.array([[0.00929, -0.0065], [-0.0011, 0.01768]]),
+            4: np.array([[0.00649, -0.00455], [-0.00077, 0.01745]]),
         }
     else:
         raise ValueError("Invalid configuration")
@@ -142,7 +129,7 @@ def move_image(beam_number, x, y, send_command, config):
     send_command : function
         A function to send commands to the motors
     config : str
-        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus" or "baldr"
 
     Returns
     -------
@@ -168,8 +155,14 @@ def move_image(beam_number, x, y, send_command, config):
         ]
     )
 
-    pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
-    image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+    if config == "baldr":
+        # Baldr has a different orientation. This will be correct
+        # up to a sign in front of one of the motors.
+        pupil_motor = RH_motor
+        image_motor = LH_motor
+    else:
+        pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
+        image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
 
     deviations_to_uv = np.block(
         [
@@ -183,7 +176,10 @@ def move_image(beam_number, x, y, send_command, config):
     print(f"beam deviations: {beam_deviations}")
 
     uv_commands = deviations_to_uv @ beam_deviations
-    axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+    if config == "baldr":
+        axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+    else:
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
     commands = [
         f"moverel {axis}{beam_number} {command[0]}"
@@ -217,7 +213,7 @@ def move_pupil(beam_number, x, y, send_command, config):
     send_command : function
         A function to send commands to the motors
     config : str
-        The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+        The configuration to use - either "c_red_one_focus" or "intermediate_focus" of "baldr"
 
 
     Returns
@@ -244,8 +240,15 @@ def move_pupil(beam_number, x, y, send_command, config):
         ]
     )
 
-    pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
-    image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+    if config == "baldr":
+        # Baldr has a different orientation. This will be correct
+        # up to a sign in front of one of the motors.
+        pupil_motor = RH_motor
+        image_motor = LH_motor
+    else:
+        pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
+        image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+
 
     deviations_to_uv = np.block(
         [
@@ -259,8 +262,11 @@ def move_pupil(beam_number, x, y, send_command, config):
     print(f"beam deviations: {beam_deviations}")
 
     uv_commands = deviations_to_uv @ beam_deviations
-    axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
-
+    if config == "baldr":
+        axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+    else:
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        
     commands = [
         f"moverel {axis}{beam_number} {command[0]}"
         for axis, command in zip(axis_list, uv_commands)
