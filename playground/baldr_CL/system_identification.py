@@ -6,6 +6,8 @@ import os
 import argparse
 import matplotlib.pyplot as plt
 import argparse
+import subprocess
+
 from astropy.io import fits
 from scipy.signal import TransferFunction, bode
 from types import SimpleNamespace
@@ -327,6 +329,7 @@ def setup(beam_ids, global_camera_shm, toml_file) :
     myco.turn_on("SBB")
     time.sleep(10)
 
+    # crop for each beam
     dark_dict = {}
     for beam_id in beam_ids:
         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
@@ -432,7 +435,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -451,7 +454,7 @@ c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
 
 
 #############
-beam_id = 2 
+beam_id = args.beam_id[0]
 ############
 
 r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
@@ -473,7 +476,7 @@ util.nice_heatmap_subplots( im_list = [ dark, I0 - dark, N0 - dark ],
                             ylabel_list=ylabel_list,
                             savefig='delme.png' )
 
-Nmodes = 30
+Nmodes = 4
 modal_basis = dmbases.zer_bank(2, Nmodes+2 )
 M2C = modal_basis.copy() # mode 2 command matrix 
 poke_amp = 0.02
@@ -481,11 +484,34 @@ inverse_method = 'pinv'
 phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
 noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
 
+dark_dm = interpMatrix @ dark.reshape(-1)
 I0_dm = interpMatrix @ I0.reshape(-1)
 N0_dm = interpMatrix @ N0.reshape(-1)
 
+# check they interpolate ok onto DM 
+cbar_label_list = ['[adu]','[adu]', '[adu]','[unitless]']
+title_list = ['DARK DM','I0 DM', 'N0 DM','(I-I0)/N0']
+xlabel_list = ['','','','']
+ylabel_list = ['','','','']
+# intensity from first measurement 
+idm = interpMatrix @  I0_dict[beam_id][0].reshape(-1)
+
+im_list = [util.get_DM_command_in_2D(a) for a in [ dark_dm, I0_dm - dark_dm, N0_dm - dark_dm ,(idm -I0_dm) /  N0_dm ]]
+util.nice_heatmap_subplots( im_list = im_list, 
+                            cbar_label_list = cbar_label_list,
+                            title_list=title_list,
+                            xlabel_list=xlabel_list,
+                            ylabel_list=ylabel_list,
+                            savefig='delme1.png' )
+
+dms[beam_id].zero_all()
+time.sleep(1)
+dms[beam_id].activate_flat()
+
 
 IM = []
+Iplus_all = []
+Iminus_all = []
 for i,m in enumerate(modal_basis):
     print(f'executing cmd {i}/{len(modal_basis)}')
     I_plus_list = []
@@ -504,7 +530,10 @@ for i,m in enumerate(modal_basis):
     I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / N0.reshape(-1)
     I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  N0.reshape(-1)
 
-    errsig = interpMatrix @ (I_plus - I_minus) / poke_amp
+    errsig = interpMatrix @ ((I_plus - I_minus)) # / poke_amp ) # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
+
+    Iplus_all.append( I_plus_list )
+    Iminus_all.append( I_minus_list )
 
     IM.append( list(  errsig.reshape(-1) ) ) 
 
@@ -514,10 +543,87 @@ if inverse_method == 'pinv':
 
 elif inverse_method == 'MAP': # minimum variance of maximum posterior estimator 
     I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+else:
+    raise UserWarning('no inverse method provided')
 
 
 dms[beam_id].zero_all()
+time.sleep(1)
 dms[beam_id].activate_flat()
+
+
+# save the IM to fits for later analysis 
+hdul = fits.HDUList()
+
+hdu = fits.ImageHDU( np.array(darks_dict[beam_id]) )
+hdu.header['EXTNAME'] = 'DARKS'
+
+
+hdu = fits.ImageHDU(Iplus_all)
+hdu.header['EXTNAME'] = 'I+'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(Iminus_all)
+hdu.header['EXTNAME'] = 'I-'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(IM)
+hdu.header['EXTNAME'] = 'IM'
+hdu.header['mask'] = 'H3'
+hdu.header['sig'] = 'I(a/2)-I(-a/2)'
+hdu.header['beam'] = beam_id
+hdu.header['poke_amp'] = poke_amp
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(modal_basis)
+hdu.header['EXTNAME'] = 'M2C'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(I2M)
+hdu.header['EXTNAME'] = 'I2M'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(interpMatrix)
+hdu.header['EXTNAME'] = 'interpMatrix'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(I0_dict[beam_id])
+hdu.header['EXTNAME'] = 'I0'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(N0_dict[beam_id])
+hdu.header['EXTNAME'] = 'N0'
+hdul.append(hdu)
+
+fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+hdul.writeto(fits_file, overwrite=True)
+print(f'wrote telemetry to \n{fits_file}')
+
+
+#SCP AUTOMATICALLY TO MY MACHINE 
+remote_file = fits_file   # The file you want to transfer
+remote_user = "bencb"  # Your username on the target machine
+remote_host = "10.106.106.34"  
+# (base) bencb@cos-076835 Downloads % ifconfig | grep "inet " | grep -v 127.0.0.1
+# 	inet 192.168.20.5 netmask 0xffffff00 broadcast 192.168.20.255
+# 	inet 10.200.32.250 --> 10.200.32.250 netmask 0xffffffff
+# 	inet 10.106.106.34 --> 10.106.106.33 netmask 0xfffffffc
+
+remote_path = "/Users/bencb/Downloads"  # Destination path on your computer
+
+# Construct the SCP command
+scp_command = f"scp {remote_file} {remote_user}@{remote_host}:{remote_path}"
+
+# Execute the SCP command
+try:
+    subprocess.run(scp_command, shell=True, check=True)
+    print(f"File {remote_file} successfully transferred to {remote_user}@{remote_host}:{remote_path}")
+except subprocess.CalledProcessError as e:
+    print(f"Error transferring file: {e}")
+
+
+
+
 
 
 ## SOME CHECKS 
@@ -532,6 +638,7 @@ util.nice_heatmap_subplots( imgs ,title_list=titles,xlabel_list=xlabel_list, yla
 
 
 
+
 # get some new images and project them onto the modes 
 ifull = c.get_data()
 i = np.array( [ii[r1:r2,c1:c2] for ii in ifull] )
@@ -540,51 +647,139 @@ sig = interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)
 
 reco = I2M.T @ sig
 
-print( f'mean mode reco = {np.mean( reco , axis = 1)}') 
-print( f'std mode reco = {np.std( reco, axis = 1 )}')
+Nplots = 5
+fig,ax = plt.subplots(Nplots,1,figsize=(5,10),sharex=True)
+for m,axx in zip( reco[:Nplots], ax.reshape(-1)):
+    axx.hist( m , label=f'mode {m}')
+    axx.set_ylabel('frequency')
+    axx.axvline(0, color='k',ls=':')
+ax[0].set_title('reconstruction on zero input aberrations')
+ax[-1].set_xlabel('reconstructed mode amplitude\n[DM units]')
 
-plt.figure(); plt.imshow( np.cov( IM ) / poke_amp ) ;  plt.colorbar(); plt.savefig('delme.png')
+plt.savefig('delme1.png') 
 
 
+
+# print( f'mean mode reco = {np.mean( reco , axis = 1)}') 
+# print( f'std mode reco = {np.std( reco, axis = 1 )}')
+
+#plt.figure(); plt.imshow( np.cov( IM ) / poke_amp ) ;  plt.colorbar(); plt.savefig('delme.png')
+
+##############
 # lets look at the command recosntruction
 delta_cmd = (M2C.T @ reco).T
 
 i= 30
-plt.figure() ; plt.imshow( delta_cmd[22]); plt.colorbar(); plt.savefig('delme.png')
+plt.figure() ; plt.imshow( delta_cmd[3]); plt.colorbar(); plt.savefig('delme.png')
 
-
+##################
 ### Apply command and see if reconstruct amplitude 
 dms[beam_id].zero_all()
+time.sleep(1)
 dms[beam_id].activate_flat()
 
-abb = 1 * poke_amp * modal_basis[0] 
+errs = []
+pokegrid = np.linspace( -2*poke_amp , 2*poke_amp, 8) 
+m = 1 
+for pp in pokegrid:
+    print(f'poke mode {m} with {pp}amp')
+    abb =  pp * modal_basis[m] 
+    time.sleep(2)
+    dms[beam_id].shms[1].set_data(  abb ) 
+    time.sleep( 10 )
+
+    # cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+
+    # i_dm = interpMatrix @ cropped_image.reshape(-1)
+
+
+    # get some new images and project them onto the modes 
+    ifull = c.get_data()
+    i = np.array( [ii[r1:r2,c1:c2] for ii in ifull] )
+
+    sig = interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)
+
+
+    # current model has no normalization 
+    #sig = process_signal( i_dm, I0_dm, N0_dm )
+
+    #plt.imshow( util.get_DM_command_in_2D(sig) ); plt.savefig('delme.png')
+    # (4) apply linear model to get reconstructor 
+    e_HO = pp * I2M.T @ sig #slopes * sig + intercepts
+    errs.append( e_HO )
+
+
+errs = np.array(errs)
+
+plt.figure()
+for mm in range(errs.shape[1]):
+    if mm == m:
+        ls='-'
+    else:
+        ls=':'
+    mean_err =   np.mean( errs[:,mm,:] , axis=-1)
+    plt.plot( pokegrid, mean_err, label=f'mode {mm}',ls=ls)
+
+plt.legend() 
+plt.savefig('delme.png')
+
+err_correction , _ = np.polyfit(  np.mean( errs[:,m,:] , axis=-1), pokegrid, 1 )
+
+
+adj_norm = err_correction * poke_amp
+print(e_HO)
+
+
+abb =  poke_amp * modal_basis[m] 
 time.sleep(2)
 dms[beam_id].shms[1].set_data(  abb ) 
 time.sleep( 10 )
 
-cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+# cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
 
-i_dm = interpMatrix @ cropped_image.reshape(-1)
+# i_dm = interpMatrix @ cropped_image.reshape(-1)
+
+
+# get some new images and project them onto the modes 
+ifull = c.get_data()
+i = np.array( [ii[r1:r2,c1:c2] for ii in ifull] )
+
+sig = interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)
+
 
 # current model has no normalization 
-sig = process_signal( i_dm, I0_dm, N0_dm )
+#sig = process_signal( i_dm, I0_dm, N0_dm )
 
 #plt.imshow( util.get_DM_command_in_2D(sig) ); plt.savefig('delme.png')
 # (4) apply linear model to get reconstructor 
-e_HO = I2M.T @ sig #slopes * sig + intercepts
+e_HO_all = adj_norm * I2M.T @ sig #slopes * sig + intercepts
 
-print(e_HO)
+print( f'mean mode err for mode {m} = {np.mean( e_HO_all[m,:])}, applied mode amp = {poke_amp}' )
 
-delta_cmd =  poke_amp * (M2C.T @ e_HO).T
+e_HO = np.mean( e_HO_all, axis = 1 )
+
+delta_cmd =   (M2C.T @ e_HO).T
  
+
+
 dm_filt = util.get_DM_command_in_2D( util.get_circle_DM_command(radius=5, Nx_act=12) )
-imgs = [ abb ,util.get_DM_command_in_2D(sig), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]
+imgs = [ abb , np.mean( (i - I0 ) / N0, axis=0), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]
 titles = ['DM disturbance', 'ZWFS signal', 'DM reconstruction', 'DM residual']
 cbars = ['' for _ in imgs]
 xlabel_list = ['' for _ in imgs]
 ylabel_list = ['' for _ in imgs]
-util.nice_heatmap_subplots( imgs ,title_list=titles,xlabel_list=xlabel_list, ylabel_list=ylabel_list, cbar_label_list=cbars, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig='delme.png' )
+util.nice_heatmap_subplots( imgs ,
+                           title_list=titles,
+                           xlabel_list=xlabel_list,
+                           ylabel_list=ylabel_list,
+                           cbar_label_list=cbars, 
+                           fontsize=15, 
+                           cbar_orientation = 'bottom', 
+                           axis_off=True, 
+                           vlims=None, 
+                           savefig='delme.png' )
 
+inputIgnore = input('check residuals are ok in delme.png')
 
 plt.close()
 
@@ -611,6 +806,9 @@ record_telemetry = True
 Nmodes_removed = 14
 cnt = 0
 close_after = 50
+disturbances_on = False 
+closed = True
+
 
 # Telemetry 
 telem = SimpleNamespace( **init_telem_dict() )
@@ -627,8 +825,8 @@ upper_limit_pid = 100 * np.ones( N )
 ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
 # gain to apply after "close_after" iterations
-ki_v = 0.5
-ki_array = np.linspace(1e-3, 0.5, N)
+
+ki_array =  np.linspace(1e-4, 0.5, N)[::-1]
 ki_array[0] = 0.5
 ki_array[1] = 0.5
 
@@ -645,8 +843,6 @@ scrn = ps.PhaseScreenVonKarman(nx_size= phasescreen_nx_size ,
                             L0=12,
                             random_seed=1)
 
-disturbances_on = False 
-closed = True
 
 modal_disturbances = []
 for _ in range(no_its):
@@ -714,6 +910,13 @@ while closed and (cnt < no_its):
     # apply PID controller 
     u_HO = ctrl_HO.process( e_HO )
     
+
+    print( f'u_HO(first ten) = {u_HO[:10]}' )
+
+    print( f'ctrl_HO.output(first ten) = {ctrl_HO.output[:10]}' )
+
+    print( f'ctrl_HO.integrals(first ten) = {ctrl_HO.integrals[:10]}' )
+
     # forcefully remove piston 
     #u_HO -= np.mean( u_HO )
     
@@ -721,7 +924,7 @@ while closed and (cnt < no_its):
     #delta_cmd = np.zeros( len(zwfs_ns.dm.dm_flat ) )
     #delta_cmd zwfs_ns.reco.linear_zonal_model.act_filt_recommended ] = u_HO
     # factor of 2 since reflection
-    delta_cmd = 0.5 * (M2C.T @ u_HO).T  #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
+    delta_cmd = (M2C.T @ u_HO).T  #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
     # be careful with tranposes , made previouos mistake tip was tilt etc (90 degree erroneous rotation)
     #cmd = -delta_cmd #disturbance - delta_cmd 
 
@@ -735,6 +938,7 @@ while closed and (cnt < no_its):
         telem.i_list.append( cropped_image )
         telem.i_dm_list.append( i_dm )
         telem.s_list.append( sig )
+
         telem.e_TT_list.append( np.zeros( len(e_HO) ) )
         telem.u_TT_list.append( np.zeros( len(e_HO) ) )
         telem.c_TT_list.append( np.zeros( len(delta_cmd) ) )
@@ -763,7 +967,7 @@ while closed and (cnt < no_its):
     dms[beam_id].shms[1].set_data( -delta_cmd  ) 
 
     #Carefull - controller integrates even so this doesnt work
-    if cnt > close_after :
+    if cnt == close_after :
         #close tip/tilt only 
         #ctrl_HO.ki[:2] = ki_v * np.ones(len(ki))
         ctrl_HO.ki = ki_array
@@ -785,12 +989,34 @@ hdu = fits.ImageHDU(IM)
 hdu.header['EXTNAME'] = 'IM'
 hdul.append(hdu)
 
+hdu = fits.ImageHDU(M2C)
+hdu.header['EXTNAME'] = 'M2C'
+hdul.append(hdu)
+
+
 hdu = fits.ImageHDU(I2M)
 hdu.header['EXTNAME'] = 'I2M'
+hdu.header['pokeamp'] = f'{poke_amp}'
 hdul.append(hdu)
 
 hdu = fits.ImageHDU(interpMatrix)
 hdu.header['EXTNAME'] = 'interpMatrix'
+hdul.append(hdu)
+
+
+hdu = fits.ImageHDU(ctrl_HO.ki)
+hdu.header['EXTNAME'] = 'Kp'
+hdu.header['close_after'] = f'{close_after}'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(ctrl_HO.ki)
+hdu.header['EXTNAME'] = 'Ki'
+hdu.header['close_after'] = f'{close_after}'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(ctrl_HO.kd)
+hdu.header['EXTNAME'] = 'Kd'
+hdu.header['close_after'] = f'{close_after}'
 hdul.append(hdu)
 
 # Add each list to the HDU list as a new extension

@@ -5,7 +5,9 @@ import zmq
 import time
 import json
 import os
+from PIL import Image
 import glob
+import subprocess
 import sys
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
@@ -19,6 +21,7 @@ except:
     print( "CANT IMPORT PHASEMASK CENTERING TOOL!")
 
 try:
+    # This is old from Julien's RTC. 
     from baldr import _baldr as ba
     from baldr import sardine as sa
 except ImportError:
@@ -317,7 +320,7 @@ def handle_phasemask():
         orientation = st.number_input("Orientation", value=0.0, step=10.0)
 
         submit_raster = st.form_submit_button("Update Raster Scan Parameters")
-    
+        apply_raster = st.form_submit_button("Apply Raster Scan Parameters")
 
     if submit_raster:
         st.write("Raster scan updated with new parameters.")
@@ -342,6 +345,96 @@ def handle_phasemask():
 
         # Show the updated figure
         st.pyplot(fig)
+
+    if apply_raster:
+        figure_path = '/home/asg/Progs/repos/asgard-alignment/calibration/reports/phasemask_aquisition/'
+        command = [
+                    "python", "calibration/phasemask_raster.py",
+                    "--beam", f'{beam}',
+                    "--initial_pos", f"{int(x0)},{int(y0)}",
+                    "--dx", f'{dx}',
+                    "--dy", f'{dy}',
+                    "--width", f'{width}',
+                    "--height", f'{height}',
+                    "--orientation",f'{orientation}',
+                    "--data_path", f'{figure_path}'
+                ]
+
+        # Run the external script
+        with st.spinner("Running scan..."):
+            process = subprocess.run(command, capture_output=True, text=True)
+
+        # Display output
+        st.text_area("Script Output", process.stdout)
+
+        if process.returncode != 0:
+            st.error(f"Error: {process.stderr}")
+        else:
+            st.success("Scan completed successfully!")
+            if os.path.exists(figure_path):
+                image1 = Image.open(figure_path + f'cluster_search_heatmap_beam{beam}.png')
+                st.image(image1, caption="Cluster Analysis On Scan Results", use_column_width=True)
+
+                image2 = Image.open(figure_path + f'clusters_heatmap_beam{beam}.png')
+                st.image(image2, caption="Mean Image From Each Cluster", use_column_width=True)
+            else:
+                st.warning("Figure not found. Ensure the script generates the file correctly.")
+
+    
+
+    # absolute move option for input with button to move
+    st.write("Move absolute")
+    s_col1, s_col2 = st.columns(2)
+
+    positions = []
+    
+    message = f"read BMX{beam}"
+    res = send_and_get_response(message)
+    positions.append(float(res))
+    if "NACK" in res:
+        st.write(f"Error reading position for {target}")
+    time.sleep(0.1)
+    message = f"read BMY{beam}"
+    res = send_and_get_response(message)
+    if "NACK" in res:
+        st.write(f"Error reading position for {target}")
+    positions.append(float(res))
+
+    with s_col1:
+        with st.form(key="absolute_move_u"):
+            X_position = st.number_input(
+                "X Position (um)",
+                min_value=0.0,
+                max_value=10000.0,
+                step=5.0,
+                value=positions[0],
+                format="%.4f",
+                key="X_position",
+            )
+            submit = st.form_submit_button("Move X")
+
+        if submit:
+            # replace the x in target with U
+            message = f"moveabs BMX{beam} {X_position}"
+            send_and_get_response(message)
+
+    with s_col2:
+        with st.form(key="absolute_move_v"):
+            Y_position = st.number_input(
+                "Y Position (um)",
+                min_value=0.0,
+                max_value=10000.0,
+                value=positions[1],
+                format="%.4f",
+                step=5.0,
+                key="Y_position",
+            )
+            submit2 = st.form_submit_button("Move Y")
+
+        if submit2:
+            message = f"moveabs BMY{beam} {Y_position}"
+            send_and_get_response(message)
+    
 
 
 def handle_deformable_mirror():
@@ -1112,6 +1205,7 @@ with col_main:
                 "Illumination",
                 "Move image/pupil",
                 "Phasemask Alignment",
+                "Scan Mirror",
                 "Save state",
                 "Load state",
                 "See All States",
@@ -1215,6 +1309,24 @@ with col_main:
                         st.warning("Unknown")
 
         if routine_options == "Move image/pupil":
+            # we save the intial positions when opening the pannel / changing beams/configs
+            # to allow user to easily return to initial state 
+            # so we init the following session states to save rel info! 
+            if "moveImPup" not in st.session_state:
+                st.session_state.moveImPup = {}  # Initialize as a dictionary
+
+            if "original_positions" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["original_positions"] = {}
+
+            if "prev_beam" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["prev_beam"] = None
+
+            if "prev_config" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["prev_config"] = None
+
+            #first_instance = True 
+            # original_pos = {}
+
             col1, col2, col3 = st.columns(3)
             with col1:
                 move_what = st.selectbox(
@@ -1226,7 +1338,7 @@ with col_main:
             with col2:
                 config = st.selectbox(
                     "Pick a config",
-                    ["c_red_one_focus", "intermediate_focus"],
+                    ["c_red_one_focus", "intermediate_focus", "baldr"],
                     key="config",
                 )
 
@@ -1241,6 +1353,31 @@ with col_main:
                     list(range(1, 5)),
                     key="beam",
                 )
+
+            if (config == 'baldr') and (beam == 1):
+                st.warning("warning no BOTX motor on beam 1 - so move pupil / image for baldr on beam 1 is invalid")
+
+
+            # Detect changes in beam or config, update original_positions if changed! 
+            if (beam != st.session_state.moveImPup['prev_beam']) or (config != st.session_state.moveImPup["prev_config"]):
+                st.write("Updating original positions due to change in beam or config...")
+
+                # Update stored previous values
+                st.session_state.moveImPup["prev_beam"] = beam
+                st.session_state.moveImPup["prev_config"] = config
+
+                # Update original_positions
+                if config == 'baldr':
+                    axes = [f"BTP{beam}", f"BTT{beam}", f"BOTP{beam}", f"BOTT{beam}"]
+                else:
+                    axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+
+                pos_dict = {}
+                for axis in axes:
+                    pos = send_and_get_response(f"read {axis}")
+                    pos_dict[axis] = pos
+
+                st.session_state.moveImPup["original_positions"] = pos_dict.copy()
 
             # tickbox for button only mode
             button_only = st.checkbox("Use button to move", value=True)
@@ -1263,24 +1400,46 @@ with col_main:
                         #     beam, delx, dely, send_and_get_response, config
                         # )
                         cmd = f"move_pupil {config} {beam} {delx} {dely}"
+                        # this had no send cmd - fixed 5/3/25
+                        send_and_get_response(cmd)
             else:
                 # increment selection for each case
-                if move_what == "move_image":
-                    increment = st.number_input(
-                        "Increment (pixels)",
-                        min_value=0,
-                        max_value=5000,
-                        step=5,
-                        key="increment",
-                    )
+
+                if config == 'baldr':
+                    if move_what == "move_image":
+                        increment = st.number_input(
+                            "Increment (mm?? double check, values around 0.1 are ok)",
+                            min_value=0.0,
+                            max_value=1.0,
+                            step=0.1,
+                            key="increment",
+                        )
+                    else:
+                        increment = st.number_input(
+                            "Increment (CRED 1 pixels)",
+                            min_value=0.0,
+                            max_value=30.0,
+                            step=0.5,
+                            key="increment",
+                        )
+
                 else:
-                    increment = st.number_input(
-                        "Increment (mm)",
-                        min_value=0.0,
-                        max_value=5.0,
-                        step=0.05,
-                        key="increment",
-                    )
+                    if move_what == "move_image":
+                        increment = st.number_input(
+                            "Increment (pixels)",
+                            min_value=0,
+                            max_value=5000,
+                            step=5,
+                            key="increment",
+                        )
+                    else:
+                        increment = st.number_input(
+                            "Increment (mm)",
+                            min_value=0.0,
+                            max_value=5.0,
+                            step=0.05,
+                            key="increment",
+                        )
 
                 if move_what == "move_image":
                     # move_function = asgard_alignment.Engineering.move_image
@@ -1317,6 +1476,7 @@ with col_main:
                 with mr:
                     if st.button(f"+x: {increment:.2f}"):
                         send_and_get_response(pos_x)
+
                 # elif move_what == "move_pupil":
                 #     with um:
                 #         if st.button(f"+y: {increment:.2f}"):
@@ -1332,13 +1492,24 @@ with col_main:
                 #             pos_x()
 
             # also show the state of all of the motors involved
-            axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+            if config == 'baldr':
+                axes = [f"BTP{beam}", f"BTT{beam}", f"BOTP{beam}", f"BOTT{beam}"] #[f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+            else:
+                axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
             # print("axes", axes)
 
-            # for axis in axes:
-            #     pos = send_and_get_response(f"read {axis}")
-            #     st.write(f"{axis}: {pos}")
+            # uncomment this
+            st.write(f"Current positions of motors involved in {move_what}.")
+            pos_dict = {}
+            for axis in axes:
+                pos = send_and_get_response(f"read {axis}")
+                st.write(f"{axis}: {pos}")
+                pos_dict[axis] = pos 
 
+            if st.button('update'):
+                # force re-read of positions
+                st.write('')
+                
             if move_what == "move_image":
                 if config == "c_red_one_focus":
                     st.write("No image (yet)")
@@ -1351,7 +1522,20 @@ with col_main:
                 elif config == "intermediate_focus":
                     st.image("figs/pupil_plane_KE.png")
 
+            # Show original positions for the selected beam and config
+            st.header("Initial positions")
+            st.write(f"for beam {beam}, config = {config}")
+            for axis, pos in st.session_state.moveImPup["original_positions"].items():
+                st.write(f"{axis} : {pos}")
 
+            # Move back button to save a life ----
+            if st.button("SAVE MY LIFE:\nMove Back to Original Position"):
+                for axis, pos in st.session_state.moveImPup["original_positions"].items():
+                    msg = f"moveabs {axis} {pos}"
+                    
+                    send_and_get_response(msg)
+                    st.write(f"phew! Moving {axis} back to {pos}. Remember to drink water!")
+                        
         if routine_options == "Phasemask Alignment":
             
             beam_numbers = [1, 2, 3, 4]
@@ -1446,6 +1630,54 @@ with col_main:
                             with open(fname, "w") as f:
                                 json.dump(states, f, indent=4)
 
+        if routine_options == "Scan Mirror":
+
+            st.title("Scan Mirror Control Panel")
+            st.write("Scan a mirror and analyse the signal in the CRED 1 as a function of scanned coorodinates. Automatically applying an offset to better center it around the detected edges.")
+
+            figure_path = "/home/asg/Progs/repos/asgard-alignment/figs/"
+
+            # User inputs for search parameters
+            beam = st.text_input("Beam Number:", "3")
+            motor = st.text_input("Motor Name:", "BTX")
+            search_radius = st.text_input("Search Radius:", "0.3")
+            dx = st.text_input("Step Size (dx):", "0.05")
+            st.write("enter x,y start point or current to start from current position")
+            start_pos = st.text_input("start position",'current')
+            #x0 = st.text_input("Initial X Position (x0):", "0.0")
+            #y0 = st.text_input("Initial Y Position (y0):", "0.0")
+            
+
+            # Button to execute the script
+            if st.button("Run Scan"):
+                command = [
+                    "python", "common/m_scan_mirrors.py",
+                    "--beam", beam,
+                    "--motor", motor,
+                    "--search_radius", search_radius,
+                    "--dx", dx,
+                    "--initial_pos", start_pos,
+                    "--data_path", figure_path
+                ]
+
+                # Run the external script
+                with st.spinner("Running scan..."):
+                    process = subprocess.run(command, capture_output=True, text=True)
+
+                # Display output
+                st.text_area("Script Output", process.stdout)
+
+                if process.returncode != 0:
+                    st.error(f"Error: {process.stderr}")
+                else:
+                    st.success("Scan completed successfully!")
+
+                    if os.path.exists(figure_path):
+                        image = Image.open(figure_path + 'scanMirror_result.png')
+                        st.image(image, caption="Scan Results", use_column_width=True)
+                    else:
+                        st.warning("Figure not found. Ensure the script generates the file correctly.")
+                            
         if routine_options == "Load state":
             # text box and reading of the json
             text_col, button_col = st.columns(2)
@@ -1470,6 +1702,8 @@ with col_main:
                             if state["is_connected"]:
                                 message = f"moveabs {state['name']} {state['position']}"
                                 send_and_get_response(message)
+
+
 
 
         if routine_options == "See All States":
@@ -1705,3 +1939,6 @@ with col_main:
                                 send_and_get_response(message)
                     else:
                         col.write(data[i][keys[j]])
+
+
+

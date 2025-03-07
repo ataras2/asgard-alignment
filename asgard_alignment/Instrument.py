@@ -142,8 +142,11 @@ class Instrument:
         # input validation
         if beam_number not in [1, 2, 3, 4]:
             raise ValueError("beam_number must be in the range [1, 4]")
-        if config not in ["c_red_one_focus", "intermediate_focus"]:
-            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus'")
+        if config not in ["c_red_one_focus", "intermediate_focus","baldr"]:
+            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus' or 'baldr'")
+
+
+
 
     def move_image(self, config, beam_number, x, y):
         """
@@ -187,11 +190,19 @@ class Instrument:
             ]
         )
 
+        # used for heimdallr
         ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
         so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+        # used for baldr
+        LH_motor = asgard_alignment.Engineering.LH_motor
+        RH_motor = asgard_alignment.Engineering.RH_motor
 
-        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-        image_motor = np.linalg.inv(so_matrix[beam_number])
+        if config == "baldr":
+            pupil_motor = RH_motor
+            image_motor = LH_motor
+        else:    
+            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+            image_motor = np.linalg.inv(so_matrix[beam_number])
 
         deviations_to_uv = np.block(
             [
@@ -205,7 +216,13 @@ class Instrument:
         print(f"beam deviations: {beam_deviations}")
 
         uv_commands = deviations_to_uv @ beam_deviations
-        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        
+        if config == "baldr":
+            axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+        else:
+            axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        #axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
         axes = [axis + str(beam_number) for axis in axis_list]
 
@@ -226,6 +243,8 @@ class Instrument:
         time.sleep(0.5)
 
         return True
+
+
 
     def move_pupil(self, config, beam_number, x, y):
         """
@@ -252,9 +271,18 @@ class Instrument:
 
         ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
         so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+        # used for baldr
+        LH_motor = asgard_alignment.Engineering.LH_motor
+        RH_motor = asgard_alignment.Engineering.RH_motor
 
-        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-        image_motor = np.linalg.inv(so_matrix[beam_number])
+        if config == "baldr":
+            # Baldr has a different orientation. This will be correct
+            # up to a sign in front of one of the motors.
+            pupil_motor = RH_motor
+            image_motor = LH_motor
+        else:
+            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+            image_motor = np.linalg.inv(so_matrix[beam_number])
 
         deviations_to_uv = np.block(
             [
@@ -268,7 +296,11 @@ class Instrument:
         print(f"beam deviations: {beam_deviations}")
 
         uv_commands = deviations_to_uv @ beam_deviations
-        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        if config == "baldr":
+            axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+            print( uv_commands ) # bug shooting 
+        else:
+            axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
         axes = [axis + str(beam_number) for axis in axis_list]
 

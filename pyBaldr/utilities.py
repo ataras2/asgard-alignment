@@ -710,6 +710,34 @@ def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n,
     return new_pupil
 
 
+
+
+def get_mask_center(mask,  method='2'):
+    """
+    for a 2D boolean mask we 
+    detect the edge coordinates in x,y and the centers
+    """
+
+    if method == '1':
+        x_edge_pixels = np.where(abs(np.diff( np.nansum( mask, axis=0)>0 ) ) > 0)
+        y_edge_pixels = np.where(abs(np.diff( np.nansum( mask, axis=1)>0 ) ) > 0)
+
+        if len( x_edge_pixels ) > 0:
+            x_c = np.mean( x_edge_pixels[0] )
+        else:
+            x_c = None 
+
+        if len( y_edge_pixels ) > 0:
+            y_c = np.mean( y_edge_pixels[0] )
+        else:
+            y_c = None 
+
+    elif method=='2':
+        x_c = np.mean(  np.where( mask )[0])
+        y_c = np.mean(  np.where( mask )[1])
+
+    return( x_c, y_c )
+
 def get_circle_DM_command(radius, Nx_act=12):
     """
     Generates a DM command that forms a circular shape of the given radius.
@@ -1333,7 +1361,8 @@ def block_sum(ar, fact): # sums over subwindows of a 2D array
 
 
 # ========== PLOTTING STANDARDS 
-def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
+
+def nice_heatmap_subplots( im_list , xlabel_list=None, ylabel_list=None, title_list=None, cbar_label_list=None, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
 
     n = len(im_list)
     fs = fontsize
@@ -1341,15 +1370,17 @@ def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_l
 
     for a in range(n) :
         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
-        ax1.set_title(title_list[a] ,fontsize=fs)
 
-        if vlims!=None:
+        if vlims is not None:
             im1 = ax1.imshow(  im_list[a] , vmin = vlims[a][0], vmax = vlims[a][1])
         else:
             im1 = ax1.imshow(  im_list[a] )
-        ax1.set_title( title_list[a] ,fontsize=fs)
-        ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
-        ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
+        if title_list is not None:
+            ax1.set_title( title_list[a] ,fontsize=fs)
+        if xlabel_list is not None:
+            ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
+        if ylabel_list is not None:
+            ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
         ax1.tick_params( labelsize=fs ) 
 
         if axis_off:
@@ -1367,13 +1398,54 @@ def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_l
             cax = divider.append_axes('right', size='5%', pad=0.05)
             cbar = fig.colorbar( im1, cax=cax, orientation='vertical')  
         
-   
-        cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
+        if cbar_label_list is not None:
+            cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
         cbar.ax.tick_params(labelsize=fs)
-    if savefig!=None:
+    if savefig is not None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
 
-    #plt.show() 
+# Delete this version
+# def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
+
+#     n = len(im_list)
+#     fs = fontsize
+#     fig = plt.figure(figsize=(5*n, 5))
+
+#     for a in range(n) :
+#         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
+#         ax1.set_title(title_list[a] ,fontsize=fs)
+
+#         if vlims!=None:
+#             im1 = ax1.imshow(  im_list[a] , vmin = vlims[a][0], vmax = vlims[a][1])
+#         else:
+#             im1 = ax1.imshow(  im_list[a] )
+#         ax1.set_title( title_list[a] ,fontsize=fs)
+#         ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
+#         ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
+#         ax1.tick_params( labelsize=fs ) 
+
+#         if axis_off:
+#             ax1.axis('off')
+#         divider = make_axes_locatable(ax1)
+#         if cbar_orientation == 'bottom':
+#             cax = divider.append_axes('bottom', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
+                
+#         elif cbar_orientation == 'top':
+#             cax = divider.append_axes('top', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
+                
+#         else: # we put it on the right 
+#             cax = divider.append_axes('right', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='vertical')  
+        
+   
+#         cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
+#         cbar.ax.tick_params(labelsize=fs)
+#     if savefig!=None:
+#         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
+
+#     #plt.show() 
 
 def nice_DM_plot( data, savefig=None , include_actuator_number = True): #for a 140 actuator BMC 3.5 DM
     fig,ax = plt.subplots(1,1)

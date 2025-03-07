@@ -165,69 +165,69 @@ def create_scatter_image_movie(data_dict, save_path="scatter_image_movie.mp4", f
     plt.close(fig)  # Close the figure to avoid displaying it unnecessarily
 
 
+# use pct 
+# def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
+#     """
+#     Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
 
-def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
-    """
-    Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
+#     Parameters:
+#         x_positions (list or array): List of x positions.
+#         y_positions (list or array): List of y positions.
+#         clusters (list or array): Cluster numbers corresponding to the x, y positions.
+#         show_grid (bool): If True, overlays a grid on the heatmap.
+#         grid_color (str): Color of the grid lines (default is 'white').
+#         grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
 
-    Parameters:
-        x_positions (list or array): List of x positions.
-        y_positions (list or array): List of y positions.
-        clusters (list or array): Cluster numbers corresponding to the x, y positions.
-        show_grid (bool): If True, overlays a grid on the heatmap.
-        grid_color (str): Color of the grid lines (default is 'white').
-        grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
+#     Returns:
+#         None
+#     """
+#     # Convert inputs to NumPy arrays
+#     x_positions = np.array(x_positions)
+#     y_positions = np.array(y_positions)
+#     clusters = np.array(clusters)
 
-    Returns:
-        None
-    """
-    # Convert inputs to NumPy arrays
-    x_positions = np.array(x_positions)
-    y_positions = np.array(y_positions)
-    clusters = np.array(clusters)
+#     # Ensure inputs have the same length
+#     if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
+#         raise ValueError("x_positions, y_positions, and clusters must have the same length.")
 
-    # Ensure inputs have the same length
-    if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
-        raise ValueError("x_positions, y_positions, and clusters must have the same length.")
+#     # Get unique x and y positions to define the grid
+#     unique_x = np.unique(x_positions)
+#     unique_y = np.unique(y_positions)
 
-    # Get unique x and y positions to define the grid
-    unique_x = np.unique(x_positions)
-    unique_y = np.unique(y_positions)
+#     # Create an empty grid to store cluster numbers
+#     heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
 
-    # Create an empty grid to store cluster numbers
-    heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
+#     # Map each (x, y) to grid indices
+#     x_indices = np.searchsorted(unique_x, x_positions)
+#     y_indices = np.searchsorted(unique_y, y_positions)
 
-    # Map each (x, y) to grid indices
-    x_indices = np.searchsorted(unique_x, x_positions)
-    y_indices = np.searchsorted(unique_y, y_positions)
+#     # Fill the heatmap with cluster values
+#     for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
+#         heatmap[y_idx, x_idx] = cluster
 
-    # Fill the heatmap with cluster values
-    for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
-        heatmap[y_idx, x_idx] = cluster
+#     # Plot the heatmap
+#     fig, ax = plt.subplots(figsize=(8, 6))
+#     cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
+#     cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
 
-    # Plot the heatmap
-    fig, ax = plt.subplots(figsize=(8, 6))
-    cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
-    cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
+#     # Add colorbar
+#     cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
+#     cbar.set_label('Cluster Number', fontsize=12)
 
-    # Add colorbar
-    cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
-    cbar.set_label('Cluster Number', fontsize=12)
+#     # Label the axes
+#     ax.set_xlabel('X Position', fontsize=12)
+#     ax.set_ylabel('Y Position', fontsize=12)
+#     ax.set_title('Cluster Heatmap', fontsize=14)
 
-    # Label the axes
-    ax.set_xlabel('X Position', fontsize=12)
-    ax.set_ylabel('Y Position', fontsize=12)
-    ax.set_title('Cluster Heatmap', fontsize=14)
+#     # Add grid overlay if requested
+#     if show_grid:
+#         ax.set_xticks(unique_x, minor=True)
+#         ax.set_yticks(unique_y, minor=True)
+#         ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
+#         ax.tick_params(which="minor", length=0)  # Hide minor tick marks
 
-    # Add grid overlay if requested
-    if show_grid:
-        ax.set_xticks(unique_x, minor=True)
-        ax.set_yticks(unique_y, minor=True)
-        ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
-        ax.tick_params(which="minor", length=0)  # Hide minor tick marks
+#     plt.tight_layout()
 
-    plt.tight_layout()
-    plt.show()
 
 
 
@@ -596,10 +596,13 @@ x_positions, y_positions = zip(*positions)
 
 
 
-plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
+plt.figure()
+pct.plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
 plt.savefig(args.data_path + f'cluster_search_heatmap_beam{args.beam}.png')
+plt.close()
 
-pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="std")
+
+pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="mean") #std")
 plt.savefig(args.data_path + f'clusters_heatmap_beam{args.beam}.png')
 
 

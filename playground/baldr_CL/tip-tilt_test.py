@@ -428,7 +428,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -442,7 +442,7 @@ c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
 
 
 #############
-beam_id = 2 
+beam_id = args.beam_id[0]
 ############
 
 ### quick look t histogram of 
@@ -515,8 +515,8 @@ for i,m in enumerate(modal_basis):
 
     I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / N0.reshape(-1)
     I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  N0.reshape(-1)
-
-    errsig = interpMatrix @ (I_plus - I_minus) / (2 * poke_amp) # half since reflect
+    # removed /2
+    errsig = interpMatrix @ (I_plus - I_minus) / ( poke_amp) # half since reflect
 
     IM.append( list(  errsig.reshape(-1) ) ) 
 
@@ -591,8 +591,8 @@ sig = process_signal( i_dm, I0_dm, N0_dm )
 e_HO = I2M.T @ sig #slopes * sig + intercepts
 
 print(e_HO)
-
-delta_cmd =  0.5 * (M2C.T @ e_HO).T #2 * poke_amp * (M2C.T @ e_HO).T
+# removed *0.5
+delta_cmd =   (M2C.T @ e_HO).T #2 * poke_amp * (M2C.T @ e_HO).T
  
 dm_filt = util.get_DM_command_in_2D( util.get_circle_DM_command(radius=5, Nx_act=12) )
 imgs = [ abb ,util.get_DM_command_in_2D(sig), dm_filt * delta_cmd, dm_filt*(abb-delta_cmd) ]

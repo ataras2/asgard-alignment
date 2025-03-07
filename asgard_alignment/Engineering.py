@@ -113,173 +113,175 @@ knife_edge_orientation_matricies = {
 }
 
 
-def move_image(beam_number, x, y, send_command, config):
-    """
-    Move image to a new location (relative motion)
-    x,y are in pixels
+## Move image and pupil functions belong only as method to instrument class 
+# To test with this commented out, eventually to delete once stable. 
+# def move_image(beam_number, x, y, send_command, config):
+#     """
+#     Move image to a new location (relative motion)
+#     x,y are in pixels
 
-    Parameters
-    ----------
-    beam_number : int
-        The beam number to move
-    x : float
-        The x coordinate to move to, in pixels
-    y : float
-        The y coordinate to move to, in pixels
-    send_command : function
-        A function to send commands to the motors
-    config : str
-        The configuration to use - either "c_red_one_focus" or "intermediate_focus" or "baldr"
+#     Parameters
+#     ----------
+#     beam_number : int
+#         The beam number to move
+#     x : float
+#         The x coordinate to move to, in pixels
+#     y : float
+#         The y coordinate to move to, in pixels
+#     send_command : function
+#         A function to send commands to the motors
+#     config : str
+#         The configuration to use - either "c_red_one_focus" or "intermediate_focus" or "baldr"
 
-    Returns
-    -------
-    uv_commands : np.array
-        The u,v commands sent to the motors
-    axis_list : list
-        The list of axis names
-    """
-    desired_deviation = np.array([[x], [y]])
+#     Returns
+#     -------
+#     uv_commands : np.array
+#         The u,v commands sent to the motors
+#     axis_list : list
+#         The list of axis names
+#     """
+#     desired_deviation = np.array([[x], [y]])
 
-    _, image_move_matricies = get_matricies(config)
+#     _, image_move_matricies = get_matricies(config)
 
-    M_I = image_move_matricies[beam_number]
-    M_I_pupil = M_I[0]
-    M_I_image = M_I[1]
+#     M_I = image_move_matricies[beam_number]
+#     M_I_pupil = M_I[0]
+#     M_I_image = M_I[1]
 
-    changes_to_deviations = np.array(
-        [
-            [M_I_pupil, 0.0],
-            [0.0, M_I_pupil],
-            [M_I_image, 0.0],
-            [0.0, M_I_image],
-        ]
-    )
+#     changes_to_deviations = np.array(
+#         [
+#             [M_I_pupil, 0.0],
+#             [0.0, M_I_pupil],
+#             [M_I_image, 0.0],
+#             [0.0, M_I_image],
+#         ]
+#     )
 
-    if config == "baldr":
-        # Baldr has a different orientation. This will be correct
-        # up to a sign in front of one of the motors.
-        pupil_motor = RH_motor
-        image_motor = LH_motor
-    else:
-        pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
-        image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+#     if config == "baldr":
+#         # Baldr has a different orientation. This will be correct
+#         # up to a sign in front of one of the motors.
+#         pupil_motor = RH_motor
+#         image_motor = LH_motor
+#     else:
+#         pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
+#         image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
 
-    deviations_to_uv = np.block(
-        [
-            [pupil_motor, np.zeros((2, 2))],
-            [np.zeros((2, 2)), image_motor],
-        ]
-    )
+#     deviations_to_uv = np.block(
+#         [
+#             [pupil_motor, np.zeros((2, 2))],
+#             [np.zeros((2, 2)), image_motor],
+#         ]
+#     )
 
-    beam_deviations = changes_to_deviations @ desired_deviation
+#     beam_deviations = changes_to_deviations @ desired_deviation
 
-    print(f"beam deviations: {beam_deviations}")
+#     print(f"beam deviations: {beam_deviations}")
 
-    uv_commands = deviations_to_uv @ beam_deviations
-    if config == "baldr":
-        axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
-    else:
-        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+#     uv_commands = deviations_to_uv @ beam_deviations
+#     if config == "baldr":
+#         axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+#     else:
+#         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
-    commands = [
-        f"moverel {axis}{beam_number} {command[0]}"
-        for axis, command in zip(axis_list, uv_commands)
-    ]
+#     commands = [
+#         f"moverel {axis}{beam_number} {command[0]}"
+#         for axis, command in zip(axis_list, uv_commands)
+#     ]
 
-    # shuffle to parallelise
-    send_command(commands[0])
-    send_command(commands[2])
-    time.sleep(0.5)
-    send_command(commands[1])
-    send_command(commands[3])
-    time.sleep(0.5)
+#     # shuffle to parallelise
+#     send_command(commands[0])
+#     send_command(commands[2])
+#     time.sleep(0.5)
+#     send_command(commands[1])
+#     send_command(commands[3])
+#     time.sleep(0.5)
 
-    return uv_commands, axis_list
-
-
-def move_pupil(beam_number, x, y, send_command, config):
-    """
-    Move the pupil to a new location
-    x,y are in mm
-
-    Parameters
-    ----------
-    beam_number : int
-        The beam number to move
-    x : float
-        The x coordinate to move to
-    y : float
-        The y coordinate to move to
-    send_command : function
-        A function to send commands to the motors
-    config : str
-        The configuration to use - either "c_red_one_focus" or "intermediate_focus" of "baldr"
+#     return uv_commands, axis_list
 
 
-    Returns
-    -------
-    uv_commands : np.array
-        The u,v commands sent to the motors
-    axis_list : list
-        The list of axis names
-    """
-    desired_deviation = np.array([[x], [y]])
+# def move_pupil(beam_number, x, y, send_command, config):
+#     """
+#     Move the pupil to a new location
+#     x,y are in mm
 
-    pupil_move_matricies, _ = get_matricies(config)
-
-    M_P = pupil_move_matricies[beam_number]
-    M_P_pupil = M_P[0]
-    M_P_image = M_P[1]
-
-    changes_to_deviations = np.array(
-        [
-            [M_P_pupil, 0.0],
-            [0.0, M_P_pupil],
-            [M_P_image, 0.0],
-            [0.0, M_P_image],
-        ]
-    )
-
-    if config == "baldr":
-        # Baldr has a different orientation. This will be correct
-        # up to a sign in front of one of the motors.
-        pupil_motor = RH_motor
-        image_motor = LH_motor
-    else:
-        pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
-        image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+#     Parameters
+#     ----------
+#     beam_number : int
+#         The beam number to move
+#     x : float
+#         The x coordinate to move to
+#     y : float
+#         The y coordinate to move to
+#     send_command : function
+#         A function to send commands to the motors
+#     config : str
+#         The configuration to use - either "c_red_one_focus" or "intermediate_focus" of "baldr"
 
 
-    deviations_to_uv = np.block(
-        [
-            [pupil_motor, np.zeros((2, 2))],
-            [np.zeros((2, 2)), image_motor],
-        ]
-    )
+#     Returns
+#     -------
+#     uv_commands : np.array
+#         The u,v commands sent to the motors
+#     axis_list : list
+#         The list of axis names
+#     """
+#     desired_deviation = np.array([[x], [y]])
 
-    beam_deviations = changes_to_deviations @ desired_deviation
+#     pupil_move_matricies, _ = get_matricies(config)
 
-    print(f"beam deviations: {beam_deviations}")
+#     M_P = pupil_move_matricies[beam_number]
+#     M_P_pupil = M_P[0]
+#     M_P_image = M_P[1]
 
-    uv_commands = deviations_to_uv @ beam_deviations
-    if config == "baldr":
-        axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
-    else:
-        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+#     changes_to_deviations = np.array(
+#         [
+#             [M_P_pupil, 0.0],
+#             [0.0, M_P_pupil],
+#             [M_P_image, 0.0],
+#             [0.0, M_P_image],
+#         ]
+#     )
+
+#     if config == "baldr":
+#         # Baldr has a different orientation. This will be correct
+#         # up to a sign in front of one of the motors.
+#         pupil_motor = RH_motor
+#         image_motor = LH_motor
+#     else:
+#         pupil_motor = np.linalg.inv(knife_edge_orientation_matricies[beam_number])
+#         image_motor = np.linalg.inv(spherical_orientation_matricies[beam_number])
+
+
+#     deviations_to_uv = np.block(
+#         [
+#             [pupil_motor, np.zeros((2, 2))],
+#             [np.zeros((2, 2)), image_motor],
+#         ]
+#     )
+
+#     beam_deviations = changes_to_deviations @ desired_deviation
+
+#     print(f"beam deviations: {beam_deviations}")
+
+#     uv_commands = deviations_to_uv @ beam_deviations
+#     if config == "baldr":
+#         axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+#     else:
+#         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
         
-    commands = [
-        f"moverel {axis}{beam_number} {command[0]}"
-        for axis, command in zip(axis_list, uv_commands)
-    ]
+#     commands = [
+#         f"moverel {axis}{beam_number} {command[0]}"
+#         for axis, command in zip(axis_list, uv_commands)
+#     ]
 
-    send_command(commands[0])
-    send_command(commands[2])
-    time.sleep(0.5)
-    send_command(commands[1])
-    send_command(commands[3])
-    time.sleep(0.5)
+#     send_command(commands[0])
+#     send_command(commands[2])
+#     time.sleep(0.5)
+#     send_command(commands[1])
+#     send_command(commands[3])
+#     time.sleep(0.5)
 
-    return uv_commands, axis_list
+#     return uv_commands, axis_list
 
 
 if __name__ == "__main__":

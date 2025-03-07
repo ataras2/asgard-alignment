@@ -151,7 +151,7 @@ def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, gri
         ax.tick_params(which="minor", length=0)  # Hide minor tick marks
 
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
 
 

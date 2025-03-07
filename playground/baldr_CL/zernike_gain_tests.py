@@ -428,7 +428,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -440,7 +440,7 @@ c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
 
 
 #############
-beam_id = 2 
+beam_id = args.beam_id[0]
 ############
 
 r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
@@ -467,15 +467,20 @@ util.nice_heatmap_subplots( im_list = [  dark, I0 - dark, N0-dark ] ,
 
 Nmodes = 30
 modal_basis = dmbases.zer_bank(2, Nmodes+2 )
+
+## ZONAL 
+# Nmodes = 140
+# modal_basis = [np.nan_to_num( util.get_DM_command_in_2D( m ) ) for m in  np.eye(140)]
+
+
 M2C = modal_basis.copy() # mode 2 command matrix 
-poke_amp = 0.02
+poke_amp = 0.02 #0.02 <- #0.02 zernile modal
 inverse_method = 'pinv'
 phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
 noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
 
 I0_dm = interpMatrix @ I0.reshape(-1)
 N0_dm = interpMatrix @ N0.reshape(-1)
-
 
 IM = []
 for i,m in enumerate(modal_basis):
@@ -511,6 +516,77 @@ elif inverse_method == 'MAP': # minimum variance of maximum posterior estimator
 dms[beam_id].zero_all()
 dms[beam_id].activate_flat()
 
+
+
+# # save the IM to fits for later analysis 
+# hdul = fits.HDUList()
+
+# hdu = fits.ImageHDU(IM)
+# hdu.header['EXTNAME'] = 'IM'
+# hdu.header['mask'] = 'H5_I_think'
+# hdu.header['beam'] = beam_id
+# hdu.header['poke_amp'] = poke_amp
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(modal_basis)
+# hdu.header['EXTNAME'] = 'M2C'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(I2M)
+# hdu.header['EXTNAME'] = 'I2M'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(interpMatrix)
+# hdu.header['EXTNAME'] = 'interpMatrix'
+# hdul.append(hdu)
+
+# fits_file = '/home/asg/Videos/' + f'IM_140ZONAL_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+# hdul.writeto(fits_file, overwrite=True)
+# print(f'wrote telemetry to \n{fits_file}')
+
+
+# U,S,Vt = np.linalg.svd( IM, full_matrices=True)
+# #singular values
+# plt.figure()
+# plt.semilogy(S) #/np.max(S))
+# #plt.axvline( np.pi * (10/2)**2, color='k', ls=':', label='number of actuators in pupil')
+# plt.legend()
+# plt.xlabel('mode index')
+# plt.ylabel('singular values')
+# if save_path is not None:
+#     plt.savefig(save_path +  f'singularvalues.png', bbox_inches='tight', dpi=200)
+# plt.show()
+
+# NOTE: if not zonal (modal) i might need M2C to get this to dm space 
+# if zonal M2C is just identity matrix. 
+# fig,ax = plt.subplots(n_row, n_row, figsize=(15,15))
+# plt.subplots_adjust(hspace=0.1,wspace=0.1)
+# for i,axx in enumerate(ax.reshape(-1)):
+#     axx.imshow( M2C.T @ U.T[i]  )
+#     #axx.set_title(f'mode {i}, S={round(S[i]/np.max(S),3)}')
+#     axx.text( 1,2,f'{i}',color='w',fontsize=6)
+#     axx.text( 1,3,f'S={round(S[i]/np.max(S),3)}',color='w',fontsize=6)
+#     axx.axis('off')
+#     #plt.legend(ax=axplt.tight_layout()
+# if save_path is not None:
+#     plt.savefig(save_path +  f'dm_eignmodes.png',bbox_inches='tight',dpi=200)
+# plt.show()
+
+
+# NOTE: if not zonal (modal) i might need M2C to get this to dm space 
+# if zonal M2C is just identity matrix. 
+# fig,ax = plt.subplots(n_row, n_row, figsize=(15,15))
+# plt.subplots_adjust(hspace=0.1,wspace=0.1)
+# for i,axx in enumerate(ax.reshape(-1)):
+#     axx.imshow( util.get_DM_command_in_2D( Vt[i] )  )
+#     #axx.set_title(f'mode {i}, S={round(S[i]/np.max(S),3)}')
+#     axx.text( 1,2,f'{i}',color='w',fontsize=6)
+#     axx.text( 1,3,f'S={round(S[i]/np.max(S),3)}',color='w',fontsize=6)
+#     axx.axis('off')
+#     #plt.legend(ax=a
+
+# if save_path is not None:
+#     plt.savefig(save_path +  f'DM_eignmodes.png',bbox_inches='tight',dpi=200)
 
 ## SOME CHECKS 
 print( f'condition of IM = {np.linalg.cond(IM)}')

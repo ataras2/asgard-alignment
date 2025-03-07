@@ -279,6 +279,14 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         img_4_corners[ii].append( delta_img ) # 
 
 
+
+for beam_id in args.beam_id:
+    # zero all channels
+    dm_shm_dict[beam_id].zero_all()
+    # activate flat 
+    dm_shm_dict[beam_id].activate_flat()
+
+
 ## lets see the registration 
 plt.figure()
 plt.imshow( np.sum(img_4_corners[0],axis=0))

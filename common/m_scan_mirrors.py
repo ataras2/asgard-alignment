@@ -210,7 +210,7 @@ try:
     message = f"read {targets[1]}"
     initial_Ypos = float(send_and_get_response(message))
 
-    print( "{args.motor} position before starting = {initial_Xpos}, {initial_Ypos}"  )
+    print( f"{args.motor} position before starting = {initial_Xpos}, {initial_Ypos}"  )
 
 except:
     raise UserWarning( "failed 'read {args.motor}X{args.beam}' or  'read {args.motor}Y{args.beam}'")
@@ -238,10 +238,10 @@ global_mean = np.mean(mean_frame)
 global_std = np.std(mean_frame)
 bad_pixel_map = (np.abs(mean_frame - global_mean) > 20 * global_std) | (std_frame > 100 * np.median(std_frame))
 
-plt.figure()
-plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-plt.colorbar()
-plt.savefig( "delme.png")
+# plt.figure()
+# plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+# plt.colorbar()
+# plt.savefig( "delme.png")
 
 img = np.mean( img_raw , axis=0)
 
@@ -270,7 +270,7 @@ else:
 crop_pupil_coords = np.array( percentile_based_detect_pupils(
         img * mask, percentile = 99, min_group_size=100, buffer=60, plot=True
     ) )
-plt.savefig('delme.png')
+#plt.savefig('delme.png')
 
 
 
@@ -298,12 +298,12 @@ elif len( crop_pupil_coords ) > 1:
 else :
     c1,c2,r1,r2 = crop_pupil_coords
 
-plt.figure()
-plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-plt.colorbar()
-plt.title('cropped image')
-plt.savefig( "delme.png")
-plt.show()
+# plt.figure()
+# plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+# plt.colorbar()
+# plt.title('cropped image')
+# plt.savefig( "delme.png")
+# plt.show()
 
 
 # Get our starting position based on user input 
@@ -340,16 +340,16 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
 
     # motor limit safety checks!
     if x_pos <= safety_limits['xmin']:
-        print('x_pos < 0. set x_pos = 1')
+        print(f'x_pos < safemin. set x_pos = {safety_limits["xmin"]}')
         x_pos = safety_limits['xmin']
     if x_pos >= safety_limits['xmax']:
-        print('x_pos > 10000. set x_pos = 9999')
+        print(f'x_pos > safemax. set x_pos = {safety_limits["xmax"]}')
         x_pos = safety_limits['xmax']
     if y_pos <= safety_limits['ymin']:
-        print('y_pos < 0. set y_pos = 1')
+        print(f'y_pos < safemin. set y_pos = {safety_limits["ymin"]}')
         y_pos = safety_limits['ymin']
     if y_pos >= safety_limits['ymax']:
-        print('y_pos > 10000. set y_pos = 9999')
+        print(f'y_pos > 10000. set y_pos = {safety_limits["ymax"]}')
         y_pos = safety_limits['ymax']
 
 
@@ -376,21 +376,14 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
     img_dict[(x_pos, y_pos)] = img
 
 
-mean_sig = [ np.nanmean( i ) for i in img_dict.values()] 
-
-plt.figure(figsize=(6, 5))
-sc = plt.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolor='k', s=100)
-
-# Add colorbar
-cbar = plt.colorbar(sc)
-cbar.set_label("Mean Signal")
+mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
 
 # Labels and title
-plt.xlabel("X Position")
-plt.ylabel("Y Position")
-plt.title("Scatter Plot of Positions with Mean Signal")
-plt.savefig('delme.png')
-plt.show() 
+# plt.xlabel("X Position")
+# plt.ylabel("Y Position")
+# plt.title("Scatter Plot of Positions with Mean Signal")
+# plt.savefig('delme.png')
+# plt.show() 
 
 
 # Define fine grid for interpolation
@@ -403,126 +396,139 @@ grid_x, grid_y = np.meshgrid(np.linspace(min(x_points), max(x_points), 100),
 points = np.column_stack((x_points, y_points))  # Shape (N,2)
 xi = np.column_stack((grid_x.ravel(), grid_y.ravel()))  # Shape (M,2)
 
-# Perform interpolation
-grid_z = griddata(points, mean_sig, xi, method='cubic')
+pctile = 60 # 60th percentile boundary
+
+try:
+    # Perform interpolation
+    grid_z = griddata(points, mean_sig, xi, method='cubic')
+    grid_z = grid_z.reshape(grid_x.shape)
+    no_interp = False
+except:
+    print("issue with interpolation")
+    no_interp = True
+    print("continue to find offset on raw data")
+
+if no_interp:
+
+    threshold = np.percentile(mean_sig, pctile)  # Ignore NaNs
+
+    boundary = mean_sig < threshold
+
+    inside_mask = ~boundary  # Inverse of boundary (True inside)
+
+    # Get x, y coordinates where inside_mask is True
+    x_inside = x_points[inside_mask]
+    y_inside = y_points[inside_mask]
+    weights = mean_sig[inside_mask]  # Use mean signal values as weights
+
+    # Compute weighted mean
+    x_c = np.sum(x_inside * weights) / np.sum(weights)
+    y_c = np.sum(y_inside * weights) / np.sum(weights)
+
+    print(f"initial position {initial_Xpos},{initial_Ypos}")
+    print(f"Weighted Center: ({x_c}, {y_c})")
+
+    # Compute weighted mean
+    x_c = np.sum(x_inside * weights) / np.sum(weights)
+    y_c = np.sum(y_inside * weights) / np.sum(weights)
+
+    # Plot scatter plot with boundary
+    fig, ax = plt.subplots(figsize=(6, 5))
+    scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
+    plt.colorbar(scatter, label="Mean Signal")
+
+    # Overlay boundary
+    ax.scatter(x_points[boundary], y_points[boundary], color='red', label="Boundary Points")
+
+    # Mark calculated center
+    ax.scatter(x_c, y_c, color='blue', marker='x', s=100, label="Weighted Center")
 
 
-grid_z = grid_z.reshape(grid_x.shape)
+    # Labels and legend
+    ax.set_xlabel("X Position")
+    ax.set_ylabel("Y Position")
+    ax.set_title("Scatter Plot with Boundary and Weighted Center")
+    ax.legend()
+    ax.grid(True)
 
-# Define boundary where mean signal falls below 10th percentile
-threshold = np.percentile(grid_z[~np.isnan(grid_z)], 10)  # Ignore NaNs
-boundary = grid_z < threshold
-
-# Get the indices of non-boundary points (inside region)
-inside_mask = ~boundary  # Inverse of boundary (True inside)
-
-# Get x, y coordinates where inside_mask is True
-x_inside = grid_x[inside_mask]
-y_inside = grid_y[inside_mask]
-weights = grid_z[inside_mask]  # Use mean signal values as weights
-
-# Compute weighted mean
-x_c = np.sum(x_inside * weights) / np.sum(weights)
-y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-print(f"initial position {initial_Xpos},{initial_Ypos}")
-print(f"Weighted Center: ({x_c}, {y_c})")
+    ax.legend()
+    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
+    plt.show()
+    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
 
 
-# Plot results
-fig, ax = plt.subplots(figsize=(6, 5))
-contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=50)
-plt.colorbar(contour, label="Interpolated Mean Signal")
+elif not no_interp:
+    # Define boundary where mean signal falls below 10th percentile
+    threshold = np.percentile(grid_z[~np.isnan(grid_z)], pctile)  # Ignore NaNs
+    boundary = grid_z < threshold
 
-# Overlay boundary
-ax.contour(grid_x, grid_y, boundary, levels=[0.5], colors='red', linewidths=2, label="10th Percentile Boundary")
+    # Get the indices of non-boundary points (inside region)
+    inside_mask = ~boundary  # Inverse of boundary (True inside)
 
-# Scatter original data points
-ax.scatter(x_pos, y_pos, c='white', edgecolor='black', label="Original Data")
+    # Get x, y coordinates where inside_mask is True
+    x_inside = grid_x[inside_mask]
+    y_inside = grid_y[inside_mask]
+    weights = grid_z[inside_mask]  # Use mean signal values as weights
 
-# Mark weighted center with an 'X'
-ax.plot(x_c, y_c, 'rx', markersize=12, markeredgewidth=3, label="Weighted Center")
+    # Compute weighted mean
+    x_c = np.sum(x_inside * weights) / np.sum(weights)
+    y_c = np.sum(y_inside * weights) / np.sum(weights)
 
-# Mark initial position with an 'X' in blue
-ax.plot(initial_Xpos, initial_Ypos, 'bx', markersize=12, markeredgewidth=3, label="Initial Position")
-
-# Labels and legend
-ax.set_xlabel("X Position")
-ax.set_ylabel("Y Position")
-ax.set_title("Interpolated Mean Signal with 10th Percentile Boundary")
-ax.legend()
-plt.savefig('delme1.png', dpi=300, bbox_inches="tight")
-plt.show()
+    print(f"initial position {initial_Xpos},{initial_Ypos}")
+    print(f"Weighted Center: ({x_c}, {y_c})")
 
 
+    # Plot results
+    fig, ax = plt.subplots(figsize=(6, 5))
+    contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=50)
+    plt.colorbar(contour, label="Interpolated Mean Signal")
 
-# from skimage.measure import find_contours
-# from skimage.draw import ellipse_perimeter
-# from matplotlib.patches import Ellipse
-# # Compute contours from the boolean boundary mask
-# contours = find_contours(~boundary, level=0.5)  # Extract boundary contours
+    # Overlay boundary
+    ax.contour(grid_x, grid_y, boundary, levels=[0.5], colors='red', linewidths=2, label="50th Percentile Boundary")
 
-# # Select the longest contour (most likely to be the main region boundary)
-# if len(contours) > 0:
-#     longest_contour = max(contours, key=len)
-#     y_contour, x_contour = longest_contour[:, 0], longest_contour[:, 1]  # Extract x, y points
-# else:
-#     raise ValueError("No valid contour found in the boundary mask.")
+    # Scatter original data points
+    #ax.scatter(x_pos, y_pos, c='white', edgecolor='black', label="Original Data")
 
-# # Fit an ellipse to the boundary contour points
-# x_mean, y_mean = np.mean(x_contour), np.mean(y_contour)  # Compute centroid
-# x_shifted = x_contour - x_mean
-# y_shifted = y_contour - y_mean
+    # Mark weighted center with an 'X'
+    ax.plot(x_c, y_c, 'rx', markersize=12, markeredgewidth=3, label="Weighted Center (where we offset to)")
 
-# # Compute covariance matrix and eigenvectors
-# cov_matrix = np.cov(x_shifted, y_shifted)
-# eigenvalues, eigenvectors = np.linalg.eigh(cov_matrix)
+    # Mark initial position with an 'X' in blue
+    ax.plot(initial_Xpos, initial_Ypos, 'bx', markersize=12, markeredgewidth=3, label="Initial Position")
 
-# # Semi-axes (standard deviations along eigenvectors)
-# axes_lengths = 2 * np.sqrt(eigenvalues)  # Approximate as 2 * standard deviation
+    # Labels and legend
+    ax.set_xlabel("X Position")
+    ax.set_ylabel("Y Position")
+    ax.set_title(f"Interpolated Mean Signal with {pctile}th Percentile Boundary")
+    ax.legend()
+    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
+    plt.show()
+    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
 
-# # Compute ellipse angle from eigenvectors
-# angle = np.degrees(np.arctan2(eigenvectors[1, 1], eigenvectors[1, 0]))
 
-# # Plot original boundary and fitted ellipse
-# fig, ax = plt.subplots(figsize=(6, 6))
-# ax.imshow(boundary, cmap="gray", origin="lower", extent=[grid_x.min(), grid_x.max(), grid_y.min(), grid_y.max()])
-# ax.plot(x_contour, y_contour, 'r-', label="Detected Boundary")
 
-# # Plot fitted ellipse
-# ellipse = Ellipse(xy=(x_mean, y_mean), width=axes_lengths[0] * 2, height=axes_lengths[1] * 2,
-#                   angle=angle, edgecolor='blue', facecolor='none', lw=2, label="Fitted Ellipse")
-# ax.add_patch(ellipse)
-
-# # Labels and display
-# ax.set_title("Fitted Ellipse to Boundary")
-# ax.set_xlabel("X")
-# ax.set_ylabel("Y")
-# ax.legend()
-# plt.show()
-
-# # Return fitted ellipse parameters
-# fitted_ellipse_params = {
-#     "center": (x_mean, y_mean),
-#     "width": axes_lengths[0] * 2,
-#     "height": axes_lengths[1] * 2,
-#     "angle": angle
-# }
-
-# print( fitted_ellipse_params )
-
-# plt.savefig('delme.png')
 
 
 # move motor back to initial position 
-print(f"moving back to initial position of {args.motor}")
-message = f"moveabs {targets[0]} {initial_Xpos}"
+print(f"moving {args.motor} to new found center ")
+message = f"moveabs {targets[0]} {x_c}"
 response = send_and_get_response(message)
 print(response)
 
-message = f"moveabs {targets[1]} {initial_Ypos}"
+message = f"moveabs {targets[1]} {x_c}"
 response = send_and_get_response(message)
 print(response)
+
+# except:
+#     print("issue with interpolation, cannot realiably find center. Moving back to original position")
+#     # move motor back to initial position 
+#     print(f"moving back to initial position of {args.motor}")
+#     message = f"moveabs {targets[0]} {initial_Xpos}"
+#     response = send_and_get_response(message)
+#     print(response)
+
+#     message = f"moveabs {targets[1]} {initial_Ypos}"
+#     response = send_and_get_response(message)
+#     print(response)
 
 # print(f"moving back to initial position of {args.motor}")
 # message = f"moveabs {targets[0]} {-0.36}"
