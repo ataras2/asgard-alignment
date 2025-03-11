@@ -6,17 +6,21 @@ import time
 import json
 import os
 from PIL import Image
+import datetime
 import glob
 import subprocess
 import sys
 from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from io import StringIO
+import toml
 
+from asgard_alignment import FLI_Cameras as FLI
 import asgard_alignment.Engineering
 import common.DM_basis_functions
 try:
     import common.phasemask_centering_tool as pct
+    from pyBaldr import utilities as util
 except:
     print( "CANT IMPORT PHASEMASK CENTERING TOOL!")
 
@@ -1216,8 +1220,84 @@ with col_main:
 
         if routine_options == "Quick buttons":
             # zero_all command button
-            st.write("Nothing here (yet)")
+            #st.write("Nothing here (yet)")
 
+            tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
+            quick_data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/"
+
+            os.makedirs(quick_data_path, exist_ok=True)
+
+            # Define scripts and their arguments 
+            QUICK_SCRIPTS = {
+                "detect pupils": ["python",  "calibration/detect_cropped_pupils_coords.py", "--fig_path", quick_data_path  ],
+                "register pupil beam 1": ["python", "calibration/pupil_registration.py", "--beam_id", "[1]", "--fig_path", quick_data_path ],
+                "register pupil beam 2": ["python", "calibration/pupil_registration.py", "--beam_id", "[2]", "--fig_path", quick_data_path ],
+                "register pupil beam 3": ["python", "calibration/pupil_registration.py", "--beam_id", "[3]", "--fig_path", quick_data_path ],
+                "register pupil beam 4": ["python", "calibration/pupil_registration.py", "--beam_id", "[4]", "--fig_path", quick_data_path ],
+                "register DM beam 1": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[1]", "--fig_path", quick_data_path ],
+                "register DM beam 2": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[2]", "--fig_path", quick_data_path ],
+                "register DM beam 3": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[3]", "--fig_path", quick_data_path ],
+                "register DM beam 4": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[4]", "--fig_path", quick_data_path ],
+            }
+
+            # # Initialize session state for each button (if not set)
+            # for key in QUICK_SCRIPTS.keys():
+            #     if key not in st.session_state:
+            #         st.session_state[key] = False  # Default: No button has been pressed
+
+            # # Function to run script and update session state
+            # def run_script(command, key):
+            #     try:
+            #         subprocess.run(command, check=True)
+            #         st.session_state[key] = True  # Mark button as pressed
+            #     except subprocess.CalledProcessError as e:
+            #         st.error(f"Error running script: {e}")
+
+        
+            # if st.button("Detect Heimdallr/Baldr Pupils", key="detect_pupils"):
+            #     run_script(QUICK_SCRIPTS["detect pupils"], "detect pupils")
+
+        
+            # if st.session_state["detect pupils"]:
+            #     fig_path = QUICK_SCRIPTS["detect pupils"][-1] + 'detected_pupils.png'
+            #     if os.path.exists(fig_path):
+            #         st.image(Image.open(fig_path), caption="Detected Pupils Output", use_column_width=True)
+            #     else:
+            #         st.write(f"can't find {fig_path}")
+            # else:
+            #     st.write('no current output')
+
+            # # Four Columns for Beams 1 - 4
+            # cols = st.columns(4)
+            # beam_titles = ["Beam 1", "Beam 2", "Beam 3", "Beam 4"]
+
+            # for i, col in enumerate(cols):
+            #     with col:
+            #         st.header(beam_titles[i])
+
+            #         btn_key = f"register pupil beam {i+1}"  # Create a unique button key for each beam
+            #         if st.button(f"Run {btn_key}", key=btn_key):
+            #             run_script(QUICK_SCRIPTS[btn_key], btn_key)
+
+            #         # Only display the image if this button was pressed
+            #         if st.session_state[btn_key]:
+            #             fig_path = QUICK_SCRIPTS[btn_key][-1] + f'pupil_reg_beam{i+1}'  # << this is default name of output figure from script
+            #             if os.path.exists(fig_path):
+            #                 st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            
+            #         st.write("DM registration requires alignment on phasemask")
+
+            #         btn_key = f"register DM beam {i+1}"  # Create a unique button key for each beam
+            #         if st.button(f"Run {btn_key}", key=btn_key):
+            #             run_script(QUICK_SCRIPTS[btn_key], btn_key)
+
+            #         # Only display the image if this button was pressed
+            #         if st.session_state[btn_key]:
+            #             fig_path = QUICK_SCRIPTS[btn_key][-1] + 'DM_registration_in_pixel_space.png' # << this is default name of output figure from script
+                        
+            #             if os.path.exists(fig_path):
+            #                 st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                      
         if routine_options == "Illumination":
             # a few options to control sources, source position and flipper states
 
@@ -1372,12 +1452,12 @@ with col_main:
                 else:
                     axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
 
-                pos_dict = {}
+                pos_dict_org = {}
                 for axis in axes:
                     pos = send_and_get_response(f"read {axis}")
-                    pos_dict[axis] = pos
+                    pos_dict_org[axis] = pos
 
-                st.session_state.moveImPup["original_positions"] = pos_dict.copy()
+                st.session_state.moveImPup["original_positions"] = pos_dict_org.copy()
 
             # tickbox for button only mode
             button_only = st.checkbox("Use button to move", value=True)
@@ -1633,26 +1713,35 @@ with col_main:
         if routine_options == "Scan Mirror":
 
             st.title("Scan Mirror Control Panel")
-            st.write("Scan a mirror and analyse the signal in the CRED 1 as a function of scanned coorodinates. Automatically applying an offset to better center it around the detected edges.")
+            st.write("Scan a mirror (or combination of mirrors) and analyse the signal in the CRED 1 as a function of scanned coorodinates. Currently does not automatically applying an offset to better center it around the detected edges.")
 
             figure_path = "/home/asg/Progs/repos/asgard-alignment/figs/"
 
+
             # User inputs for search parameters
-            beam = st.text_input("Beam Number:", "3")
-            motor = st.text_input("Motor Name:", "BTX")
+            
+            beam = st.selectbox(
+                    "Pick a beam",
+                    list(range(1, 5)),
+                    key="beam",
+                )
             search_radius = st.text_input("Search Radius:", "0.3")
             dx = st.text_input("Step Size (dx):", "0.05")
-            st.write("enter x,y start point or current to start from current position")
-            start_pos = st.text_input("start position",'current')
+            
             #x0 = st.text_input("Initial X Position (x0):", "0.0")
             #y0 = st.text_input("Initial Y Position (y0):", "0.0")
             
+            st.title("Individual Mirrors")
+
+            motor = st.text_input("Motor Name:", "BTX")
+            st.write("enter x,y start point or current to start from current position")
+            start_pos = st.text_input("start position",'current')
 
             # Button to execute the script
-            if st.button("Run Scan"):
+            if st.button("Run Scan", key='run_individual_scan'):
                 command = [
                     "python", "common/m_scan_mirrors.py",
-                    "--beam", beam,
+                    "--beam", f"{beam}",
                     "--motor", motor,
                     "--search_radius", search_radius,
                     "--dx", dx,
@@ -1677,7 +1766,222 @@ with col_main:
                         st.image(image, caption="Scan Results", use_column_width=True)
                     else:
                         st.warning("Figure not found. Ensure the script generates the file correctly.")
-                            
+
+
+            #first_instance = True 
+            # original_pos = {}
+
+
+            st.title("Combination of Mirrors")
+
+            if "moveImPup" not in st.session_state:
+                st.session_state.moveImPup = {}  # Initialize as a dictionary
+
+            if "original_positions" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["original_positions"] = {}
+
+            if "prev_beam" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["prev_beam"] = None
+
+            if "prev_config" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["prev_config"] = None
+
+
+            col1, col2  = st.columns(2)
+            with col1:
+                move_what = st.selectbox(
+                    "Pick operating_mode",
+                    ["move_image", "move_pupil"],
+                    key="move_what",
+                )
+
+            with col2:
+                config = st.selectbox(
+                    "Pick a config",
+                    ["c_red_one_focus", "intermediate_focus", "baldr"],
+                    key="config",
+                )
+
+            if move_what == "move_image":
+                units = "pixels"
+            else:
+                units = "mm"
+
+            # Update motor axes 
+            if config == 'baldr':
+                axes = [f"BTP{beam}", f"BTT{beam}", f"BOTP{beam}", f"BOTT{beam}"]
+            else:
+                axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+
+            if (config == 'baldr') and (beam == 1):
+                st.warning("warning no BOTX motor on beam 1 - so move pupil / image for baldr on beam 1 is invalid")
+
+
+            # Detect changes in beam or config, update original_positions if changed! 
+            if (beam != st.session_state.moveImPup['prev_beam']) or (config != st.session_state.moveImPup["prev_config"]):
+                st.write("Updating original positions due to change in beam or config...")
+
+                # Update stored previous values
+                st.session_state.moveImPup["prev_beam"] = beam
+                st.session_state.moveImPup["prev_config"] = config
+
+                # Update original_positions
+                if config == 'baldr':
+                    axes = [f"BTP{beam}", f"BTT{beam}", f"BOTP{beam}", f"BOTT{beam}"]
+                else:
+                    axes = [f"HTPP{beam}", f"HTTP{beam}", f"HTPI{beam}", f"HTTI{beam}"]
+
+                pos_dict = {}
+                for axis in axes:
+                    pos = send_and_get_response(f"read {axis}")
+                    pos_dict[axis] = pos
+
+                st.session_state.moveImPup["original_positions"] = pos_dict.copy()
+
+            scantype = st.selectbox(
+                    "type of scan",
+                    ['raster', 'square spiral'],
+                    key="scantype",
+                )
+
+            
+
+            # apply a scan (cross, raster, square spiral options)
+
+            # starting point always 0,0 since these are relative offsets for move pupil/image modes !!
+            if scantype == "square spiral":
+                scan_pattern = pct.square_spiral_scan(starting_point=[0,0], step_size= float(dx), search_radius = float(search_radius))
+            elif scantype == "raster":
+                scan_pattern = pct.raster_scan_with_orientation(starting_point=[0,0], dx=float(dx), dy=float(dx), width=float(search_radius), height=float(search_radius), orientation=0)
+                
+            #### FROM HERE WE SHOULD PUT THIS IN A SCRIPT THAT IS RUN HERE! 
+            # ------------------------------------------
+            # where we save output images to
+            if st.button("Run Scan", key='run_combined_scan'):
+                data_path = "/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{config}_{move_what}/"
+                if not os.path.exists( data_path ):
+                    print(f'made directory : {data_path}')
+                    os.makedirs(data_path)
+
+                # configuration info (like where to crop for each beam)
+                toml_file = os.path.join( "config_files", "baldr_config_#.toml")
+                
+                x_points, y_points = zip(*scan_pattern)
+
+                
+                # convert to relative offsets 
+                rel_x_points = np.array(list(x_points)[1:]) - np.array(list(x_points)[:-1])
+                rel_y_points = np.array(list(y_points)[1:]) - np.array(list(y_points)[:-1])
+
+                img_dict = {}
+
+                motor_pos_dict = {}
+
+                
+                with open(toml_file.replace('#',f'{beam}') ) as file:
+                    configdata = toml.load(file)
+                    # Extract the "baldr_pupils" section
+                    baldr_pupils = configdata.get("baldr_pupils", {})
+                    heim_pupils = configdata.get("heimdallr_pupils", {})
+                    
+                roi = baldr_pupils[f'{beam}']
+
+                #############
+                ## SET UP CAMERA to cropped beam region 
+                c = FLI.fli(roi = roi)
+
+                progress_bar = st.progress(0)
+                for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
+                    progress_bar.progress( it / len(rel_x_points) )
+
+                    if move_what == "move_image":
+                        # asgard_alignment.Engineering.move_image(
+                        #     beam, delx, dely, send_and_get_response, config
+                        # )
+                        cmd = f"move_image {config} {beam} {delx} {dely}"
+                        send_and_get_response(cmd)
+                    elif move_what == "move_pupil":
+                        # asgard_alignment.Engineering.move_pupil(
+                        #     beam, delx, dely, send_and_get_response, config
+                        # )
+                        cmd = f"move_pupil {config} {beam} {delx} {dely}"
+                        send_and_get_response(cmd)
+
+                    time.sleep( 1 )
+
+                    # get all the motor positions 
+                    pos_dict = {}
+                    for axis in axes:
+                        pos = send_and_get_response(f"read {axis}")
+                        #st.write(f"{axis}: {pos}")
+                        pos_dict[axis] = pos 
+                    
+                    motor_pos_dict[str((x_points[it], y_points[it]))] = pos_dict
+
+                    # get the images 
+                    # index dictionary by absolute position of the scan 
+                    imgtmp = np.mean( c.get_data() ,  axis=0 ) 
+                    img_dict[ str((x_points[it], y_points[it])) ] = imgtmp
+        
+
+                # move back to original position
+                st.write( "moving back to original position")
+
+                for axis, pos in st.session_state.moveImPup["original_positions"].items():
+                    msg = f"moveabs {axis} {pos}"
+                    
+                    send_and_get_response(msg)
+                    st.write(f"Moving {axis} back to {pos}")
+                        
+
+                # save 
+                json_file_path=data_path + f'img_dict_beam{beam}-{move_what}.json'
+                with open(json_file_path, "w") as json_file:
+                    json.dump(util.convert_to_serializable(img_dict), json_file)
+
+                st.write(f'wrote {json_file_path}')
+
+                json_file_path = data_path + f'motorpos_dict_beam{beam}-{move_what}.json' 
+                with open(json_file_path, "w") as json_file:
+                    json.dump( util.convert_to_serializable(motor_pos_dict), json_file)
+
+                st.write(f'wrote {json_file_path}')
+
+            ### function for how to process it (outputs plots) 
+            if st.button("plot mean signal vs coord"):
+                st.write('run script to read in json, and output image. read and display image')
+
+                json_file_path=data_path + f'img_dict_beam{beam}-{move_what}.json'
+                with open( json_file_path, "r") as file:
+                    data_dict = json.load(file)  # Parses the JSON content into a Python dictionary
+
+
+                mean_sig = np.array( [ np.nanmean( i ) for i in data_dict.values()] )
+
+                # convert string keys to float tuple
+                data_dict_ed ={tuple(map(float, key.strip("()").split(", "))): value for key, value in data_dict.items()}
+
+                x_points = np.array( [ float(x) for x,_ in data_dict_ed.keys()] )
+                y_points = np.array( [ float(y) for _,y in data_dict_ed.keys()] )
+
+                fig, ax = plt.subplots(figsize=(6, 5))
+                scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
+                plt.colorbar(scatter, label="Mean Signal")
+
+            if st.button("plot median signal vs coord"):
+                st.write('running func')
+            if st.button("plot std signal vs coord"):
+                st.write('running func')
+            if st.button("plot cluster analysis"):
+                st.write('running func')
+            if st.button("find centroid"):
+                st.write('running func')
+            # mean signal 
+            # std signal 
+            # median signal 
+            # cluster analysis 
+
+
         if routine_options == "Load state":
             # text box and reading of the json
             text_col, button_col = st.columns(2)

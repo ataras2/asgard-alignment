@@ -331,6 +331,8 @@ parser.add_argument(
     help="file type to save pupil coordinates. Default: %(default)s. Options: json, toml"
 )
 
+parser.add_argument("--fig_path", type=str, default='', help="path/to/output/image/ for the saved figures")
+
 args = parser.parse_args()
 
 if not os.path.exists(args.data_path):
@@ -490,6 +492,6 @@ for lab in regiom_labels:
 plt.xlabel('Columns')
 plt.ylabel('Rows')
 plt.legend(loc='upper right')
-plt.savefig('delme.png')
+plt.savefig(f'{args.fig_path}' + 'detected_pupils.png')
 plt.show()
 #plt.close() 

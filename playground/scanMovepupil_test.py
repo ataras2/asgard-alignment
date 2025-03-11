@@ -201,9 +201,21 @@ if args.motor in ["HTXP", "HTXI", "BTX", "BOTX"]:
     target = f"{args.motor}{args.beam}"
     targets = [target.replace("X", "P"), target.replace("X", "T")]
     
+if args.motor in ["c_red_one_focus", "intermediate_focus", "baldr"]
+    config = args.motor
+    
+    # Update original_positions
+    if config == 'baldr':
+        axes = [f"BTP{args.beam}", f"BTT{args.beam}", f"BOTP{args.beam}", f"BOTT{args.beam}"]
+    else:
+        axes = [f"HTPP{beam}", f"HTTP{args.beam}", f"HTPI{args.beam}", f"HTTI{args.beam}"]
 
-if args.motor in ["c_red_one_focus", "intermediate_focus", "baldr"]:
 
+
+pos_dict = {}
+for axis in axes:
+    pos = send_and_get_response(f"read {axis}")
+    pos_dict[axis] = pos
 
 # try read the positions first as a check
 try:
@@ -218,7 +230,6 @@ try:
 
 except:
     raise UserWarning( "failed 'read {args.motor}X{args.beam}' or  'read {args.motor}Y{args.beam}'")
-
 
 
 
@@ -320,7 +331,7 @@ else:
     Ypos = float( tmp_pos[1] ) # st
     
     starting_point = [initial_Xpos, initial_Ypos]
-
+    
 # generate the scan points 
 spiral_pattern = pct.square_spiral_scan(starting_point, args.dx, args.search_radius)
 
@@ -329,7 +340,6 @@ x_points, y_points = zip(*spiral_pattern)
 img_dict = {}
 
 sleep_time = 1
-
 
 # we should have predifed json file for these..
 if args.motor == 'BTX':
@@ -357,32 +367,21 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
         print(f'y_pos > 10000. set y_pos = {safety_limits["ymax"]}')
         y_pos = safety_limits['ymax']
 
-    #if abs pos 
+
     #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-    message = f"moveabs {targets[0]} {x_pos}"
+    #message = f"moveabs {targets[0]} {x_pos}"
+    
+    #cmd = f"move_pupil {config} {beam} {delx} {dely}"
+
     response = send_and_get_response(message)
     print(response)
 
-    message = f"moveabs {targets[1]} {y_pos}"
+    #message = f"moveabs {targets[1]} {y_pos}"
+    #cmd = f"move_pupil {config} {beam} {delx} {dely}"
     response = send_and_get_response(message)
     print(response)
-
-    #elif rel pos 
-    #x_pos_rel = x_pos - prev_x_pos
-    #y_pos_rel = y_pos - prev_y_pos
-    # message = f"moverel {targets[0]} {x_pos}"
-    # response = send_and_get_response(message)
-    # print(response)
-
-    # message = f"moverel {targets[1]} {y_pos}"
-    # response = send_and_get_response(message)
-    # print(response)
-
-    #prev_x_pos = x_pos
-    #prev_y_pos = y_pos 
 
     time.sleep(sleep_time)  # wait for the phase mask to move and settle
-
 
     img_raw = np.mean(
         c.get_data(),
@@ -395,188 +394,3 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
     
     img_dict[(x_pos, y_pos)] = img
 
-
-mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
-
-# Labels and title
-# plt.xlabel("X Position")
-# plt.ylabel("Y Position")
-# plt.title("Scatter Plot of Positions with Mean Signal")
-# plt.savefig('delme.png')
-# plt.show() 
-
-
-# Define fine grid for interpolation
-
-grid_x, grid_y = np.meshgrid(np.linspace(min(x_points), max(x_points), 100),
-                             np.linspace(min(y_points), max(y_points), 100))
-
-
-# Fix input format: Make `points` a single (N, 2) array
-points = np.column_stack((x_points, y_points))  # Shape (N,2)
-xi = np.column_stack((grid_x.ravel(), grid_y.ravel()))  # Shape (M,2)
-
-pctile = 60 # 60th percentile boundary
-
-try:
-    # Perform interpolation
-    grid_z = griddata(points, mean_sig, xi, method='cubic')
-    grid_z = grid_z.reshape(grid_x.shape)
-    no_interp = False
-except:
-    print("issue with interpolation")
-    no_interp = True
-    print("continue to find offset on raw data")
-
-if no_interp:
-
-    threshold = np.percentile(mean_sig, pctile)  # Ignore NaNs
-
-    boundary = mean_sig < threshold
-
-    inside_mask = ~boundary  # Inverse of boundary (True inside)
-
-    # Get x, y coordinates where inside_mask is True
-    x_inside = x_points[inside_mask]
-    y_inside = y_points[inside_mask]
-    weights = mean_sig[inside_mask]  # Use mean signal values as weights
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    print(f"initial position {initial_Xpos},{initial_Ypos}")
-    print(f"Weighted Center: ({x_c}, {y_c})")
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    # Plot scatter plot with boundary
-    fig, ax = plt.subplots(figsize=(6, 5))
-    scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
-    plt.colorbar(scatter, label="Mean Signal")
-
-    # Overlay boundary
-    ax.scatter(x_points[boundary], y_points[boundary], color='red', label="Boundary Points")
-
-    # Mark calculated center
-    ax.scatter(x_c, y_c, color='blue', marker='x', s=100, label="Weighted Center")
-
-
-    # Labels and legend
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.set_title("Scatter Plot with Boundary and Weighted Center")
-    ax.legend()
-    ax.grid(True)
-
-    ax.legend()
-    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
-
-
-elif not no_interp:
-    # Define boundary where mean signal falls below 10th percentile
-    threshold = np.percentile(grid_z[~np.isnan(grid_z)], pctile)  # Ignore NaNs
-    boundary = grid_z < threshold
-
-    # Get the indices of non-boundary points (inside region)
-    inside_mask = ~boundary  # Inverse of boundary (True inside)
-
-    # Get x, y coordinates where inside_mask is True
-    x_inside = grid_x[inside_mask]
-    y_inside = grid_y[inside_mask]
-    weights = grid_z[inside_mask]  # Use mean signal values as weights
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    print(f"initial position {initial_Xpos},{initial_Ypos}")
-    print(f"Weighted Center: ({x_c}, {y_c})")
-
-
-    # Plot results
-    fig, ax = plt.subplots(figsize=(6, 5))
-    contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=50)
-    plt.colorbar(contour, label="Interpolated Mean Signal")
-
-    # Overlay boundary
-    ax.contour(grid_x, grid_y, boundary, levels=[0.5], colors='red', linewidths=2, label="50th Percentile Boundary")
-
-    # Scatter original data points
-    #ax.scatter(x_pos, y_pos, c='white', edgecolor='black', label="Original Data")
-
-    # Mark weighted center with an 'X'
-    ax.plot(x_c, y_c, 'rx', markersize=12, markeredgewidth=3, label="Weighted Center (where we offset to)")
-
-    # Mark initial position with an 'X' in blue
-    ax.plot(initial_Xpos, initial_Ypos, 'bx', markersize=12, markeredgewidth=3, label="Initial Position")
-
-    # Labels and legend
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.set_title(f"Interpolated Mean Signal with {pctile}th Percentile Boundary")
-    ax.legend()
-    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
-
-
-
-
-
-# move motor back to initial position 
-print(f"moving {args.motor} to new found center ")
-message = f"moveabs {targets[0]} {initial_Xpos}"
-response = send_and_get_response(message)
-print(response)
-
-message = f"moveabs {targets[1]} {initial_Ypos}"
-response = send_and_get_response(message)
-print(response)
-
-
-# move motor back to new center 
-# print(f"moving {args.motor} to new found center ")
-# message = f"moveabs {targets[0]} {x_c}"
-# response = send_and_get_response(message)
-# print(response)
-
-# message = f"moveabs {targets[1]} {x_c}"
-# response = send_and_get_response(message)
-# print(response)
-
-# except:
-#     print("issue with interpolation, cannot realiably find center. Moving back to original position")
-#     # move motor back to initial position 
-#     print(f"moving back to initial position of {args.motor}")
-#     message = f"moveabs {targets[0]} {initial_Xpos}"
-#     response = send_and_get_response(message)
-#     print(response)
-
-#     message = f"moveabs {targets[1]} {initial_Ypos}"
-#     response = send_and_get_response(message)
-#     print(response)
-
-# print(f"moving back to initial position of {args.motor}")
-# message = f"moveabs {targets[0]} {-0.36}"
-# response = send_and_get_response(message)
-# print(response)
-
-# message = f"moveabs {targets[1]} {-0.002}"
-# response = send_and_get_response(message)
-# print(response)
-
-
-## put beams back in
-for b in take_out_beams:
-    message = f"moveabs SSF{b} 1.0"
-    send_and_get_response(message)
-    print(f"moved in beam {b}")
-    time.sleep( 0.5 )
-
-
-plt.close('all')

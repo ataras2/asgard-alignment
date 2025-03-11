@@ -1024,6 +1024,62 @@ def create_bad_pixel_mask( search_dict, mean_thresh=6, std_thresh=20 ):
 
 
 
+def find_optimal_clusters(images, detect_circle_function, max_clusters=10, plot_elbow=False):
+    """
+    Determines the optimal number of clusters for pupil centers using the Elbow Method.
+
+    Parameters:
+        images (list of 2D arrays): List of cropped grayscale images containing single pupils.
+        detect_circle_function (function): Function to detect circular pupils (e.g., detect_circle).
+        max_clusters (int): Maximum number of clusters to evaluate.
+        plot_elbow (bool): If True, plots the Elbow Method graph.
+
+    Returns:
+        int: Optimal number of clusters.
+    """
+    # Detect pupils in all images
+    centers = []
+    for idx, image in enumerate(images):
+        try:
+            center_x, center_y, radius = detect_circle_function(image, plot=False)
+            centers.append((center_x, center_y, radius))
+        except Exception as e:
+            print(f"Warning: Failed to detect circle in image {idx}. Error: {e}")
+    
+    # Convert to NumPy array and filter NaN values
+    centers_array = np.array([c for c in centers if not np.isnan(c).any()])
+    
+    if len(centers_array) < 2:
+        raise ValueError("Not enough valid pupil centers detected for clustering.")
+
+    # Compute Within-Cluster Sum of Squares (WCSS) for different k values
+    wcss = []
+    cluster_range = range(1, min(max_clusters, len(centers_array)) + 1)
+    
+    for k in cluster_range:
+        centroids, _ = kmeans(centers_array, k)
+        labels, _ = vq(centers_array, centroids)
+        wcss.append(sum(np.linalg.norm(centers_array - centroids[labels], axis=1)**2))
+
+    # Find the "elbow" in WCSS curve
+    diffs = np.diff(wcss)  # First derivative
+    second_diffs = np.diff(diffs)  # Second derivative
+    optimal_k = np.argmax(second_diffs) + 2  # Elbow is at max second derivative (+2 because of diff index shift)
+
+    # Plot elbow curve
+    if plot_elbow:
+        plt.figure(figsize=(6, 4))
+        plt.plot(cluster_range, wcss, marker='o', linestyle='-')
+        plt.xlabel("Number of Clusters")
+        plt.ylabel("WCSS (Within-Cluster Sum of Squares)")
+        plt.title("Elbow Method for Optimal Clusters")
+        plt.axvline(optimal_k, color='red', linestyle="--", label=f"Optimal k={optimal_k}")
+        plt.legend()
+        plt.show()
+
+    return optimal_k
+
+
 def cluster_analysis_on_searched_images(images, detect_circle_function, n_clusters=3, plot_clusters=False):
     """
     Detects circular pupils in a list of images, performs clustering on their positions and radii

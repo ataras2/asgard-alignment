@@ -744,9 +744,9 @@ def calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debu
         tmp =np.zeros(140)
         tmp[np.array(dm_4_corners)] = 1
         plt.imshow( get_DM_command_in_2D( tmp ) )
-        if fig_path is not None:
-            savefig = fig_path + 'DM_corner_poke_in_DM_space.png'
-            fig.savefig(savefig, dpi=300, bbox_inches = 'tight' )
+        #if fig_path is not None:
+        #    savefig = fig_path + 'DM_corner_poke_in_DM_space.png'
+        #    fig.savefig(savefig, dpi=300, bbox_inches = 'tight' )
 
 
         # Show the actuator registration in Pixel space 

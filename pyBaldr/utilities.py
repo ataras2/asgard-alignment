@@ -712,6 +712,31 @@ def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n,
 
 
 
+def filter_exterior_annulus(pupil_mask, inner_radius, outer_radius):
+    """
+    Generate a boolean mask that filters pixels exterior to the circular pupil
+    but within the specified inner and outer radii.
+    """
+    # Get the image shape
+    ny, nx = pupil_mask.shape
+
+    # Compute the pupil center (mean of True pixels)
+    y_indices, x_indices = np.where(pupil_mask)
+    center_x = np.mean(x_indices)
+    center_y = np.mean(y_indices)
+
+    # Generate a coordinate grid
+    X, Y = np.meshgrid(np.arange(nx), np.arange(ny))
+
+    # Compute the Euclidean distance of each pixel from the pupil center
+    distance_from_center = np.sqrt((X - center_x) ** 2 + (Y - center_y) ** 2)
+
+    # Create an annular mask where pixels are within the given inner and outer radius
+    annular_mask = (distance_from_center >= inner_radius) & (distance_from_center <= outer_radius)
+
+    return annular_mask
+
+
 def get_mask_center(mask,  method='2'):
     """
     for a 2D boolean mask we 

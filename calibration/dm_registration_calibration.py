@@ -119,6 +119,12 @@ parser.add_argument(
 )
 
 
+parser.add_argument("--fig_path", 
+                    type=str, 
+                    default=None, 
+                    help="path/to/output/image/filename.png for the saved figures")
+
+
 args=parser.parse_args()
 
 
@@ -298,7 +304,12 @@ dict2write={}
 for ii, beam_id in enumerate( args.beam_id ):
 
     #calibraate the affine transform between DM and camera pixel coordinate systems
-    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = 'delme.png'  ) )
+    if args.fig_path is not None:
+        savefig = args.fig_path #+ 'DM_registration_in_pixel_space.png'
+    else:
+        savefig = 'delme.png'
+
+    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = fig_path  ) )
 
     # From affine transform construct bilinear interpolation matrix on registered DM actuator positions
     #(image -> actuator transform)

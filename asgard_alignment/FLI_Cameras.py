@@ -450,14 +450,6 @@ class fli( ):
         return "to do"
         #FliSdk_V2.Exit(self.camera)
 
-    def get_last_raw_image_in_buffer(self):
-        
-        img = self.mySHM.get_data()[-1] # typically its a buchch of 100 frames so get last one 
-
-        #img = FliSdk_V2.GetRawImageAsNumpyArray(self.camera, -1)
-        return img 
-    
-
     def get_camera_config(self):
 
         config_dict = {} 
@@ -471,8 +463,20 @@ class fli( ):
 
     # some custom functions
 
-    def build_manual_dark( self , no_frames = 100 ):
-        
+    def build_manual_dark( self , my_controllino, no_frames = 100 ):
+        """
+        my_controllino is object to turn on/off sources from the controllio
+        example to open / init this object is :
+        from asgard_alignment import controllino as co
+        my_controllino = co.Controllino('172.16.8.200')
+        """
+        # try turn off source 
+        my_controllino.turn_off("SBB")
+
+        time.sleep(5)
+       
+
+
         # full frame variables here were used in previous rtc. 
         # maybe redundant now. 
         #fps = float( self.send_fli_cmd( "fps")[1] )
@@ -486,7 +490,7 @@ class fli( ):
         print('...getting frames')
         dark_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
         print('...aggregating frames')
-        dark = np.median(dark_list ,axis = 0).astype(int)
+        dark = np.mean(dark_list ,axis = 0).astype(int)
         # dark_fullframe = np.median( dark_fullframe_list , axis=0).astype(int)
 
         if len( self.reduction_dict['bias'] ) > 0:
@@ -498,8 +502,10 @@ class fli( ):
         print('...appending dark')
         self.reduction_dict['dark'].append( dark )
         #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
-
-
+        time.sleep(2)
+        # try turn source back on 
+        my_controllino.turn_on("SBB")
+        time.sleep(2)
 
     def get_bad_pixel_indicies( self, no_frames = 100, std_threshold = 20, mean_threshold=6, flatten=False):
         # To get bad pixels we just take a bunch of images and look at pixel variance 
@@ -573,6 +579,49 @@ class fli( ):
         self.bad_pixel_filter = badpixel_bool_array.reshape(-1)
         self.bad_pixels = np.where( self.bad_pixel_filter )[0]
 
+
+    def get_data(self, apply_manual_reduction=False, which_index=-1):
+        """ this is to be compatiple with origin SHM raw code
+        other methods below are legacy and allow compatibility with previously implemented
+        (SDK) camera instances of this class. updated to work with SHM
+        
+        apply_manual_reduction=True reduces image using self.reduction_dict
+        which_index indicates which index in reduction_dict lists to use. Default (-1) is the most recent
+        """
+        img = self.mySHM.get_data()
+
+        if not apply_manual_reduction:
+            #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            cropped_img = img[:,self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
+        else :
+            #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
+            img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            cropped_img = img[:, self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
+
+            if len( self.reduction_dict['bias'] ) > 0:
+                cropped_img -= self.reduction_dict['bias'][which_index] # take the most recent bias. bias must be set in same cropping state 
+
+            if len( self.reduction_dict['dark'] ) > 0:
+                cropped_img -= self.reduction_dict['dark'][which_index] # take the most recent dark. Dark must be set in same cropping state 
+
+            if len( self.reduction_dict['flat'] ) > 0:
+                cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+
+            if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
+                # enforce the same type for mask
+                cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+
+        return(cropped_img)    
+
+
+    def get_last_raw_image_in_buffer(self):
+        
+        img = self.mySHM.get_data()[-1] # typically its a buchch of 100 frames so get last one 
+
+        #img = FliSdk_V2.GetRawImageAsNumpyArray(self.camera, -1)
+        return img 
+    
 
     def get_image(self, apply_manual_reduction  = True, which_index = -1 ):
 

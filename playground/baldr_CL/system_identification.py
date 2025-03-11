@@ -457,10 +457,30 @@ c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
 beam_id = args.beam_id[0]
 ############
 
+
+original_flat = dms[beam_id].shms[0].get_data()
+dmflatoffset_fits = fits.open( "/home/asg/Progs/repos/asgard-alignment/calibration/reports/flat_dm_beam1_maskH3.fits")
+
+dmflatoffset = dmflatoffset_fits["best_DM_flat"].data
+
+#util.nice_heatmap_subplots( im_list = [original_flat, original_flat+dmflatoffset, dmflatoffset] )
+#plt.savefig('delme.png')
+#plt.figure();plt.imshow( dmflatoffset );plt.savefig('delme.png')
+#plt.figure();plt.imshow( dmflatoffset );plt.savefig('delme.png')
+
+dms[beam_id].shms[0].set_data( current_flat + dmflatoffset )
+
+time.sleep(2)
+
+###!!!!!!!!!!!!!
+## Have to retake reference intensity with new flat! 
+I0 = np.mean( c.get_data(),axis=0)[r1:r2, c1:c2] #np.mean(I0_dict[beam_id],axis=0)
+
+
 r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
 
 dark = np.mean( darks_dict[beam_id],axis=0)
-I0 = np.mean(I0_dict[beam_id],axis=0)
+
 N0 = np.mean(N0_dict[beam_id],axis=0)
 interpMatrix = I2A[beam_id]
 # checks 
@@ -476,7 +496,7 @@ util.nice_heatmap_subplots( im_list = [ dark, I0 - dark, N0 - dark ],
                             ylabel_list=ylabel_list,
                             savefig='delme.png' )
 
-Nmodes = 4
+Nmodes = 20
 modal_basis = dmbases.zer_bank(2, Nmodes+2 )
 M2C = modal_basis.copy() # mode 2 command matrix 
 poke_amp = 0.02
@@ -504,9 +524,9 @@ util.nice_heatmap_subplots( im_list = im_list,
                             ylabel_list=ylabel_list,
                             savefig='delme1.png' )
 
-dms[beam_id].zero_all()
+#dms[beam_id].zero_all()
 time.sleep(1)
-dms[beam_id].activate_flat()
+#dms[beam_id].activate_flat()
 
 
 IM = []
@@ -547,9 +567,9 @@ else:
     raise UserWarning('no inverse method provided')
 
 
-dms[beam_id].zero_all()
-time.sleep(1)
-dms[beam_id].activate_flat()
+# dms[beam_id].zero_all()
+# time.sleep(1)
+# dms[beam_id].activate_flat()
 
 
 # save the IM to fits for later analysis 
@@ -649,7 +669,7 @@ reco = I2M.T @ sig
 
 Nplots = 5
 fig,ax = plt.subplots(Nplots,1,figsize=(5,10),sharex=True)
-for m,axx in zip( reco[:Nplots], ax.reshape(-1)):
+for m,axx in zip( poke_amp * reco[:Nplots], ax.reshape(-1)):
     axx.hist( m , label=f'mode {m}')
     axx.set_ylabel('frequency')
     axx.axvline(0, color='k',ls=':')
@@ -681,7 +701,7 @@ dms[beam_id].activate_flat()
 errs = []
 pokegrid = np.linspace( -2*poke_amp , 2*poke_amp, 8) 
 m = 1 
-for pp in pokegrid:
+for pp in [poke_amp]: #pokegrid:
     print(f'poke mode {m} with {pp}amp')
     abb =  pp * modal_basis[m] 
     time.sleep(2)
@@ -705,7 +725,7 @@ for pp in pokegrid:
 
     #plt.imshow( util.get_DM_command_in_2D(sig) ); plt.savefig('delme.png')
     # (4) apply linear model to get reconstructor 
-    e_HO = pp * I2M.T @ sig #slopes * sig + intercepts
+    e_HO = poke_amp * I2M.T @ sig #slopes * sig + intercepts
     errs.append( e_HO )
 
 
@@ -796,16 +816,16 @@ I0_dm = interpMatrix @ I0.reshape(-1)
 N0_dm = interpMatrix @ N0.reshape(-1)
 
 # Flat DM
-dms[beam_id].zero_all()
+#dms[beam_id].zero_all()
 time.sleep(1)
-dms[beam_id].activate_flat()
+#dms[beam_id].activate_flat()
 
 # basic setup 
-no_its = 1000
+no_its = 200
 record_telemetry = True
 Nmodes_removed = 14
 cnt = 0
-close_after = 50
+close_after = 20
 disturbances_on = False 
 closed = True
 
@@ -826,9 +846,9 @@ ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
 # gain to apply after "close_after" iterations
 
-ki_array =  np.linspace(1e-4, 0.5, N)[::-1]
-ki_array[0] = 0.5
-ki_array[1] = 0.5
+ki_array =  0 * np.linspace(1e-4, 0.5, N)[::-1]
+ki_array[0] = 0.1
+ki_array[1] = 0.1
 
 # Kolmogorov Phasescreen 
 D = 1.8
@@ -882,13 +902,14 @@ if disturbances_on:
 
 while closed and (cnt < no_its):
     
-    disturbance = M2C.T @ modal_disturbances[cnt]
+    if disturbances_on:
+        disturbance = M2C.T @ modal_disturbances[cnt]
 
-    # ensure correct format for SHM 
-    disturbance2D = disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
-    
-    # apply atm disturbance on channel 2 
-    dms[beam_id].shms[2].set_data( disturbance2D  ) 
+        #ensure correct format for SHM 
+        disturbance2D = disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
+        
+        #apply atm disturbance on channel 2 
+        dms[beam_id].shms[2].set_data( disturbance2D  ) 
 
     print(cnt)
     time.sleep(3) 
@@ -903,7 +924,7 @@ while closed and (cnt < no_its):
     sig = process_signal( i_dm, I0_dm, N0_dm)
     
     # apply linear reconstructor to signal to get modal errors
-    e_HO = I2M.T @ sig 
+    e_HO = poke_amp * I2M.T @ sig 
 
     print( f'e_HO(first ten) = {e_HO[:10]}' )
 
@@ -981,7 +1002,7 @@ dms[beam_id].activate_flat()
 
 
 # save telemetry
-runn=f'30modes_disturbs-{disturbances_on}_CL_sysID_v1'
+runn=f'TT_withOUT_FlatDMoffset_disturbs-{disturbances_on}_CL_sysID_v1'
 # Create a list of HDUs (Header Data Units)
 hdul = fits.HDUList()
 
@@ -1003,6 +1024,10 @@ hdu = fits.ImageHDU(interpMatrix)
 hdu.header['EXTNAME'] = 'interpMatrix'
 hdul.append(hdu)
 
+
+hdu = fits.ImageHDU(dmflatoffset)
+hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
+hdul.append(hdu)
 
 hdu = fits.ImageHDU(ctrl_HO.ki)
 hdu.header['EXTNAME'] = 'Kp'

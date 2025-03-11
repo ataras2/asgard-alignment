@@ -13,6 +13,7 @@ import argparse
 import zmq
 import atexit
 import toml
+import subprocess
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
 import matplotlib 
 #matplotlib.use('Agg')
@@ -582,9 +583,15 @@ bad_pixel_map = pct.create_bad_pixel_mask( img_dict, mean_thresh=6, std_thresh=2
 masked_search_dict = pct.pixelmask_image_dict(img_dict, bad_pixel_map)
 # cluster analysis on the fitted pupil center and radius 
 image_list = np.array( list( masked_search_dict.values() ) ) 
+
+
+optimal_k = pct.find_optimal_clusters(images=image_list, detect_circle_function=pct.detect_circle, max_clusters=10, plot_elbow=False)
+
+print(f"optimal number of clusters found to be : {optimal_k}. Using this for cluster analysis")
+
 res = pct.cluster_analysis_on_searched_images(images= image_list,
                                           detect_circle_function=pct.detect_circle, 
-                                          n_clusters=6, 
+                                          n_clusters=optimal_k, 
                                           plot_clusters=False)
 
 
@@ -609,3 +616,29 @@ plt.savefig(args.data_path + f'clusters_heatmap_beam{args.beam}.png')
 plt.close('all')
 
 print('Finished')
+
+
+
+# print('Try to send to bens computer')
+
+# #SCP AUTOMATICALLY TO MY MACHINE 
+# remote_file = args.data_path+f'raster_search_dictionary_beam{args.beam}.json'   # The file to to transfer
+# remote_user = "bencb"  # Your username on the target machine
+# remote_host = "10.106.106.34"  
+# # (base) bencb@cos-076835 Downloads % ifconfig | grep "inet " | grep -v 127.0.0.1
+# # 	inet 192.168.20.5 netmask 0xffffff00 broadcast 192.168.20.255
+# # 	inet 10.200.32.250 --> 10.200.32.250 netmask 0xffffffff
+# # 	inet 10.106.106.34 --> 10.106.106.33 netmask 0xfffffffc
+
+# remote_path = "/Users/bencb/Downloads"  # Destination path on your computer
+
+# # Construct the SCP command
+# scp_command = f"scp {remote_file} {remote_user}@{remote_host}:{remote_path}"
+
+
+# try:
+#     subprocess.run(scp_command, shell=True, check=True)
+#     print(f"File {remote_file} successfully transferred to {remote_user}@{remote_host}:{remote_path}")
+# except subprocess.CalledProcessError as e:
+#     print(f"Error transferring file: {e}")
+

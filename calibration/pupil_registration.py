@@ -334,6 +334,11 @@ parser.add_argument(
 )
 
 
+parser.add_argument("--fig_path", 
+                    type=str, 
+                    default=None, 
+                    help="path/to/output/image/ for the saved figures")
+
 args=parser.parse_args()
 
 
@@ -393,8 +398,14 @@ for beam_id in args.beam_ids:
     cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
 
     # mask 
-    ell1 = detect_pupil(cropped_img, sigma=2, threshold=0.5, plot=args.plot,savepath=f"delme{beam_id}.png")
+    if args.fig_path is None:
+        savepath="delme{beam_id}.png"
+    else: # we save with default name at fig path 
+        savepath=args.fig_path + f'pupil_reg_{beam_id}'
+    
+    ell1 = detect_pupil(cropped_img, sigma=2, threshold=0.5, plot=args.plot,savepath=savepath)
 
+    
     save_pupil_data_toml(beam_id=beam_id, ellipse_params=ell1, toml_path=args.toml_file.replace('#',f'{beam_id}'))
 
 
