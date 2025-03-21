@@ -152,6 +152,8 @@ def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, gri
 
     plt.tight_layout()
     #plt.show()
+    return fig, ax 
+    
 
 
 
@@ -417,7 +419,7 @@ def raster_square_search_and_save_images(
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
         img = np.mean(
-            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            cam.get_data(), #get_some_frames( number_of_frames=10, apply_manual_reduction=True),
             axis=0,
         )
 
@@ -433,7 +435,7 @@ def spiral_square_search_and_save_images(
     starting_point,
     step_size,
     search_radius,
-    sleep_time=1,
+    sleep_time=2,
     use_multideviceserver=True,
 ):
     """
@@ -481,8 +483,10 @@ def spiral_square_search_and_save_images(
             phasemask.move_absolute([x_pos, y_pos])
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
+        
+        #number_of_frames=10, apply_manual_reduction=True),
         img = np.mean(
-            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            cam.get_data()[-10:], 
             axis=0,
         )
 
@@ -1201,7 +1205,7 @@ def plot_aggregate_cluster_images(images, clusters, operation="median"):
 
     #plt.tight_layout()
     #plt.show()
-
+    return fig, ax 
 
 
 

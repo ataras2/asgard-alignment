@@ -55,6 +55,30 @@ camera.save_fits("output.fits", number_of_frames=10)
 """
 
 
+### MDS
+mds_host = "localhost"
+mds_port = 5555 
+timeout = 5000
+context = zmq.Context()
+
+context.socket(zmq.REQ)
+mds_socket = context.socket(zmq.REQ)
+mds_socket.setsockopt(zmq.RCVTIMEO, timeout)
+mds_socket.connect( f"tcp://{mds_host}:{mds_port}")
+
+#mds_state_dict = {"message_history": [], "socket": socket}
+
+
+
+### CAMERA PORT 
+cam_port = 6667
+context = zmq.Context()
+cam_socket = context.socket(zmq.REQ)
+cam_socket.connect(f"tcp://localhost:{cam_port}")
+
+cmd_sz = 10 # finite size command with blanks filled
+
+
 #list of vailable commands for the 
 #send_fli_cmd() method based on C-RED One User Manual_20170116v0.2
 cred1_command_dict = {
@@ -250,13 +274,6 @@ cred2_command_dict = {}
 cred3_command_dict = {}
 
 
-server_port = 6667
-context = zmq.Context()
-socket = context.socket(zmq.REQ)
-socket.connect(f"tcp://localhost:{server_port}")
-
-cmd_sz = 10 # finite size command with blanks filled
-
 def extract_value(s):
     """
     when returning msgs from C-red 1 server they follow a certain format. 
@@ -280,13 +297,37 @@ def extract_value(s):
     
     return None
 
+
+
+def get_bad_pixels( dark_frames, std_threshold = 20, mean_threshold=6):
+    
+    mean_frame = np.mean(dark_frames, axis=0)
+    std_frame = np.std(dark_frames, axis=0)
+
+    global_mean = np.mean(mean_frame)
+    global_std = np.std(mean_frame)
+    bad_pixel_map = (np.abs(mean_frame - global_mean) > mean_threshold * global_std) | (std_frame > std_threshold * np.median(std_frame))
+
+    bad_pixels = np.where( bad_pixel_map )
+
+    
+    bad_pixel_mask = np.zeros( np.array(dark_frames[-1]).shape ).astype(bool)
+    for ibad,jbad in list(zip(bad_pixels[0], bad_pixels[1])):
+        bad_pixel_mask[ibad,jbad] = True
+
+    return bad_pixels, bad_pixel_mask 
+
+
 class fli( ):
 
     def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None):
         #self.camera = FliSdk_V2.Init() # init camera object
         self.shm_loc = shm_target
-        self.mySHM = shm(self.shm_loc)
-
+        self.mySHM = shm(self.shm_loc, nosem=False)
+        self.semid = 3
+        self.mds_port = mds_port
+        self.cam_port = cam_port
+        
         if config_file_path is None:
             # default
             config_file_path = "config_files"
@@ -362,10 +403,10 @@ class fli( ):
         cmd = f'cli "{cmd_raw}"'
         #cmd_sz = 10  # finite size command with blanks filled
         out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
-        socket.send_string(out_cmd)
+        cam_socket.send_string(out_cmd)
         
         #  Get the reply.
-        resp = socket.recv().decode("ascii")
+        resp = cam_socket.recv().decode("ascii")
         print(f"== Reply: [{resp}]")
         #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
         #if not val:
@@ -421,37 +462,34 @@ class fli( ):
             #     print( f"FAILED FOR set {k} {v}")
 
         
-    # basic wrapper functions
-    def start_camera(self):
-        # not really startig camera , but just the thread to pwrite to shm
-        #fetch []
-        #ok = FliSdk_V2.Start(self.camera)
-        #return ok 
+    # # basic wrapper functions
+    # def start_camera(self):
+    #     # not really startig camera , but just the thread to pwrite to shm
+    #     #fetch []
+    #     #ok = FliSdk_V2.Start(self.camera)
+    #     #return ok 
 
-        cmd = "fetch []"
-        #cmd_sz = 10  # finite size command with blanks filled
-        out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
-        socket.send_string(out_cmd)
+    #     cmd = "fetch []"
+    #     #cmd_sz = 10  # finite size command with blanks filled
+    #     out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
+    #     cam_socket.send_string(out_cmd)
         
-        #  Get the reply.
-        resp = socket.recv().decode("ascii")
-        print(f"== Reply: [{resp}]")
-        #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
-        #if not val:
-        #    print(f"Error with command {cmd}")
-        return resp 
+    #     #  Get the reply.
+    #     resp = cam_socket.recv()#.decode("ascii")
+    #     print(f"== Reply: [{resp}]")
+    #     #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
+    #     #if not val:
+    #     #    print(f"Error with command {cmd}")
+    #     return resp 
 
-    def stop_camera(self):
-        return "to do"
-        #ok = FliSdk_V2.Stop(self.camera)
-        #return ok
+    # def stop_camera(self):
+    #     #ok = FliSdk_V2.Stop(self.camera)
+    #     #return ok
     
-    def exit_camera(self):
-        return "to do"
-        #FliSdk_V2.Exit(self.camera)
+    # def exit_camera(self):
+    #     #FliSdk_V2.Exit(self.camera)
 
     def get_camera_config(self):
-
         config_dict = {} 
         # open the default config file to get the keys 
         with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
@@ -463,7 +501,7 @@ class fli( ):
 
     # some custom functions
 
-    def build_manual_dark( self , my_controllino, no_frames = 100 ):
+    def build_manual_dark( self , no_frames = 100 , sleeptime = 3, save_file_name = None):
         """
         my_controllino is object to turn on/off sources from the controllio
         example to open / init this object is :
@@ -471,9 +509,14 @@ class fli( ):
         my_controllino = co.Controllino('172.16.8.200')
         """
         # try turn off source 
-        my_controllino.turn_off("SBB")
-
-        time.sleep(5)
+        #my_controllino.turn_off("SBB")
+        message = "off SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
+        
+        print(f'turning off source and waiting {sleeptime}s')
+        time.sleep(sleeptime) # wait a bit to settle
        
 
 
@@ -492,7 +535,11 @@ class fli( ):
         print('...aggregating frames')
         dark = np.mean(dark_list ,axis = 0).astype(int)
         # dark_fullframe = np.median( dark_fullframe_list , axis=0).astype(int)
-
+        if self.pupil_crop_region == [None, None, None, None]:
+            # then we ignore frame tags! 
+            print('removing frame tags from dark')
+            dark[0, 0:5] = np.mean(  np.array(dark)[1:,1:] )
+            print(dark[0, 0:5])
         if len( self.reduction_dict['bias'] ) > 0:
             print('...applying bias')
             dark -= self.reduction_dict['bias'][0]
@@ -504,15 +551,45 @@ class fli( ):
         #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
         time.sleep(2)
         # try turn source back on 
-        my_controllino.turn_on("SBB")
+        #my_controllino.turn_on("SBB")
+        message = "on SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
         time.sleep(2)
 
-    def get_bad_pixel_indicies( self, no_frames = 100, std_threshold = 20, mean_threshold=6, flatten=False):
+        if save_file_name is not None:
+            
+            #f"/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/dark_{}.fits"
+            
+            # Create PrimaryHDU using FRAMES
+            primary_hdu = fits.PrimaryHDU(dark_list)
+            primary_hdu.header['EXTNAME'] = 'DARK_FRAMES'  # This is not strictly necessary for PrimaryHDU
+
+            # Append camera configuration to the primary header
+            config_tmp = self.get_camera_config()
+            for k, v in config_tmp.items():
+                primary_hdu.header[k] = v
+
+            # Create HDUList and add the primary HDU
+            hdulist = fits.HDUList([primary_hdu])
+
+            hdulist.writeto(save_file_name, overwrite=True)
+
+
+
+    def get_bad_pixels( self, no_frames = 1000, std_threshold = 20, mean_threshold=6): #, flatten=False):
         # To get bad pixels we just take a bunch of images and look at pixel variance 
         #self.enable_frame_tag( True )
         time.sleep(0.5)
         #zwfs.get_image_in_another_region([0,1,0,4])
         
+        message = "off SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
+        time.sleep(5)
+       
         dark_list = self.get_some_frames( number_of_frames = no_frames , apply_manual_reduction  = False  ) #[]
         #i=0
         # while len( dark_list ) < no_frames: # poll 1000 individual images
@@ -536,25 +613,38 @@ class fli( ):
         global_std = np.std(mean_frame)
         bad_pixel_map = (np.abs(mean_frame - global_mean) > mean_threshold * global_std) | (std_frame > std_threshold * np.median(std_frame))
 
-        if not flatten:
-            bad_pixels = np.where( bad_pixel_map )
-        else: 
-            bad_pixels_flat = np.where( bad_pixel_map.reshape(-1) ) 
+        message = "on SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
+        time.sleep(2)
 
-        ## OlD WAY 
-        # dark_std = np.std( dark_list ,axis=0)
-        # # define our bad pixels where std > 100 or zero variance
-        # #if not flatten:
-        # bad_pixels = np.where( (dark_std > std_threshold) + (dark_std == 0 ))
-        # #else:  # flatten is useful for when we filter regions by flattened pixel indicies
-        # bad_pixels_flat = np.where( (dark_std.reshape(-1) > std_threshold) + (dark_std.reshape(-1) == 0 ))
+        #bad_pixels = np.where( bad_pixel_map )
 
-        #self.bad_pixels = bad_pixels_flat
+        self.reduction_dict["bad_pixel_mask"].append( bad_pixel_map.astype(int) ) # save as int so can write to FITS files! 
+        
+        return bad_pixel_map 
 
-        if not flatten:
-            return( bad_pixels )
-        else:
-            return( bad_pixels_flat )
+    #self.bad_pixel_filter = badpixel_bool_array.reshape(-1)
+    #self.bad_pixels = np.where( self.bad_pixel_filter )[0]
+
+    #if not flatten:
+    #    bad_pixels = np.where( bad_pixel_map )
+    #else: 
+    #    bad_pixels_flat = np.where( bad_pixel_map.reshape(-1) ) 
+
+    ## OlD WAY 
+    # dark_std = np.std( dark_list ,axis=0)
+    # # define our bad pixels where std > 100 or zero variance
+    # #if not flatten:
+    # bad_pixels = np.where( (dark_std > std_threshold) + (dark_std == 0 ))
+    # #else:  # flatten is useful for when we filter regions by flattened pixel indicies
+    # bad_pixels_flat = np.where( (dark_std.reshape(-1) > std_threshold) + (dark_std.reshape(-1) == 0 ))
+
+    # if not flatten:
+    #     return bad_pixels 
+    # else:
+    #     return bad_pixels_flat 
 
 
     def build_bad_pixel_mask( self, bad_pixels , set_bad_pixels_to = 0):
@@ -581,22 +671,24 @@ class fli( ):
 
 
     def get_data(self, apply_manual_reduction=False, which_index=-1):
-        """ this is to be compatiple with origin SHM raw code
+        """ 
+        gets most recent 100 frames in buffer. 
+        this is to be compatiple with origin SHM raw code
         other methods below are legacy and allow compatibility with previously implemented
         (SDK) camera instances of this class. updated to work with SHM
         
         apply_manual_reduction=True reduces image using self.reduction_dict
         which_index indicates which index in reduction_dict lists to use. Default (-1) is the most recent
         """
-        img = self.mySHM.get_data()
+        img = self.mySHM.get_latest_data(self.semid)
 
         if not apply_manual_reduction:
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            #img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[:,self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         else :
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            #img = self.mySHM.get_data() #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[:, self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
 
             if len( self.reduction_dict['bias'] ) > 0:
@@ -610,14 +702,16 @@ class fli( ):
 
             if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                 # enforce the same type for mask
-                cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+                #cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+                # Just set to zero for now!
+                cropped_img[~self.reduction_dict['bad_pixel_mask'][which_index]] = 0
 
         return(cropped_img)    
 
 
     def get_last_raw_image_in_buffer(self):
         
-        img = self.mySHM.get_data()[-1] # typically its a buchch of 100 frames so get last one 
+        img = self.mySHM.get_latest_data_slice(self.semid) # typically its a buchch of 100 frames so get last one 
 
         #img = FliSdk_V2.GetRawImageAsNumpyArray(self.camera, -1)
         return img 
@@ -629,18 +723,18 @@ class fli( ):
         # gets the last image in the buffer
         if not apply_manual_reduction:
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            img = self.mySHM.get_latest_data_slice(self.semid)  #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         else :
             #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-            img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+            img = self.mySHM.get_latest_data_slice(self.semid) #self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
             cropped_img = img[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]].astype(int)  # make sure 
 
             if len( self.reduction_dict['bias'] ) > 0:
-                cropped_img -= self.reduction_dict['bias'][which_index] # take the most recent bias. bias must be set in same cropping state 
+                cropped_img -= np.array(self.reduction_dict['bias'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent bias. bias must be set in same cropping state 
 
             if len( self.reduction_dict['dark'] ) > 0:
-                cropped_img -= self.reduction_dict['dark'][which_index] # take the most recent dark. Dark must be set in same cropping state 
+                cropped_img -= np.array(self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
             if len( self.reduction_dict['flat'] ) > 0:
                 cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
@@ -656,7 +750,8 @@ class fli( ):
         # defined by self.pupil_crop_region
 
         #img = FliSdk_V2.GetRawImageAsNumpyArray( self.camera , -1)
-        img = self.mySHM.get_data()[-1] #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
+        self.mySHM.catch_up_with_sem(self.semid)
+        img = self.mySHM.get_latest_data_slice(self.semid) #FliSdk_V2.GetProcessedImageGrayscale16bNumpyArray(self.camera, -1)
         cropped_img = img[crop_region[0]:crop_region[1],crop_region[2]: crop_region[3]].astype(int)  # make sure int and not uint16 which overflows easily     
         
         #if type( self.pixelation_factor ) == int : 
@@ -668,69 +763,85 @@ class fli( ):
 
     def get_some_frames(self, number_of_frames = 10, apply_manual_reduction=True, timeout_limit = 20000 ):
         """
-        poll sequential frames (no repeats) and store in list  
+        poll sequential frames and store in list  
+        used for calibration and not real-time applications 
         """
-        if len(self.shm_shape) == 3:
+        frames = []
+        cnt = [] # secondary check that we dont skip frames 
+        self.mySHM.catch_up_with_sem(self.semid)
+        # do this as fast as possible (manual reduction is done after)
+        while len(frames) < number_of_frames:
+            fullframe = self.mySHM.get_latest_data_slice( self.semid )
+            frames.append( fullframe[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]] )
+            cnt.append( fullframe[0][0])
 
-            if self.shm_shape[0] >= number_of_frames :
-                ref_img_list = list(self.mySHM.get_data())
+        # delete this later but keep for now to test behaviour!         
+        
+        if np.max(np.diff(cnt)) == 1 :
+            None
+        elif np.max(np.diff(cnt)) > 1 :
+            print(f"some skipped frames. Max frames skipped = {np.max(np.diff(cnt))}")
+        
+        else:
+            print("something strange is happending ")
 
-            elif self.shm_shape[0] < number_of_frames :
-                ref_img_list = list(self.mySHM.get_data())
-                while (len( ref_img_list  ) < number_of_frames) : #and (not timeout_flag):
-                    ref_img_list = ref_img_list + list(self.mySHM.get_data())
+        if apply_manual_reduction:
+            which_index = -1 # use most recent reduction frames in self.reduction_dict
+            frames = np.array( frames).astype(int)
+            red_frames = []
+            for cropped_img in frames:
+                if len( self.reduction_dict['bias'] ) > 0:
+                    cropped_img -= np.array(self.reduction_dict['bias'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent bias. bias must be set in same cropping state 
 
-            ref_img_list = list(np.array( ref_img_list)[ : number_of_frames, self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]] )
+                if len( self.reduction_dict['dark'] ) > 0:
+                    cropped_img -= np.array(self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
-        if len(self.shm_shape) == 2: # then probably just the most recent (polling last)
-            ref_img_list = []
-            i=0
-            timeout_counter = 0 
-            timeout_flag = 0
-            while (len( ref_img_list  ) < number_of_frames) and not timeout_flag: # poll  individual images
-                if timeout_counter > timeout_limit: # we have done timeout_limit iterations without a frame update
-                    timeout_flag = 1 
-                    raise TypeError('timeout! timeout_counter > 10000')
+                if len( self.reduction_dict['flat'] ) > 0:
+                    cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
-                full_img = self.get_image_in_another_region() # empty argunment for full frame
-                current_frame_number = full_img[0][0] #previous_frame_number
-                if i==0:
-                    previous_frame_number = current_frame_number
-                if current_frame_number > previous_frame_number:
-                    timeout_counter = 0 # reset timeout counter
-                    if current_frame_number == 65535:
-                        previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
-                    else:
-                        previous_frame_number = current_frame_number 
-                        ref_img_list.append( self.get_image( apply_manual_reduction  = apply_manual_reduction) )
-                i+=1
-                timeout_counter += 1
-            else:
-                raise UserWarning('nothing mettt here')
-        return( ref_img_list )  
+                if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
+                    # enforce the same type for mask
+                    cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+                red_frames.append( cropped_img )
+        
+            return np.array( red_frames ) 
+        
+        else:
+            return np.array( frames ).astype(int)
+        
 
 
-    def save_fits( self , fname ,  number_of_frames=10, apply_manual_reduction=True ):
+    def save_fits( self , fname ,  number_of_frames=100, apply_manual_reduction=True ):
 
-        hdulist = fits.HDUList([])
+        #hdulist = fits.HDUList([])
 
         frames = self.get_some_frames( number_of_frames=number_of_frames, apply_manual_reduction=apply_manual_reduction,timeout_limit=20000)
         
         # Convert list to numpy array for FITS compatibility
         data_array = np.array(frames, dtype=float)  # Ensure it is a float array or any appropriate type
 
-        # Create a new ImageHDU with the data
-        hdu = fits.ImageHDU( np.array(frames) )
+        # # Create a new ImageHDU with the data
+        # hdu = fits.ImageHDU( data_array )
 
-        # Set the EXTNAME header to the variable name
-        hdu.header['EXTNAME'] = 'FRAMES'
-        #hdu.header['config'] = config_file_name
+        # # Set the EXTNAME header to the variable name
+        # hdu.header['EXTNAME'] = 'FRAMES'
+        # #hdu.header['config'] = config_file_name
 
         # config_tmp = self.get_camera_config()
         # for k, v in config_tmp.items():
         #     hdu.header[k] = v
-        # # Append the HDU to the HDU list
-        # hdulist.append(hdu)
+        
+        # Create PrimaryHDU using FRAMES
+        primary_hdu = fits.PrimaryHDU(data_array)
+        primary_hdu.header['EXTNAME'] = 'FRAMES'  # This is not strictly necessary for PrimaryHDU
+
+        # Append camera configuration to the primary header
+        config_tmp = self.get_camera_config()
+        for k, v in config_tmp.items():
+            primary_hdu.header[k] = v
+
+        # Create HDUList and add the primary HDU
+        hdulist = fits.HDUList([primary_hdu])
 
         # append reduction info
         for k, v in self.reduction_dict.items():
@@ -746,13 +857,22 @@ class fli( ):
         hdulist.writeto(fname, overwrite=True)
 
 
+    def close(self, erase_file=False):
+        print('setting gain = 1 before closing')
+        self.send_fli_cmd( "set gain 1" )
+        self.mySHM.close( erase_file = erase_file)
+        print(f'closed camera SHM that used target {self.shm_loc}') 
+
     # ensures we exit safely and set gain to unity
     def __del__(self):
         # Cleanup when object is deleted
         if hasattr(self, 'camera') and self.camera is not None:
             self.send_fli_cmd( "set gain 1" )
+            
+            self.close( erase = False)
+
             #FliSdk_V2.Exit(self.camera)
-            print("Camera SDK exited cleanly.")
+            print("Camera SHM exited cleanly.")
 
 
 
@@ -768,25 +888,30 @@ if __name__ == "__main__":
     #    - rolling versions of these modes (set mode rollingresetsingle)
     # see section 7. Camera Operating Modes from C-RED 1 user manual
     
-    data_path = '/home/heimdallr/Downloads/'
+    #!!!!!!!!! turn off sources first!!!!!!!!
+
+
+    data_path = '/home/asg/Videos/cred1_dark_analysis/'
+    if not os.path.exists( data_path ):
+        os.makedirs( "data_path")
+
     tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
     roi = [None, None, None, None] # No region of interest
-    aduoffset = 1000 # to avoid overflow with negative
+    #aduoffset = 1000 # to avoid overflow with negative
     # init camera
-    c = fli() #cameraIndex=0, roi=[100,200,100,200])
+    c = fli(roi=roi) #cameraIndex=0, roi=[100,200,100,200])
 
+    cam_config = c.get_camera_config()
     # print the camera commands available in send_fli_cmd method
     c.print_camera_commands()
 
     # set up 
-    config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
-    c.configure_camera( config_file_name )
-    c.send_fli_cmd( f"set aduoffset {aduoffset}")
+    # config_file_name = os.path.join( c.config_file_path , "default_cred1_config.json")
+    # c.configure_camera( config_file_name )
+    # c.send_fli_cmd( f"set aduoffset {aduoffset}")
     #FliSdk_V2.Update(c.camera)
 
     # start
-    ok = c.start_camera()
-
     print( c.send_fli_cmd( "status" ) )
 
     # c.build_manual_dark()
@@ -796,26 +921,26 @@ if __name__ == "__main__":
     #c.save_fits('/home/heimdallr/Downloads/test_imgs.fits', number_of_frames=10, apply_manual_reduction=True )
 
     dark_dict = {}
-    gain_grid = np.linspace(1, 100, 5)
-    fps_grid = np.logspace(2, 3.5, 5)
+    gain_grid = np.arange(1, 6).astype(int)
+    fps_grid = [25, 50, 100, 200, 500, 1000, 1700]
     number_of_frames = 500
     for cnt, gain in enumerate( gain_grid ):
         
         print( f"{cnt / len( gain_grid )}% complete" )
 
         c.send_fli_cmd( f"set gain {gain}" )
-        time.sleep(0.2)
+        time.sleep(3)
 
         dark_dict[gain] = {}
 
         for fps in fps_grid:
             
             c.send_fli_cmd( f"set fps {fps}" )
-            time.sleep(0.2)
+            time.sleep(3)
 
             dark_dict[gain][fps] =  c.get_some_frames(number_of_frames=number_of_frames,\
                                                         apply_manual_reduction=False, timeout_limit = 20000)  
-    ok = c.start_camera()
+    
 
 
     #################
@@ -850,15 +975,17 @@ if __name__ == "__main__":
 
     # Plot 1: Mean pixel value vs. frame rate for different gain settings
     plt.figure(figsize=(10, 6))
+    plt.axhline( float(cam_config["aduoffset"]), ls=":", color='k', label="ADU offset")
     for gain, values in mean_pixel_values.items():
         fps_values, mean_values = zip(*values)
         plt.plot(fps_values, mean_values, marker='o', label=f'Gain {gain}')
     plt.xscale('log')
-    plt.xlabel('Frame Rate (fps)')
-    plt.ylabel('Mean Pixel Value')
+    plt.xlabel('Frame Rate [frames per second]', fontsize=15)
+    plt.ylabel('Mean Pixel Value', fontsize=15)
     plt.title('Mean Pixel Value vs Frame Rate for Different Gains')
+    plt.gca().tick_params(labelsize=15)
     plt.legend()
-    plt.savefig('delme.png')
+    plt.savefig( data_path + 'dark_mean_vs_fps-gain.png')
 
     # Plot 2: Standard deviation of pixel values vs. frame rate for different gain settings
     plt.figure(figsize=(10, 6))
@@ -866,11 +993,12 @@ if __name__ == "__main__":
         fps_values, std_values = zip(*values)
         plt.plot(fps_values, std_values, marker='o', label=f'Gain {gain}')
     plt.xscale('log')
-    plt.xlabel('Frame Rate (fps)')
-    plt.ylabel('Standard Deviation of Pixel Value')
+    plt.xlabel('Frame Rate [frames per second]', fontsize=15)
+    plt.ylabel('Standard Deviation of Pixel Value', fontsize=15)
     plt.title('Pixel Value Standard Deviation vs Frame Rate for Different Gains')
     plt.legend()
-    plt.savefig('delme.png')
+    plt.gca().tick_params(labelsize=15)
+    plt.savefig(data_path + 'std_vs_fps-gain.png')
 
     #################
     # Save
@@ -891,16 +1019,54 @@ if __name__ == "__main__":
 
             # Set the EXTNAME header to the variable name
             hdu.header['EXTNAME'] = f'FPS-{round(fps,1)}_GAIN-{round(gain,1)}'
-            hdu.header['config'] = config_file_name
+            #hdu.header['config'] = config_file_name
 
-            config_tmp = c.get_camera_config()
-            for k, v in config_tmp.items():
-                hdu.header[k] = v
-            # Append the HDU to the HDU list
+            # config_tmp = c.get_camera_config()
+            # for k, v in config_tmp.items():
+            #     hdu.header[k] = v
+            # # Append the HDU to the HDU list
             hdulist.append(hdu)
 
             # 
             hdulist.writeto(data_path + f'dark_FPS-{round(fps,1)}__GAIN-{round(gain,1)}_{tstamp}.fits', overwrite=True)
 
 
+
+# if len(self.shm_shape) == 3:
+
+#     if self.shm_shape[0] >= number_of_frames :
+#         ref_img_list = list(self.mySHM.get_data())
+
+#     elif self.shm_shape[0] < number_of_frames :
+#         ref_img_list = list(self.mySHM.get_data())
+#         while (len( ref_img_list  ) < number_of_frames) : #and (not timeout_flag):
+#             ref_img_list = ref_img_list + list(self.mySHM.get_data())
+
+#     ref_img_list = list(np.array( ref_img_list)[ : number_of_frames, self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]] )
+
+# if len(self.shm_shape) == 2: # then probably just the most recent (polling last)
+#     ref_img_list = []
+#     i=0
+#     timeout_counter = 0 
+#     timeout_flag = 0
+#     while (len( ref_img_list  ) < number_of_frames) and not timeout_flag: # poll  individual images
+#         if timeout_counter > timeout_limit: # we have done timeout_limit iterations without a frame update
+#             timeout_flag = 1 
+#             raise TypeError('timeout! timeout_counter > 10000')
+
+#         full_img = self.get_image_in_another_region() # empty argunment for full frame
+#         current_frame_number = full_img[0][0] #previous_frame_number
+#         if i==0:
+#             previous_frame_number = current_frame_number
+#         if current_frame_number != previous_frame_number:
+#             timeout_counter = 0 # reset timeout counter
+#             # if current_frame_number == 65535:
+#             #     previous_frame_number = -1 #// catch overflow case for int16 where current=0, previous = 65535
+#             # else:
+#             previous_frame_number = current_frame_number 
+#             ref_img_list.append( self.get_image( apply_manual_reduction  = apply_manual_reduction) )
+#         i+=1
+#         timeout_counter += 1
+#     else:
+#         raise UserWarning('nothing mettt here')
 

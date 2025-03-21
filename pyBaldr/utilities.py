@@ -16,6 +16,9 @@ from scipy import signal
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
+from scipy.optimize import leastsq
+from scipy.ndimage import gaussian_filter,  median_filter
+
 import itertools
 import corner
 
@@ -736,6 +739,99 @@ def filter_exterior_annulus(pupil_mask, inner_radius, outer_radius):
 
     return annular_mask
 
+
+
+def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
+    """
+    Detects an elliptical pupil (with possible rotation) in a cropped image using edge detection 
+    and least-squares fitting. Returns both the ellipse parameters and a pupil mask.
+
+    The ellipse is modeled by:
+
+        ((x - cx)*cos(theta) + (y - cy)*sin(theta))^2 / a^2 +
+        (-(x - cx)*sin(theta) + (y - cy)*cos(theta))^2 / b^2 = 1
+
+    Parameters:
+        image (2D array): Cropped grayscale image containing a single pupil.
+        sigma (float): Standard deviation for Gaussian smoothing.
+        threshold (float): Threshold factor for edge detection.
+        plot (bool): If True, displays the image with the fitted ellipse overlay.
+        savepath (str): If provided, the plot is saved to this path.
+
+    Returns:
+        (center_x, center_y, a, b, theta, pupil_mask)
+          where (center_x, center_y) is the ellipse center,
+                a and b are the semimajor and semiminor axes,
+                theta is the rotation angle in radians,
+                pupil_mask is a 2D boolean array (True = inside ellipse).
+    """
+    # Normalize the image
+    image = image / image.max()
+    
+    # Smooth the image
+    smoothed_image = gaussian_filter(image, sigma=sigma)
+    
+    # Compute gradients (Sobel-like edge detection)
+    grad_x = np.gradient(smoothed_image, axis=1)
+    grad_y = np.gradient(smoothed_image, axis=0)
+    edges = np.sqrt(grad_x**2 + grad_y**2)
+    
+    # Threshold edges to create a binary mask
+    binary_edges = edges > (threshold * edges.max())
+    
+    # Get edge pixel coordinates
+    y_coords, x_coords = np.nonzero(binary_edges)
+    
+    # Initial guess: center from mean, radius from average distance, and theta = 0.
+    def initial_guess(x, y):
+        center_x = np.mean(x)
+        center_y = np.mean(y)
+        r_init = np.sqrt(np.mean((x - center_x)**2 + (y - center_y)**2))
+        return center_x, center_y, r_init, r_init, 0.0  # (cx, cy, a, b, theta)
+    
+    # Ellipse model function with rotation.
+    def ellipse_model(params, x, y):
+        cx, cy, a, b, theta = params
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+        x_shift = x - cx
+        y_shift = y - cy
+        xp =  cos_t * x_shift + sin_t * y_shift
+        yp = -sin_t * x_shift + cos_t * y_shift
+        # Model: xp^2/a^2 + yp^2/b^2 = 1 => residual = sqrt(...) - 1
+        return np.sqrt((xp/a)**2 + (yp/b)**2) - 1.0
+
+    # Fit via least squares.
+    guess = initial_guess(x_coords, y_coords)
+    result, _ = leastsq(ellipse_model, guess, args=(x_coords, y_coords))
+    center_x, center_y, a, b, theta = result
+    
+    # Create a boolean pupil mask for the fitted ellipse
+    yy, xx = np.ogrid[:image.shape[0], :image.shape[1]]
+    cos_t = np.cos(theta)
+    sin_t = np.sin(theta)
+    x_shift = xx - center_x
+    y_shift = yy - center_y
+    xp = cos_t * x_shift + sin_t * y_shift
+    yp = -sin_t * x_shift + cos_t * y_shift
+    pupil_mask = (xp/a)**2 + (yp/b)**2 <= 1
+
+    if plot:
+        # Overlay for visualization
+        overlay = np.zeros_like(image)
+        overlay[pupil_mask] = 1
+        
+        plt.figure(figsize=(6, 6))
+        plt.imshow(image, cmap="gray", origin="upper")
+        plt.contour(binary_edges, colors="cyan", linewidths=1)
+        plt.contour(overlay, colors="red", linewidths=1)
+        plt.scatter(center_x, center_y, color="blue", marker="+")
+        plt.title("Detected Pupil with Fitted Ellipse")
+        if savepath is not None:
+            plt.savefig(savepath)
+        plt.show()
+    
+    return center_x, center_y, a, b, theta, pupil_mask
 
 def get_mask_center(mask,  method='2'):
     """

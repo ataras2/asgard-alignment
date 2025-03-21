@@ -515,20 +515,75 @@ print(res)
 # if using multidevice server phasemask is the MDS server socket
 print( f'doing raster search for beam {args.beam}')
 
-img_dict = pct.raster_square_search_and_save_images(
-    cam=c,
-    beam=args.beam,
-    phasemask=state_dict["socket"],
-    starting_point=[Xpos, Ypos],
-    dx=args.dx, 
-    dy=args.dy, 
-    width=args.width, 
-    height=args.height, 
-    orientation=args.orientation,
-    sleep_time=1,
-    use_multideviceserver=True,
-    plot_grid_before_scan=args.non_verbose
-)
+# img_dict = pct.raster_square_search_and_save_images(
+#     cam=c,
+#     beam=args.beam,
+#     phasemask=state_dict["socket"],
+#     starting_point=[Xpos, Ypos],
+#     dx=args.dx, 
+#     dy=args.dy, 
+#     width=args.width, 
+#     height=args.height, 
+#     orientation=args.orientation,
+#     sleep_time=1,
+#     use_multideviceserver=True,
+#     plot_grid_before_scan=args.non_verbose
+# )
+
+
+### TRY NOT PASS TO FUNCTION 
+if 1:
+    spiral_pattern = pct.raster_scan_with_orientation(starting_point=[Xpos, Ypos], dx=args.dx, dy=args.dy, width=args.width, height=args.height, orientation=args.orientation )
+
+    x_points, y_points = zip(*spiral_pattern)
+    img_dict = {}
+
+    for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
+        print("at ", x_pos, y_pos)
+        print(f"{100 * i/len(x_points)}% complete")
+
+        # motor limit safety checks!
+        if x_pos <= 0:
+            print('x_pos < 0. set x_pos = 1')
+            x_pos = 1
+        if x_pos >= 10000:
+            print('x_pos > 10000. set x_pos = 9999')
+            x_pos = 9999
+        if y_pos <= 0:
+            print('y_pos < 0. set y_pos = 1')
+            y_pos = 1
+        if y_pos >= 10000:
+            print('y_pos > 10000. set y_pos = 9999')
+            y_pos = 9999
+
+    
+        #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+
+        start_time = time.time()
+        message = f"moveabs BMX{args.beam} {x_pos}"
+        state_dict["socket"].send_string(message)
+        response = state_dict["socket"].recv_string()
+        print(response)
+
+        message = f"moveabs BMY{args.beam} {y_pos}"
+        state_dict["socket"].send_string(message)
+        response = state_dict["socket"].recv_string()
+        print(response)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"Execution time: {elapsed_time:.6f} seconds")
+            
+        time.sleep(2)  # wait for the phase mask to move and settle
+
+        img = np.mean(
+            c.get_data(), #get_some_frames( number_of_frames=10, apply_manual_reduction=True),
+            axis=0,
+        )
+
+        img_dict[(x_pos, y_pos)] = img
+###=========== end 
+
     
 #final_coord = pct.analyse_search_results(img_dict, savepath="delme.png", plot_logscale=True)
 
@@ -561,9 +616,10 @@ if make_movie:
     # remove bad pixels
     filtered_images = pct.pixelmask_image_dict(img_dict, bad_pixel_map)
 
-    create_scatter_image_movie(filtered_images, save_path=args.data_path+f"phasemask_search_movie_beam{args.beam}.mp4", fps=15)
+    savefile = args.data_path+f"phasemask_search_movie_beam{args.beam}.mp4"
+    create_scatter_image_movie(filtered_images, save_path=savefile, fps=15)
 
-    print( f"COMPLETE. MOVIE SAVED --> ", args.data_path+f"raster_search_movie_beam{args.beam}.mp4")
+    print( f"COMPLETE. MOVIE SAVED --> ", savefile)
 
 
 

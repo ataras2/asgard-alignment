@@ -8,6 +8,7 @@ import glob
 import sys
 import os 
 import toml
+import datetime
 import json
 import argparse
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_registration as DM_registration
 import common.DM_basis_functions as dmbases
 import common.phasemask_centering_tool as pct
+
+from pyBaldr import utilities as util
 
 try:
     from asgard_alignment import controllino as co
@@ -122,7 +125,7 @@ parser.add_argument(
 parser.add_argument("--fig_path", 
                     type=str, 
                     default=None, 
-                    help="path/to/output/image/filename.png for the saved figures")
+                    help="path/to/output/image/ for where the saved figures are (DM_registration_in_pixel_space.png)")
 
 
 args=parser.parse_args()
@@ -144,7 +147,7 @@ assert len(args.beam_id) <= 4
 assert max(args.beam_id) <= 4
 assert min(args.beam_id) >= 1 
 
-DM_flat_offset = {}
+#DM_flat_offset = {}
 for beam_id in args.beam_id:
     with open(args.toml_file.replace('#',f'{beam_id}') ) as file:
         pupildata = toml.load(file)
@@ -152,7 +155,7 @@ for beam_id in args.beam_id:
         # Extract the "baldr_pupils" section
         baldr_pupils = pupildata.get("baldr_pupils", {})
 
-        DM_flat_offset[beam_id] = pupildata.get(f"beam{beam_id}", {}).get("DM_flat_offset", None)
+        #DM_flat_offset[beam_id] = pupildata.get(f"beam{beam_id}", {}).get("DM_flat_offset", None)
         # if pupil_masks[beam_id] is None:
         #     raise UserWarning(f"pupil mask returned none in toml file. check for beam{beam_id}.pupil_mask.mask in the file:{args.toml_file}")
 
@@ -248,7 +251,7 @@ bilin_interp_matricies = []
 
 number_of_pokes = 2
 # poking DM and getting images 
-sleeptime = 10
+sleeptime = 10 #10 is very safe
 print(f'GOING VERY SLOW ({sleeptime}s delays) DUE TO SHM DELAY DM')
 for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2D map)
     print(f"actuator {act}")
@@ -290,7 +293,7 @@ for beam_id in args.beam_id:
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
-    dm_shm_dict[beam_id].activate_flat()
+    dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
 
 
 ## lets see the registration 
@@ -309,7 +312,7 @@ for ii, beam_id in enumerate( args.beam_id ):
     else:
         savefig = 'delme.png'
 
-    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = fig_path  ) )
+    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = args.fig_path  ) )
 
     # From affine transform construct bilinear interpolation matrix on registered DM actuator positions
     #(image -> actuator transform)
@@ -324,6 +327,10 @@ for ii, beam_id in enumerate( args.beam_id ):
                                             x_target=x_target,
                                             y_target=y_target)
 
+    try:
+        M @ img.reshape(-1)
+    except:
+        raise UserWarning("matrix dimensions don't match! ")
     bilin_interp_matricies.append( M )
 
     # update I2A instead of I2M
@@ -344,6 +351,23 @@ for ii, beam_id in enumerate( args.beam_id ):
 
     with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
         toml.dump(current_data, f)
+
+
+
+
+# ## write the json file to keep record of stability 
+for ii, beam_id in enumerate( args.beam_id ):
+
+    tstamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+    path_tmp = f"/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/dm_registration/beam{beam_id}/"
+    if not os.path.exists(path_tmp):
+        os.makedirs( path_tmp )
+
+    file_tmp = f"dm_reg_beam{beam_id}_{tstamp}.json"
+    with open(path_tmp + file_tmp, "w") as json_file:
+        json.dump(util.convert_to_serializable(transform_dicts[ii]), json_file)
+    print( f"saved dm registration json : {path_tmp + file_tmp}")
+
 
 
 

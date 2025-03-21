@@ -351,6 +351,9 @@ if not os.path.exists(args.data_path):
 roi = [None, None, None, None]
 c = FLI.fli( roi=roi)
 
+c.send_fli_cmd( "set fps 50")
+c.send_fli_cmd( "set gain 5")
+
 ##########
 # configure with default configuration file
 ##########
@@ -373,7 +376,7 @@ apply_manual_reduction = True
 
 
 ### getting pupil regioons for Baldr 
-img = np.mean( c.get_some_frames( number_of_frames=5, apply_manual_reduction=True ) , axis = 0 ) 
+img = np.mean( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
 #plt.figure(); plt.imshow( np.log10( img ) ) ; plt.savefig('delme.png')
 
 
@@ -389,9 +392,14 @@ regiom_labels  = ["baldr", "heimdallr"]
 mask_list = [baldr_mask, heim_mask]
 for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
-    crop_pupil_coords = np.array( percentile_based_detect_pupils(
-        img * mask, percentile = 99, min_group_size=100, buffer=20, plot=True
-    ) )
+    if lab == 'baldr':
+        crop_pupil_coords = np.array( percentile_based_detect_pupils(
+            img * mask, percentile = 99, min_group_size=100, buffer=20, plot=True
+        ) )
+    elif lab == 'heimdallr':
+        crop_pupil_coords = np.array( percentile_based_detect_pupils(
+            img * mask, percentile = 90, min_group_size=50, buffer=20, plot=True
+        ) )
     #cropped_pupils = crop_and_sort_pupils(img, crop_pupil_coords)
 
     # sorts by rows (indicies are r1,r2,c1,c2)
@@ -411,6 +419,7 @@ for mask, lab in zip( mask_list, regiom_labels):
             }
         else:
             ui = input("4 pupils not detected in Baldr. enter 1 to contiune, anything else to exit")
+            #ui = '1'
             if ui != '1':
                 raise UserWarning("4 pupils not detected in Baldr.")
 
@@ -423,9 +432,14 @@ for mask, lab in zip( mask_list, regiom_labels):
                 key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
             }
         else:
-            ui = input("2 pupils not detected in Heimdallr. enter 1 to contiune, anything else to exit")
-            if ui != '1':
-                raise UserWarning("2 pupils not detected in Heimdallr.")
+            #ui = input("2 pupils not detected in Heimdallr. enter 1 to contiune, anything else to exit")
+            #ui = "1"
+            #if ui != '1':
+            #    raise UserWarning("2 pupils not detected in Heimdallr.")
+            print("WARNING : Clear regions not found for Heimdallr. is K2 aligned?")
+            print("We will use hard coded values. Check the image that these are ok!")
+            swapped_dict = {"K1" : [ 1, 76, 0, 66], "K2" : [ 9, 67, 255, 310]}
+
     else:
         raise UserWarning("no valid label.")
 
@@ -454,11 +468,11 @@ elif args.saveformat=='toml':
             try:
                 current_data = toml.load(toml_file_path)
             except Exception as e:
-                ui = input(f"Error loading TOML file: {e}, do you want to write a new one? (enter 1 if yes. Anybutton if no)")
-                if ui == '1':
-                    current_data = {}
-                else: 
-                    raise UserWarning('user does not want to overwrite')
+                # ui = input(f"Error loading TOML file: {e}, do you want to write a new one? (enter 1 if yes. Anybutton if no)")
+                # if ui == '1':
+                #     current_data = {}
+                # else: 
+                raise UserWarning(f'exception caught: {e}' ) #user does not want to overwrite')
         else:
             current_data = {}
 
@@ -493,5 +507,12 @@ plt.xlabel('Columns')
 plt.ylabel('Rows')
 plt.legend(loc='upper right')
 plt.savefig(f'{args.fig_path}' + 'detected_pupils.png')
-plt.show()
-#plt.close() 
+#plt.show()
+plt.close() 
+
+c.send_fli_cmd( "set gain 1")
+c.send_fli_cmd( "set fps 100")
+
+c.close(erase_file = False) 
+
+print("DONE.")

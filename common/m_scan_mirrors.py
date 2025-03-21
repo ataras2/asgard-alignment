@@ -7,6 +7,7 @@ import toml
 import argparse
 import os 
 import datetime
+import json 
 import numpy as np 
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt 
@@ -14,6 +15,8 @@ from scipy.optimize import leastsq
 from scipy.ndimage import label, find_objects
 from xaosim.shmlib import shm
 
+from pyBaldr import utilities as util
+from asgard_alignment import FLI_Cameras as FLI
 
 def percentile_based_detect_pupils(
     image, percentile=80, min_group_size=50, buffer=20, plot=True
@@ -173,6 +176,20 @@ parser.add_argument(
     help="step size in motor units during scan. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--roi',
+    type=str,
+    default="[None, None, None, None]",
+    help="region to crop in camera (row1, row2, col1, col2). Default:%(default)s"
+)
+
+parser.add_argument(
+    "--scantype",
+    type=str,
+    default="square_spiral",
+    help="waht type of scan to do? Default:%(default)s"
+)
+
 
 
 args = parser.parse_args()
@@ -192,8 +209,19 @@ server_address = f"tcp://{args.host}:{args.port}"
 socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
+
+
 # set up camera 
-c = shm(args.global_camera_shm)
+c = FLI.fli(roi=eval(args.roi) ) #shm(args.global_camera_shm)
+
+
+# try get a dark and build bad pixel map 
+try:
+    c.build_manual_dark()
+except Exception as e:
+    print('failed to take dark with exception {e}')
+
+
 
 # copied from Engineering GUI 
 if args.motor in ["HTXP", "HTXI", "BTX", "BOTX"]:
@@ -202,12 +230,8 @@ if args.motor in ["HTXP", "HTXI", "BTX", "BOTX"]:
     targets = [target.replace("X", "P"), target.replace("X", "T")]
     
 
-if args.motor in ["c_red_one_focus", "intermediate_focus", "baldr"]:
-
-
 # try read the positions first as a check
 try:
-    
     message = f"read {targets[0]}"
     initial_Xpos = float(send_and_get_response(message))
 
@@ -222,92 +246,92 @@ except:
 
 
 
-# Remove all other beams besides what we want to look at 
-take_out_beams = list(filter(lambda x: x != int( args.beam ), [1,2,3,4] ))
+# # Remove all other beams besides what we want to look at 
+# take_out_beams = list(filter(lambda x: x != int( args.beam ), [1,2,3,4] ))
 
-for b in take_out_beams:
-    message = f"moveabs SSF{b} 0.0"
-    send_and_get_response(message)
-    print(f"moved out beam {b}")
-    time.sleep( 0.5 )
+# for b in take_out_beams:
+#     message = f"moveabs SSF{b} 0.0"
+#     send_and_get_response(message)
+#     print(f"moved out beam {b}")
+#     time.sleep( 0.5 )
 
-# initial image to find suitable cropponmg regions to zoom on feature
-img_raw = c.get_data()
+# # initial image to find suitable cropponmg regions to zoom on feature
+# img_raw = c.get_data()
 
-## Identify bad pixels (this can throw it off!!)
-mean_frame = np.mean(img_raw, axis=0)
-std_frame = np.std(img_raw, axis=0)
+# ## Identify bad pixels (this can throw it off!!)
+# mean_frame = np.mean(img_raw, axis=0)
+# std_frame = np.std(img_raw, axis=0)
 
-global_mean = np.mean(mean_frame)
-global_std = np.std(mean_frame)
-bad_pixel_map = (np.abs(mean_frame - global_mean) > 20 * global_std) | (std_frame > 100 * np.median(std_frame))
+# global_mean = np.mean(mean_frame)
+# global_std = np.std(mean_frame)
+# bad_pixel_map = (np.abs(mean_frame - global_mean) > 20 * global_std) | (std_frame > 100 * np.median(std_frame))
 
-# plt.figure()
-# plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-# plt.colorbar()
-# plt.savefig( "delme.png")
+# # plt.figure()
+# # plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+# # plt.colorbar()
+# # plt.savefig( "delme.png")
 
-img = np.mean( img_raw , axis=0)
+# img = np.mean( img_raw , axis=0)
 
-img[bad_pixel_map] = 0
+# img[bad_pixel_map] = 0
 
-# mask baldr or heimdallr side of camera?
-baldr_mask = np.zeros_like(img).astype(bool)
-baldr_mask[img.shape[0]//2 : img.shape[0] , : ] = True # baldr occupies top half (pixels)
-heim_mask = ~baldr_mask # heimdallr occupies bottom half
+# # mask baldr or heimdallr side of camera?
+# baldr_mask = np.zeros_like(img).astype(bool)
+# baldr_mask[img.shape[0]//2 : img.shape[0] , : ] = True # baldr occupies top half (pixels)
+# heim_mask = ~baldr_mask # heimdallr occupies bottom half
 
-if args.system.lower() == 'baldr':
-    mask = baldr_mask
-    print('looking onn Baldr side')
+# if args.system.lower() == 'baldr':
+#     mask = baldr_mask
+#     print('looking onn Baldr side')
     
-elif args.system.lower() == 'heimdallr':
-    mask = heim_mask
-    print('looking on Heimdallr side')
-else:
-    print('no valid system input. Looking at entire image.. Could misclassify')
-    mask = np.ones_like(img).astype(bool)
+# elif args.system.lower() == 'heimdallr':
+#     mask = heim_mask
+#     print('looking on Heimdallr side')
+# else:
+#     print('no valid system input. Looking at entire image.. Could misclassify')
+#     mask = np.ones_like(img).astype(bool)
 
 
 
-### A SMARTER WAY WOULD BE TO JUST MOVE MY MOTOR OF INTEREST AND DIFFERENCE IMAGES!!!
+# ### A SMARTER WAY WOULD BE TO JUST MOVE MY MOTOR OF INTEREST AND DIFFERENCE IMAGES!!!
 
-crop_pupil_coords = np.array( percentile_based_detect_pupils(
-        img * mask, percentile = 99, min_group_size=100, buffer=60, plot=True
-    ) )
-#plt.savefig('delme.png')
-
-
+# crop_pupil_coords = np.array( percentile_based_detect_pupils(
+#         img * mask, percentile = 99, min_group_size=100, buffer=60, plot=True
+#     ) )
+# #plt.savefig('delme.png')
 
 
 
-# if multiple things detected just look at the one with heightest mean signal 
-if len( crop_pupil_coords ) == 0:
-    raise UserWarning('light source off? we cant detect anythin')
 
-elif len( crop_pupil_coords ) > 1:
-    sigtmp = []
-    for roi in crop_pupil_coords:
-        c1,c2,r1,r2 = roi
+
+# # if multiple things detected just look at the one with heightest mean signal 
+# if len( crop_pupil_coords ) == 0:
+#     raise UserWarning('light source off? we cant detect anythin')
+
+# elif len( crop_pupil_coords ) > 1:
+#     sigtmp = []
+#     for roi in crop_pupil_coords:
+#         c1,c2,r1,r2 = roi
     
-        # look at mean in tight region around the center
-        cx, cy = (r1+r2)//2 , (c1+c2)//2
-        cr = 15
-        meamI = np.nanmean( (img * mask)[cx-cr:cx+cr, cy-cr:cy+cr] )
+#         # look at mean in tight region around the center
+#         cx, cy = (r1+r2)//2 , (c1+c2)//2
+#         cr = 15
+#         meamI = np.nanmean( (img * mask)[cx-cr:cx+cr, cy-cr:cy+cr] )
 
-        sigtmp.append( meamI ) #np.sum( (img * mask)[r1:r2, c1:c2]  > meamI) )
+#         sigtmp.append( meamI ) #np.sum( (img * mask)[r1:r2, c1:c2]  > meamI) )
 
-    high_sig_idx = np.argmax( sigtmp ) 
-    c1,c2,r1,r2 = crop_pupil_coords[high_sig_idx]
+#     high_sig_idx = np.argmax( sigtmp ) 
+#     c1,c2,r1,r2 = crop_pupil_coords[high_sig_idx]
 
-else :
-    c1,c2,r1,r2 = crop_pupil_coords
+# else :
+#     c1,c2,r1,r2 = crop_pupil_coords
 
-# plt.figure()
-# plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-# plt.colorbar()
-# plt.title('cropped image')
-# plt.savefig( "delme.png")
-# plt.show()
+## plt.figure()
+## plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+## plt.colorbar()
+## plt.title('cropped image')
+## plt.savefig( "delme.png")
+## plt.show()
 
 
 # Get our starting position based on user input 
@@ -322,9 +346,18 @@ else:
     starting_point = [initial_Xpos, initial_Ypos]
 
 # generate the scan points 
-spiral_pattern = pct.square_spiral_scan(starting_point, args.dx, args.search_radius)
 
-x_points, y_points = zip(*spiral_pattern)
+
+
+if args.scantype == "square_spiral":
+    scan_pattern = pct.square_spiral_scan(starting_point=starting_point, step_size= float(args.dx), search_radius = float(args.search_radius))
+elif args.scantype == "raster":
+    scan_pattern = pct.raster_scan_with_orientation(starting_point=starting_point, dx=float(args.dx), dy=float(args.dx), width=float(args.search_radius), height=float(args.search_radius), orientation=0)
+else:
+    raise UserWarning("invalud scan. Try square spiral,raster")   
+#spiral_pattern = pct.square_spiral_scan(starting_point, args.dx, args.search_radius)
+
+x_points, y_points = zip(*scan_pattern)
 
 img_dict = {}
 
@@ -384,152 +417,23 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
     time.sleep(sleep_time)  # wait for the phase mask to move and settle
 
 
-    img_raw = np.mean(
-        c.get_data(),
+    img = np.mean(
+        c.get_data(apply_manual_reduction=True),
         axis=0,
     )
     
-    img_raw[bad_pixel_map] = 0
+    #img_raw[bad_pixel_map] = 0
 
-    img = img_raw[r1:r2,c1:c2]
+    #img = img_raw[r1:r2,c1:c2]
     
-    img_dict[(x_pos, y_pos)] = img
-
-
-mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
-
-# Labels and title
-# plt.xlabel("X Position")
-# plt.ylabel("Y Position")
-# plt.title("Scatter Plot of Positions with Mean Signal")
-# plt.savefig('delme.png')
-# plt.show() 
-
-
-# Define fine grid for interpolation
-
-grid_x, grid_y = np.meshgrid(np.linspace(min(x_points), max(x_points), 100),
-                             np.linspace(min(y_points), max(y_points), 100))
-
-
-# Fix input format: Make `points` a single (N, 2) array
-points = np.column_stack((x_points, y_points))  # Shape (N,2)
-xi = np.column_stack((grid_x.ravel(), grid_y.ravel()))  # Shape (M,2)
-
-pctile = 60 # 60th percentile boundary
-
-try:
-    # Perform interpolation
-    grid_z = griddata(points, mean_sig, xi, method='cubic')
-    grid_z = grid_z.reshape(grid_x.shape)
-    no_interp = False
-except:
-    print("issue with interpolation")
-    no_interp = True
-    print("continue to find offset on raw data")
-
-if no_interp:
-
-    threshold = np.percentile(mean_sig, pctile)  # Ignore NaNs
-
-    boundary = mean_sig < threshold
-
-    inside_mask = ~boundary  # Inverse of boundary (True inside)
-
-    # Get x, y coordinates where inside_mask is True
-    x_inside = x_points[inside_mask]
-    y_inside = y_points[inside_mask]
-    weights = mean_sig[inside_mask]  # Use mean signal values as weights
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    print(f"initial position {initial_Xpos},{initial_Ypos}")
-    print(f"Weighted Center: ({x_c}, {y_c})")
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    # Plot scatter plot with boundary
-    fig, ax = plt.subplots(figsize=(6, 5))
-    scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
-    plt.colorbar(scatter, label="Mean Signal")
-
-    # Overlay boundary
-    ax.scatter(x_points[boundary], y_points[boundary], color='red', label="Boundary Points")
-
-    # Mark calculated center
-    ax.scatter(x_c, y_c, color='blue', marker='x', s=100, label="Weighted Center")
-
-
-    # Labels and legend
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.set_title("Scatter Plot with Boundary and Weighted Center")
-    ax.legend()
-    ax.grid(True)
-
-    ax.legend()
-    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
-
-
-elif not no_interp:
-    # Define boundary where mean signal falls below 10th percentile
-    threshold = np.percentile(grid_z[~np.isnan(grid_z)], pctile)  # Ignore NaNs
-    boundary = grid_z < threshold
-
-    # Get the indices of non-boundary points (inside region)
-    inside_mask = ~boundary  # Inverse of boundary (True inside)
-
-    # Get x, y coordinates where inside_mask is True
-    x_inside = grid_x[inside_mask]
-    y_inside = grid_y[inside_mask]
-    weights = grid_z[inside_mask]  # Use mean signal values as weights
-
-    # Compute weighted mean
-    x_c = np.sum(x_inside * weights) / np.sum(weights)
-    y_c = np.sum(y_inside * weights) / np.sum(weights)
-
-    print(f"initial position {initial_Xpos},{initial_Ypos}")
-    print(f"Weighted Center: ({x_c}, {y_c})")
-
-
-    # Plot results
-    fig, ax = plt.subplots(figsize=(6, 5))
-    contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=50)
-    plt.colorbar(contour, label="Interpolated Mean Signal")
-
-    # Overlay boundary
-    ax.contour(grid_x, grid_y, boundary, levels=[0.5], colors='red', linewidths=2, label="50th Percentile Boundary")
-
-    # Scatter original data points
-    #ax.scatter(x_pos, y_pos, c='white', edgecolor='black', label="Original Data")
-
-    # Mark weighted center with an 'X'
-    ax.plot(x_c, y_c, 'rx', markersize=12, markeredgewidth=3, label="Weighted Center (where we offset to)")
-
-    # Mark initial position with an 'X' in blue
-    ax.plot(initial_Xpos, initial_Ypos, 'bx', markersize=12, markeredgewidth=3, label="Initial Position")
-
-    # Labels and legend
-    ax.set_xlabel("X Position")
-    ax.set_ylabel("Y Position")
-    ax.set_title(f"Interpolated Mean Signal with {pctile}th Percentile Boundary")
-    ax.legend()
-    plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
-    plt.show()
-    print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
+    img_dict[str((x_pos, y_pos))] = img
 
 
 
-
+## Save it 
 
 # move motor back to initial position 
-print(f"moving {args.motor} to new found center ")
+print(f"moving {args.motor} to original position ")
 message = f"moveabs {targets[0]} {initial_Xpos}"
 response = send_and_get_response(message)
 print(response)
@@ -537,6 +441,141 @@ print(response)
 message = f"moveabs {targets[1]} {initial_Ypos}"
 response = send_and_get_response(message)
 print(response)
+
+
+img_json_file_path = args.data_path + f'img_dict_beam{args.beam}-{args.motor}.json'
+with open(img_json_file_path, "w") as json_file:
+    json.dump(util.convert_to_serializable(img_dict), json_file)
+
+
+
+
+
+# mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
+
+# # Labels and title
+# # plt.xlabel("X Position")
+# # plt.ylabel("Y Position")
+# # plt.title("Scatter Plot of Positions with Mean Signal")
+# # plt.savefig('delme.png')
+# # plt.show() 
+
+
+# # Define fine grid for interpolation
+
+# grid_x, grid_y = np.meshgrid(np.linspace(min(x_points), max(x_points), 100),
+#                              np.linspace(min(y_points), max(y_points), 100))
+
+
+# # Fix input format: Make `points` a single (N, 2) array
+# points = np.column_stack((x_points, y_points))  # Shape (N,2)
+# xi = np.column_stack((grid_x.ravel(), grid_y.ravel()))  # Shape (M,2)
+
+# pctile = 60 # 60th percentile boundary
+
+# try:
+#     # Perform interpolation
+#     grid_z = griddata(points, mean_sig, xi, method='cubic')
+#     grid_z = grid_z.reshape(grid_x.shape)
+#     no_interp = False
+# except:
+#     print("issue with interpolation")
+#     no_interp = True
+#     print("continue to find offset on raw data")
+
+# if no_interp:
+
+#     threshold = np.percentile(mean_sig, pctile)  # Ignore NaNs
+
+#     boundary = mean_sig < threshold
+
+#     inside_mask = ~boundary  # Inverse of boundary (True inside)
+
+#     # Get x, y coordinates where inside_mask is True
+#     x_inside = x_points[inside_mask]
+#     y_inside = y_points[inside_mask]
+#     weights = mean_sig[inside_mask]  # Use mean signal values as weights
+
+#     # Compute weighted mean
+#     x_c = np.sum(x_inside * weights) / np.sum(weights)
+#     y_c = np.sum(y_inside * weights) / np.sum(weights)
+
+#     print(f"initial position {initial_Xpos},{initial_Ypos}")
+#     print(f"Weighted Center: ({x_c}, {y_c})")
+
+#     # Plot scatter plot with boundary
+#     fig, ax = plt.subplots(figsize=(6, 5))
+#     scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
+#     plt.colorbar(scatter, label="Mean Signal")
+
+#     # Overlay boundary
+#     ax.scatter(x_points[boundary], y_points[boundary], color='red', label="Boundary Points")
+
+#     # Mark calculated center
+#     ax.scatter(x_c, y_c, color='blue', marker='x', s=100, label="Weighted Center")
+
+
+#     # Labels and legend
+#     ax.set_xlabel("X Position")
+#     ax.set_ylabel("Y Position")
+#     ax.set_title("Scatter Plot with Boundary and Weighted Center")
+#     ax.legend()
+#     ax.grid(True)
+
+#     ax.legend()
+#     plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
+#     plt.show()
+#     print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
+
+
+# elif not no_interp:
+#     # Define boundary where mean signal falls below 10th percentile
+#     threshold = np.percentile(grid_z[~np.isnan(grid_z)], pctile)  # Ignore NaNs
+#     boundary = grid_z < threshold
+
+#     # Get the indices of non-boundary points (inside region)
+#     inside_mask = ~boundary  # Inverse of boundary (True inside)
+
+#     # Get x, y coordinates where inside_mask is True
+#     x_inside = grid_x[inside_mask]
+#     y_inside = grid_y[inside_mask]
+#     weights = grid_z[inside_mask]  # Use mean signal values as weights
+
+#     # Compute weighted mean
+#     x_c = np.sum(x_inside * weights) / np.sum(weights)
+#     y_c = np.sum(y_inside * weights) / np.sum(weights)
+
+#     print(f"initial position {initial_Xpos},{initial_Ypos}")
+#     print(f"Weighted Center: ({x_c}, {y_c})")
+
+
+#     # Plot results
+#     fig, ax = plt.subplots(figsize=(6, 5))
+#     contour = ax.contourf(grid_x, grid_y, grid_z, cmap='viridis', levels=50)
+#     plt.colorbar(contour, label="Interpolated Mean Signal")
+
+#     # Overlay boundary
+#     ax.contour(grid_x, grid_y, boundary, levels=[0.5], colors='red', linewidths=2, label="50th Percentile Boundary")
+
+#     # Scatter original data points
+#     #ax.scatter(x_pos, y_pos, c='white', edgecolor='black', label="Original Data")
+
+#     # Mark weighted center with an 'X'
+#     ax.plot(x_c, y_c, 'rx', markersize=12, markeredgewidth=3, label="Weighted Center (where we offset to)")
+
+#     # Mark initial position with an 'X' in blue
+#     ax.plot(initial_Xpos, initial_Ypos, 'bx', markersize=12, markeredgewidth=3, label="Initial Position")
+
+#     # Labels and legend
+#     ax.set_xlabel("X Position")
+#     ax.set_ylabel("Y Position")
+#     ax.set_title(f"Interpolated Mean Signal with {pctile}th Percentile Boundary")
+#     ax.legend()
+#     plt.savefig(args.data_path + 'scanMirror_result.png', dpi=300, bbox_inches="tight")
+#     plt.show()
+#     print(f"saved image : {args.data_path + 'scanMirror_result.png'}")
+
+
 
 
 # move motor back to new center 
@@ -571,12 +610,12 @@ print(response)
 # print(response)
 
 
-## put beams back in
-for b in take_out_beams:
-    message = f"moveabs SSF{b} 1.0"
-    send_and_get_response(message)
-    print(f"moved in beam {b}")
-    time.sleep( 0.5 )
+# ## put beams back in
+# for b in take_out_beams:
+#     message = f"moveabs SSF{b} 1.0"
+#     send_and_get_response(message)
+#     print(f"moved in beam {b}")
+#     time.sleep( 0.5 )
 
 
 plt.close('all')

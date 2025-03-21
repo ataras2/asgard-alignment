@@ -401,7 +401,7 @@ for beam_id in args.beam_ids:
     if args.fig_path is None:
         savepath="delme{beam_id}.png"
     else: # we save with default name at fig path 
-        savepath=args.fig_path + f'pupil_reg_{beam_id}'
+        savepath=args.fig_path + f'pupil_reg_beam{beam_id}'
     
     ell1 = detect_pupil(cropped_img, sigma=2, threshold=0.5, plot=args.plot,savepath=savepath)
 

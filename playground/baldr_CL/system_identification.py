@@ -7,6 +7,7 @@ import argparse
 import matplotlib.pyplot as plt
 import argparse
 import subprocess
+import glob
 
 from astropy.io import fits
 from scipy.signal import TransferFunction, bode
@@ -21,7 +22,7 @@ import pyBaldr.utilities as util
 import pyzelda.ztools as ztools
 import datetime
 from xaosim.shmlib import shm
-
+from asgard_alignment import FLI_Cameras as FLI
 
 MDS_port = 5555
 MDS_host = 'localhost'
@@ -435,7 +436,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1], # 1, 2, 3, 4],
+    default=[2], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -448,65 +449,206 @@ parser.add_argument(
 
 args=parser.parse_args()
 
-c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
-                              args.global_camera_shm, 
-                              args.toml_file) 
+# c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
+#                               args.global_camera_shm, 
+#                               args.toml_file) 
+
+NNN= 10 # how many groups of 100 to take for reference images 
+
+I2A_dict = {}
+pupil_masks = {}
+for beam_id in args.beam_id:
+
+    # read in TOML as dictionary for config 
+    with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
+        config_dict = toml.load(f)
+        # Baldr pupils from global frame 
+        baldr_pupils = config_dict['baldr_pupils']
+        I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
+        
+        pupil_masks[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+
+# Set up global camera frame SHM 
+print('Setting up camera. You should manually set up camera settings before hand')
 
 
+# get darks and bad pixels 
+dark_fits_files = glob.glob("/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/*.fits") 
+most_recent_dark = max(dark_fits_files, key=os.path.getmtime) 
+
+dark_fits = fits.open( most_recent_dark )
+
+bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
+bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+
+
+c_dict = {}
+for beam_id in args.beam_id:
+    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+    c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
+
+    c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
+    c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
+
+
+
+# set up DM SHMs 
+print( 'setting up DMs')
+dm_shm_dict = {}
+for beam_id in args.beam_id:
+    dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
+    # zero all channels
+    dm_shm_dict[beam_id].zero_all()
+    
+    # activate flat (does this on channel 1)
+    #dm_shm_dict[beam_id].activate_flat()
+
+    # apply dm flat + calibrated offset (does this on channel 1)
+    dm_shm_dict[beam_id].activate_calibrated_flat()
+    
+
+
+
+
+# Move to phase mask
+for beam_id in args.beam_id:
+    message = f"fpm_movetomask phasemask{beam_id} {args.phasemask}"
+    res = send_and_get_response(message)
+    print(f"moved to phasemask {args.phasemask} with response: {res}")
+
+time.sleep(5)
+
+# Get reference pupils (later this can just be a SHM address)
+zwfs_pupils = {}
+clear_pupils = {}
+rel_offset = 200.0 #um phasemask offset for clear pupil
+print( 'Moving FPM out to get clear pupils')
+for beam_id in args.beam_id:
+    message = f"moverel BMX{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep( 1 )
+    message = f"moverel BMY{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+
+time.sleep(10)
+
+
+#Clear Pupil
+for beam_id in args.beam_id:
+
+    print( 'gettin clear pupils')
+    N0s = []
+    for _ in range(NNN):
+        N0s.append(  c_dict[beam_id].get_data(apply_manual_reduction=True) )
+    N0s = np.array(  N0s ).reshape(-1,  N0s[0].shape[1],  N0s[0].shape[2])
+
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    #cropped_imgs = [nn[r1:r2,c1:c2] for nn in N0s]
+    clear_pupils[beam_id] = N0s
+
+    # move back 
+    print( 'Moving FPM back in beam.')
+    message = f"moverel BMX{beam_id} {-rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep(1)
+    message = f"moverel BMY{beam_id} {-rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep(10)
+
+
+# check the alignment is still ok 
+input('ensure mask is realigned')
+
+# beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
+# while beam :
+#     save_tmp = 'delme.png'
+#     print(f'open {save_tmp } to see generated images after each iteration')
+    
+#     move_relative_and_get_image(cam=c, beam=beam, baldr_pupils = baldr_pupils, phasemask=state_dict["socket"],  savefigName = save_tmp, use_multideviceserver=True )
+    
+#     beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
+
+
+# ZWFS Pupil
+for beam_id in args.beam_id:
+
+    print( 'Getting ZWFS pupils')
+    I0s = []
+    for _ in range(NNN):
+        I0s.append(  c_dict[beam_id].get_data( apply_manual_reduction=True ) )
+    I0s = np.array(  I0s ).reshape(-1,  I0s[0].shape[1],  I0s[0].shape[2])
+
+    #r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+    #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
+    zwfs_pupils[beam_id] = I0s #cropped_img
+
+
+
+
+
+#dark = np.mean( darks_dict[beam_id],axis=0)
+
+I0 = {}
+N0 = {}
+I0_dm = {}
+N0_dm = {}
+dark_dm = {}
+dm_act_filt = {}
+dm_mask = {}
+for beam_id in args.beam_id:
+    N0[beam_id] = np.mean(clear_pupils[beam_id],axis=0)
+    I0[beam_id] = np.mean(zwfs_pupils[beam_id],axis=0)
+    #interpMatrix = I2A_dict[beam_id]
+    I0_dm[beam_id] = I2A_dict[beam_id] @ I0[beam_id].reshape(-1)
+    N0_dm[beam_id] = I2A_dict[beam_id] @ N0[beam_id].reshape(-1)
+
+    dark_dm[beam_id] = I2A_dict[beam_id] @ c_dict[beam_id].reduction_dict['dark'][-1].reshape(-1)
+
+
+    ### IMPORTANT THIS IS WHERE WE FILTER ACTUATOR SPACE IN IM 
+    dm_mask[beam_id] = I2A_dict[beam_id] @  np.array(pupil_masks[beam_id] ).reshape(-1)
+    dm_act_filt[beam_id] = dm_mask[beam_id] > 0.95 # ignore actuators on the edge! 
+
+
+# # checks 
+# cbar_label_list = ['[adu]','[adu]', '[adu]']
+# title_list = ['DARK','I0', 'N0']
+# xlabel_list = ['','','']
+# ylabel_list = ['','','']
+
+# util.nice_heatmap_subplots( im_list = [ c_dict[beam_id].reduction_dict['dark'][-1], I0[beam_id] , N0  ], 
+#                             cbar_label_list = cbar_label_list,
+#                             title_list=title_list,
+#                             xlabel_list=xlabel_list,
+#                             ylabel_list=ylabel_list,
+#                             savefig='delme.png' )
+
+
+basis_type = "ZONAL" #"ZERNIKE"
+Nmodes = 140
+modal_basis = np.array([dm_shm_dict[beam_id].cmd_2_map2D(ii) for ii in np.eye(Nmodes)]) #dmbases.zer_bank(2, Nmodes+2 )
+M2C = modal_basis.copy() # mode 2 command matrix 
+poke_amp = 0.04 #0.02
+inverse_method = 'pinv'
+phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
+noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
+
+
+
+### Just doing 1 for now
 #############
 beam_id = args.beam_id[0]
 ############
 
 
-original_flat = dms[beam_id].shms[0].get_data()
-dmflatoffset_fits = fits.open( "/home/asg/Progs/repos/asgard-alignment/calibration/reports/flat_dm_beam1_maskH3.fits")
-
-dmflatoffset = dmflatoffset_fits["best_DM_flat"].data
-
-#util.nice_heatmap_subplots( im_list = [original_flat, original_flat+dmflatoffset, dmflatoffset] )
-#plt.savefig('delme.png')
-#plt.figure();plt.imshow( dmflatoffset );plt.savefig('delme.png')
-#plt.figure();plt.imshow( dmflatoffset );plt.savefig('delme.png')
-
-dms[beam_id].shms[0].set_data( current_flat + dmflatoffset )
-
-time.sleep(2)
-
-###!!!!!!!!!!!!!
-## Have to retake reference intensity with new flat! 
-I0 = np.mean( c.get_data(),axis=0)[r1:r2, c1:c2] #np.mean(I0_dict[beam_id],axis=0)
+#r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
 
 
-r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-
-dark = np.mean( darks_dict[beam_id],axis=0)
-
-N0 = np.mean(N0_dict[beam_id],axis=0)
-interpMatrix = I2A[beam_id]
-# checks 
-cbar_label_list = ['[adu]','[adu]', '[adu]']
-title_list = ['DARK','I0', 'N0']
-xlabel_list = ['','','']
-ylabel_list = ['','','']
-
-util.nice_heatmap_subplots( im_list = [ dark, I0 - dark, N0 - dark ], 
-                            cbar_label_list = cbar_label_list,
-                            title_list=title_list,
-                            xlabel_list=xlabel_list,
-                            ylabel_list=ylabel_list,
-                            savefig='delme.png' )
-
-Nmodes = 20
-modal_basis = dmbases.zer_bank(2, Nmodes+2 )
-M2C = modal_basis.copy() # mode 2 command matrix 
-poke_amp = 0.02
-inverse_method = 'pinv'
-phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
-noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
-
-dark_dm = interpMatrix @ dark.reshape(-1)
-I0_dm = interpMatrix @ I0.reshape(-1)
-N0_dm = interpMatrix @ N0.reshape(-1)
 
 # check they interpolate ok onto DM 
 cbar_label_list = ['[adu]','[adu]', '[adu]','[unitless]']
@@ -514,15 +656,15 @@ title_list = ['DARK DM','I0 DM', 'N0 DM','(I-I0)/N0']
 xlabel_list = ['','','','']
 ylabel_list = ['','','','']
 # intensity from first measurement 
-idm = interpMatrix @  I0_dict[beam_id][0].reshape(-1)
+idm = I2A_dict[beam_id] @  zwfs_pupils[beam_id][0].reshape(-1)
 
-im_list = [util.get_DM_command_in_2D(a) for a in [ dark_dm, I0_dm - dark_dm, N0_dm - dark_dm ,(idm -I0_dm) /  N0_dm ]]
+im_list = [util.get_DM_command_in_2D(a) for a in [ dark_dm[beam_id], I0_dm[beam_id] , N0_dm[beam_id] ,(idm -I0_dm[beam_id]) /  N0_dm[beam_id] ]]
 util.nice_heatmap_subplots( im_list = im_list, 
                             cbar_label_list = cbar_label_list,
                             title_list=title_list,
                             xlabel_list=xlabel_list,
                             ylabel_list=ylabel_list,
-                            savefig='delme1.png' )
+                            savefig='delme.png' )
 
 #dms[beam_id].zero_all()
 time.sleep(1)
@@ -538,20 +680,22 @@ for i,m in enumerate(modal_basis):
     I_minus_list = []
     imgs_to_mean = 10
     for sign in [(-1)**n for n in range(10)]: #[-1,1]:
-        dms[beam_id].set_data(  sign * poke_amp/2 * m ) 
-        time.sleep(2)
+
+        dm_shm_dict[beam_id].set_data(  sign * poke_amp/2 * m ) 
+        time.sleep(0.5)
         if sign > 0:
-            I_plus_list.append( list( np.mean( c.get_data( ),axis = 0)[r1:r2,c1:c2]  ) )
+            I_plus_list.append( list( np.mean( c_dict[beam_id].get_data( apply_manual_reduction = True ),axis = 0)  ) )
             #I_plus *= 1/np.mean( I_plus )
         if sign < 0:
-            I_minus_list.append( list( np.mean( c.get_data( ),axis = 0)[r1:r2,c1:c2]  ) )
+            I_minus_list.append( list( np.mean( c_dict[beam_id].get_data( apply_manual_reduction = True ),axis = 0)  ) )
             #I_minus *= 1/np.mean( I_minus )
 
-    I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / N0.reshape(-1)
-    I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  N0.reshape(-1)
+    I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / N0[beam_id].reshape(-1)
+    I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  N0[beam_id].reshape(-1)
 
-    errsig = interpMatrix @ ((I_plus - I_minus)) # / poke_amp ) # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
-
+    errsig = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
+    
+    # reenter pokeamp norm
     Iplus_all.append( I_plus_list )
     Iminus_all.append( I_minus_list )
 
@@ -567,15 +711,36 @@ else:
     raise UserWarning('no inverse method provided')
 
 
+## reset DMs 
+dm_shm_dict[beam_id].zero_all()
+# apply dm flat + calibrated offset (does this on channel 1)
+dm_shm_dict[beam_id].activate_calibrated_flat()
+
+
 # dms[beam_id].zero_all()
 # time.sleep(1)
 # dms[beam_id].activate_flat()
 
 
 # save the IM to fits for later analysis 
+
+cam_config = c_dict[beam_id].get_camera_config()
+
 hdul = fits.HDUList()
 
-hdu = fits.ImageHDU( np.array(darks_dict[beam_id]) )
+hdu = fits.ImageHDU(IM)
+hdu.header['EXTNAME'] = 'IM'
+hdu.header['phasemask'] = args.phasemask
+hdu.header['sig'] = 'I(a/2)-I(-a/2)'
+hdu.header['beam'] = beam_id
+hdu.header['poke_amp'] = poke_amp
+for k,v in cam_config.items():
+    hdu.header[k] = v 
+
+hdul.append(hdu)
+
+
+hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
 hdu.header['EXTNAME'] = 'DARKS'
 
 
@@ -587,12 +752,12 @@ hdu = fits.ImageHDU(Iminus_all)
 hdu.header['EXTNAME'] = 'I-'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(IM)
-hdu.header['EXTNAME'] = 'IM'
-hdu.header['mask'] = 'H3'
-hdu.header['sig'] = 'I(a/2)-I(-a/2)'
-hdu.header['beam'] = beam_id
-hdu.header['poke_amp'] = poke_amp
+hdu = fits.ImageHDU( np.array(pupil_masks[beam_id]).astype(int)) 
+hdu.header['EXTNAME'] = 'PUPIL_MASK'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU( dm_mask[beam_id] )
+hdu.header['EXTNAME'] = 'PUPIL_MASK_DM'
 hdul.append(hdu)
 
 hdu = fits.ImageHDU(modal_basis)
@@ -603,19 +768,20 @@ hdu = fits.ImageHDU(I2M)
 hdu.header['EXTNAME'] = 'I2M'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(interpMatrix)
+hdu = fits.ImageHDU(I2A_dict[beam_id])
 hdu.header['EXTNAME'] = 'interpMatrix'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(I0_dict[beam_id])
+hdu = fits.ImageHDU(zwfs_pupils[beam_id])
 hdu.header['EXTNAME'] = 'I0'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(N0_dict[beam_id])
+hdu = fits.ImageHDU(clear_pupils[beam_id])
 hdu.header['EXTNAME'] = 'N0'
 hdul.append(hdu)
 
-fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_type}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+#f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
 hdul.writeto(fits_file, overwrite=True)
 print(f'wrote telemetry to \n{fits_file}')
 
@@ -629,7 +795,7 @@ remote_host = "10.106.106.34"
 # 	inet 10.200.32.250 --> 10.200.32.250 netmask 0xffffffff
 # 	inet 10.106.106.34 --> 10.106.106.33 netmask 0xfffffffc
 
-remote_path = "/Users/bencb/Downloads"  # Destination path on your computer
+remote_path = "/Users/bencb/Downloads/"  # Destination path on your computer
 
 # Construct the SCP command
 scp_command = f"scp {remote_file} {remote_user}@{remote_host}:{remote_path}"
@@ -649,7 +815,7 @@ except subprocess.CalledProcessError as e:
 ## SOME CHECKS 
 print( f'condition of IM = {np.linalg.cond(IM)}')
 
-imgs = [util.get_DM_command_in_2D( i) for i in IM ][:7]
+imgs = [  util.get_DM_command_in_2D( i) for i in IM ][:7]
 titles = ['' for _ in imgs]
 cbars = ['' for _ in imgs]
 xlabel_list = ['' for _ in imgs]
@@ -660,10 +826,12 @@ util.nice_heatmap_subplots( imgs ,title_list=titles,xlabel_list=xlabel_list, yla
 
 
 # get some new images and project them onto the modes 
-ifull = c.get_data()
-i = np.array( [ii[r1:r2,c1:c2] for ii in ifull] )
 
-sig = interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)
+
+i =  c_dict[beam_id].get_data( apply_manual_reduction=True)
+
+ss = (interpMatrix @ ((i - I0 ) / N0).reshape( -1,len(i) ) )
+sig = np.array( [dm_act_filt * ii for ii in ss.T]).T
 
 reco = I2M.T @ sig
 
@@ -676,8 +844,33 @@ for m,axx in zip( poke_amp * reco[:Nplots], ax.reshape(-1)):
 ax[0].set_title('reconstruction on zero input aberrations')
 ax[-1].set_xlabel('reconstructed mode amplitude\n[DM units]')
 
-plt.savefig('delme1.png') 
+plt.savefig('delme.png') 
 
+
+
+##################
+
+pp = 0.04
+
+abb = pp * modal_basis[m] 
+dm_shm_dict[beam_id].set_data(  abb ) 
+
+i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0)
+
+
+sig =  dm_mask * (interpMatrix @ ((i - I0 ) / N0).reshape(-1) )
+
+err = pp * I2M.T @ sig
+
+reco = (M2C.T @ err).T
+
+res = abb - reco 
+
+rmse = np.sqrt( np.mean( (res)**2 ))
+
+im_list = [i, util.get_DM_command_in_2D(sig), dm_act_filt * reco, dm_act_filt * res ]
+
+util.nice_heatmap_subplots( im_list, savefig='delme.png')
 
 
 # print( f'mean mode reco = {np.mean( reco , axis = 1)}') 
@@ -694,18 +887,15 @@ plt.figure() ; plt.imshow( delta_cmd[3]); plt.colorbar(); plt.savefig('delme.png
 
 ##################
 ### Apply command and see if reconstruct amplitude 
-dms[beam_id].zero_all()
-time.sleep(1)
-dms[beam_id].activate_flat()
 
 errs = []
 pokegrid = np.linspace( -2*poke_amp , 2*poke_amp, 8) 
 m = 1 
-for pp in [poke_amp]: #pokegrid:
+for pp in pokegrid:
     print(f'poke mode {m} with {pp}amp')
     abb =  pp * modal_basis[m] 
     time.sleep(2)
-    dms[beam_id].shms[1].set_data(  abb ) 
+    dm_shm_dict[beam_id].set_data(  abb ) 
     time.sleep( 10 )
 
     # cropped_image = np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
@@ -714,10 +904,10 @@ for pp in [poke_amp]: #pokegrid:
 
 
     # get some new images and project them onto the modes 
-    ifull = c.get_data()
-    i = np.array( [ii[r1:r2,c1:c2] for ii in ifull] )
+    i = c_dict[beam_id].get_data( apply_manual_reduction=True )
+    
 
-    sig = interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)
+    sig =  ( dm_mask[np.newaxis] * (interpMatrix @ ((i - I0 ) / N0).reshape(-1,100)).T ).T
 
 
     # current model has no normalization 
@@ -725,7 +915,7 @@ for pp in [poke_amp]: #pokegrid:
 
     #plt.imshow( util.get_DM_command_in_2D(sig) ); plt.savefig('delme.png')
     # (4) apply linear model to get reconstructor 
-    e_HO = poke_amp * I2M.T @ sig #slopes * sig + intercepts
+    e_HO = poke_amp**2 * I2M.T @ sig #slopes * sig + intercepts
     errs.append( e_HO )
 
 

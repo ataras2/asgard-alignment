@@ -597,6 +597,13 @@ class MultiDeviceServer:
                 self.instr.devices[axis].update_mask_position(mask_name)
                 return "ACK"
 
+        def fpm_offset_all_mask_positions_msg(axis, rel_offset_x, rel_offset_y):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].offset_all_mask_positions(rel_offset_x, rel_offset_y)
+                return "ACK"
+
         def fpm_write_mask_positions_msg(axis):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -657,6 +664,7 @@ class MultiDeviceServer:
             "fpm_moveabs": fpm_move_absolute_msg,
             "fpm_readpos": fpm_read_position_msg,
             "fpm_updatemaskpos": fpm_update_mask_position_msg,
+            "fpm_offsetallmaskpositions": fpm_offset_all_mask_positions_msg,
             "fpm_writemaskpos": fpm_write_mask_positions_msg,
             "fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
             "ping": ping_msg,
@@ -688,6 +696,7 @@ class MultiDeviceServer:
             "fpm_moveabs": "fpm_moveabs {} {}",
             "fpm_readpos": "fpm_readpos {}",
             "fpm_updatemaskpos": "fpm_updatemaskpos {} {}",
+            "fpm_offsetallmaskpositions": "fpm_offsetallmaskpositions {} {} {}",
             "fpm_writemaskpos": "fpm_writemaskpos {}",
             "fpm_updateallmaskpos": "fpm_updateallmaskpos {} {} {}",
             "ping": "ping {}",

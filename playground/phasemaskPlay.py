@@ -80,7 +80,7 @@ def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=
             except:
                 print('incorrect input. Try input "1,1" as an example, or "e" to exit')
 
-    plt.close()
+    plt.close("all")
 
 
 
@@ -222,7 +222,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1], #, 2, 3, 4],
+    default=[2], #, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -392,11 +392,11 @@ allposs = pct.complete_collinear_points(known_points=posss, separation=1000, tol
 
 
 # check and manually move to best 
-message = f"moveabs BMX{beam_id} 2750.0"
+message = f"moveabs BMX{beam_id} 1090.0"
 send_and_get_response(message)
-time.sleep(1)
+time.sleep(2)
 
-message = f"moveabs BMY{beam_id} 4025.0"
+message = f"moveabs BMY{beam_id} 2060.0"
 send_and_get_response(message)
 
 

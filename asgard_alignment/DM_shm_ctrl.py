@@ -24,11 +24,11 @@ class dmclass():
         # actual shared memory objects 
         self.shms = []
         for ii in range(self.nch):
-            self.shms.append(shm(self.shmfs[ii]))
+            self.shms.append(shm(self.shmfs[ii],nosem=False))
             print(f"added: {self.shmfs[ii]}") 
         #actual combined shared memory 
         if self.nch != 0:
-            self.shm0 = shm(self.shmf0)
+            self.shm0 = shm(self.shmf0, nosem=False)
         else:
             print("Shared memory structures unavailable. DM server started?")
             
@@ -47,6 +47,21 @@ class dmclass():
                         }
         
         return wdir + '/' + flat_cmd_files[f"{self.beam_id}"]
+
+
+    def select_flat_cmd_offset(self,  wdir='DMShapes'):
+            '''Matches a DM flat command file to a DM id #.
+
+            Returns the name of the file in the work directory.
+            '''
+            flatoffset_cmd_files = {
+                            "1":"BEAM1_FLAT_MAP_OFFSETS.txt",
+                            "2":"BEAM2_FLAT_MAP_OFFSETS.txt",
+                            "3":"BEAM3_FLAT_MAP_OFFSETS.txt",
+                            "4":"BEAM4_FLAT_MAP_OFFSETS.txt"
+                            }
+            
+            return wdir + '/' + flatoffset_cmd_files[f"{self.beam_id}"]
 
     def cmd_2_map2D(self, cmd, fill=np.nan):
         '''Convert a 140 cmd into a 2D DM map for display.
@@ -69,7 +84,23 @@ class dmclass():
         wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
         flat_cmd = np.loadtxt(self.select_flat_cmd( wdir))
         self.shms[0].set_data(self.cmd_2_map2D(flat_cmd, fill=0.0))
+        ##
+        self.shm0.post_sems(1)
 
+
+    def activate_calibrated_flat(self):
+        """
+        convention to apply flat command on channel 0!
+        this adds an additional calibrated offset to the DM flat
+        """
+        if self.nch == 0:
+            return
+        wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+        flat_cmd = np.loadtxt(self.select_flat_cmd( wdir))
+        flat_cmd_offset = np.loadtxt(self.select_flat_cmd_offset( wdir))
+        self.shms[0].set_data(self.cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
+        ##
+        self.shm0.post_sems(1)
 
     def activate_cross(self, amp=0.1):
         """
@@ -81,6 +112,8 @@ class dmclass():
         cross_cmd[ii0:ii0+2, :] = amp
         cross_cmd[:, ii0:ii0+2] = amp
         self.shms[1].set_data(cross_cmd)
+        ##
+        self.shm0.post_sems(1)
 
     def apply_modes(self, amplitude_list, basis_list):
         """
@@ -91,6 +124,8 @@ class dmclass():
         """        
         cmd = np.sum( [ aa * MM for aa, MM in zip(amplitude_list, basis_list)])
         self.shms[2].set_data(cmd)
+        ##
+        self.shm0.post_sems(1)
 
 
     def set_data(self, cmd):
@@ -98,22 +133,25 @@ class dmclass():
         convention to apply any user specific commands on channel 2!
         """
         self.shms[2].set_data(cmd)
+        ##
+        self.shm0.post_sems(1)
 
     def zero_all(self):
         cmd = np.zeros(144)
         for ii, ss in enumerate(self.shms):
             ss.set_data(cmd)
+            
             print(f"zero'd {self.shmfs[ii]}")
+        ## 
+        self.shm0.post_sems(1)
 
 
-
-    def closeEvent(self, event):
+    def close(self, erase_file = False):
         # freeing all shared memory structures
         for ii in range(self.nch):
-            self.shms[ii].close(erase_file=False)
+            self.shms[ii].close(erase_file=erase_file)
         for ii in range(self.nch):
             self.shms.pop(0)
         print("end of program")
-
-        sys.exit()
+        #sys.exit()
 

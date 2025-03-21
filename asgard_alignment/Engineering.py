@@ -49,6 +49,8 @@ def get_matricies(config):
             3: np.array([[0.00929, -0.0065], [-0.0011, 0.01768]]),
             4: np.array([[0.00649, -0.00455], [-0.00077, 0.01745]]),
         }
+
+
     else:
         raise ValueError("Invalid configuration")
 
@@ -70,6 +72,20 @@ def get_matricies(config):
 
     return pupil_move_matricies, image_move_matricies
 
+
+# matrix to calculate phasemask relative offsets (BMX,BMY) 
+# based on relative OAP mirror tip/tilt (BOTX) offsets  () 
+# calculate / calibrated 13/3/25 baldr logbook
+# convention is [BMX, BMY] = Matrix . [BOTP , BOTT]
+# on eng GUI BOTP is U, BOTT is V
+# convention delta_U = after - before
+# NO BOTX ON BEAM 1 ! 
+phasemask_botx_matricies = {
+    1: np.array([[0.0, 0.0],[0.0, 0.0]]),
+    2: np.array([[0.0, -80/0.01],[80/0.01, 0.0]]),
+    3: np.array([[0.0, -80/0.01],[80/0.01, 0.0]]),
+    4: np.array([[0.0, 80/0.01],[80/0.01, 0.0]]),
+}
 
 # matricies for the M100D, that solve [beamx, beamy] = matrix @ [u, v]
 RH_motor = np.array(

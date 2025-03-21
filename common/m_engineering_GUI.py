@@ -18,6 +18,8 @@ import toml
 from asgard_alignment import FLI_Cameras as FLI
 import asgard_alignment.Engineering
 import common.DM_basis_functions
+
+from asgard_alignment.DM_shm_ctrl import dmclass
 try:
     import common.phasemask_centering_tool as pct
     from pyBaldr import utilities as util
@@ -349,6 +351,7 @@ def handle_phasemask():
 
         # Show the updated figure
         st.pyplot(fig)
+        plt.close('all')
 
     if apply_raster:
         figure_path = '/home/asg/Progs/repos/asgard-alignment/calibration/reports/phasemask_aquisition/'
@@ -637,6 +640,7 @@ def handle_deformable_mirror():
         fig.colorbar(cax, ax=ax)
         ax.set_title("Applied Combined Mode")
         st.pyplot(fig)
+        plt.close('all')
 
     # set the DM to unity and then multiply by the combined mode.. We really need a set method!!!
     dm_shm *= 0.0  # zero all the DMs
@@ -1074,6 +1078,7 @@ def handle_lens_flipper():
     for beam_num, col in zip(beam_nums, cols):
         target = f"BLF{beam_num}"
         with col:
+            st.write(f"beam{beam_num}")
             if st.button("Read State", key=f"read_state_{beam_num}"):
                 message = f"read {target}"
                 res = send_and_get_response(message)
@@ -1206,6 +1211,7 @@ with col_main:
             "Select Routine",
             [
                 "Quick buttons",
+                "Camera & DMs",
                 "Illumination",
                 "Move image/pupil",
                 "Phasemask Alignment",
@@ -1219,9 +1225,256 @@ with col_main:
         )
 
         if routine_options == "Quick buttons":
-            # zero_all command button
-            #st.write("Nothing here (yet)")
 
+
+            # Function to run script
+            def run_script(command):
+                try:
+                    with st.spinner("Running.. drink some water"):
+                        # Ensure stdout and stderr are properly closed
+                        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                            
+                            stdout, stderr = process.communicate()
+                            if process.returncode != 0:
+                                st.error(f"Script failed: {stderr}")
+                                return False
+                        return True  # Script succeeded
+                except Exception as e:
+                    st.error(f"Error running script: {e}")
+                    return False
+
+
+            def run_script_with_output(command):
+                """
+                Run an external script using subprocess and capture its output in Streamlit.
+                """
+                try:
+                    with st.spinner("Running..."):
+                        # Open subprocess with pipes for real-time output capture
+                        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                            
+                            output = []
+                            for line in process.stdout:
+                                st.text(line.strip())  # Stream output in real-time to UI
+                                output.append(line.strip())
+
+                            stderr_output = process.stderr.read().strip()
+                            st.write(f'process return code {process.returncode}')
+                            ### This always fails even when script runs fine.. even when using sys.exit(0) I dont understand
+                            #if process.returncode != 0:
+                            #    st.error(f"Script failed: {stderr_output}")
+                            #    return False, output
+                    return True, output  # Script succeeded
+
+                except Exception as e:
+                    st.error(f"Error running script: {e}")
+                    return False, []
+
+            ## Quick save states and images
+            tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
+
+            st.title("Quick save motor states with CRED 1 images")
+            st.write( "Use frequently! these are very usefull to analyse system stability and recovery after earthquakes etc" )
+            st.write( "saves all motor states along with 20 CRED 1 images in current camera settings. Saves as a fits file in:")
+            save_state_data_path = f"/home/asg/Progs/repos/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/"
+            st.write( f"{save_state_data_path}")
+
+            if st.button("qucik save state"):
+                command = ["python",  "calibration/quick_savestates_n_img.py", "--data_path", save_state_data_path  ]
+                success = run_script(command)
+                if success:
+                    st.success("done")
+                else:
+                    st.warning("could not run script for some reason..")
+            ## DMS 
+
+            st.title("Quick Check on CRED 1 Server")
+            st.write("Checks the camera server comminication and that the camera is updating and not skipping frames. Provides trouble shooting recommendations if errors are found.")
+            if st.button("health check"):
+                command = ["python",  "playground/skipped_frames.py" ]
+
+                success, log_output = run_script_with_output(command)
+
+                if success:
+                    st.success("Camera test completed successfully!")
+                else:
+                    st.error("Camera test failed. Check logs.")
+
+                # Show full log output in an expandable section
+                with st.expander("Detailed Log Output"):
+                    for line in log_output:
+                        st.text(line)
+
+
+            st.title("Deformable Mirrors (DM's)")
+
+            zbasis = common.DM_basis_functions.zer_bank(1, 10 )
+
+            #use_calibrated_dm_flat = st.checkbox('Use a calibrated "Baldr DM flat')
+
+            if "dm_shm_dict" not in st.session_state:
+                st.session_state.dm_shm_dict = {beam_id: dmclass(beam_id=beam_id) for beam_id in [1,2,3,4]}
+
+            col1, col2, col3,col4 = st.columns(4)
+            with col1:
+                if st.button("Zero all DM's"): 
+                    for beam in [1,2,3,4]:
+                        st.session_state.dm_shm_dict[beam].zero_all()
+
+            with col2:
+                if st.button("Apply Factory DM flat's"): 
+                    for beam in [1,2,3,4]:
+                        st.session_state.dm_shm_dict[beam].activate_flat()
+                        #if use_calibrated_dm_flat:
+                        #    st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
+                        #else:
+            with col3:
+                if st.button("Apply Baldr DM flat's"): 
+                    for beam in [1,2,3,4]:
+                        st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
+
+            with col4:            
+                if st.button("Apply DM cross"): 
+                    for beam in [1,2,3,4]:
+                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.1)
+
+            st.write("Defocus")
+
+            strength = st.slider("Strength", min_value=-0.5, max_value=0.5, value=0., step=0.01)
+
+            if st.button("Apply defocus"): 
+                for beam in [1,2,3,4]:
+                    st.session_state.dm_shm_dict[beam].set_data( strength * zbasis[3] )
+
+
+            # basis = st.selectbox(
+            #     "Select Basis",
+            #     options=[
+            #         "Hadamard",
+            #         "Zonal",
+            #         "Zonal_pinned_edges",
+            #         "Zernike",
+            #         "Zernike_pinned_edges",
+            #         "fourier",
+            #         "fourier_pinned_edges",
+            #     ],
+            # )
+    
+            # mode = st.number_input("Mode", min_value=0, max_value=50, value=5, step=1)
+    
+            # strength = st.slider("Strength", min_value=0.0, max_value=1.0, value=0.1, step=0.01)
+
+            # if st.button("Apply aberration"): 
+            #     for beam in [1,2,3,4]:
+            #         st.session_state.dm_shm_dict[beam].shms[2].set_data(  )
+
+
+            st.title("Phase masks")
+            
+            st.write("Move all beams to mask")
+            col1, col2, col3, col4, col5 = st.columns(5) 
+
+            for mask, col in zip( [1,2,3,4,5], [col1, col2, col3, col4, col5]):
+                with col:
+                    if st.button(f"H{mask}"):
+                        for beam in [1,2,3,4]:
+                            message = f"fpm_movetomask phasemask{beam} H{mask}"
+                            res = send_and_get_response(message)
+                    if st.button(f"J{mask}"):
+                        for beam in [1,2,3,4]:
+                            message = f"fpm_movetomask phasemask{beam} J{mask}"
+                            res = send_and_get_response(message)
+
+            # col1, col2 = st.columns(2)
+            # BMX_offset_tmp = 200.0
+            # with col1:
+            #     if st.button(f"Offset all masks ({BMX_offset_tmp}um in BMX)"):
+            #         for beam in [1,2,3,4]:
+            #             message = f"moverel BMX{beam} {BMX_offset_tmp}"
+            #             response = send_and_get_response(message)
+            #             if "ACK" in response:
+            #                 st.success(f"{BMX_offset_tmp}um offset successfully applied to BMX{beam}")
+            #             else:
+            #                 st.error(f"Failed to apply offset to BMX{beam}. Response: {response}")
+
+            # with col2:
+            #     if st.button("Reverse Offset for all masks"):
+            #         for beam in [1,2,3,4]:
+            #             message = f"moverel BMX{beam} {-BMX_offset_tmp}"
+            #             response = send_and_get_response(message)
+            
+            #             if "ACK" in response:
+            #                 st.success(f"{-BMX_offset_tmp}um offset successfully applied to BMX{beam}")
+            #             else:
+            #                 st.error(f"Failed to apply offset to BMX{beam}. Response: {response}")
+
+
+
+            # To apply offsets to the phasemasks 
+            st.write("Select Beams for Offsetting Phasemasks")
+            col1, col2, col3, col4 = st.columns(4)  # Equal width columns
+            
+            with col1:
+                beam_1 = st.checkbox("Beam 1", value=True)
+            with col2:
+                beam_2 = st.checkbox("Beam 2", value=True)
+            with col3:
+                beam_3 = st.checkbox("Beam 3", value=True)
+            with col4:
+                beam_4 = st.checkbox("Beam 4", value=True)
+    
+            offset_input = st.text_input("Relative Offset Amp (μm)", value="20.0")
+            try:
+                increment = float(offset_input)  # Convert input to float
+            except ValueError:
+                st.error("Please enter a valid number for the offset.")
+                increment = 20.0  # Default value if input is invalid
+
+                
+            selected_beams = []
+            if beam_1: selected_beams.append(1)
+            if beam_2: selected_beams.append(2)
+            if beam_3: selected_beams.append(3)
+            if beam_4: selected_beams.append(4)
+
+
+            #st.subheader("Move Beams")
+
+            # Movement Buttons (Grid Layout)
+            ul, um, ur = st.columns(3)
+            ml, mm, mr = st.columns(3)
+            ll, lm, lr = st.columns(3)
+
+            # Move Up (BMY+)
+            with um:
+                if st.button(f"⬆️ +Y ({increment:.2f} μm)"):
+                    for beam in selected_beams:
+                        message = f"moverel BMY{beam} {increment}"
+                        send_and_get_response(message)
+
+            # Move Down (BMY-)
+            with lm:
+                if st.button(f"⬇️ -Y ({increment:.2f} μm)"):
+                    for beam in selected_beams:
+                        message = f"moverel BMY{beam} {-increment}"
+                        send_and_get_response(message)
+
+            # Move Left (BMX+)
+            with ml:
+                if st.button(f"⬅️ +X ({increment:.2f} μm)"):
+                    for beam in selected_beams:
+                        message = f"moverel BMX{beam} {increment}"
+                        send_and_get_response(message)
+
+            # Move Right (BMX-)
+            with mr:
+                if st.button(f"➡️ -X ({increment:.2f} μm)"):
+                    for beam in selected_beams:
+                        message = f"moverel BMX{beam} {-increment}"
+                        send_and_get_response(message)
+                        
+
+            st.title("Quick Scripts")
             tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
             quick_data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/"
 
@@ -1230,74 +1483,262 @@ with col_main:
             # Define scripts and their arguments 
             QUICK_SCRIPTS = {
                 "detect pupils": ["python",  "calibration/detect_cropped_pupils_coords.py", "--fig_path", quick_data_path  ],
-                "register pupil beam 1": ["python", "calibration/pupil_registration.py", "--beam_id", "[1]", "--fig_path", quick_data_path ],
-                "register pupil beam 2": ["python", "calibration/pupil_registration.py", "--beam_id", "[2]", "--fig_path", quick_data_path ],
-                "register pupil beam 3": ["python", "calibration/pupil_registration.py", "--beam_id", "[3]", "--fig_path", quick_data_path ],
-                "register pupil beam 4": ["python", "calibration/pupil_registration.py", "--beam_id", "[4]", "--fig_path", quick_data_path ],
-                "register DM beam 1": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[1]", "--fig_path", quick_data_path ],
-                "register DM beam 2": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[2]", "--fig_path", quick_data_path ],
-                "register DM beam 3": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[3]", "--fig_path", quick_data_path ],
-                "register DM beam 4": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "[4]", "--fig_path", quick_data_path ],
+                "register_pupil_beam_1": ["python", "calibration/pupil_registration.py", "--beam_ids", "1", "--fig_path", quick_data_path ],
+                "register_pupil_beam_2": ["python", "calibration/pupil_registration.py", "--beam_ids", "2", "--fig_path", quick_data_path ],
+                "register_pupil_beam_3": ["python", "calibration/pupil_registration.py", "--beam_ids", "3", "--fig_path", quick_data_path ],
+                "register_pupil_beam_4": ["python", "calibration/pupil_registration.py", "--beam_ids", "4", "--fig_path", quick_data_path ],
+                "register_DM_beam_1": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "1", "--fig_path", quick_data_path ],
+                "register_DM_beam_2": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "2", "--fig_path", quick_data_path ],
+                "register_DM_beam_3": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "3", "--fig_path", quick_data_path ],
+                "register_DM_beam_4": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "4", "--fig_path", quick_data_path ],
             }
 
-            # # Initialize session state for each button (if not set)
-            # for key in QUICK_SCRIPTS.keys():
-            #     if key not in st.session_state:
-            #         st.session_state[key] = False  # Default: No button has been pressed
 
-            # # Function to run script and update session state
-            # def run_script(command, key):
+            # Initialize session state for each button (if not set)
+            for key in QUICK_SCRIPTS.keys():
+                if key not in st.session_state:
+                    st.session_state[key] = False  # Default: No button has been pressed
+
+                
+            #################-------------------------
+            st.subheader("Detect the Sub-Pupils")
+            st.write('run this with clear pupils (phase masks out)')
+            
+            if st.button("Detect Heimdallr/Baldr Pupils", key="detect_pupils"):
+                sucess = run_script(QUICK_SCRIPTS["detect pupils"])
+
+            
+                if sucess: #st.session_state["detect pupils"]:
+                    fig_path = QUICK_SCRIPTS["detect pupils"][-1] + 'detected_pupils.png'
+                    if os.path.exists(fig_path):
+                        st.image(Image.open(fig_path), caption="Detected Pupils Output", use_column_width=True)
+                    else:
+                        st.write(f"can't find {fig_path}")
+                else:
+                    st.write('no current output')
+
+
+                
+            # --- Columns for Beams 1 - 4 ---
+            cols = st.columns(4)
+            beam_titles = ["Beam 1", "Beam 2", "Beam 3", "Beam 4"]
+
+            for i, col in enumerate(cols):
+                with col:
+                    st.header(beam_titles[i])
+
+            st.subheader("Register the Pupil Pixels")
+            st.write("Run this with clear pupils (phase masks out). This can take a minute.")
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+                    #st.header(beam_titles[i])
+
+                    # Unique key for each beam button
+                    btn_key = f"register_pupil_beam_{i+1}"
+
+                    # Run the script when button is clicked
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(QUICK_SCRIPTS[btn_key])
+
+                        if success:
+                            fig_path = os.path.join(QUICK_SCRIPTS[btn_key][-1], f'pupil_reg_beam{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+                    
+
+            st.subheader("Register the DM Actuators in Pixel Space.") 
+            st.write("This requires alignment on a phasemask (try H3)! This can take a minute.")
+            
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+                    #st.header(beam_titles[i])
+
+                    btn_key = f"register_DM_beam_{i+1}"
+
+                    # Run the script when button is clicked
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(QUICK_SCRIPTS[btn_key])
+
+                        if success:
+                            # Note 'DM_registration_in_pixel_space.png' is generated in 
+                            # calibrate_transform_between_DM_and_image from DM_registration which
+                            # doesn't have knowlodge of the beam number - so just overwrites the same
+                            # image each time.. so looking at the most recent - fine if done immediately after running script
+                            fig_path = os.path.join(QUICK_SCRIPTS[btn_key][-1], 'DM_registration_in_pixel_space.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+                    
+
+            st.subheader("Build Interaction Matrix") 
+            st.write("have the phasemask's well aligned prior to starting.")
+            
+            basis_name = st.text_input("Basis Name", "zernike")
+            poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.02, step=0.01)
+            Nmodes = st.number_input("Number of Modes to Probe", min_value=1, max_value=140, value=10, step=1)
+            inverse_method = st.text_input("IM Inverse Method", "pinv")
+            phasemask = st.text_input("Phasemask", "H3")
+
+
+            IM_SCRIPTS = {
+            "build_IM_beam_1": ["python", "calibration/build_IM.py", "--beam_id", "1","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_2": ["python", "calibration/build_IM.py", "--beam_id", "2","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_3": ["python", "calibration/build_IM.py", "--beam_id", "3","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_4": ["python", "calibration/build_IM.py", "--beam_id", "4","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            }     
+
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+
+                    btn_key = f"build_IM_beam_{i+1}"
+
+                    # Run the script when button is clicked
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(IM_SCRIPTS[btn_key])
+
+                        if success:
+                            fig_path = os.path.join(IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+                    
+
+        if routine_options == "Camera & DMs":
+            st.write("testing")
+
+            # c = FLI.fli()
+            # camera_command = st.text_input("Send Command to Camera:", key="camera_command", placeholder="fps")
+            # try:
+            #     resp = c.send_fli_cmd(camera_command)
+            #     st.success(f"Command '{camera_command}' sent to camera!\nresponse = {resp}")
+            # except Exception as e:
+            #     st.error(f"Failed to send command: {e}")
+
+            # if st.button("get image"):
+            #     img = np.mean( c.get_data() , axis=0)
+
+            #     import plotly.express as px
+
+            #     # Generate a random 2D NumPy array
+            #     image_array = np.random.rand(100, 100)
+
+            #     # Convert NumPy array to interactive heatmap
+            #     fig = px.imshow(img, color_continuous_scale="gray")
+
+            #     # Display in Streamlit
+            #     st.plotly_chart(fig, use_container_width=True)
+            #     plt.close()
+            #     # fig, ax = plt.subplots()
+            #     # ax.imshow( np.log10( img ), cmap="gray")
+            #     # st.pyplot(fig)
+
+            # c.close(erase_file=False)
+
+            # Initialize Camera and DM Objects in session state
+            # if "camera" not in st.session_state:
+            #     st.session_state.camera = FLI.fli()  # Open the camera shared memory object
+
+            # beam_ids = [1, 2, 3, 4]  # IDs for the four beams
+
+            # if "dm_shm_dict" not in st.session_state:
+            #     st.session_state.dm_shm_dict = {beam_id: dmclass(beam_id=beam_id) for beam_id in beam_ids}
+            
+            # if "apply_dark" not in st.session_state:
+            #     st.session_state.apply_dark = False  # Default: Dark correction disabled
+
+            # # Streamlit UI Layout
+            # st.title("Live Camera & Deformable Mirror Commands")
+
+            # # Placeholder for Camera Frame
+            # camera_placeholder = st.empty()
+
+            # # Camera Command Input (Runs on Enter)
+            # camera_command = st.text_input("Send Command to Camera:", key="camera_command", placeholder="Enter command and press Enter")
+
+            # if camera_command:
             #     try:
-            #         subprocess.run(command, check=True)
-            #         st.session_state[key] = True  # Mark button as pressed
-            #     except subprocess.CalledProcessError as e:
-            #         st.error(f"Error running script: {e}")
+            #         resp = st.session_state.camera.send_fli_cmd(camera_command)
+            #         st.success(f"Command '{camera_command}' sent to camera!\nresponse = {resp}")
+            #     except Exception as e:
+            #         st.error(f"Failed to send command: {e}")
 
-        
-            # if st.button("Detect Heimdallr/Baldr Pupils", key="detect_pupils"):
-            #     run_script(QUICK_SCRIPTS["detect pupils"], "detect pupils")
+            # # "Build Dark" Button
+            # if st.button("Build Dark"):
+            #     try:
+            #         st.session_state.camera.build_manual_dark()
+            #         st.success("Dark frame built successfully.")
+            #     except Exception as e:
+            #         st.error(f"Failed to build dark frame: {e}")
 
-        
-            # if st.session_state["detect pupils"]:
-            #     fig_path = QUICK_SCRIPTS["detect pupils"][-1] + 'detected_pupils.png'
-            #     if os.path.exists(fig_path):
-            #         st.image(Image.open(fig_path), caption="Detected Pupils Output", use_column_width=True)
-            #     else:
-            #         st.write(f"can't find {fig_path}")
-            # else:
-            #     st.write('no current output')
+            # # "Apply Dark" Checkbox
+            # apply_dark = st.checkbox("Apply Dark Correction", value=st.session_state.apply_dark)
+            # st.session_state.apply_dark = apply_dark
+            # #st.write( st.session_state.apply_dark )
 
-            # # Four Columns for Beams 1 - 4
-            # cols = st.columns(4)
-            # beam_titles = ["Beam 1", "Beam 2", "Beam 3", "Beam 4"]
+            # # Create four columns for DM commands
+            # dm_columns = st.columns(4)
+            # dm_placeholders = {beam_id: col.empty() for beam_id, col in zip(beam_ids, dm_columns)}
 
-            # for i, col in enumerate(cols):
+
+            # # UI Controls: Buttons, Dropdowns, and Input Fields (Created **once**)
+            # for beam_id, col in zip(beam_ids, dm_columns):
             #     with col:
-            #         st.header(beam_titles[i])
+            #         st.subheader(f"Beam {beam_id}")
 
-            #         btn_key = f"register pupil beam {i+1}"  # Create a unique button key for each beam
-            #         if st.button(f"Run {btn_key}", key=btn_key):
-            #             run_script(QUICK_SCRIPTS[btn_key], btn_key)
+            #         # Buttons for DM control
+            #         if st.button(f"Zero All - Beam {beam_id}", key=f"zero_{beam_id}"):
+            #             st.session_state.dm_shm_dict[beam_id].zero_all()
+            #             st.success(f"Beam {beam_id} set to zero.")
 
-            #         # Only display the image if this button was pressed
-            #         if st.session_state[btn_key]:
-            #             fig_path = QUICK_SCRIPTS[btn_key][-1] + f'pupil_reg_beam{i+1}'  # << this is default name of output figure from script
-            #             if os.path.exists(fig_path):
-            #                 st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
-                            
-            #         st.write("DM registration requires alignment on phasemask")
+            #         if st.button(f"Flatten DM - Beam {beam_id}", key=f"flatten_{beam_id}"):
+            #             st.session_state.dm_shm_dict[beam_id].activate_flat()
+            #             st.success(f"Beam {beam_id} flattened.")
 
-            #         btn_key = f"register DM beam {i+1}"  # Create a unique button key for each beam
-            #         if st.button(f"Run {btn_key}", key=btn_key):
-            #             run_script(QUICK_SCRIPTS[btn_key], btn_key)
+            #         # Dropdown menus for "Apply Shape"
+            #         st.subheader("Apply Shape")
+            #         selected_channel = st.selectbox(f"Select Channel (Beam {beam_id})", ["Channel 1", "Channel 2", "Channel 3"], key=f"channel_{beam_id}")
+            #         selected_basis = st.selectbox(f"Select Basis (Beam {beam_id})", ["Basis A", "Basis B", "Basis C"], key=f"basis_{beam_id}")
 
-            #         # Only display the image if this button was pressed
-            #         if st.session_state[btn_key]:
-            #             fig_path = QUICK_SCRIPTS[btn_key][-1] + 'DM_registration_in_pixel_space.png' # << this is default name of output figure from script
-                        
-            #             if os.path.exists(fig_path):
-            #                 st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
-                      
+            #         # Input for amplitude
+            #         amplitude = st.text_input(f"Enter Amplitude (Beam {beam_id})", key=f"amplitude_{beam_id}", placeholder="e.g., 0.5")
+
+            # # **Main Loop** for Live Updates (Camera & DM Plots)
+            # if st.button("Update Camera & DM Signals"): #while True:
+            #     # Get the latest camera frame
+            #     camera_frame = np.mean(st.session_state.camera.get_data(apply_manual_reduction=st.session_state.apply_dark, which_index=-1), axis=0)
+
+            #     # Update Camera Frame
+            #     fig_cam, ax_cam = plt.subplots(figsize=(8, 6))
+            #     ax_cam.imshow(camera_frame, cmap="gray", origin="upper")
+            #     ax_cam.set_title("Camera Frame")
+            #     ax_cam.axis("off")
+            #     camera_placeholder.pyplot(fig_cam)
+            #     plt.close(fig_cam)  # Prevent memory leaks
+
+            #     # Update DM Command Visualizations in four columns
+            #     for beam_id in beam_ids:
+            #         dm_command = st.session_state.dm_shm_dict[beam_id].shm0.get_data()
+
+            #         fig_dm, ax_dm = plt.subplots(figsize=(3, 3))
+            #         ax_dm.imshow(dm_command, cmap="viridis", origin="upper")
+            #         ax_dm.set_title(f"Beam {beam_id} - DM Command")
+            #         ax_dm.axis("off")
+
+            #         dm_placeholders[beam_id].pyplot(fig_dm)
+            #         plt.close(fig_dm)  # Prevent memory leaks
+
+            #     # Refresh every second
+            #     time.sleep(1)
+            
         if routine_options == "Illumination":
             # a few options to control sources, source position and flipper states
 
@@ -1404,6 +1845,12 @@ with col_main:
             if "prev_config" not in st.session_state.moveImPup:
                 st.session_state.moveImPup["prev_config"] = None
 
+            if "phasemask_offset_BMX" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["phasemask_offset_BMX"] = None
+            
+            if "phasemask_offset_BMY" not in st.session_state.moveImPup:
+                st.session_state.moveImPup["phasemask_offset_BMY"] = None
+
             #first_instance = True 
             # original_pos = {}
 
@@ -1473,13 +1920,13 @@ with col_main:
                         # asgard_alignment.Engineering.move_image(
                         #     beam, delx, dely, send_and_get_response, config
                         # )
-                        cmd = f"move_image {config} {beam} {delx} {dely}"
+                        cmd = f"mv_img {config} {beam} {delx} {dely}"
                         send_and_get_response(cmd)
                     elif move_what == "move_pupil":
                         # asgard_alignment.Engineering.move_pupil(
                         #     beam, delx, dely, send_and_get_response, config
                         # )
-                        cmd = f"move_pupil {config} {beam} {delx} {dely}"
+                        cmd = f"mv_pup {config} {beam} {delx} {dely}"
                         # this had no send cmd - fixed 5/3/25
                         send_and_get_response(cmd)
             else:
@@ -1488,7 +1935,7 @@ with col_main:
                 if config == 'baldr':
                     if move_what == "move_image":
                         increment = st.number_input(
-                            "Increment (mm?? double check, values around 0.1 are ok)",
+                            "Increment (typically mm, remember cold stop is ~2.mm diameter)",
                             min_value=0.0,
                             max_value=1.0,
                             step=0.1,
@@ -1616,6 +2063,88 @@ with col_main:
                     send_and_get_response(msg)
                     st.write(f"phew! Moving {axis} back to {pos}. Remember to drink water!")
                         
+            st.title( "Update Phasemask Poisitions")
+
+            st.write("Moving the Baldr OAP tip/tilt motor (BOTX) - \
+                     which is involved in move image/pupil for the \
+                     baldr configuration - obviously moves the beam\
+                      on the phasemask. Use this section to correctly \
+                     offset the phasemasks based on any BOTX movements. \
+                     Use the 'update (write new)' button if you plane to maintain the new positions of the BOTX motors")
+            if st.button("Calculate phasemask offset based on BOTX changes (current-original positions)"):
+                
+                # matrix to map relative BOTX offsets to phasemask (BMX/BMY) offsets
+                phasemask_matrix = asgard_alignment.Engineering.phasemask_botx_matricies
+    
+                for axis in [f"BOTP{beam}",f"BOTT{beam}"]:
+                    pos = send_and_get_response(f"read {axis}")
+                    if axis == f"BOTP{beam}":
+                        current_BOTP = float(pos)
+                    if axis == f"BOTT{beam}":
+                        current_BOTT = float(pos)
+
+                original_BOTP = float( st.session_state.moveImPup["original_positions"].get(f"BOTP{beam}", None) )
+                if original_BOTP is None:
+                    st.Warning("original_BOTP is None. Cannot update phasemasks") 
+                original_BOTT = float( st.session_state.moveImPup["original_positions"].get(f"BOTT{beam}", None) )
+                if original_BOTT is None:
+                    st.Warning("original_BOTT is None. Cannot update phasemasks")
+                
+                delta_BOTP = (current_BOTP - original_BOTP)
+                delta_BOTT = (current_BOTT - original_BOTT)
+
+                st.write( f"delta_BOTP, delta_BOTT = {delta_BOTP},{delta_BOTT}")
+                st.write(f"botx - phasemask offset matrix:{phasemask_matrix[int(beam)]}")
+
+                delta_BMX, delta_BMY = phasemask_matrix[int(beam)] @ [delta_BOTP, delta_BOTT]
+
+                st.session_state.moveImPup["phasemask_offset_BMX"] = delta_BMX
+                st.session_state.moveImPup["phasemask_offset_BMY"] = delta_BMY
+                
+                st.write(f'calculated phasemask offset (um): delta_BMX{beam}, delta_BMY{beam} = {round(st.session_state.moveImPup["phasemask_offset_BMX"],1)},{round( st.session_state.moveImPup["phasemask_offset_BMY"],1)}')
+
+
+            if st.button(f'apply phasemask offset: delta_BMX{beam}, delta_BMY{beam} = {st.session_state.moveImPup["phasemask_offset_BMX"]},{st.session_state.moveImPup["phasemask_offset_BMY"]}um'):
+
+                dbmx = st.session_state.moveImPup["phasemask_offset_BMX"]
+                dbmy = st.session_state.moveImPup["phasemask_offset_BMY"]
+                
+                response = send_and_get_response(f"moverel BMX{beam} {dbmx}" )
+                if "ACK" in response:
+                    st.success(f"{dbmx}um offset successfully applied to BMX{beam}")
+                else:
+                    st.error(f"Failed to apply offset to BMX{beam}. Response: {response}")
+
+                resp = send_and_get_response(f"moverel BMY{beam} {dbmy}" )
+                if "ACK" in response:
+                    st.success(f"{dbmy}um offset successfully applied to BMY{beam}")
+                else:
+                    st.error(f"Failed to apply offset to BMY{beam}. Response: {response}")
+
+
+            if st.button(f'update (write new) phasemask position file for beam{beam} based on offsets'):
+                
+                dbmx = st.session_state.moveImPup["phasemask_offset_BMX"]
+                dbmy = st.session_state.moveImPup["phasemask_offset_BMY"]
+                
+                response = send_and_get_response(f"fpm_offsetallmaskpositions phasemask{beam} {dbmx} {dbmy}" )
+                if "ACK" in response:
+                    st.success(f"offset all mask positions for beam{beam} locally")
+                else:
+                    st.error(f"Failed to apply offset to all phasemasks on beam{beam}. Response: {response}")
+
+                save_message = f"fpm_writemaskpos phasemask{beam}"
+                save_res = send_and_get_response(save_message)
+
+                if "NACK" in save_res:
+                    st.error(
+                        f"Failed to save updated positions"
+                    )  # to file: {save_res}")
+                else:
+                    st.success(
+                        "Updated positions successfully saved to file"  # at: " + save_path
+                    )
+
         if routine_options == "Phasemask Alignment":
             
             beam_numbers = [1, 2, 3, 4]
@@ -1712,68 +2241,10 @@ with col_main:
 
         if routine_options == "Scan Mirror":
 
-            st.title("Scan Mirror Control Panel")
-            st.write("Scan a mirror (or combination of mirrors) and analyse the signal in the CRED 1 as a function of scanned coorodinates. Currently does not automatically applying an offset to better center it around the detected edges.")
-
-            figure_path = "/home/asg/Progs/repos/asgard-alignment/figs/"
 
 
-            # User inputs for search parameters
-            
-            beam = st.selectbox(
-                    "Pick a beam",
-                    list(range(1, 5)),
-                    key="beam",
-                )
-            search_radius = st.text_input("Search Radius:", "0.3")
-            dx = st.text_input("Step Size (dx):", "0.05")
-            
-            #x0 = st.text_input("Initial X Position (x0):", "0.0")
-            #y0 = st.text_input("Initial Y Position (y0):", "0.0")
-            
-            st.title("Individual Mirrors")
-
-            motor = st.text_input("Motor Name:", "BTX")
-            st.write("enter x,y start point or current to start from current position")
-            start_pos = st.text_input("start position",'current')
-
-            # Button to execute the script
-            if st.button("Run Scan", key='run_individual_scan'):
-                command = [
-                    "python", "common/m_scan_mirrors.py",
-                    "--beam", f"{beam}",
-                    "--motor", motor,
-                    "--search_radius", search_radius,
-                    "--dx", dx,
-                    "--initial_pos", start_pos,
-                    "--data_path", figure_path
-                ]
-
-                # Run the external script
-                with st.spinner("Running scan..."):
-                    process = subprocess.run(command, capture_output=True, text=True)
-
-                # Display output
-                st.text_area("Script Output", process.stdout)
-
-                if process.returncode != 0:
-                    st.error(f"Error: {process.stderr}")
-                else:
-                    st.success("Scan completed successfully!")
-
-                    if os.path.exists(figure_path):
-                        image = Image.open(figure_path + 'scanMirror_result.png')
-                        st.image(image, caption="Scan Results", use_column_width=True)
-                    else:
-                        st.warning("Figure not found. Ensure the script generates the file correctly.")
-
-
-            #first_instance = True 
-            # original_pos = {}
-
-
-            st.title("Combination of Mirrors")
-
+            #if "scan_running" not in st.session_state:
+            #    st.session_state.scan_running = False
             if "moveImPup" not in st.session_state:
                 st.session_state.moveImPup = {}  # Initialize as a dictionary
 
@@ -1786,6 +2257,164 @@ with col_main:
             if "prev_config" not in st.session_state.moveImPup:
                 st.session_state.moveImPup["prev_config"] = None
 
+            if "img_json_file" not in st.session_state.moveImPup:
+                # to hold the scan dictionary file path if saved
+                st.session_state.moveImPup["img_json_file"] = None
+
+            if "baldr_pupils" not in st.session_state:
+                st.session_state.baldr_pupils = None
+            if "heim_pupils" not in st.session_state:
+                st.session_state.heim_pupils = None
+
+
+            st.title("Scan Mirror Control Panel")
+            st.write("Scan a mirror (or combination of mirrors) and analyse the signal in the CRED 1 as a function of scanned coorodinates. Currently does not automatically applying an offset to better center it around the detected edges.")
+
+
+            # User inputs for search parameters
+            
+            beam = st.selectbox(
+                    "Pick a beam",
+                    list(range(1, 5)),
+                    key="beam",
+                )
+
+
+            look_where = st.selectbox(
+                    "What region of the camera to look at?",
+                    ["Baldr Beam", "Heimdallr K1", "Heimdallr K2"], #,"whole camera"],
+                    key="look_where",
+                )
+
+            scantype = st.selectbox(
+                    "type of scan",
+                    ['square_spiral','raster'],
+                    key="scantype",
+                )
+
+
+            # configuration info (like where to crop for each beam)
+            toml_file = os.path.join( "config_files", "baldr_config_#.toml")
+            
+            if beam != st.session_state.moveImPup["prev_beam"]:
+                # we don't want to hold on to toml file since large! 
+                with open(toml_file.replace('#',f'{beam}') ) as file:
+                    configdata = toml.load(file)
+                    # Extract the "baldr_pupils" section
+                    baldr_pupils = configdata.get("baldr_pupils", {})
+                    heim_pupils = configdata.get("heimdallr_pupils", {})
+                        
+                # Store only the required sections
+                st.session_state.baldr_pupils = baldr_pupils
+                st.session_state.heim_pupils = heim_pupils
+                
+                # Update last selected beam
+                st.session_state.last_beam = beam
+
+            if look_where == 'Baldr Beam':
+                roi = st.session_state.baldr_pupils[f'{beam}']
+            elif look_where == "Heimdallr K1":
+                roi = st.session_state.heim_pupils['K1']
+            elif look_where == "Heimdallr K2":
+                roi = st.session_state.heim_pupils['K2']
+            else:
+                st.write("invalid selection")
+                st.warning("invalid selection")
+
+
+
+            search_radius = st.text_input("Search Radius:", "0.3")
+            st.write("for individual mirrors this is in the motor units. For move pupil it is generally in units of pixels, while for move image it is generally units of mm (try 0.1)")
+            dx = st.text_input("Step Size (dx):", "0.05")
+            
+            #x0 = st.text_input("Initial X Position (x0):", "0.0")
+            #y0 = st.text_input("Initial Y Position (y0):", "0.0")
+            
+            st.title("Individual Mirrors")
+
+            motor = st.text_input("Motor Name:", "BTX")
+            st.write("enter x,y start point or current to start from current position")
+            start_pos = st.text_input("start position",'current')
+
+
+
+            data_path_move_ind_mirror = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{motor}/"
+            if not os.path.exists( data_path_move_ind_mirror ):
+                print(f'made directory : {data_path_move_ind_mirror}')
+                os.makedirs(data_path_move_ind_mirror)
+            
+            #"/home/asg/Progs/repos/asgard-alignment/figs/"
+
+            # Button to execute the script
+            if st.button("Run Scan", key='run_individual_scan'):
+                # copied from Engineering GUI 
+                if motor in ["HTXP", "HTXI", "BTX", "BOTX"]:
+                    # replace the X in target with P
+                    target = f"{motor}{beam}"
+                    targets = [target.replace("X", "P"), target.replace("X", "T")]
+                    
+
+                # try read the positions first as a check
+                try:
+                    message = f"read {targets[0]}"
+                    initial_Xpos = float(send_and_get_response(message))
+                    
+                    message = f"read {targets[1]}"
+                    initial_Ypos = float(send_and_get_response(message))
+
+                    # this could cause bugs between individual mirrors and move pupil  
+                    #st.session_state.moveImPup["original_positions"] = {targets[0]:initial_Xpos, targets[1]:initial_Ypos}
+                except:
+                    raise UserWarning( "failed 'read {args.motor}X{args.beam}' or  'read {args.motor}Y{args.beam}'")
+
+                if 1 : #not st.session_state.scan_running:  # Prevents multiple runs at once
+                    st.session_state.scan_running = True
+                    command = [
+                        "python", "common/m_scan_mirrors.py",
+                        "--beam", f"{beam}",
+                        "--motor", motor,
+                        "--search_radius", search_radius,
+                        "--dx", dx,
+                        "--initial_pos", start_pos,
+                        "--roi", str(roi),
+                        "--scantype", scantype,
+                        "--data_path", data_path_move_ind_mirror
+                    ]
+
+                    # Run the external script
+                    with st.spinner("Running scan..."):
+                        process = subprocess.run(command, capture_output=True, text=True)
+
+                    # Display output
+                    st.text_area("Script Output", process.stdout)
+
+                    if process.returncode != 0:
+                        st.error(f"Error: {process.stderr}")
+                    else:
+                        st.success("Scan completed successfully!")
+                        # make sure this convention matches the m_scan_mirrors.py script
+                        st.session_state.moveImPup["img_json_file"] = data_path_move_ind_mirror + f'img_dict_beam{beam}-{motor}.json'
+                        
+                        
+                        # if os.path.exists(figure_path):
+                        #     image = Image.open(figure_path + 'scanMirror_result.png')
+                        #     st.image(image, caption="Scan Results", use_column_width=True)
+                        # else:
+                        #     st.warning("Figure not found. Ensure the script generates the file correctly.")
+
+            # Stop Scan Button
+            if st.button("Stop Scan"):
+                st.session_state.scan_running = False
+
+                # this could cause bugs between move pupil 
+                # # moving back to original position 
+                # for axis, pos in st.session_state.moveImPup["original_positions"].items():
+                #     msg = f"moveabs {axis} {pos}"
+                    
+                #     send_and_get_response(msg)
+                #     st.write(f"Moving {axis} back to {pos}")
+
+            st.title("Combination of Mirrors")
 
             col1, col2  = st.columns(2)
             with col1:
@@ -1801,6 +2430,7 @@ with col_main:
                     ["c_red_one_focus", "intermediate_focus", "baldr"],
                     key="config",
                 )
+
 
             if move_what == "move_image":
                 units = "pixels"
@@ -1822,7 +2452,7 @@ with col_main:
                 st.write("Updating original positions due to change in beam or config...")
 
                 # Update stored previous values
-                st.session_state.moveImPup["prev_beam"] = beam
+                #st.session_state.moveImPup["prev_beam"] = beam # < - this gets done with updating pupil coords
                 st.session_state.moveImPup["prev_config"] = config
 
                 # Update original_positions
@@ -1838,18 +2468,13 @@ with col_main:
 
                 st.session_state.moveImPup["original_positions"] = pos_dict.copy()
 
-            scantype = st.selectbox(
-                    "type of scan",
-                    ['raster', 'square spiral'],
-                    key="scantype",
-                )
 
             
 
             # apply a scan (cross, raster, square spiral options)
 
             # starting point always 0,0 since these are relative offsets for move pupil/image modes !!
-            if scantype == "square spiral":
+            if scantype == "square_spiral":
                 scan_pattern = pct.square_spiral_scan(starting_point=[0,0], step_size= float(dx), search_radius = float(search_radius))
             elif scantype == "raster":
                 scan_pattern = pct.raster_scan_with_orientation(starting_point=[0,0], dx=float(dx), dy=float(dx), width=float(search_radius), height=float(search_radius), orientation=0)
@@ -1858,14 +2483,11 @@ with col_main:
             # ------------------------------------------
             # where we save output images to
             if st.button("Run Scan", key='run_combined_scan'):
-                data_path = "/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{config}_{move_what}/"
+                data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{config}_{move_what}/"
                 if not os.path.exists( data_path ):
                     print(f'made directory : {data_path}')
                     os.makedirs(data_path)
 
-                # configuration info (like where to crop for each beam)
-                toml_file = os.path.join( "config_files", "baldr_config_#.toml")
-                
                 x_points, y_points = zip(*scan_pattern)
 
                 
@@ -1878,17 +2500,15 @@ with col_main:
                 motor_pos_dict = {}
 
                 
-                with open(toml_file.replace('#',f'{beam}') ) as file:
-                    configdata = toml.load(file)
-                    # Extract the "baldr_pupils" section
-                    baldr_pupils = configdata.get("baldr_pupils", {})
-                    heim_pupils = configdata.get("heimdallr_pupils", {})
-                    
-                roi = baldr_pupils[f'{beam}']
-
                 #############
                 ## SET UP CAMERA to cropped beam region 
                 c = FLI.fli(roi = roi)
+
+                # try get a dark 
+                try:
+                    c.build_manual_dark()
+                except Exception as e:
+                    st.write(f'failed to take dark with exception {e}')
 
                 progress_bar = st.progress(0)
                 for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
@@ -1898,13 +2518,13 @@ with col_main:
                         # asgard_alignment.Engineering.move_image(
                         #     beam, delx, dely, send_and_get_response, config
                         # )
-                        cmd = f"move_image {config} {beam} {delx} {dely}"
+                        cmd = f"mv_img {config} {beam} {delx} {dely}"
                         send_and_get_response(cmd)
                     elif move_what == "move_pupil":
                         # asgard_alignment.Engineering.move_pupil(
                         #     beam, delx, dely, send_and_get_response, config
                         # )
-                        cmd = f"move_pupil {config} {beam} {delx} {dely}"
+                        cmd = f"mv_pup {config} {beam} {delx} {dely}"
                         send_and_get_response(cmd)
 
                     time.sleep( 1 )
@@ -1920,7 +2540,7 @@ with col_main:
 
                     # get the images 
                     # index dictionary by absolute position of the scan 
-                    imgtmp = np.mean( c.get_data() ,  axis=0 ) 
+                    imgtmp = np.mean( c.get_data(apply_manual_reduction=True) ,  axis=0 ) 
                     img_dict[ str((x_points[it], y_points[it])) ] = imgtmp
         
 
@@ -1935,53 +2555,141 @@ with col_main:
                         
 
                 # save 
-                json_file_path=data_path + f'img_dict_beam{beam}-{move_what}.json'
-                with open(json_file_path, "w") as json_file:
+                img_json_file_path = data_path + f'img_dict_beam{beam}-{move_what}.json'
+                with open(img_json_file_path, "w") as json_file:
                     json.dump(util.convert_to_serializable(img_dict), json_file)
 
-                st.write(f'wrote {json_file_path}')
+                st.write(f'wrote {img_json_file_path}')
+                st.session_state.moveImPup["img_json_file"] = img_json_file_path
 
-                json_file_path = data_path + f'motorpos_dict_beam{beam}-{move_what}.json' 
-                with open(json_file_path, "w") as json_file:
+                motorpos_json_file_path = data_path + f'motorpos_dict_beam{beam}-{move_what}.json' 
+                with open(motorpos_json_file_path, "w") as json_file:
                     json.dump( util.convert_to_serializable(motor_pos_dict), json_file)
 
-                st.write(f'wrote {json_file_path}')
+                st.write(f'wrote {motorpos_json_file_path}')
 
-            ### function for how to process it (outputs plots) 
-            if st.button("plot mean signal vs coord"):
-                st.write('run script to read in json, and output image. read and display image')
 
-                json_file_path=data_path + f'img_dict_beam{beam}-{move_what}.json'
-                with open( json_file_path, "r") as file:
+            st.title("Frame Aggregate Analysis")
+
+            # File uploader for JSON file (if you have)
+            st.write("if you don't want to scan now you can also upload a previously scanned json file to analyse.")
+            uploaded_file = st.file_uploader("Upload JSON File", type="json")
+
+            if uploaded_file is not None:
+                if st.button("Load JSON File"):
+                    # Read and parse JSON
+                    file_contents = json.load(uploaded_file)
+
+                    # Store in session state
+                    st.session_state.moveImPup["img_json_file"] = file_contents
+                    st.success("JSON file loaded successfully!")
+
+
+            filter_central_pixels = st.checkbox("only aggregate on pupil registered pixels?")
+
+            func_list = [np.nanmean, np.median, np.nanstd]
+            func_label = ['mean', 'median', 'std']
+
+            boundary_threshold = st.text_input( "inside boundary threshold (to help calculate weighted center of signal)", 0)
+
+            for fu, fla in zip(func_list, func_label) :
+                if st.button( f"plot {fla} signal vs coord"):
+                    
+                    if st.session_state.moveImPup["img_json_file"] is None:
+                        st.write('No scan dictionary has been written to a json file. Complete a scan first')
+                        # we could allow user to read one in here manually (select)
+                    else:
+                        with open( st.session_state.moveImPup["img_json_file"], "r") as file:
+                            data_dict = json.load(file)  # Parses the JSON content into a Python dictionary
+
+                        data_dict_ed = {tuple(map(float, key.strip("()").split(","))): value for key, value in data_dict.items()}
+
+                        x_points = np.array( [ float(x) for x,_ in data_dict_ed.keys()] )
+                        y_points = np.array( [ float(y) for _,y in data_dict_ed.keys()] )
+
+                        sss = 200 # point size in scatter 
+
+                        # use first frame as reference 
+                        frame0 = np.array( list(data_dict.values()))[0] 
+                            
+                        
+                        if not filter_central_pixels:
+                            #tmpmask = np.ones_like( frame0 ).astype(bool) # we dont filter for any particular pixels 
+                            user_sig =  [ fu( np.array(i) ) for i in data_dict.values()] 
+                        else:
+                            user_sig = []
+                            for i in data_dict.values():
+
+                                _, _, _, _, _, tmpmask = util.detect_pupil(i, sigma=2, threshold=0.5, plot=False, savepath=None)#pct.detect_circle
+                                user_sig.append( fu( np.array(i)[tmpmask] ) )
+
+                        user_sig = np.array( user_sig )
+
+                        #inside_mask = np.ones_like( user_sig ).astype(bool)
+
+                        try:
+                            boundary_threshold = float( boundary_threshold )
+                        except:
+                            st.write(f'boundary_threshold={boundary_threshold} cannot be converted to float. Using boundary_threshold=0')
+                        
+                        inside_mask = user_sig > boundary_threshold
+
+
+                        # Get x, y coordinates where inside_mask is True
+                        x_inside = x_points[inside_mask]
+                        y_inside = y_points[inside_mask]
+                        weights = user_sig[inside_mask]  # Use mean signal values as weights
+
+                        # Compute weighted mean
+                        x_c = np.sum(x_inside * weights) / np.sum(weights)
+                        y_c = np.sum(y_inside * weights) / np.sum(weights)
+
+                        #st.write(f"initial position {initial_Xpos},{initial_Ypos}")
+                        
+                        st.write(f"(signal = {fla}) Weighted Center: ({x_c}, {y_c})")
+
+                        if st.button( f"move motors to this (relative) center at ({x_c}, {y_c})"):
+                            st.write('implement')
+
+                        fig, ax = plt.subplots(figsize=(6, 5))
+                        scatter = ax.scatter(x_points, y_points, c=user_sig, s=sss, cmap='viridis', edgecolors='black', label="Data Points")
+                        plt.colorbar(scatter, label=f"frame {fla}")
+                        ax.scatter([x_c],[y_c], color='r', marker='x',label="Weighted Center")
+                        ax.legend()
+                        st.pyplot( fig )
+                        plt.close('all')
+
+            # cluster analysis 
+            st.title("Frame Cluster Analysis")
+            number_clusters = st.text_input( "number of clusters ", 3)
+
+            if st.button( "cluster analysis"):
+                with open( st.session_state.moveImPup["img_json_file"], "r") as file:
                     data_dict = json.load(file)  # Parses the JSON content into a Python dictionary
 
-
-                mean_sig = np.array( [ np.nanmean( i ) for i in data_dict.values()] )
-
-                # convert string keys to float tuple
-                data_dict_ed ={tuple(map(float, key.strip("()").split(", "))): value for key, value in data_dict.items()}
+                data_dict_ed = {tuple(map(float, key.strip("()").split(","))): value for key, value in data_dict.items()}
 
                 x_points = np.array( [ float(x) for x,_ in data_dict_ed.keys()] )
                 y_points = np.array( [ float(y) for _,y in data_dict_ed.keys()] )
 
-                fig, ax = plt.subplots(figsize=(6, 5))
-                scatter = ax.scatter(x_points, y_points, c=mean_sig, cmap='viridis', edgecolors='black', label="Data Points")
-                plt.colorbar(scatter, label="Mean Signal")
-
-            if st.button("plot median signal vs coord"):
-                st.write('running func')
-            if st.button("plot std signal vs coord"):
-                st.write('running func')
-            if st.button("plot cluster analysis"):
-                st.write('running func')
-            if st.button("find centroid"):
-                st.write('running func')
-            # mean signal 
-            # std signal 
-            # median signal 
-            # cluster analysis 
+                image_list = np.array( list( data_dict.values() ) )
+                res = pct.cluster_analysis_on_searched_images(images= image_list,
+                                                        detect_circle_function=pct.detect_circle, 
+                                                        n_clusters=int(number_clusters), 
+                                                        plot_clusters=False)
 
 
+
+
+                fig,ax = pct.plot_cluster_heatmap( x_points,  y_points ,  res['clusters'] ) 
+                #plt.savefig(args.data_path + f'cluster_search_heatmap_beam{args.beam}.png')
+                #plt.close()
+                st.pyplot(fig)
+                plt.close('all')
+                fig,ax = pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="mean") #std")
+                #plt.savefig(args.data_path + f'clusters_heatmap_beam{args.beam}.png')
+                st.pyplot(fig)
+                plt.close('all')
         if routine_options == "Load state":
             # text box and reading of the json
             text_col, button_col = st.columns(2)

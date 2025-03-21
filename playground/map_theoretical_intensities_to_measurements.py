@@ -7,6 +7,7 @@ import os
 import toml
 import numpy as np
 import argparse
+import datetime
 import time 
 from astropy.io import fits
 from asgard_alignment.DM_shm_ctrl import dmclass
@@ -37,13 +38,24 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1],
+    default=[2],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
+)
+
+parser.add_argument(
+    "--phasemask",
+    type=str,
+    default="H3",
+    help="which phasemask do we use"
 )
 
 args = parser.parse_args()
 
 beam_id = args.beam_id[0]
+
+tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
+tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
+
 
 pupil_masks = {}
 I2A_dict = {}
@@ -72,6 +84,7 @@ for beam_id in args.beam_id:
 img = np.mean( c.get_data() , axis=0)
 r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
 meas_pupil = img[r1:r2, c1:c2] #
+
 
 print( meas_pupil.shape)
 print( np.array( pupil_masks[beam_id] ).shape)
@@ -149,6 +162,8 @@ imgs = [ meas_pupil_normed, P_theory_cred1, meas_pupil_normed-P_theory_cred1]
 util.nice_heatmap_subplots(im_list = imgs, title_list=titles) 
 plt.savefig('delme.png')
 
+
+
 dxgrid = np.linspace(-3,3,15)
 dygrid = np.linspace(-3,3,15)
 delta = np.zeros( [dxgrid.shape[0], dygrid.shape[0]] )
@@ -162,7 +177,7 @@ for i,dx in enumerate(dxgrid):
         delta[i,j] = rmse 
 
 
-util.nice_heatmap_subplots( [delta] ,axis_off=False )
+util.nice_heatmap_subplots( [delta] , title_list=['RMSE vs offset'], axis_off=False )
 plt.savefig('delme.png')
 
 ib, jb = np.unravel_index( np.argmin(delta) , delta.shape)
@@ -199,13 +214,14 @@ N0_m = img[r1:r2, c1:c2]
 
 
 img_raw = c.get_data()
+
 ## Identify bad pixels (this can throw it off!!)
 mean_frame = np.mean(img_raw, axis=0)
 std_frame = np.std(img_raw, axis=0)
 
 global_mean = np.mean(mean_frame)
 global_std = np.std(mean_frame)
-bad_pixel_map = (np.abs(mean_frame - global_mean) > 5.5 * global_std) | (std_frame > 10 * np.median(std_frame))
+bad_pixel_map = (np.abs(mean_frame - global_mean) > 8.5 * global_std) | (std_frame > 15 * np.median(std_frame))
 
 plt.figure()
 plt.imshow( bad_pixel_map[r1:r2, c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
@@ -255,7 +271,12 @@ delta_list = []
 rmse = []
 exterior_sig = []
 amps = np.linspace( -0.06, 0.06, 20)
-fig_path = "/home/asg/Progs/repos/asgard-alignment/calibration/reports/"
+
+
+fig_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/flatdm_trials/{tstamp_rough}/"
+if not os.path.exists( fig_path ):
+    os.makedirs(fig_path)
+
 for aa in amps:
     print(aa)
     dm_shm_dict[beam_id].set_data( aa * cc )
@@ -304,7 +325,7 @@ plt.xlabel(r'a.$\Delta$',fontsize=15)
 plt.gca().tick_params(labelsize=15)
 plt.savefig(fig_path + 'dm_flat_cal_RMSE.png')
 
-ib = np.argmin( rmse )
+ib = np.argmax( exterior_sig ) #
 
 dm_shm_dict[beam_id].set_data( amps[ib] * cc )
 
@@ -338,9 +359,14 @@ for key, value in data_dict.items():
 
 # Define the output FITS filename
 #mask_id = 'H3'
-fits_filename = fig_path + f"flat_dm_beam{beam_id}_mask{mask_id}.fits"
+fits_filename = fig_path + f"flat_dm_beam{beam_id}_mask{args.phasemask}.fits"
 
 # Write to FITS file
 hdul.writeto(fits_filename, overwrite=True)
 
 print(f"Saved FITS file as {fits_filename}")
+
+
+### Save as txt file the flat 
+
+np.savetxt("output.txt", data, fmt="%.6f")
