@@ -526,9 +526,9 @@ for beam_id in [1,2,3,4]:
 
 # #---------- New Darks 
 # run a new set of darks 
-get_new_dark = True
+get_new_dark = False
 if get_new_dark:
-    script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark.py"
+    script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
     try:
         # Run the script and ensure it completes
         with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
@@ -682,12 +682,12 @@ time.sleep(1)
 
 #     dark_dm[beam_id] = I2A_dict[beam_id] @ c_dict[beam_id].reduction_dict['dark'][-1].reshape(-1)
 
-dm_act_filt = {}
-dm_mask = {}
-for beam_id in args.beam_id:
-    ### IMPORTANT THIS IS WHERE WE FILTER ACTUATOR SPACE IN IM 
-    dm_mask[beam_id] = I2A_dict[beam_id] @  np.array(pupil_masks[beam_id] ).reshape(-1)
-    dm_act_filt[beam_id] = dm_mask[beam_id] > 0.95 # ignore actuators on the edge! 
+# dm_act_filt = {}
+# dm_mask = {}
+# for beam_id in args.beam_id:
+#     ### IMPORTANT THIS IS WHERE WE FILTER ACTUATOR SPACE IN IM 
+#     dm_mask[beam_id] = I2A_dict[beam_id] @  np.array(pupil_masks[beam_id] ).reshape(-1)
+#     dm_act_filt[beam_id] = dm_mask[beam_id] > 0.95 # ignore actuators on the edge! 
 
 
 # # checks 
@@ -766,7 +766,7 @@ for i,m in enumerate(modal_basis):
 
         dm_shm_dict[beam_id].set_data(  sign * args.poke_amp/2 * m ) 
         
-        time.sleep(100/float(cam_config["fps"]))
+        time.sleep(2/float(cam_config["fps"]))
 
         if sign > 0:
             I_plus_list.append( list( np.mean( c_dict[beam_id].get_some_frames( number_of_frames = imgs_to_mean, apply_manual_reduction = True ),axis = 0)  ) )

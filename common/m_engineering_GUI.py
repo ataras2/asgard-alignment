@@ -220,6 +220,56 @@ def handle_phasemask():
             message = f"moverel BMX{beam} {-increment}"
             send_and_get_response(message)
 
+
+    with st.form(key="update_position_file"):
+        # f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+        # Get all valid files
+        valid_reference_position_files = glob.glob(
+            f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
+        )
+
+        # Sort by modification time (most recent first)
+        valid_ref_files_sorted = sorted(valid_reference_position_files, key=os.path.getmtime, reverse=True)
+
+        # Create display names (just filenames)
+        display_names = [os.path.basename(f) for f in valid_ref_files_sorted]
+
+        # Create a mapping from display name to full path
+        file_map = dict(zip(display_names, valid_ref_files_sorted))
+
+        # Show selectbox with display names
+        selected_display_name = st.selectbox(
+            "Select Reference Position File to Calculate Relative Separations Between Masks",
+            display_names,
+            key="selected_updated_position_file"
+        )
+
+        # Retrieve the full file path based on the selected display name
+        selected_position_file = file_map[selected_display_name]
+        
+        submit_use_new_pos_file = st.form_submit_button(
+                    f"Use this phasemask position file now"
+                )
+
+    if submit_use_new_pos_file:
+        
+        # update_position_file(self, phase_positions_json ):
+
+        # Save the updated positions to file
+        save_message = f"fpm_update_position_file {targets[0]} {selected_position_file}"
+        save_res = send_and_get_response(save_message)
+
+        if "NACK" in save_res:
+            st.error(
+                f"Failed to save updated positions"
+            )  # to file: {save_res}")
+        else:
+            st.success(
+                "Updated the json positions file successfully"  # at: " + save_path
+            )
+    
+
+
     update_col, save_col = st.columns(2)
 
     with update_col:
@@ -256,11 +306,35 @@ def handle_phasemask():
                 f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
             )  # save_path + f"/beam{beam}/*json")
 
-            selected_reference_file = st.selectbox(
-                "Select Reference Position File to Calculate Relative Seperations Between Masks",
-                valid_reference_position_files,
-                key="selected_file",
+
+
+            # Sort by modification time (most recent first)
+            valid_ref_files_sorted = sorted(valid_reference_position_files, key=os.path.getmtime, reverse=True)
+
+            # Create display names (just filenames)
+            display_names = [os.path.basename(f) for f in valid_ref_files_sorted]
+
+            # Create a mapping from display name to full path
+            file_map = dict(zip(display_names, valid_ref_files_sorted))
+
+            # Show selectbox with display names
+            selected_display_name = st.selectbox(
+                "Select Reference Position File to Calculate Relative Separations Between Masks",
+                display_names,
+                key="selected_reference_position_file"
             )
+
+            # Retrieve the full file path based on the selected display name
+            selected_reference_file = file_map[selected_display_name]
+
+            # # Sort files by modification time (most recent first)
+            # valid_ref_files_sorted = sorted(valid_reference_position_files, key=os.path.getmtime, reverse=True)
+
+            # selected_reference_file = st.selectbox(
+            #     "Select Reference Position File to Calculate Relative Seperations Between Masks",
+            #     display_names,
+            #     key="selected_file",
+            # )
             submit_reference_file = st.form_submit_button(
                 f"Update All Mask Positions Relative to Current registered {st.session_state['selected_mask']} Position (local - not saved)"
             )
@@ -1615,14 +1689,16 @@ with col_main:
         if routine_options == "Camera & DMs":
             st.write("testing")
 
-            # c = FLI.fli()
-            # camera_command = st.text_input("Send Command to Camera:", key="camera_command", placeholder="fps")
-            # try:
-            #     resp = c.send_fli_cmd(camera_command)
-            #     st.success(f"Command '{camera_command}' sent to camera!\nresponse = {resp}")
-            # except Exception as e:
-            #     st.error(f"Failed to send command: {e}")
+            c = FLI.fli()
+            camera_command = st.text_input("Send Command to Camera:", key="camera_command", placeholder="fps")
+            try:
+                resp = c.send_fli_cmd(camera_command)
+                st.success(f"Command '{camera_command}' sent to camera!\nresponse = {resp}")
+            except Exception as e:
+                st.error(f"Failed to send command: {e}")
 
+            c.close(erase_file=False)
+            
             # if st.button("get image"):
             #     img = np.mean( c.get_data() , axis=0)
 
@@ -2241,7 +2317,7 @@ with col_main:
 
         if routine_options == "Scan Mirror":
 
-
+            st.warning("Bug: sometimes session state gets stuck and provokes and error, just click on a different beam and back again - usually this resolves it")
 
             #if "scan_running" not in st.session_state:
             #    st.session_state.scan_running = False
@@ -2312,6 +2388,7 @@ with col_main:
                 st.session_state.last_beam = beam
 
             if look_where == 'Baldr Beam':
+                #st.write( st.session_state.baldr_pupils )
                 roi = st.session_state.baldr_pupils[f'{beam}']
             elif look_where == "Heimdallr K1":
                 roi = st.session_state.heim_pupils['K1']

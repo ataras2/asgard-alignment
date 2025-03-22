@@ -501,7 +501,7 @@ class fli( ):
 
     # some custom functions
 
-    def build_manual_dark( self , no_frames = 100 , sleeptime = 3, save_file_name = None):
+    def build_manual_dark( self , no_frames = 100 , sleeptime = 3, build_bad_pixel_mask = False , save_file_name = None, **kwargs):
         """
         my_controllino is object to turn on/off sources from the controllio
         example to open / init this object is :
@@ -539,7 +539,7 @@ class fli( ):
             # then we ignore frame tags! 
             print('removing frame tags from dark')
             dark[0, 0:5] = np.mean(  np.array(dark)[1:,1:] )
-            print(dark[0, 0:5])
+            #print(dark[0, 0:5])
         if len( self.reduction_dict['bias'] ) > 0:
             print('...applying bias')
             dark -= self.reduction_dict['bias'][0]
@@ -557,6 +557,16 @@ class fli( ):
         response = mds_socket.recv_string()#.decode("ascii")
         print( response )
         time.sleep(2)
+
+        if build_bad_pixel_mask :
+            print("building bad pixel mask on the darks")
+            std_threshold = kwargs.get('std_threshold', 20)
+            mean_threshold = kwargs.get('mean_threshold', 6)
+
+            bad_pixels, bad_pixel_mask  = get_bad_pixels( dark_list, std_threshold = std_threshold, mean_threshold=mean_threshold)
+
+            # take conjugate to mask mask true at pixels we want to keep
+            self.reduction_dict['bad_pixel_mask'].append( ~bad_pixel_mask ) 
 
         if save_file_name is not None:
             
@@ -704,8 +714,11 @@ class fli( ):
                 # enforce the same type for mask
                 #cropped_img *= np.array( self.reduction_dict['bad_pixel_mask'][which_index] , dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
                 # Just set to zero for now!
-                cropped_img[~self.reduction_dict['bad_pixel_mask'][which_index]] = 0
-
+                #cropped_img[:,~self.reduction_dict['bad_pixel_mask'][which_index]] = 0
+                if len(np.array(cropped_img).shape)==3:
+                    cropped_img[:, ~self.reduction_dict['bad_pixel_mask'][which_index].astype(bool)] = 0 #, dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
+                elif len(np.array(cropped_img).shape)==2:
+                    cropped_img[~self.reduction_dict['bad_pixel_mask'][which_index].astype(bool)] = 0 #, dtype = type( cropped_img[0][0]) ) # bad pixel mask must be set in same cropping state 
         return(cropped_img)    
 
 

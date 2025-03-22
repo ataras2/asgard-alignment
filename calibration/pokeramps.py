@@ -21,19 +21,21 @@ import common.DM_basis_functions
 import common.phasescreens as ps
 import pyBaldr.utilities as util
 from common import phasemask_centering_tool as pct
+from asgard_alignment import FLI_Cameras as FLI
+
 
 from xaosim.shmlib import shm
 from asgard_alignment.DM_shm_ctrl import dmclass
 
-try:
-    from asgard_alignment import controllino as co
-    myco = co.Controllino('172.16.8.200')
-    controllino_available = True
-    print('controllino connected')
+# try:
+#     from asgard_alignment import controllino as co
+#     myco = co.Controllino('172.16.8.200')
+#     controllino_available = True
+#     print('controllino connected')
     
-except:
-    print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
-    controllino_available = False 
+# except:
+#     print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
+#     controllino_available = False 
 
 
 
@@ -82,7 +84,7 @@ def get_motor_states_as_list_of_dicts( ):
 
     states = []
     for name in motor_names:
-        message = f"!read {name}"
+        message = f"read {name}"
         res = send_and_get_response(message)
 
         if "NACK" in res:
@@ -335,14 +337,14 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 # # Extract the "baldr_pupils" section
 # baldr_pupils = pupildata.get("baldr_pupils", {})
 
-default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+# default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
-# just open 2 - they should be all the same
-with open(default_toml.replace('#','2'), "r") as f:
-    config_dict = toml.load(f)
+# # just open 2 - they should be all the same
+# with open(default_toml.replace('#','2'), "r") as f:
+#     config_dict = toml.load(f)
 
-    # Baldr pupils from global frame 
-    baldr_pupils = config_dict['baldr_pupils']
+#     # Baldr pupils from global frame 
+#     baldr_pupils = config_dict['baldr_pupils']
 
 
 
@@ -365,17 +367,24 @@ parser.add_argument(
 #     help="Path to the DM configuration file. Default: %(default)s"
 # )
 parser.add_argument(
+    '--beam_id',
+    type=int,
+    default=2,
+    help="which beam to look at. For now just one at a time."
+)
+
+parser.add_argument(
     "--global_camera_shm",
     type=str,
     default="/dev/shm/cred1.im.shm",
     help="Camera shared memory path. Default: /dev/shm/cred1.im.shm"
 )
-parser.add_argument(
-    '--DMshapes_path',
-    type=str,
-    default="/home/asg/Progs/repos/asgard-alignment/DMShapes/",
-    help="Path to the directory containing DM shapes. Default: %(default)s"
-)
+# parser.add_argument(
+#     '--DMshapes_path',
+#     type=str,
+#     default="/home/asg/Progs/repos/asgard-alignment/DMShapes/",
+#     help="Path to the directory containing DM shapes. Default: %(default)s"
+# )
 parser.add_argument(
     '--data_path',
     type=str,
@@ -384,16 +393,29 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    '--phasemask_name',
+    '--phasemask',
     type=str,
     default="H3",
     help="which phasemask? (J1-5 or H1-5). Default: %(default)s."
 )
 
 parser.add_argument(
+    '--use_baldr_dm_flat',
+    action='store_true',
+    help="Use the calibrated Baldr DM flat. If not set, the BMC factory flat is used (default)."
+)
+
+
+parser.add_argument(
+    '--take_mean_of_images',
+    action='store_true',
+    help="Take the mean of images (number_images_recorded_per_cmd) for each DM state. Default False"
+)
+
+parser.add_argument(
     '--number_images_recorded_per_cmd',
     type=int,
-    default=5,
+    default=100,
     help="Number of images recorded per command (usually we take the average of these). Default: %(default)s."
 )
 
@@ -407,7 +429,7 @@ parser.add_argument(
 parser.add_argument(
     '--amp_max',
     type=int,
-    default=0.1,
+    default=0.15,
     help="maximum DM amplitude to apply. Units are normalized between 0-1. We ramp between +/- of this value. Default: %(default)s."
 )
 
@@ -428,14 +450,14 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=50,
+    default=1700,
     help="frames per second on camera. Default: %(default)s"
 )
 
 parser.add_argument(
     '--cam_gain',
     type=int,
-    default=1,
+    default=20,
     help="camera gain. Default: %(default)s"
 )
 
@@ -467,6 +489,7 @@ if not os.path.exists(args.data_path):
     os.makedirs(args.data_path)
 
 
+
 ########## ########## ##########
 ########## set up camera object
 # roi = [None, None, None, None]
@@ -490,19 +513,60 @@ if not os.path.exists(args.data_path):
 
 
 # Set up global camera frame SHM 
-c = shm(args.global_camera_shm)
+#c = shm(args.global_camera_shm)
+
+
+
+# read in TOML as dictionary for config 
+default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+with open(default_toml.replace('#',f'{args.beam_id}'), "r") as f:
+    config_dict = toml.load(f)
+    # Baldr pupils from global frame 
+    baldr_pupils = config_dict['baldr_pupils']
+    I2A = config_dict[f'beam{args.beam_id}']['I2A']
+    # pupil_masks[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+
+
+# shm path to FULL () imagr 
+#mySHM = shm(args.global_camera_shm)
+c = FLI.fli(roi = baldr_pupils[f"{args.beam_id}"]) #
+c.send_fli_cmd(f"set gain {args.cam_gain}")
+time.sleep(1)
+c.send_fli_cmd(f"set fps {args.cam_fps}")
+time.sleep(1)
+
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+
+
+# cam_config
+cam_config = c.get_camera_config()
+
 
 # set up DM SHMs 
 dm = {}
-for beam_id in [1,2,3,4]:
+for beam_id in [args.beam_id]:
     dm[beam_id] = dmclass( beam_id=beam_id )
     # zero all channels
     dm[beam_id].zero_all()
     # activate flat (does this on channel 1)
-    dm[beam_id].activate_flat()
+    if args.use_baldr_dm_flat:
+        dm[beam_id].activate_calibrated_flat()
+    else:   
+        dm[beam_id].activate_flat()
     # apply dm flat offset (does this on channel 2)
     #dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
 
+
+
+# Move to phase mask
+#for beam_id in [args.beam_id]:
+message = f"fpm_movetomask phasemask{args.beam_id} {args.phasemask}"
+res = send_and_get_response(message)
+print(f"moved to phasemask {args.phasemask} with response: {res}")
+
+time.sleep(1)
+
+input(f"============\nhey...\nyou need to check alignment is ok on phasemask {args.phasemask} for beam{args.beam_id}..\n then press enter when its good\n")
 
 
 #bad_pixels = c.get_bad_pixel_indicies(  no_frames = 200, std_threshold = 10 , flatten=False)
@@ -641,22 +705,31 @@ ramp_values = np.linspace(-args.amp_max, args.amp_max, args.number_amp_samples)
 
 
 # Get Darks 
-if controllino_available:
+# if controllino_available:
     
-    myco.turn_off("SBB")
-    time.sleep(10)
+#     myco.turn_off("SBB")
+#     time.sleep(10)
     
-    DARK_list = c.get_data()
+#     DARK_list = c.get_data()
 
-    myco.turn_on("SBB")
-    time.sleep(10)
+#     myco.turn_on("SBB")
+#     time.sleep(10)
 
-    #bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-else:
-    DARK_list = c.get_data()
+#     #bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+# else:
 
-    #bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+#bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
 
+message = "off SBB"
+res = send_and_get_response(message)
+print(res)
+
+time.sleep(3)
+DARK_list = c.get_some_frames(number_of_frames = 200)
+
+message = "on SBB"
+res = send_and_get_response(message)
+print(res)
 
 
 # ======== reference image with FPM OUT
@@ -672,11 +745,11 @@ fourier_basis = common.DM_basis_functions.construct_command_basis(
 
 tip = fourier_basis[:, 0]
 print("applying 2*tip cmd in Fourier basis to go off phase mask")
-# for b in dm_serial_numbers:
-#     dm[b].send_data(flatdm[b] + 1.8 * tip)
+for b in dm:
+    dm[b].set_data( dm[b].cmd_2_map2D( 1.8 * tip ) )
 
 time.sleep(1)
-N0_list = c.get_data()
+N0_list = c.get_some_frames(number_of_frames=4000, apply_manual_reduction=False)
 # c.get_some_frames(
 #     number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
 # )
@@ -685,9 +758,13 @@ N0 = np.mean(N0_list, axis=0)
 # ======== reference image with FPM IN
 print("going back to DM flat to put beam ON phase mask")
 for b in dm:
-    dm[b].activate_flat() #.send_data(flatdm[b])
+    dm[b].zero_all()
+    if args.use_baldr_dm_flat:
+        dm[beam_id].activate_calibrated_flat()
+    else:   
+        dm[b].activate_flat() #.send_data(flatdm[b])
 time.sleep(2)
-I0_list = c.get_data()
+I0_list = c.get_some_frames(number_of_frames=4000, apply_manual_reduction=False)
 #c.get_some_frames(
 #    number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=True
 #)
@@ -702,9 +779,19 @@ I0 = np.mean(I0_list, axis=0)
 I0_fits = fits.PrimaryHDU(I0_list)
 N0_fits = fits.PrimaryHDU(N0_list)
 DARK_fits = fits.PrimaryHDU(DARK_list)
+BADPIXELMAP_fits = fits.PrimaryHDU(c.reduction_dict['bad_pixel_mask'][-1].astype(int))
 I0_fits.header.set("EXTNAME", "FPM_IN")
 N0_fits.header.set("EXTNAME", "FPM_OUT")
 DARK_fits.header.set("EXTNAME", "DARK")
+BADPIXELMAP_fits.header.set("EXTNAME", "BAD_PIXEL_MASK")
+
+try:
+    I2A @ c.get_image().reshape(-1)
+    I2A_fits = fits.PrimaryHDU( I2A )
+    I2A_fits.header.set("EXTNAME", "I2A")
+except :
+    print("I2A invalud shape - NOT APPENDING")
+
 
 # flat_DM_fits = fits.PrimaryHDU( flat_dm_cmd )
 # flat_DM_fits.header.set('EXTNAME','FLAT_DM_CMD')
@@ -739,7 +826,7 @@ additional_header_labels = [
     ("number_of_modes", args.number_of_modes)
 ]
 
-sleeptime_between_commands = 1
+sleeptime_between_commands = 5/args.cam_fps
 image_list = []
 for cmd_indx, cmd in enumerate(DM_command_sequence):
     print(f"executing cmd_indx {cmd_indx} / {len(DM_command_sequence)}")
@@ -757,18 +844,29 @@ for cmd_indx, cmd in enumerate(DM_command_sequence):
     #     apply_manual_reduction=True,
     # )
     # get the image
-    ims_tmp = [
-        np.mean(
-            c.get_data(),
-            axis=0,
-        )
-    ]  # [np.median([zwfs.get_image() for _ in range(args.number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_mean_of_images=False
+    if args.take_mean_of_images :
+        #print("here")
+        ims_tmp = [
+            np.mean(
+                c.get_some_frames(number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=False),
+                axis=0,
+            )
+        ]  # [np.median([zwfs.get_image() for _ in range(args.number_images_recorded_per_cmd)] , axis=0)] #keep as list so it is the same type as when take_mean_of_images=False
+    
+    else:
+
+        ims_tmp = [
+                c.get_some_frames(number_of_frames=args.number_images_recorded_per_cmd, apply_manual_reduction=False)
+        ] 
+    
     image_list.append(ims_tmp)
+
+###HERE 
 
 
 # init fits files if necessary
 # should_we_record_images = True
-take_mean_of_images = True
+#take_mean_of_images = True
 save_dm_cmds = True
 save_fits = args.data_path + f"calibration_{args.basis_name}_{tstamp}.fits"
 # save_file_name = data_path + f"stability_tests_{tstamp}.fits"
@@ -781,12 +879,11 @@ cam_fits = fits.PrimaryHDU(image_list)
 
 cam_fits.header.set("EXTNAME", "SEQUENCE_IMGS")
 
-# cam_config_dict = c.get_camera_config()
-# for k, v in cam_config_dict.items():
-#     cam_fits.header.set(k, v)
+for k, v in cam_config.items():
+    cam_fits.header.set(k, v)
 
 cam_fits.header.set("#images per DM command", args.number_images_recorded_per_cmd)
-cam_fits.header.set("take_mean_of_images", take_mean_of_images)
+cam_fits.header.set("take_mean_of_images", args.take_mean_of_images)
 
 # cam_fits.header.set('cropping_corners_r1', zwfs.pupil_crop_region[0] )
 # cam_fits.header.set('cropping_corners_r2', zwfs.pupil_crop_region[1] )
@@ -815,7 +912,10 @@ dm_fits.header.set("EXTNAME", "DM_CMD_SEQUENCE")
 
 for b in dm:
     dm[b].zero_all()
-    dm[b].activate_flat() #send_data(flatdm[b])
+    if args.use_baldr_dm_flat:
+        dm[beam_id].activate_calibrated_flat()
+    else:   
+        dm[b].activate_flat() #send_data(flatdm[b])
 
 flat_DM_fits = fits.PrimaryHDU([dm[b].shm0.get_data() for b in dm])
 flat_DM_fits.header.set("EXTNAME", "FLAT_DM_CMD")
@@ -825,13 +925,16 @@ motor_states = get_motor_states_as_list_of_dicts()
 bintab_fits = save_motor_states_as_hdu( motor_states )
 
 
+
 # append to the data
 data.append(cam_fits)
 data.append(dm_fits)
 data.append(flat_DM_fits)
 data.append(I0_fits)
 data.append(N0_fits)
+data.append(I2A_fits)
 data.append(DARK_fits)
+data.append(BADPIXELMAP_fits)
 data.append(bintab_fits)
 
 
@@ -846,9 +949,11 @@ if save_fits != None:
         )
 
 ##########
-# close the data and DMs
+# close the data camera and DMs SHM
 data.close() 
 
-# for b in dm:
-#     dm[b].close_dm()
+for b in dm:
+    dm[b].close(erase_file=False)
+
+c.close( erase_file=False)
 

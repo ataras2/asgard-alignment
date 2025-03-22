@@ -136,8 +136,9 @@ args=parser.parse_args()
 
 
 # inputs 
-number_of_pokes = 100 
+number_of_pokes = 8 
 poke_amplitude = 0.05
+sleeptime = 0.2 #10 is very safe
 dm_4_corners = DM_registration.get_inner_square_indices(outer_size=12, inner_offset=4) # flattened index of the DM actuator 
 dm_turbulence = False # roll phasescreen on DM?
 #all_dm_shms_list = [args.dm1_shm, args.dm2_shm, args.dm3_shm, args.dm4_shm]
@@ -249,9 +250,7 @@ bilin_interp_matricies = []
 
 
 
-number_of_pokes = 2
-# poking DM and getting images 
-sleeptime = 10 #10 is very safe
+
 print(f'GOING VERY SLOW ({sleeptime}s delays) DUE TO SHM DELAY DM')
 for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2D map)
     print(f"actuator {act}")
@@ -293,8 +292,8 @@ for beam_id in args.beam_id:
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
-    dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
-
+    #dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
+    dm_shm_dict[beam_id].activate_flat()
 
 ## lets see the registration 
 plt.figure()
@@ -370,8 +369,11 @@ for ii, beam_id in enumerate( args.beam_id ):
 
 
 
+# Close everything 
+c.close(erase_file=False)
 
-
+for beam_id in args.beam_id:
+    dm_shm_dict[beam_id].close(erase_file=False)
 
 ## lets see the registration 
 # plt.figure()

@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import glob
+import os
 from xaosim.shmlib import shm
 
 
@@ -52,16 +53,27 @@ class dmclass():
     def select_flat_cmd_offset(self,  wdir='DMShapes'):
             '''Matches a DM flat command file to a DM id #.
 
-            Returns the name of the file in the work directory.
+            Returns the name of the most recent file in the work directory for each beam.
             '''
-            flatoffset_cmd_files = {
-                            "1":"BEAM1_FLAT_MAP_OFFSETS.txt",
-                            "2":"BEAM2_FLAT_MAP_OFFSETS.txt",
-                            "3":"BEAM3_FLAT_MAP_OFFSETS.txt",
-                            "4":"BEAM4_FLAT_MAP_OFFSETS.txt"
-                            }
-            
-            return wdir + '/' + flatoffset_cmd_files[f"{self.beam_id}"]
+            # flatoffset_cmd_files = {
+            #                 "1":"BEAM1_FLAT_MAP_OFFSETS.txt",
+            #                 "2":"BEAM2_FLAT_MAP_OFFSETS.txt",
+            #                 "3":"BEAM3_FLAT_MAP_OFFSETS.txt",
+            #                 "4":"BEAM4_FLAT_MAP_OFFSETS.txt"
+            #                 }
+            flatoffset_cmd_files = {}
+            for beam in ["1", "2", "3", "4"]:
+                pattern = os.path.join(wdir, f"BEAM{beam}_FLAT_MAP*.txt")
+                matching_files = glob.glob(pattern)
+                
+                if not matching_files:
+                    flatoffset_cmd_files[beam] = None  # or raise an error / warning
+                else:
+                    # Get the most recent file by modification time
+                    latest_file = max(matching_files, key=os.path.getmtime)
+                    flatoffset_cmd_files[beam] = latest_file
+                    
+            return flatoffset_cmd_files[f"{self.beam_id}"]
 
     def cmd_2_map2D(self, cmd, fill=np.nan):
         '''Convert a 140 cmd into a 2D DM map for display.

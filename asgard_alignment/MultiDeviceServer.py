@@ -551,6 +551,7 @@ class MultiDeviceServer:
             print(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
+
         def fpm_get_savepath_msg(axis):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -563,6 +564,14 @@ class MultiDeviceServer:
             else:
                 return self.instr.devices[axis].mask_positions
 
+
+        def fpm_update_position_file_msg(axis , filename):
+            if axis not in self.instr.devices:
+                return f"NACK: Axis {axis} not found"
+            else:
+                self.instr.devices[axis].update_position_file(filename)
+                return "ACK"
+            
         def fpm_move_to_phasemask_msg(axis, maskname):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -663,6 +672,7 @@ class MultiDeviceServer:
             "fpm_moverel": fpm_move_relative_msg,
             "fpm_moveabs": fpm_move_absolute_msg,
             "fpm_readpos": fpm_read_position_msg,
+            "fpm_update_position_file":fpm_update_position_file_msg,
             "fpm_updatemaskpos": fpm_update_mask_position_msg,
             "fpm_offsetallmaskpositions": fpm_offset_all_mask_positions_msg,
             "fpm_writemaskpos": fpm_write_mask_positions_msg,
@@ -695,6 +705,7 @@ class MultiDeviceServer:
             "fpm_moverel": "fpm_moverel {} {}",
             "fpm_moveabs": "fpm_moveabs {} {}",
             "fpm_readpos": "fpm_readpos {}",
+            "fpm_update_position_file":"fpm_update_position_file {} {}",
             "fpm_updatemaskpos": "fpm_updatemaskpos {} {}",
             "fpm_offsetallmaskpositions": "fpm_offsetallmaskpositions {} {} {}",
             "fpm_writemaskpos": "fpm_writemaskpos {}",

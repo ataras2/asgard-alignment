@@ -63,6 +63,9 @@ class BaldrPhaseMask:
 
         return config
 
+    def update_position_file(self, phase_positions_json ):
+        self.phase_positions = self._load_phase_positions(phase_positions_json)
+
     def move_relative(self, new_pos):
         self.motors["x"].move_relative(
             new_pos[0], units=zaber_motion.units.Units.LENGTH_MICROMETRES

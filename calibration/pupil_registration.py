@@ -10,16 +10,18 @@ import json
 import time
 
 from xaosim.shmlib import shm
+from pyBaldr import utilities as util
+from asgard_alignment import FLI_Cameras as FLI
 
-try:
-    from asgard_alignment import controllino as co
-    myco = co.Controllino('172.16.8.200')
-    controllino_available = True
-    print('controllino connected')
+# try:
+#     from asgard_alignment import controllino as co
+#     myco = co.Controllino('172.16.8.200')
+#     controllino_available = True
+#     print('controllino connected')
     
-except:
-    print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
-    controllino_available = False 
+# except:
+#     print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
+#     controllino_available = False 
 
 
 def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
@@ -227,6 +229,20 @@ def save_pupil_data_toml(beam_id, ellipse_params, toml_path):
     # Convert the boolean mask to a nested list of booleans
     mask_list = pupil_mask.tolist()  # shape => Nx x Ny of True/False
 
+    # calculate exterior (Strehl proxy) pixel mask
+    rad_est = np.sqrt( 1/np.pi * np.sum( pupil_mask ) )
+    exterior = util.filter_exterior_annulus( pupil_mask, inner_radius = rad_est+1, outer_radius = rad_est+5)
+    exterior_list = exterior.tolist()
+
+    # calculate secondary pixel mask 
+    secondary = np.zeros_like(pupil_mask)
+    y_indices, x_indices = np.where(pupil_mask)
+    center_x = np.mean(x_indices)
+    center_y = np.mean(y_indices)
+    secondary[round(center_x), round(center_y)] = True
+    secondary_list = secondary.tolist()
+    
+
     new_data = {
         f"beam{beam_id}": {
             "pupil_ellipse_fit": {
@@ -237,7 +253,9 @@ def save_pupil_data_toml(beam_id, ellipse_params, toml_path):
                 "theta": float(theta),
             },
             "pupil_mask": {
-                "mask": mask_list
+                "mask": mask_list,
+                "exterior": exterior_list,
+                "secondary":secondary_list
             }
         }
     }
@@ -358,27 +376,32 @@ with open(args.toml_file.replace('#',f'{args.beam_ids[0]}') ) as file:
 
 
 # shm path to FULL () imagr 
-mySHM = shm(args.global_camera_shm)
+#mySHM = shm(args.global_camera_shm)
+c = FLI.fli() #
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+# c.build_bad_pixel_mask( no_frames = 300 )
+#bad_pixel_mask = FLI.get_bad_pixels( c.reduction_dict['dark'][-1], std_threshold = 20, mean_threshold=6)
+#c.reduction_dict['bad_pixel_mask'].append( bad_pixel_mask )
 
-img_raw = mySHM.get_data()
+img_raw = c.get_data(apply_manual_reduction=True) #mySHM.get_data()
 
-# try get dark and build bad pixel mask 
-if controllino_available:
+# # try get dark and build bad pixel mask 
+# if controllino_available:
 
-    myco.turn_off("SBB")
-    time.sleep(2)
+#     myco.turn_off("SBB")
+#     time.sleep(2)
     
-    dark_raw = mySHM.get_data()
+#     dark_raw = mySHM.get_data()
 
-    myco.turn_on("SBB")
-    time.sleep(2)
+#     myco.turn_on("SBB")
+#     time.sleep(2)
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-else:
-    dark_raw = mySHM.get_data()
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+# else:
+#     dark_raw = mySHM.get_data()
 
-    bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-# reduce (bad pixel mask)
+#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
+# # reduce (bad pixel mask)
 
 
 
@@ -395,7 +418,7 @@ else:
 for beam_id in args.beam_ids:
     # get the cropped image 
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-    cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+    cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], c.reduction_dict['bad_pixel_mask'][-1][r1:r2, c1:c2])
 
     # mask 
     if args.fig_path is None:
@@ -404,12 +427,12 @@ for beam_id in args.beam_ids:
         savepath=args.fig_path + f'pupil_reg_beam{beam_id}'
     
     ell1 = detect_pupil(cropped_img, sigma=2, threshold=0.5, plot=args.plot,savepath=savepath)
-
     
     save_pupil_data_toml(beam_id=beam_id, ellipse_params=ell1, toml_path=args.toml_file.replace('#',f'{beam_id}'))
 
 
-
+# close camera SHM
+c.close( erase_file=False )
 
 # done
 

@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[4],
+    default=[2],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -155,9 +155,9 @@ eta = 0.647/4.82 #~= 1.1/8.2 (i.e. UTs) # ratio of secondary obstruction (UTs)
 
 #---------- New Darks 
 # run a new set of darks 
-get_new_dark = False
+get_new_dark = True
 if get_new_dark:
-    script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark.py"
+    script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
     try:
         # Run the script and ensure it completes
         with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
@@ -417,8 +417,8 @@ plt.savefig('delme.png')
 
 exterior_mask = np.roll( np.roll( exterior_mask_rough, -1, axis=0), -1, axis=1)
 
-#exterior_mask = (abs(I0_m - N0_m/np.mean( N0_m[pupil_masks[beam_id]] ) ) > 0.1 ) * (~np.array(pupil_masks[beam_id]))
-#plt.figure(); plt.imshow( exterior_mask)  ;plt.colorbar() ;plt.savefig('delme.png')
+# exterior_mask = (abs(I0_m - N0_m/np.mean( N0_m[pupil_masks[beam_id]] ) ) > 0.1 ) * (~np.array(pupil_masks[beam_id]))
+# plt.figure(); plt.imshow( exterior_mask)  ;plt.colorbar() ;plt.savefig('delme.png')
 
 I0_list = []
 I0_dm_list = []
@@ -501,6 +501,8 @@ data_dict = {
     "delta_list": np.array(delta_list),
     "rmse": np.array(rmse),
     "exterior_sig": np.array(exterior_sig),
+    "pupil_pixels": np.array( pupil_masks[beam_id] ).astype(int),
+    "exterior_pixels": np.array( exterior_mask ).astype(int),
 }
 
 # Create a FITS HDUList
@@ -514,7 +516,7 @@ for key, value in data_dict.items():
 
 # Define the output FITS filename
 #mask_id = 'H3'
-fits_filename = fig_path + f"flat_dm_beam{beam_id}_mask{args.phasemask}.fits"
+fits_filename = fig_path + f"flat_dm_beam{beam_id}_mask{args.phasemask}_{tstamp}.fits"
 
 # Write to FITS file
 hdul.writeto(fits_filename, overwrite=True)
@@ -525,4 +527,4 @@ print(f"Saved FITS file as {fits_filename}")
 
 ### Save as txt file the flat 
 fig_path = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
-np.savetxt(fig_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS.txt", amps[ib] * cc140, fmt="%.3f")
+np.savetxt(fig_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt", amps[ib] * cc140, fmt="%.3f")

@@ -387,7 +387,7 @@ dm.close( erase_file = False )
 # # run a new set of darks 
 # get_new_dark = False
 # if get_new_dark:
-#     script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark.py"
+#     script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
 #     try:
 #         # Run the script and ensure it completes
 #         with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
