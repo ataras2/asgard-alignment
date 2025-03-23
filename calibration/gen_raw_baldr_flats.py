@@ -98,7 +98,7 @@ parser.add_argument(
     '--gains',
     type=int,
     nargs='+',
-    default=[1, 5, 20],
+    default=[1, 5],
     help="List of gains to apply when collecting raw flat frames. Default: %(default)s"
 )
 
@@ -128,7 +128,7 @@ parser.add_argument(
 
 parser.add_argument(
     '--use_baldr_dm_flat',
-    action='store_true',
+    action='store_false',
     help="Use the calibrated Baldr DM flat. If not set, the BMC factory flat is used (default)."
 )
 parser.add_argument("--number_of_frames", 
@@ -328,17 +328,17 @@ for gain in args.gains:
             mean_dark = np.mean( master_flat_list, axis=0)
             var_dark = np.var( master_flat_list, axis=0) 
             with np.errstate(divide='ignore', invalid='ignore'):
-                conversion_gain = np.where(var_dark > 0, mean_dark / var_dark, 0)
+                conversion_gain_inv = np.where(var_dark > 0, mean_dark / var_dark, 0)
 
-            conv_gain_hdu = fits.ImageHDU(conversion_gain)
+            conv_gain_hdu = fits.ImageHDU( conversion_gain_inv)
             conv_gain_hdu.header['EXTNAME'] = f'CONV_GAIN_GAIN-{gain}'
-            conv_gain_hdu.header['UNITS'] = 'e-/ADU'
+            conv_gain_hdu.header['UNITS'] = 'ADU/e-'
             for k, v in config_tmp.items():
                 conv_gain_hdu.header[k] = v    
             conv_gain_hdu.header['DATE'] = tstamp
 
             fname_convgain = args.data_path + f"CONVERSION_GAIN_{flat_type}/conversion_gain_{hdu.header['EXTNAME']}_phaasemask-{args.phasemask}_{tstamp}.fits"
-            hdu.writeto(fname_convgain, overwrite=True)
+            conv_gain_hdu.writeto(fname_convgain, overwrite=True)
 
             #import matplotlib.pyplot as plt 
             #plt.figure(); plt.imshow( conversion_gain  );plt.colorbar(); plt.savefig("delme.png")

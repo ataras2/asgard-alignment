@@ -327,7 +327,7 @@ class fli( ):
         self.semid = 3
         self.mds_port = mds_port
         self.cam_port = cam_port
-        
+
         if config_file_path is None:
             # default
             config_file_path = "config_files"
@@ -338,6 +338,10 @@ class fli( ):
             self.config_file_path  = os.path.join( project_root,  config_file_path )
         else:
             self.config_file_path = config_file_path 
+
+        print("Reading in current camera configuration\m")
+        self.config = self.get_camera_config()
+        
         #self.dark = [] 
         #self.bias = []
         #self.flat = []
@@ -350,6 +354,14 @@ class fli( ):
         except:
             print('failed to get shm shape. Set to ()')
             self.shm_shape = () 
+
+
+        # # Dynamically inherit based on camera type
+        if 1: # FliSdk_V2.IsCredOne(self.camera):
+            #self.__class__ = type("FliCredOneWrapper", (self.__class__, FliCredOne.FliCredOne), {})
+            #print("Inherited from FliCredOne")
+            self.command_dict = cred1_command_dict
+
         #listOfGrabbers = FliSdk_V2.DetectGrabbers(self.camera)
         #listOfCameras = FliSdk_V2.DetectCameras(self.camera)
         # print some info and exit if nothing detected
@@ -379,11 +391,6 @@ class fli( ):
         #     print("Error while updating SDK.")
         #     FliSdk_V2.Exit(self.camera)
 
-        # # Dynamically inherit based on camera type
-        if 1: # FliSdk_V2.IsCredOne(self.camera):
-            #self.__class__ = type("FliCredOneWrapper", (self.__class__, FliCredOne.FliCredOne), {})
-            #print("Inherited from FliCredOne")
-            self.command_dict = cred1_command_dict
 
 
         # elif FliSdk_V2.IsCredTwo(self.camera):
@@ -400,6 +407,7 @@ class fli( ):
             
     # send FLI command (based on firmware version)
     def send_fli_cmd( self, cmd_raw ):
+
         cmd = f'cli "{cmd_raw}"'
         #cmd_sz = 10  # finite size command with blanks filled
         out_cmd = cmd + (cmd_sz - 1 - len(cmd)) * " " # fill the blanks
@@ -411,6 +419,17 @@ class fli( ):
         #val = FliSdk_V2.FliSerialCamera.SendCommand(self.camera, cmd)
         #if not val:
         #    print(f"Error with command {cmd}")
+
+        # we update the config dict without asking the camera just to make things quicker
+        # safer option would be to re-query camera each time - but this is slow! 
+        if "ACK" in resp:
+            if "set fps" in cmd_raw:
+                self.config["fps"] = float( cmd_raw.spplit("fps ")[-1] )
+            
+            if "set gain" in cmd_raw:
+                self.config["gain"] = float( cmd_raw.spplit("gain ")[-1] )
+            
+
         return resp 
     
 
@@ -500,6 +519,24 @@ class fli( ):
      
 
     # some custom functions
+    def build_manual_bias( self , no_frames = 100 , sleeptime = 2, save_file_name = None, **kwargs):
+        maxfps = 1739 #Hz
+
+        priorfps = self.config["fps"] # this config should update everytime set fps cmd is sent 
+
+        self.send_fli_cmd(f"set fps {maxfps}")
+
+        time.sleep(sleeptime)
+        
+        print('...getting frames')
+        bias_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
+        print('...aggregating frames')
+        bias = np.mean(bias_list ,axis = 0).astype(int)
+        self.reduction_dict['bias'].append( bias ) #ADU
+
+        self.send_fli_cmd(f"set fps {priorfps}")
+        time.sleep(1)
+        print("Done.")
 
     def build_manual_dark( self , no_frames = 100 , sleeptime = 3, build_bad_pixel_mask = False , save_file_name = None, **kwargs):
         """
@@ -552,6 +589,7 @@ class fli( ):
         time.sleep(2)
         # try turn source back on 
         #my_controllino.turn_on("SBB")
+        print("turning BB source back on")
         message = "on SBB"
         mds_socket.send_string(message)
         response = mds_socket.recv_string()#.decode("ascii")
@@ -567,6 +605,8 @@ class fli( ):
 
             # take conjugate to mask mask true at pixels we want to keep
             self.reduction_dict['bad_pixel_mask'].append( ~bad_pixel_mask ) 
+
+        print("Done.")
 
         if save_file_name is not None:
             

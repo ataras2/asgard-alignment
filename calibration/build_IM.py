@@ -524,42 +524,48 @@ for beam_id in [1,2,3,4]:
 
 
 
-# #---------- New Darks 
-# run a new set of darks 
-get_new_dark = False
-if get_new_dark:
-    script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
-    try:
-        # Run the script and ensure it completes
-        with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-            stdout, stderr = process.communicate()  # Wait for process to complete
+# # #---------- New Darks 
+# # run a new set of darks 
+# get_new_dark = False
+# if get_new_dark:
+#     script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
+#     try:
+#         # Run the script and ensure it completes
+#         with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#             stdout, stderr = process.communicate()  # Wait for process to complete
 
-            if process.returncode == 0:
-                print("Script executed successfully!")
-                print(stdout)  # Print standard output (optional)
-            else:
-                print(f"Script failed with error:\n{stderr}")
+#             if process.returncode == 0:
+#                 print("Script executed successfully!")
+#                 print(stdout)  # Print standard output (optional)
+#             else:
+#                 print(f"Script failed with error:\n{stderr}")
 
-    except Exception as e:
-        print(f"Error running script: {e}")
+#     except Exception as e:
+#         print(f"Error running script: {e}")
 
 
-# get darks and bad pixels 
-dark_fits_files = glob.glob("/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/*.fits") 
-most_recent_dark = max(dark_fits_files, key=os.path.getmtime) 
+# # get darks and bad pixels 
+# dark_fits_files = glob.glob("/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/*.fits") 
+# most_recent_dark = max(dark_fits_files, key=os.path.getmtime) 
 
-dark_fits = fits.open( most_recent_dark )
+# dark_fits = fits.open( most_recent_dark )
 
-bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
-bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+# bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
+# bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
 
 
 c_dict = {}
 for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
-    c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
-    c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
+    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
+    #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
+    c_dict[beam_id].build_manual_bias(number_of_frames=500)
+    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+                                      apply_manual_reduction=True,
+                                      build_bad_pixel_mask=True, 
+                                      kwargs={'std_threshold':10, 'mean_threshold':6} )
+
 
 #c_dict[beam_id].build_dark( no_frames = 100)
 #    c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
@@ -577,10 +583,10 @@ for beam_id in args.beam_id:
     dm_shm_dict[beam_id].zero_all()
     
     # activate flat (does this on channel 1)
-    dm_shm_dict[beam_id].activate_flat()
+    #dm_shm_dict[beam_id].activate_flat()
 
     # apply dm flat + calibrated offset (does this on channel 1)
-    #dm_shm_dict[beam_id].activate_calibrated_flat()
+    dm_shm_dict[beam_id].activate_calibrated_flat()
     
 
 
@@ -870,11 +876,15 @@ hdu.header['poke_amp'] = args.poke_amp
 for k,v in cam_config.items():
     hdu.header[k] = v 
 
+for ii , ll in zip([r1,r2,c1,c2],["r1","r2","c1","c2"]) :
+    hdu.header[ll] = ii
+hdu.header["frame_shape"] = f"{r2-r1}x{c2-c1}"
+
 hdul.append(hdu)
 
 
-hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
-hdu.header['EXTNAME'] = 'DARKS'
+# hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
+# hdu.header['EXTNAME'] = 'DARKS'
 
 
 hdu = fits.ImageHDU(Iplus_all)
@@ -889,9 +899,9 @@ hdu = fits.ImageHDU( np.array(pupil_masks[beam_id]).astype(int))
 hdu.header['EXTNAME'] = 'PUPIL_MASK'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU( dm_mask[beam_id] )
-hdu.header['EXTNAME'] = 'PUPIL_MASK_DM'
-hdul.append(hdu)
+# hdu = fits.ImageHDU( dm_mask[beam_id] )
+# hdu.header['EXTNAME'] = 'PUPIL_MASK_DM'
+# hdul.append(hdu)
 
 hdu = fits.ImageHDU(modal_basis)
 hdu.header['EXTNAME'] = 'M2C'

@@ -19,7 +19,7 @@ import common.DM_registration as DM_registration
 import common.DM_basis_functions as dmbases
 import common.phasemask_centering_tool as pct
 from pyBaldr import utilities as util
-
+from asgard_alignment import FLI_Cameras as FLI
 
 try:
     from asgard_alignment import controllino as co
@@ -271,7 +271,8 @@ with open(args.toml_file ) as file:
 
 
 # global camera image shm 
-c = shm(args.global_camera_shm)
+roi = [None for _ in range(4)]
+c = FLI.fli(roi=roi) # #shm(args.global_camera_shm)
 
 # DMs
 dm_shm_dict = {}
@@ -281,6 +282,10 @@ for beam_id in args.beam_id:
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
     dm_shm_dict[beam_id].activate_flat()
+
+
+c.send_fli_cmd("set fps 100")
+c.send_fli_cmd("set gain 5")
 
 
 # try get dark and build bad pixel mask 
