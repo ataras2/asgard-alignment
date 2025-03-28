@@ -451,13 +451,13 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=1000,
+    default=100,
     help="frames per second on camera. Default: %(default)s"
 )
 parser.add_argument(
     '--cam_gain',
     type=int,
-    default=10,
+    default=5,
     help="camera gain. Default: %(default)s"
 )
 
@@ -496,24 +496,27 @@ for beam_id in args.beam_id:
 # bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
 # bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
 
-
 c_dict = {}
 for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
 
-    c_dict[beam_id].build_manual_bias(number_of_frames=500)
-    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
-                                      apply_manual_reduction=True,
-                                      build_bad_pixel_mask=True, 
-                                      kwargs={'std_threshold':10, 'mean_threshold':6} )
-    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
-    #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
-
 time.sleep(1)
 c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_fps}")
 time.sleep(1)
 c_dict[beam_id].send_fli_cmd(f"set gain {args.cam_gain}")
+time.sleep(1)
+
+for beam_id in args.beam_id:
+    c_dict[beam_id].build_manual_bias(number_of_frames=500)
+    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+                                      apply_manual_reduction=True,
+                                      build_bad_pixel_mask=True, 
+                                      sleeptime = 20,
+                                      kwargs={'std_threshold':10, 'mean_threshold':6} )
+    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
+    #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
+
 
 # set up DM SHMs 
 print( 'setting up DMs')
@@ -719,6 +722,13 @@ for i,m in enumerate(modal_basis):
     I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / N0[beam_id].reshape(-1)
     I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  N0[beam_id].reshape(-1)
 
+    numerator = np.mean( I_plus_list, axis = 0).reshape(-1)
+    denominator = N0[beam_id].reshape(-1)
+    I_plus = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+    
+    numerator = np.mean( I_minus_list, axis = 0).reshape(-1)
+    I_minus = np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+    
     errsig = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
     
     # reenter pokeamp norm
@@ -874,17 +884,23 @@ plt.savefig('delme.png')
 ##################
 
 pp = 0.04
-m = 1
+m = 0
 abb = pp * modal_basis[m] 
 dm_shm_dict[beam_id].set_data(  abb ) 
 
+time.sleep(1)
+
 i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0)
 
-sig =  dm_mask[beam_id] * (I2A_dict[beam_id] @ ((i - I0[beam_id] ) / N0[beam_id]).reshape(-1) )
+numerator =  dm_mask[beam_id] * (I2A_dict[beam_id] @ (i - I0[beam_id] ).reshape(-1)) 
+denominator = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ( N0[beam_id].reshape(-1) ) )
+sig =  np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+
+#sig =  dm_mask[beam_id] * (I2A_dict[beam_id] @ ((i - I0[beam_id] ) / N0[beam_id]).reshape(-1) )
 
 err = I2M.T @ sig
 
-reco =  (M2C.T @ err).T
+reco =  (M2C.T @ err).T 
 
 res = abb - reco 
 
@@ -892,13 +908,96 @@ rmse = np.sqrt( np.mean( (res)**2 ))
 
 dmfilt_12x12 = util.get_DM_command_in_2D( dm_act_filt[beam_id] )
 #im_list = [i, util.get_DM_command_in_2D(sig), dm_act_filt[beam_id] * reco, dm_act_filt[beam_id] * res ]
-im_list = [abb , i, util.get_DM_command_in_2D(sig), dmfilt_12x12 * reco, dmfilt_12x12 * res ]
+im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), reco,  res ]
 
 title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
 vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
 vlims.append( vlims[-1] )
 cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
 util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list, vlims= vlims, savefig='delme.png')
+
+
+
+################# LOOKING AT ERROR SIGNAL 
+m = 0
+errgrid = []
+resgrid = []
+ampgrid = np.linspace(-0.2, 0.2, 100)
+for pp in ampgrid:
+    print(pp)
+    abb = pp * modal_basis[m] 
+    dm_shm_dict[beam_id].set_data(  abb ) 
+
+    time.sleep(2)
+
+    i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0)
+
+    #sig =  dm_mask[beam_id] * (I2A_dict[beam_id] @ ((i - I0[beam_id] ) / N0[beam_id]).reshape(-1) )
+    # Safer way to do it (maybe slower)
+    numerator =  dm_mask[beam_id] * (I2A_dict[beam_id] @ (i - I0[beam_id] ).reshape(-1)) 
+    denominator = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ( N0[beam_id].reshape(-1) ) )
+    sig =  np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+
+    err = I2M.T @ sig
+
+    reco =  (M2C.T @ err).T 
+
+    res = abb - reco 
+
+    errgrid.append( err[m] )
+    resgrid.append( np.std( res[m] ) )
+
+
+
+cam_config = c_dict[beam_id].get_camera_config()
+
+hdul = fits.HDUList()
+
+hdu = fits.ImageHDU(IM)
+hdu.header['EXTNAME'] = 'IM'
+hdu.header['phasemask'] = args.phasemask
+hdu.header['sig'] = 'I(a/2)-I(-a/2)'
+hdu.header['beam'] = beam_id
+hdu.header['poke_amp'] = poke_amp
+for k,v in cam_config.items():
+    hdu.header[k] = v 
+
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(ampgrid)
+hdu.header['EXTNAME'] = 'disturb_grid'
+hdu.header['mode_index'] = m
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(errgrid)
+hdu.header['EXTNAME'] = 'err_grid'
+hdul.append(hdu)
+
+hdu = fits.ImageHDU(resgrid)
+hdu.header['EXTNAME'] = 'resgrid'
+hdul.append(hdu)
+
+fits_file = '/home/asg/Videos/' + f'capture_range_{basis_type}_mode{m}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+#f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+hdul.writeto(fits_file, overwrite=True)
+print(f'wrote telemetry to \n{fits_file}')
+
+
+plt.figure(figsize=(8,5))
+plt.plot( 7000 * ampgrid, 7000 * np.array(errgrid), color='k', label="Measured") 
+plt.plot( 7000 * ampgrid, 7000 * ampgrid, color="r", ls=":", label="1:1") 
+plt.xlim([-1000,1000])
+plt.ylim([1.2*np.min(7000 * np.array(errgrid)),-1.2*np.min(7000 * np.array(errgrid))])
+plt.axvline(0, color='k',ls=':')
+plt.axhline(0, color='k',ls=':')
+plt.legend(fontsize=13)
+plt.text( 100, -150 , f"phase mask : {args.phasemask}", color='k',alpha=0.5, fontsize=15)
+plt.gca().tick_params(labelsize=13)
+#plt.xlabel("Tip/Tilt Disturbance [nm RMS]",fontsize=15)
+plt.xlabel("Focus Disturbance [nm RMS]",fontsize=15)
+plt.ylabel("Error Signal [nm RMS]",fontsize=15)
+plt.savefig('delme.png')
+
 
 
 # print( f'mean mode reco = {np.mean( reco , axis = 1)}') 
@@ -1030,11 +1129,11 @@ util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cb
 ### TRY CLOSE LOOP 
 
 # basic setup 
-no_its = 2000 #500
+no_its = 500#2000 #500
 record_telemetry = True
 Nmodes_removed = 14
 
-close_after = 1000 #100
+close_after = 100 #1000 #100
 disturbances_on = True #False 
 
 ## disturbance (if disturbances_on )
@@ -1073,7 +1172,7 @@ a_piston /= np.std( a_piston )
 piston_rms = 0.03
 
 # define our TT rms in DM units
-TT_disturb_rms = 0.02
+TT_disturb_rms = 0.03 #0.02
 
 tip_rms = np.sqrt(2) * TT_disturb_rms
 tilt_rms = np.sqrt(2) * TT_disturb_rms
@@ -1100,234 +1199,243 @@ for ii in range(no_its):
 
 
 #def close_loop( a_ki = 0.2 ): 
-for a_ki in [0.0, 0.8]: # 0.1, 0.3, 0.5 ,0.7, 0.9, 1.0, 1.2, 1.5]:
-    print( a_ki )
-    cnt = 0 # start count again (loop closes when cnt == close_after)
-    if 1:   
-        dm_shm_dict[beam_id].zero_all()
-        # activate flat (does this on channel 1)
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+piston_offset_grid = np.arange(-0.5, 0.0, 0.05)
+for piston_offset in piston_offset_grid:# 
+#if 1: 
+    for a_ki in [0.0, 0.8]: # 0.1, 0.3, 0.5 ,0.7, 0.9, 1.0, 1.2, 1.5]:
+        #print( a_ki )
+        cnt = 0 # start count again (loop closes when cnt == close_after)
+        if 1:   
+            dm_shm_dict[beam_id].zero_all()
+            # activate flat (does this on channel 1)
+            dm_shm_dict[beam_id].activate_calibrated_flat()
 
-        I0_dm = I2A_dict[beam_id] @ I0[beam_id].reshape(-1)
-        N0_dm = I2A_dict[beam_id] @ N0[beam_id].reshape(-1)
+            I0_dm = I2A_dict[beam_id] @ I0[beam_id].reshape(-1)
+            N0_dm = I2A_dict[beam_id] @ N0[beam_id].reshape(-1)
 
-        # Flat DM
-        #dms[beam_id].zero_all()
-        time.sleep(1)
-        #dms[beam_id].activate_flat()
+            # Flat DM
+            #dms[beam_id].zero_all()
+            time.sleep(1)
+            #dms[beam_id].activate_flat()
 
-        closed = True
-
-
-        # Telemetry 
-        telem = SimpleNamespace( **init_telem_dict() )
-
-        # PID Controller
-        N = I2M.shape[1]
-        kp = 0. * np.ones( N)
-        ki = 0. * np.ones( N )
-        kd = 0. * np.ones( N )
-        setpoint = np.zeros( N )
-        lower_limit_pid = -100 * np.ones( N )
-        upper_limit_pid = 100 * np.ones( N )
-
-        ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
-
-        # gain to apply after "close_after" iterations
-
-        ki_array =  0 * np.linspace(1e-4, 0.5, N)[::-1]
-        ki_array[0] = a_ki
-        ki_array[1] = a_ki
+            closed = True
 
 
-        t0 = 1e6 * time.time() #us
+            # Telemetry 
+            telem = SimpleNamespace( **init_telem_dict() )
 
-        # To add a static aberration at beginning 
-        #disturbance2D = -0.03 * M2C[0]
-        #dm_shm_dict[beam_id].shms[2].set_data( disturbance2D  ) 
-        #dm_shm_dict[beam_id].shm0.post_sems(1)
+            # PID Controller
+            N = I2M.shape[1]
+            kp = 0. * np.ones( N)
+            ki = 0. * np.ones( N )
+            kd = 0. * np.ones( N )
+            setpoint = np.zeros( N )
+            lower_limit_pid = -100 * np.ones( N )
+            upper_limit_pid = 100 * np.ones( N )
+
+            ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
+
+            # gain to apply after "close_after" iterations
+
+            ki_array =  0 * np.linspace(1e-4, 0.5, N)[::-1]
+            ki_array[0] = a_ki
+            ki_array[1] = a_ki
+
+
+            t0 = 1e6 * time.time() #us
+
+            # To add a static aberration at beginning 
+            #disturbance2D = -0.03 * M2C[0]
+            #dm_shm_dict[beam_id].shms[2].set_data( disturbance2D  ) 
+            #dm_shm_dict[beam_id].shm0.post_sems(1)
+            
+            while closed and (cnt < no_its):
+                
+                if disturbances_on:
+                    disturbance = M2C.T @ modal_disturbances[cnt]
+
+                    #ensure correct format for SHM 
+                    #disturbance2D = a_piston[cnt] + disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
+                    disturbance2D = piston_offset + disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
+
+                    #apply atm disturbance on channel 2 
+                    dm_shm_dict[beam_id].shms[2].set_data( disturbance2D  ) 
+                    #dm_shm_dict[beam_id].shms[2].set_data( disturbance  ) 
+                    #dm_shm_dict[beam_id].shm0.post_sems(1) ## <- we do this at the end
+                #print(cnt)
+                #time.sleep(3) 
+
+                # Cropped pupil region
+                i = c_dict[beam_id].get_image( apply_manual_reduction=True ) #np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+
+                # interpolate intensities to registered DM pixels 
+                #i_dm = I2A_dict[beam_id] @ cropped_image.reshape(-1)
+
+                # normalise  ### IT WILL BE QUICKER TO DO THIS DIRECTLY IN DM SPACE (CONVERT PRIOR) -VERIFY FIRST 
+                #sig = dm_mask[beam_id] * (I2A_dict[beam_id] @ ((i - I0[beam_id] ) / N0[beam_id]).reshape(-1) ) #process_signal( i_dm, I0_dm, N0_dm)
+                numerator =  dm_mask[beam_id] * (I2A_dict[beam_id] @ (i - I0[beam_id] ).reshape(-1)) 
+                denominator = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ( N0[beam_id].reshape(-1) ) )
+                
+                sig =  np.divide(numerator, denominator, out=np.zeros_like(numerator), where=denominator!=0)
+
+                # apply linear reconstructor to signal to get modal errors
+                e_HO = I2M.T @ sig 
+
+                #print( f'e_HO(first ten) = {e_HO[:10]}' )
+
+                # apply PID controller 
+                u_HO = ctrl_HO.process( e_HO )
+                
+
+                #print( f'u_HO(first ten) = {u_HO[:10]}' )
+
+                #print( f'ctrl_HO.output(first ten) = {ctrl_HO.output[:10]}' )
+
+                #print( f'ctrl_HO.integrals(first ten) = {ctrl_HO.integrals[:10]}' )
+
+                # forcefully remove piston 
+                #u_HO -= np.mean( u_HO )
+                
+                # send command (filter piston)
+                #delta_cmd = np.zeros( len(zwfs_ns.dm.dm_flat ) )
+                #delta_cmd zwfs_ns.reco.linear_zonal_model.act_filt_recommended ] = u_HO
+                # factor of 2 since reflection
+                delta_cmd = (M2C.T @ u_HO).T  #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
+                # be careful with tranposes , made previouos mistake tip was tilt etc (90 degree erroneous rotation)
+                #cmd = -delta_cmd #disturbance - delta_cmd 
+
+                print( cnt, np.std( delta_cmd ) , ki )
+
+                # record telemetry with the new image and processed signals but the current DM commands (not updated)
+                if record_telemetry :
+                    
+                    telem.time.append( time.time()*1e6 - t0  ) #datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') )
+                    telem.i_list.append( i )
+                    #telem.i_dm_list.append( i_dm )
+                    telem.s_list.append( sig )
+
+                    telem.e_TT_list.append( np.zeros( len(e_HO) ) )
+                    telem.u_TT_list.append( np.zeros( len(e_HO) ) )
+                    telem.c_TT_list.append( np.zeros( len(delta_cmd) ) )
+
+                    telem.e_HO_list.append( e_HO )
+                    telem.u_HO_list.append( u_HO )
+                    telem.c_HO_list.append( delta_cmd ) # the next DM command to be applied to channel 2 (default of dm_shm_dict[beam_id].set_data()  )
+
+                    telem.current_dm_ch0.append( dm_shm_dict[beam_id].shms[0].get_data() )
+                    telem.current_dm_ch1.append( dm_shm_dict[beam_id].shms[1].get_data() )
+                    telem.current_dm_ch2.append( dm_shm_dict[beam_id].shms[2].get_data() )
+                    telem.current_dm_ch3.append( dm_shm_dict[beam_id].shms[3].get_data() )
+                    # sum of all DM channels (Full command currently applied to DM)
+                    telem.current_dm.append( dm_shm_dict[beam_id].shm0.get_data() )
+
+                    telem.modal_disturb_list.append( modal_disturbances[cnt] )
+                    
+
+                # if np.std( delta_cmd ) > 0.2:
+                #     print('going bad')
+                #     dm_shm_dict[beam_id].zero_all()
+                #     dm_shm_dict[beam_id].activate_calibrated_flat()
+                #     closed = False
+
+                # update control feedback on DM channel 1. Total DM command is sum of all channels 
+                dm_shm_dict[beam_id].shms[1].set_data( -delta_cmd ) 
+                dm_shm_dict[beam_id].shm0.post_sems(1) # post semaphore to update DM 
+
+                #Carefull - controller integrates even so this doesnt work
+                if cnt == close_after :
+                    #close tip/tilt only 
+                    #ctrl_HO.ki[:2] = ki_v * np.ones(len(ki))
+                    ctrl_HO.ki = ki_array
+
+                cnt+=1
+
+
+            # Finsh - Flatten DMs
+            dm_shm_dict[beam_id].zero_all()
+            dm_shm_dict[beam_id].activate_calibrated_flat()
+
+
+        for i in [0,1]:
+            print( f"mode {i} RMS before = ", np.std( np.array( telem.e_HO_list )[:close_after, 1 ] ) )
+
+            print( f"mode {i} RMS after = ",np.std( np.array( telem.e_HO_list )[close_after:, 1 ] ) )
+
+            print( f"mode {i} mean err before = ", np.mean( np.array( telem.e_HO_list )[:close_after, 1 ] ) )
+
+            print( f"mode {i} mean err after = ",np.mean( np.array( telem.e_HO_list )[close_after:, 1 ] ) )
+
+        #plt.figure(); plt.imshow(  telem.i_list[-1] ) ;plt.savefig('delme.png')
         
-        while closed and (cnt < no_its):
-            
-            if disturbances_on:
-                disturbance = M2C.T @ modal_disturbances[cnt]
 
-                #ensure correct format for SHM 
-                disturbance2D = a_piston[cnt] + disturbance #np.nan_to_num( util.get_DM_command_in_2D(disturbance), 0 )
-                
-                #apply atm disturbance on channel 2 
-                dm_shm_dict[beam_id].shms[2].set_data( disturbance2D  ) 
-                #dm_shm_dict[beam_id].shm0.post_sems(1) ## <- we do this at the end
-            #print(cnt)
-            #time.sleep(3) 
+        #plt.figure(); plt.imshow(  telem.i_list[-1] ) ;plt.savefig('delme.png')
 
-            # Cropped pupil region
-            i = c_dict[beam_id].get_image( apply_manual_reduction=True ) #np.mean( c.get_data(), axis = 0)[r1:r2, c1:c2]
+        # save telemetry
+        runn=f'TT_ki-{a_ki}_pistonOffset_{piston_offset}_with_baldrDMflat_disturbs-{disturbances_on}_CL_sysID_v1'
+        # Create a list of HDUs (Header Data Units)
+        hdul = fits.HDUList()
 
-            # interpolate intensities to registered DM pixels 
-            #i_dm = I2A_dict[beam_id] @ cropped_image.reshape(-1)
+        hdu = fits.ImageHDU(IM)
+        hdu.header['EXTNAME'] = 'IM'
+        hdul.append(hdu)
 
-            # normalise  ### IT WILL BE QUICKER TO DO THIS DIRECTLY IN DM SPACE (CONVERT PRIOR) -VERIFY FIRST 
-            sig = dm_mask[beam_id] * (I2A_dict[beam_id] @ ((i - I0[beam_id] ) / N0[beam_id]).reshape(-1) ) #process_signal( i_dm, I0_dm, N0_dm)
-            
-            # apply linear reconstructor to signal to get modal errors
-            e_HO = I2M.T @ sig 
-
-            #print( f'e_HO(first ten) = {e_HO[:10]}' )
-
-            # apply PID controller 
-            u_HO = ctrl_HO.process( e_HO )
-            
-
-            #print( f'u_HO(first ten) = {u_HO[:10]}' )
-
-            #print( f'ctrl_HO.output(first ten) = {ctrl_HO.output[:10]}' )
-
-            #print( f'ctrl_HO.integrals(first ten) = {ctrl_HO.integrals[:10]}' )
-
-            # forcefully remove piston 
-            #u_HO -= np.mean( u_HO )
-            
-            # send command (filter piston)
-            #delta_cmd = np.zeros( len(zwfs_ns.dm.dm_flat ) )
-            #delta_cmd zwfs_ns.reco.linear_zonal_model.act_filt_recommended ] = u_HO
-            # factor of 2 since reflection
-            delta_cmd = (M2C.T @ u_HO).T  #[ dm_act_filt[beam_id] ] = u_HO[ dm_act_filt[beam_id]  ]
-            # be careful with tranposes , made previouos mistake tip was tilt etc (90 degree erroneous rotation)
-            #cmd = -delta_cmd #disturbance - delta_cmd 
-
-            print( cnt, np.std( delta_cmd ) )
-
-            # record telemetry with the new image and processed signals but the current DM commands (not updated)
-            if record_telemetry :
-                
-                telem.time.append( time.time()*1e6 - t0  ) #datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') )
-                telem.i_list.append( i )
-                #telem.i_dm_list.append( i_dm )
-                telem.s_list.append( sig )
-
-                telem.e_TT_list.append( np.zeros( len(e_HO) ) )
-                telem.u_TT_list.append( np.zeros( len(e_HO) ) )
-                telem.c_TT_list.append( np.zeros( len(delta_cmd) ) )
-
-                telem.e_HO_list.append( e_HO )
-                telem.u_HO_list.append( u_HO )
-                telem.c_HO_list.append( delta_cmd ) # the next DM command to be applied to channel 2 (default of dm_shm_dict[beam_id].set_data()  )
-
-                telem.current_dm_ch0.append( dm_shm_dict[beam_id].shms[0].get_data() )
-                telem.current_dm_ch1.append( dm_shm_dict[beam_id].shms[1].get_data() )
-                telem.current_dm_ch2.append( dm_shm_dict[beam_id].shms[2].get_data() )
-                telem.current_dm_ch3.append( dm_shm_dict[beam_id].shms[3].get_data() )
-                # sum of all DM channels (Full command currently applied to DM)
-                telem.current_dm.append( dm_shm_dict[beam_id].shm0.get_data() )
-
-                telem.modal_disturb_list.append( modal_disturbances[cnt] )
-                
-
-            if np.std( delta_cmd ) > 0.2:
-                print('going bad')
-                dm_shm_dict[beam_id].zero_all()
-                dm_shm_dict[beam_id].activate_calibrated_flat()
-                closed = False
-
-            # update control feedback on DM channel 1. Total DM command is sum of all channels 
-            dm_shm_dict[beam_id].shms[1].set_data( -delta_cmd ) 
-            dm_shm_dict[beam_id].shm0.post_sems(1) # post semaphore to update DM 
-
-            #Carefull - controller integrates even so this doesnt work
-            if cnt == close_after :
-                #close tip/tilt only 
-                #ctrl_HO.ki[:2] = ki_v * np.ones(len(ki))
-                ctrl_HO.ki = ki_array
-
-            cnt+=1
-
-
-        # Finsh - Flatten DMs
-        dm_shm_dict[beam_id].zero_all()
-        dm_shm_dict[beam_id].activate_calibrated_flat()
-
-
-    for i in [0,1]:
-        print( f"mode {i} RMS before = ", np.std( np.array( telem.e_HO_list )[:close_after, 1 ] ) )
-
-        print( f"mode {i} RMS after = ",np.std( np.array( telem.e_HO_list )[close_after:, 1 ] ) )
-
-        print( f"mode {i} mean err before = ", np.mean( np.array( telem.e_HO_list )[:close_after, 1 ] ) )
-
-        print( f"mode {i} mean err after = ",np.mean( np.array( telem.e_HO_list )[close_after:, 1 ] ) )
-
-    #plt.figure(); plt.imshow(  telem.i_list[-1] ) ;plt.savefig('delme.png')
-    
-
-    #plt.figure(); plt.imshow(  telem.i_list[-1] ) ;plt.savefig('delme.png')
-
-    # save telemetry
-    runn=f'TT_ki-{a_ki}_with_baldrDMflat_disturbs-{disturbances_on}_CL_sysID_v1'
-    # Create a list of HDUs (Header Data Units)
-    hdul = fits.HDUList()
-
-    hdu = fits.ImageHDU(IM)
-    hdu.header['EXTNAME'] = 'IM'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(M2C)
-    hdu.header['EXTNAME'] = 'M2C'
-    hdul.append(hdu)
-
-
-    hdu = fits.ImageHDU(I2M)
-    hdu.header['EXTNAME'] = 'I2M'
-    hdu.header['pokeamp'] = f'{poke_amp}'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(I2A_dict[beam_id])
-    hdu.header['EXTNAME'] = 'interpMatrix'
-    hdul.append(hdu)
-
-
-    hdu = fits.ImageHDU(dm_shm_dict[beam_id].shms[0].get_data())
-    hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.kp)
-    hdu.header['EXTNAME'] = 'Kp'
-    hdu.header['close_after'] = f'{close_after}'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.ki)
-    hdu.header['EXTNAME'] = 'Ki'
-    hdu.header['close_after'] = f'{close_after}'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.kd)
-    hdu.header['EXTNAME'] = 'Kd'
-    hdu.header['close_after'] = f'{close_after}'
-    hdul.append(hdu)
-
-    # Add each list to the HDU list as a new extension
-    for list_name, data_list in vars(telem).items():
-        # Convert list to numpy array for FITS compatibility
-        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
-
-        # Create a new ImageHDU with the data
-        hdu = fits.ImageHDU(data_array)
-
-        # Set the EXTNAME header to the variable name
-        hdu.header['EXTNAME'] = list_name
-
-        # Append the HDU to the HDU list
+        hdu = fits.ImageHDU(M2C)
+        hdu.header['EXTNAME'] = 'M2C'
         hdul.append(hdu)
 
 
-    # Write the HDU list to a FITS file
-    tele_pth = f'/home/asg/Videos/TT_on_1onf_TT_disturb_w_piston_long_{TT_disturb_rms}rms/'
-    if not os.path.exists( tele_pth ):
-        os.makedirs( tele_pth )
+        hdu = fits.ImageHDU(I2M)
+        hdu.header['EXTNAME'] = 'I2M'
+        hdu.header['pokeamp'] = f'{poke_amp}'
+        hdul.append(hdu)
 
-    fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
-    hdul.writeto(fits_file, overwrite=True)
-    print(f'wrote telemetry to \n{fits_file}')
+        hdu = fits.ImageHDU(I2A_dict[beam_id])
+        hdu.header['EXTNAME'] = 'interpMatrix'
+        hdul.append(hdu)
+
+
+        hdu = fits.ImageHDU(dm_shm_dict[beam_id].shms[0].get_data())
+        hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
+        hdul.append(hdu)
+
+        hdu = fits.ImageHDU(ctrl_HO.kp)
+        hdu.header['EXTNAME'] = 'Kp'
+        hdu.header['close_after'] = f'{close_after}'
+        hdul.append(hdu)
+
+        hdu = fits.ImageHDU(ctrl_HO.ki)
+        hdu.header['EXTNAME'] = 'Ki'
+        hdu.header['close_after'] = f'{close_after}'
+        hdul.append(hdu)
+
+        hdu = fits.ImageHDU(ctrl_HO.kd)
+        hdu.header['EXTNAME'] = 'Kd'
+        hdu.header['close_after'] = f'{close_after}'
+        hdul.append(hdu)
+
+        # Add each list to the HDU list as a new extension
+        for list_name, data_list in vars(telem).items():
+            # Convert list to numpy array for FITS compatibility
+            data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+
+            # Create a new ImageHDU with the data
+            hdu = fits.ImageHDU(data_array)
+
+            # Set the EXTNAME header to the variable name
+            hdu.header['EXTNAME'] = list_name
+
+            # Append the HDU to the HDU list
+            hdul.append(hdu)
+
+
+        # Write the HDU list to a FITS file
+        tele_pth = f'/home/asg/Videos/TT_with_static_piston_{TT_disturb_rms}rms/' #f'/home/asg/Videos/TT_on_1onf_TT_disturb_w_piston_long_{TT_disturb_rms}rms/'
+        if not os.path.exists( tele_pth ):
+            os.makedirs( tele_pth )
+
+        fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
+        hdul.writeto(fits_file, overwrite=True)
+        print(f'wrote telemetry to \n{fits_file}')
 
 
 

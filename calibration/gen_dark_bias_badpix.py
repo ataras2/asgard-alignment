@@ -34,7 +34,7 @@ parser.add_argument(
     '--gains',
     type=int,
     nargs='+',
-    default=[1, 2, 3, 4, 5],
+    default=[1, 5, 10, 20],
     help="List of gains to apply when collecting dark frames. Default: %(default)s"
 )
 parser.add_argument(

@@ -60,6 +60,20 @@ def convert_to_serializable(obj):
         return obj  # Base case: return the object itself if it doesn't need conversion
 
 
+
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
+
+    
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
@@ -741,6 +755,38 @@ def filter_exterior_annulus(pupil_mask, inner_radius, outer_radius):
 
 
 
+def get_secondary_mask(image, center):
+    """
+    Create a boolean mask with the same shape as `image` that is True 
+    for a 3x3 patch centered at the given (x,y) coordinate (floats)
+    and False elsewhere. x,y is rounded to nearet integer
+
+    Designed for identifying pixels shaddowed by secondary obstruction. 
+    Use detect_pupil() function to get the center! 
+    
+    Parameters:
+        image (np.ndarray): 2D array (image).
+        center (tuple): (x, y) coordinate (floats) of the patch center.
+                        x is column, y is row.
+    
+    Returns:
+        mask (np.ndarray): Boolean mask array with True in the 3x3 patch.
+    """
+    # Initialize a boolean mask of the same shape as the image with all False
+    mask = np.zeros_like(image, dtype=bool)
+    
+    # Unpack the center coordinates and round to nearest integer
+    x, y = center
+    col = int(round(x))
+    row = int(round(y))
+    
+    # Set the 3x3 patch to True.
+    # Note: This simple example assumes the patch is fully contained in the image.
+    mask[row-1:row+2, col-1:col+2] = True
+    
+    return mask
+
+
 def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
     """
     Detects an elliptical pupil (with possible rotation) in a cropped image using edge detection 
@@ -832,6 +878,50 @@ def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
         plt.show()
     
     return center_x, center_y, a, b, theta, pupil_mask
+
+
+def crop_to_square(mask):
+    # Find the (row, col) indices of the pupil (True values)
+    indices = np.argwhere(mask)
+    if indices.size == 0:
+        raise ValueError("Mask has no True values.")
+    
+    # Determine the bounding box of the pupil
+    y_min, x_min = indices.min(axis=0)
+    y_max, x_max = indices.max(axis=0)
+    
+    # Determine the required side length for the square (largest dimension)
+    height = y_max - y_min + 1
+    width = x_max - x_min + 1
+    side = max(width, height)
+    
+    # Compute the pupil center as a float for subpixel precision
+    center_y = (y_min + y_max) / 2.0
+    center_x = (x_min + x_max) / 2.0
+    
+    # Calculate the crop boundaries so that the pupil is centered.
+    # Using floor when subtracting half the side helps keep the crop symmetric.
+    new_y_min = int(np.floor(center_y - side / 2.0))
+    new_x_min = int(np.floor(center_x - side / 2.0))
+    new_y_max = new_y_min + side
+    new_x_max = new_x_min + side
+
+    # Adjust if the computed indices extend beyond the image boundaries.
+    if new_y_min < 0:
+        new_y_min = 0
+        new_y_max = side
+    if new_x_min < 0:
+        new_x_min = 0
+        new_x_max = side
+    if new_y_max > mask.shape[0]:
+        new_y_max = mask.shape[0]
+        new_y_min = new_y_max - side
+    if new_x_max > mask.shape[1]:
+        new_x_max = mask.shape[1]
+        new_x_min = new_x_max - side
+        
+    return new_y_min, new_y_max, new_x_min, new_x_max
+
 
 def get_mask_center(mask,  method='2'):
     """
@@ -1419,10 +1509,37 @@ def watch_camera(zwfs, frames_to_watch = 10, time_between_frames=0.01,cropping_c
 
 
 
-
+def bin_phase_screen(phase_screen, out_size=12):
+    """
+    Rebin (average) a square 2D phase screen into an out_size x out_size array.
+    
+    If the phase_screen shape is not exactly divisible by out_size,
+    the phase_screen is cropped to the largest size that is a multiple of out_size.
+    
+    Parameters:
+      phase_screen (np.ndarray): 2D array (square) representing the phase screen.
+      out_size (int): Desired output size (default: 12)
+      
+    Returns:
+      np.ndarray: A (out_size x out_size) binned phase screen.
+    """
+    m, n = phase_screen.shape
+    if m != n:
+        raise ValueError("Phase screen must be square.")
+    
+    # Crop the array if necessary
+    new_dim = (m // out_size) * out_size  # largest multiple of out_size <= m
+    if new_dim < m:
+        phase_screen = phase_screen[:new_dim, :new_dim]
+    
+    block_size = new_dim // out_size
+    # Reshape so that each block is block_size x block_size and average each block.
+    binned = phase_screen.reshape(out_size, block_size, out_size, block_size).mean(axis=(1,3))
+    return binned
 
 def create_phase_screen_cmd_for_DM(scrn,  scaling_factor=0.1, drop_indicies = None, plot_cmd=False):
     """
+    ### only works for factors of 12 * n , better to use  bin_phase_screen(
     aggregate a scrn (aotools.infinitephasescreen object) onto a DM command space. phase screen is normalized by
     between +-0.5 and then scaled by scaling_factor. Final DM command values should
     always be between -0.5,0.5 (this should be added to a flat reference so flat reference + phase screen should always be bounded between 0-1). phase screens are usually a NxN matrix, while DM is MxM with some missing pixels (e.g. 

@@ -242,7 +242,7 @@ def save_pupil_data_toml(beam_id, ellipse_params, toml_path):
     secondary[round(center_x), round(center_y)] = True
     secondary_list = secondary.tolist()
     
-
+    ### NOTE : exterior and secondary filters should be updated more precisely in asgard-alignment/calibration/strehl_filter_registration.py
     new_data = {
         f"beam{beam_id}": {
             "pupil_ellipse_fit": {
@@ -272,23 +272,24 @@ def save_pupil_data_toml(beam_id, ellipse_params, toml_path):
 
     # Update current data with new_data (beam specific)
     #current_data.update(new_data)
-    current_data = recursive_update(current_data, new_data)
+    current_data = util.recursive_update(current_data, new_data)
     # Write the updated data back to the TOML file.
     with open(toml_path, "w") as f:
         toml.dump(current_data, f)
 
 
-def recursive_update(orig, new):
-    """
-    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
-    """
-    for key, value in new.items():
-        if (key in orig and isinstance(orig[key], dict) 
-            and isinstance(value, dict)):
-            recursive_update(orig[key], value)
-        else:
-            orig[key] = value
-    return orig
+# # moved to util
+# def recursive_update(orig, new):
+#     """
+#     Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+#     """
+#     for key, value in new.items():
+#         if (key in orig and isinstance(orig[key], dict) 
+#             and isinstance(value, dict)):
+#             recursive_update(orig[key], value)
+#         else:
+#             orig[key] = value
+#     return orig
 
 
 def get_bad_pixel_indicies( imgs, std_threshold = 20, mean_threshold=6):
@@ -378,6 +379,8 @@ with open(args.toml_file.replace('#',f'{args.beam_ids[0]}') ) as file:
 # shm path to FULL () imagr 
 #mySHM = shm(args.global_camera_shm)
 c = FLI.fli() #
+
+## BAD PIXELS CAN RUIN PUPIL FIT - SO REDUCE INMAGES , FOR NOW WE TURN OFF SOURCE TO GET A FRESH DARK IN CURRENT SETTINGS 
 c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 # c.build_bad_pixel_mask( no_frames = 300 )
 #bad_pixel_mask = FLI.get_bad_pixels( c.reduction_dict['dark'][-1], std_threshold = 20, mean_threshold=6)

@@ -35,6 +35,63 @@ except ImportError:
     print("need base environment to use sardine shared memory. Try conda activate base")
 
 
+
+
+
+# Function to run script
+def run_script(command):
+    """
+    Run an external python script using subprocess.
+    """
+    try:
+        with st.spinner("Running.. drink some water"):
+            # Ensure stdout and stderr are properly closed
+            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                
+                stdout, stderr = process.communicate()
+                if process.returncode != 0:
+                    st.error(f"Script failed: {stderr}")
+                    return False
+            return True  # Script succeeded
+    except Exception as e:
+        st.error(f"Error running script: {e}")
+        return False
+
+
+def run_script_with_output(command):
+    """
+    Run an external script using subprocess and capture its output in Streamlit.
+    """
+    try:
+        with st.spinner("Running..."):
+            # Open subprocess with pipes for real-time output capture
+            with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+                
+                output = []
+                for line in process.stdout:
+                    st.text(line.strip())  # Stream output in real-time to UI
+                    output.append(line.strip())
+
+                stderr_output = process.stderr.read().strip()
+                st.write(f'process return code {process.returncode}')
+                ### This always fails even when script runs fine.. even when using sys.exit(0) I dont understand
+                #if process.returncode != 0:
+                #    st.error(f"Script failed: {stderr_output}")
+                #    return False, output
+        return True, output  # Script succeeded
+
+    except Exception as e:
+        st.error(f"Error running script: {e}")
+        return False, []
+
+
+### DEFAULT FOR SAVING SCRIPT OUTPUT FIGURES THAT ARE DISPLAYED IN THE GUI! DO NOT DELETE
+tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
+quick_data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/"
+
+os.makedirs(quick_data_path, exist_ok=True)
+
+
 # make GUI wide
 st.set_page_config(layout="wide")
 
@@ -187,6 +244,7 @@ def handle_phasemask():
 
     st.write("Registered mask", st.session_state["selected_mask"][0])
 
+    st.subheader("Manual Alignment")
     increment = st.number_input(
         "Relative increment (um)",
         min_value=0.0,
@@ -221,6 +279,34 @@ def handle_phasemask():
             send_and_get_response(message)
 
 
+    
+    AUTOCENTER_SCRIPTS = {
+    "auto_center_beam_1": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "1","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
+    "auto_center_beam_2": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "2","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
+    "auto_center_beam_3": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "3","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
+    "auto_center_beam_4": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "4","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
+    }     
+
+    st.subheader(f"Automatic phase mask centering")
+    st.write("Must be aligned to within 50-100um of the phasemask to work. Uses Gradient descent on strehl pixels with a dithering technique to estimate the gradient. ")
+    cols = st.columns(4)
+    for i, col in enumerate(cols):
+        with col:
+            st.subheader(f"Beam {i+1}")
+            btn_key = f"auto_center_beam_{i+1}"
+
+            # Run the script when button is clicked
+            if st.button(f"Run {btn_key}"):
+                success = run_script(AUTOCENTER_SCRIPTS[btn_key])
+
+                if success:
+                    fig_path = os.path.join(AUTOCENTER_SCRIPTS[btn_key][-1], f'phasemask_auto_center_beam{i+1}.png')
+                    if os.path.exists(fig_path):
+                        st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                    else:
+                        st.warning(f"Cannot find {fig_path}")
+
+    st.subheader("Change the phasemask position file")
     with st.form(key="update_position_file"):
         # f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam}/*json"
         # Get all valid files
@@ -1301,49 +1387,6 @@ with col_main:
         if routine_options == "Quick buttons":
 
 
-            # Function to run script
-            def run_script(command):
-                try:
-                    with st.spinner("Running.. drink some water"):
-                        # Ensure stdout and stderr are properly closed
-                        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-                            
-                            stdout, stderr = process.communicate()
-                            if process.returncode != 0:
-                                st.error(f"Script failed: {stderr}")
-                                return False
-                        return True  # Script succeeded
-                except Exception as e:
-                    st.error(f"Error running script: {e}")
-                    return False
-
-
-            def run_script_with_output(command):
-                """
-                Run an external script using subprocess and capture its output in Streamlit.
-                """
-                try:
-                    with st.spinner("Running..."):
-                        # Open subprocess with pipes for real-time output capture
-                        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-                            
-                            output = []
-                            for line in process.stdout:
-                                st.text(line.strip())  # Stream output in real-time to UI
-                                output.append(line.strip())
-
-                            stderr_output = process.stderr.read().strip()
-                            st.write(f'process return code {process.returncode}')
-                            ### This always fails even when script runs fine.. even when using sys.exit(0) I dont understand
-                            #if process.returncode != 0:
-                            #    st.error(f"Script failed: {stderr_output}")
-                            #    return False, output
-                    return True, output  # Script succeeded
-
-                except Exception as e:
-                    st.error(f"Error running script: {e}")
-                    return False, []
-
             ## Quick save states and images
             tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
@@ -1549,10 +1592,6 @@ with col_main:
                         
 
             st.title("Quick Scripts")
-            tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
-            quick_data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/{tstamp_rough}/"
-
-            os.makedirs(quick_data_path, exist_ok=True)
 
             # Define scripts and their arguments 
             QUICK_SCRIPTS = {
@@ -1565,6 +1604,10 @@ with col_main:
                 "register_DM_beam_2": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "2", "--fig_path", quick_data_path ],
                 "register_DM_beam_3": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "3", "--fig_path", quick_data_path ],
                 "register_DM_beam_4": ["python", "calibration/dm_registration_calibration.py", "--beam_id", "4", "--fig_path", quick_data_path ],
+                "register_strehl_pixels_beam_1":["python", "calibration/strehl_filter_registration.py",  "--beam_id", "1", "--fig_path", quick_data_path ],
+                "register_strehl_pixels_beam_2":["python", "calibration/strehl_filter_registration.py",  "--beam_id", "2", "--fig_path", quick_data_path ],
+                "register_strehl_pixels_beam_3":["python", "calibration/strehl_filter_registration.py",  "--beam_id", "3", "--fig_path", quick_data_path ],
+                "register_strehl_pixels_beam_4":["python", "calibration/strehl_filter_registration.py",  "--beam_id", "4", "--fig_path", quick_data_path ],
             }
 
 
@@ -1649,6 +1692,30 @@ with col_main:
                             else:
                                 st.warning(f"Cannot find {fig_path}")
                     
+
+
+            st.subheader("Register Strehl Proxy Pixels") 
+            st.write("This requires alignment on a phasemask (try H3)! This can take a minute.")
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+                    btn_key = f"register_strehl_pixels_beam_{i+1}"
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(QUICK_SCRIPTS[btn_key])
+
+                        if success:
+                            # Note 'DM_registration_in_pixel_space.png' is generated in 
+                            # calibrate_transform_between_DM_and_image from DM_registration which
+                            # doesn't have knowlodge of the beam number - so just overwrites the same
+                            # image each time.. so looking at the most recent - fine if done immediately after running script
+                            fig_path = os.path.join(QUICK_SCRIPTS[btn_key][-1], f'strehl_pixel_filter{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+                    
+
 
             st.subheader("Build Interaction Matrix") 
             st.write("have the phasemask's well aligned prior to starting.")

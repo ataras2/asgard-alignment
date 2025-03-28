@@ -422,12 +422,12 @@ class fli( ):
 
         # we update the config dict without asking the camera just to make things quicker
         # safer option would be to re-query camera each time - but this is slow! 
-        if "ACK" in resp:
+        if "Result:OK" in resp:
             if "set fps" in cmd_raw:
-                self.config["fps"] = float( cmd_raw.spplit("fps ")[-1] )
+                self.config["fps"] = float( cmd_raw.split("fps ")[-1] )
             
             if "set gain" in cmd_raw:
-                self.config["gain"] = float( cmd_raw.spplit("gain ")[-1] )
+                self.config["gain"] = float( cmd_raw.split("gain ")[-1] )
             
 
         return resp 
@@ -524,8 +524,15 @@ class fli( ):
 
         priorfps = self.config["fps"] # this config should update everytime set fps cmd is sent 
 
-        self.send_fli_cmd(f"set fps {maxfps}")
+        res = self.send_fli_cmd(f"set fps {maxfps}")
 
+        print(f"response for setting fps = {maxfps}:{res}")
+
+        message = "off SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
+        
         time.sleep(sleeptime)
         
         print('...getting frames')
@@ -535,15 +542,20 @@ class fli( ):
         self.reduction_dict['bias'].append( bias ) #ADU
 
         self.send_fli_cmd(f"set fps {priorfps}")
-        time.sleep(1)
+
+        print("turning BB source back on")
+        message = "on SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
+        time.sleep(2)
+
         print("Done.")
+
 
     def build_manual_dark( self , no_frames = 100 , sleeptime = 3, build_bad_pixel_mask = False , save_file_name = None, **kwargs):
         """
-        my_controllino is object to turn on/off sources from the controllio
-        example to open / init this object is :
-        from asgard_alignment import controllino as co
-        my_controllino = co.Controllino('172.16.8.200')
+        gets a dark in units of ADU / s 
         """
         # try turn off source 
         #my_controllino.turn_off("SBB")
@@ -567,6 +579,15 @@ class fli( ):
         #    time.sleep(1/fps)
         #    dark_list.append( self.get_image(apply_manual_reduction  = False) )
         #    #dark_fullframe_list.append( self.get_image_in_another_region() ) 
+        
+        ## check the FPS and make sure consistent with current config file
+        fps = extract_value( self.send_fli_cmd( f"fps raw" ) )
+        # update if necessary.
+        # This is important since darks are normalize ADU/s!
+        if fps != self.config["fps"]:
+            print("updating fps:{fps}")
+            self.config["fps"] = fps 
+
         print('...getting frames')
         dark_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
         print('...aggregating frames')
@@ -583,8 +604,8 @@ class fli( ):
 
         #if len( self.reduction_dict['bias_fullframe']) > 0 :
         #    dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
-        print('...appending dark')
-        self.reduction_dict['dark'].append( dark )
+        print(f'...appending dark in units ADU/s calculated with current fps = {self.config["fps"]}')
+        self.reduction_dict['dark'].append( dark * np.float( self.config["fps"] ) ) # ADU / s
         #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
         time.sleep(2)
         # try turn source back on 
@@ -722,6 +743,7 @@ class fli( ):
 
     def get_data(self, apply_manual_reduction=False, which_index=-1):
         """ 
+        # legacy function
         gets most recent 100 frames in buffer. 
         this is to be compatiple with origin SHM raw code
         other methods below are legacy and allow compatibility with previously implemented
@@ -745,10 +767,12 @@ class fli( ):
                 cropped_img -= self.reduction_dict['bias'][which_index] # take the most recent bias. bias must be set in same cropping state 
 
             if len( self.reduction_dict['dark'] ) > 0:
-                cropped_img -= self.reduction_dict['dark'][which_index] # take the most recent dark. Dark must be set in same cropping state 
+                # Darks are now adu/s so divide by fps
+                cropped_img = cropped_img - np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0][0]) ) # take the most recent dark. Dark must be set in same cr
 
             if len( self.reduction_dict['flat'] ) > 0:
-                cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                # build this with pupil filter and set outside to mean pupil (ADU/s)
+                cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
             if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                 # enforce the same type for mask
@@ -787,10 +811,12 @@ class fli( ):
                 cropped_img -= np.array(self.reduction_dict['bias'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent bias. bias must be set in same cropping state 
 
             if len( self.reduction_dict['dark'] ) > 0:
-                cropped_img -= np.array(self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
+                # darks are ADU / s so adjust 
+                cropped_img -= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
             if len( self.reduction_dict['flat'] ) > 0:
-                cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                # flat are ADU / s. build to set outside pupil to mean interior 
+                cropped_img /= np.array( 1/ float(self.config["fps"]) *  self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
             if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                 # enforce the same type for mask
@@ -847,10 +873,12 @@ class fli( ):
                     cropped_img -= np.array(self.reduction_dict['bias'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent bias. bias must be set in same cropping state 
 
                 if len( self.reduction_dict['dark'] ) > 0:
-                    cropped_img -= np.array(self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
+                    # darks are in ADU/s 
+                    cropped_img -= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
                 if len( self.reduction_dict['flat'] ) > 0:
-                    cropped_img /= np.array( self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                    # darks are in ADU/s 
+                    cropped_img /= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
                 if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                     # enforce the same type for mask

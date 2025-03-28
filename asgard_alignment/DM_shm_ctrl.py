@@ -103,7 +103,7 @@ class dmclass():
     def activate_calibrated_flat(self):
         """
         convention to apply flat command on channel 0!
-        this adds an additional calibrated offset to the DM flat
+        this adds an additional BALDR calibrated offset to the DM flat
         """
         if self.nch == 0:
             return
@@ -113,6 +113,12 @@ class dmclass():
         self.shms[0].set_data(self.cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
         ##
         self.shm0.post_sems(1)
+        
+    def get_baldr_flat_offset(self):
+        # baldr calibrated offset from the BMC factory flat
+        wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+        flat_cmd_offset = np.loadtxt(self.select_flat_cmd_offset( wdir))
+        return flat_cmd_offset 
 
     def activate_cross(self, amp=0.1):
         """

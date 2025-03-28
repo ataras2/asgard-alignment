@@ -97,6 +97,13 @@ parser.add_argument(
     help="which phasemask do we use"
 )
 
+parser.add_argument(
+    "--start_with_current_baldr_flat", 
+    action="store_true",
+    default=False,
+    help="calibrate the Baldr flat starting with the current baldr flat. If False we beging with the BMC factory flat"
+)
+#--start_with_current_baldr_flat
 
 args = parser.parse_args()
 
@@ -104,7 +111,6 @@ tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
 tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 beam_id = args.beam_id[0]
-
 
 
 host = "localhost"
@@ -155,7 +161,7 @@ eta = 0.647/4.82 #~= 1.1/8.2 (i.e. UTs) # ratio of secondary obstruction (UTs)
 
 #---------- New Darks 
 # run a new set of darks 
-get_new_dark = True
+get_new_dark = False
 if get_new_dark:
     script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
     try:
@@ -175,21 +181,24 @@ if get_new_dark:
 
 #---------- CAMERA 
 c = FLI.fli() #shm(args.global_camera_shm)
+c.build_manual_bias(number_of_frames=200)
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 
-# read in dark and get bad pixels 
+# # read in dark and get bad pixels 
+
+# tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
+# dark_fits_files = glob.glob(f"/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/calibration_frames/{tstamp_rough}/MASTER_DARK/*fits")
+# #"/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/*.fits") 
+# most_recent_dark = max(dark_fits_files, key=os.path.getmtime) 
+
+# dark_fits = fits.open( most_recent_dark )
+
+# bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
 
 
-dark_fits_files = glob.glob("/home/asg/Progs/repos/asgard-alignment/calibration/cal_data/darks/*.fits") 
-most_recent_dark = max(dark_fits_files, key=os.path.getmtime) 
-
-dark_fits = fits.open( most_recent_dark )
-
-bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( dark_fits["DARK_FRAMES"].data, std_threshold=10, mean_threshold=10)
-
-
-bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
-c.reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int) )
-c.reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int) )
+# bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+# c.reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int) )
+# c.reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int) )
 
 
 # plt.figure(); plt.imshow( np.log10( dark_fits["MASTER DARK"].data ) ) ;plt.colorbar(); plt.savefig('delme.png')
@@ -204,7 +213,10 @@ for beam_id in args.beam_id:
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
-    dm_shm_dict[beam_id].activate_flat()
+    if not args.start_with_current_baldr_flat:
+        dm_shm_dict[beam_id].activate_flat()
+    else:
+        dm_shm_dict[beam_id].activate_calibrated_flat()
     # apply DM flat offset 
 
 
@@ -486,10 +498,19 @@ dm_shm_dict[beam_id].set_data( amps[ib] * cc )
 
 #dm_shm_dict[beam_id].shms[1].set_data( amps[ib] * cc )
 
+if not args.start_with_current_baldr_flat:
+    best_baldr_flat_offset_2D = amps[ib] * cc 
+    best_baldr_flat_offset = amps[ib] * cc140
+else : # we must also add in the previous DM flat
+    # add previous flat we used here 
+    best_baldr_flat_offset_2D =  amps[ib] * cc + dm_shm_dict[beam_id].cmd_2_map2D( dm_shm_dict[beam_id].get_baldr_flat_offset()  )
+    best_baldr_flat_offset = amps[ib] * cc140 + dm_shm_dict[beam_id].get_baldr_flat_offset() 
 # savefits 
 # Convert to a dictionary
+
 data_dict = {
-    "best_DM_flat": amps[ib] * cc,
+    "best_DM_flat": best_baldr_flat_offset,
+    "flat_used":dm_shm_dict[beam_id].shms[0].get_data(),
     "basis_aberration": np.array(cc),
     "amps":np.array(cc),
     "DM_cmds":np.array( [ a*cc for a in amps] ),
@@ -512,6 +533,7 @@ hdul = fits.HDUList()
 for key, value in data_dict.items():
     hdu = fits.ImageHDU(value)
     hdu.header['EXTNAME'] = key  # Set the EXTNAME header
+    hdu.header['FACTORY_FLAT_START'] = int( args.start_with_current_baldr_flat )
     hdul.append(hdu)
 
 # Define the output FITS filename
@@ -527,4 +549,4 @@ print(f"Saved FITS file as {fits_filename}")
 
 ### Save as txt file the flat 
 fig_path = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
-np.savetxt(fig_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt", amps[ib] * cc140, fmt="%.3f")
+np.savetxt(fig_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt", best_baldr_flat_offset, fmt="%.7f")

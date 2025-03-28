@@ -19,18 +19,18 @@ from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_registration as DM_registration
 import common.DM_basis_functions as dmbases
 import common.phasemask_centering_tool as pct
-
+from asgard_alignment import FLI_Cameras as FLI
 from pyBaldr import utilities as util
 
-try:
-    from asgard_alignment import controllino as co
-    myco = co.Controllino('172.16.8.200')
-    controllino_available = True
-    print('controllino connected')
+# try:
+#     from asgard_alignment import controllino as co
+#     myco = co.Controllino('172.16.8.200')
+#     controllino_available = True
+#     print('controllino connected')
     
-except:
-    print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
-    controllino_available = False 
+# except:
+#     print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
+#     controllino_available = False 
 
 #################################
 # This script is to calibrate the DM actuator registration in pixel space. 
@@ -111,7 +111,12 @@ parser.add_argument(
     default=[2],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
-
+parser.add_argument(
+    "--use_baldr_flat", 
+    action="store_false",
+    default=True,
+    help="calibrate the Baldr flat starting with the current baldr flat. If False we beging with the BMC factory flat"
+)
 # Plot: default is True, with an option to disable.
 parser.add_argument(
     "--plot", 
@@ -138,7 +143,7 @@ args=parser.parse_args()
 # inputs 
 number_of_pokes = 8 
 poke_amplitude = 0.05
-sleeptime = 0.2 #10 is very safe
+sleeptime = 0.5 #10 is very safe
 dm_4_corners = DM_registration.get_inner_square_indices(outer_size=12, inner_offset=4) # flattened index of the DM actuator 
 dm_turbulence = False # roll phasescreen on DM?
 #all_dm_shms_list = [args.dm1_shm, args.dm2_shm, args.dm3_shm, args.dm4_shm]
@@ -162,7 +167,10 @@ for beam_id in args.beam_id:
 
 
 # global camera image shm 
-c = shm(args.global_camera_shm)
+c = FLI.fli(args.global_camera_shm) #shm(args.global_camera_shm)
+# Trial
+c.build_manual_bias(number_of_frames=200)
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 
 # DMs
 dm_shm_dict = {}
@@ -171,8 +179,12 @@ for beam_id in args.beam_id:
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
-    dm_shm_dict[beam_id].activate_flat()
+    #dm_shm_dict[beam_id].activate_flat()
     # apply DM flat offset 
+    if not args.use_baldr_flat:
+        dm_shm_dict[beam_id].activate_flat()
+    else:
+        dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 # # try get dark and build bad pixel mask 
@@ -266,7 +278,7 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
             ## Try without #DM_flat_offset[beam_id]  )
         time.sleep(sleeptime)
         # get the images 
-        img = np.mean( c.get_data() , axis=0)
+        img = np.mean( c.get_data( apply_manual_reduction=True) , axis=0)
         for ii, bb in enumerate( args.beam_id ):
             r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
             cropped_img = img[r1:r2, c1:c2] #interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
@@ -293,7 +305,12 @@ for beam_id in args.beam_id:
     dm_shm_dict[beam_id].zero_all()
     # activate flat 
     #dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
-    dm_shm_dict[beam_id].activate_flat()
+    if not args.use_baldr_flat:
+        dm_shm_dict[beam_id].activate_flat()
+    else:
+        dm_shm_dict[beam_id].activate_calibrated_flat()
+
+
 
 ## lets see the registration 
 plt.figure()
