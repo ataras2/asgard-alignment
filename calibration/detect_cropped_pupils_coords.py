@@ -374,10 +374,13 @@ apply_manual_reduction = True
 # c.start_camera()
 
 
-
 ### getting pupil regioons for Baldr 
 img = np.mean( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
 #plt.figure(); plt.imshow( np.log10( img ) ) ; plt.savefig('delme.png')
+
+######## ISSUE WHEN WE HAD BAD READNOISE ON LINES 32n
+img[:, ::32] = np.median( img )
+img[:, ::33] = np.median( img )
 
 
 baldr_mask = np.zeros_like(img).astype(bool)

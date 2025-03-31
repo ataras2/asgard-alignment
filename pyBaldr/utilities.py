@@ -5,6 +5,9 @@ import pyzelda.utils.zernike as zernike
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import datetime
 import time 
+from matplotlib.widgets import Slider
+import matplotlib.animation as animation
+import math
 from astropy.io import fits 
 import pandas as pd
 from scipy.interpolate import interp1d
@@ -13,6 +16,7 @@ from scipy import ndimage
 import scipy.ndimage as ndimage
 from scipy.spatial import distance
 from scipy import signal
+from scipy.ndimage import binary_erosion
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
@@ -753,6 +757,23 @@ def filter_exterior_annulus(pupil_mask, inner_radius, outer_radius):
 
     return annular_mask
 
+
+def remove_boundary(mask):
+    """
+    Remove boundary pixels from a boolean mask.
+    
+    Parameters:
+        mask (np.ndarray): 2D boolean array.
+        
+    Returns:
+        np.ndarray: New mask where any True pixel that touches a False pixel (in its 3x3 neighborhood)
+                    has been set to False.
+    """
+    # Create a 3x3 structure element that considers all 8 neighbors.
+    structure = np.ones((3, 3), dtype=bool)
+    # binary_erosion returns a new mask where a pixel is True only if all pixels in its neighborhood
+    # (defined by structure) were True in the original mask.
+    return binary_erosion(mask, structure=structure)
 
 
 def get_secondary_mask(image, center):
@@ -1641,6 +1662,187 @@ def nice_heatmap_subplots( im_list , xlabel_list=None, ylabel_list=None, title_l
         cbar.ax.tick_params(labelsize=fs)
     if savefig is not None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
+
+
+
+
+
+def display_images_with_slider(image_lists, plot_titles=None, cbar_labels=None):
+    """
+    Displays multiple images or 1D plots from a list of lists with a slider to control the shared index.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    """
+    
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Slider for selecting the frame index
+    ax_slider = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
+
+    # Update function for the slider
+    def update(val):
+        index = int(frame_slider.val)  # Get the selected index from the slider
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][index])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the selected index)
+                line_display.set_data(np.arange(index), image_lists[i][:index])
+        fig.canvas.draw_idle()  # Redraw the figure
+
+    # Connect the slider to the update function
+    frame_slider.on_changed(update)
+
+    plt.show()
+
+
+
+def display_images_as_movie(image_lists, plot_titles=None, cbar_labels=None, save_path="output_movie.mp4", fps=5):
+    """
+    Creates an animation from multiple images or 1D plots from a list of lists and saves it as a movie.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    - save_path: path where the output movie will be saved.
+    - fps: frames per second for the output movie.
+    """
+    
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 6 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Function to update the frames
+    def update_frame(frame_idx):
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][frame_idx])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the current index)
+                line_display.set_data(np.arange(frame_idx), image_lists[i][:frame_idx])
+        return img_displays + line_displays
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
+
+    # Save the animation as a movie file
+    ani.save(save_path, fps=fps, writer='ffmpeg')
+
+    plt.show()
+
 
 # Delete this version
 # def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):

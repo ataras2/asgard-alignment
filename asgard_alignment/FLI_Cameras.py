@@ -511,6 +511,7 @@ class fli( ):
     def get_camera_config(self):
         config_dict = {} 
         # open the default config file to get the keys 
+        "/home/asg/Progs/repos/asgard-alignment/config_files/default_cred1_config.json"
         with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
             default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
             for k, v in default_cred1_config.items():

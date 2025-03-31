@@ -1753,6 +1753,80 @@ with col_main:
                                 st.warning(f"Cannot find {fig_path}")
                     
 
+
+            st.subheader("Apply Turbulence") 
+            # Number of iterations
+            number_of_iterations_input = st.text_input("Number of Iterations", value="10")
+
+            # Simulation wavelength (um)
+            wvl_input = st.text_input("Simulation wavelength (um)", value="1.65")
+
+            # Telescope diameter (m)
+            D_tel_input = st.text_input("Telescope Diameter (m)", value="1.8")
+
+            # Fried parameter (r0) at 500nm (m)
+            r0_input = st.text_input("Fried Parameter r0 (m)", value="0.15")
+
+            # Equivalent turbulence velocity (m/s)
+            V_input = st.text_input("Equivalent Turbulence Velocity (m/s)", value="0.50")
+
+            # Number of Zernike modes removed
+            number_of_modes_removed_input = st.text_input("Number of Zernike Modes Removed", value="0")
+
+            # DM channel on shared memory
+            DM_chn_input = st.text_input("DM Channel (0,1,2,3)", value="3")
+
+            # Record telemetry: directory/name.fits or "None"
+            record_telem_input = st.text_input("Record Telemetry (directory/name.fits or None)", value="None")
+
+            # For record_telem, treat "None" (case insensitive) as an omitted argument.
+            if record_telem_input.strip().lower() == "none":
+                record_telem_parsed = None
+            else:
+                record_telem_parsed = record_telem_input.strip()
+
+            # --- Build the Command Argument List ---
+            args = [
+                "--number_of_iterations", number_of_iterations_input,
+                "--wvl", wvl_input,
+                "--D_tel", D_tel_input,
+                "--r0", r0_input,
+                "--V", V_input,
+                "--number_of_modes_removed", number_of_modes_removed_input,
+                "--DM_chn", DM_chn_input,
+            ]
+
+            TURB_SCRIPTS = {
+            "turb_beam_1": ["python", "common/turbulence.py"] + ["--beam_id", "1"] + args,
+            "turb_beam_2": ["python", "common/turbulence.py"] + ["--beam_id", "2"] + args,
+            "turb_beam_3": ["python", "common/turbulence.py"] + ["--beam_id", "3"] + args,
+            "turb_beam_4": ["python", "common/turbulence.py"] + ["--beam_id", "4"] + args,
+            }     
+
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+
+                    btn_key = f"turb_beam_{i+1}"
+
+                    # Run the script when button is clicked
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(TURB_SCRIPTS[btn_key])
+
+                        if success:
+                            st.write("DONE")
+
+            
+            st.subheader("Close Loop")
+
+
+            CLOSE_LOOP_SCRIPT = {"close_beam_2" :  ["python", "playground/baldr_CL/CL.py", "--number_of_iterations","1000"]}
+            btn_key = f"close_beam_2"
+            if st.button(f"Run {btn_key}"):
+                success = run_script(CLOSE_LOOP_SCRIPT[btn_key])
+            
+
         if routine_options == "Camera & DMs":
             st.write("testing")
 

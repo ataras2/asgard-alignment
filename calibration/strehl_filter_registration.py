@@ -154,7 +154,7 @@ parser = argparse.ArgumentParser(description="Interaction and control matricies 
 
 
 ######## HARD CODED 
-hc_fps = 100 
+hc_fps = 200 
 hc_gain = 1 
 default_toml = os.path.join("config_files", "baldr_config_#.toml") 
 

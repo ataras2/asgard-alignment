@@ -172,6 +172,20 @@ c = FLI.fli(args.global_camera_shm) #shm(args.global_camera_shm)
 c.build_manual_bias(number_of_frames=200)
 c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 
+####################################################################################
+####################################################################################
+#### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
+bad_ron = np.ones_like( c.get_image() ).astype(bool)
+bad_ron[:, ::32 ] = False
+bad_ron[:, 1::32 ] = False
+bad_ron[:, 2::32 ] = False
+bad_ron[:, 3::32 ] = False
+plt.figure();plt.imshow( bad_ron) ;plt.colorbar() ; plt.savefig('delme.png')
+
+c.reduction_dict['bad_pixel_mask'][-1] *= bad_ron
+####################################################################################
+####################################################################################
+
 # DMs
 dm_shm_dict = {}
 for beam_id in args.beam_id:
@@ -279,6 +293,15 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         time.sleep(sleeptime)
         # get the images 
         img = np.mean( c.get_data( apply_manual_reduction=True) , axis=0)
+
+        ####################################################################################
+        ####################################################################################
+        #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
+        #img[~bad_ron] = 0 
+        ####################################################################################
+        ####################################################################################
+        ####################################################################################
+
         for ii, bb in enumerate( args.beam_id ):
             r1,r2,c1,c2 = baldr_pupils[f"{bb}"]
             cropped_img = img[r1:r2, c1:c2] #interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])

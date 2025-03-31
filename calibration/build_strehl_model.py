@@ -7,6 +7,7 @@ import time
 import os 
 import argparse
 from asgard_alignment import FLI_Cameras as FLI
+import pyBaldr.utilities as util
 
 def plot2d( thing ):
     plt.figure()
@@ -14,6 +15,7 @@ def plot2d( thing ):
     plt.colorbar()
     plt.savefig('/home/asg/Progs/repos/asgard-alignment/delme.png')
     plt.close()
+
 
 
 
@@ -68,6 +70,10 @@ parser.add_argument(
     help="camera gain. Default: %(default)s"
 )
 
+parser.add_argument("--fig_path", 
+                    type=str, 
+                    default=None, 
+                    help="path/to/output/image/ for the saved figures")
 
 args=parser.parse_args()
 
@@ -98,7 +104,7 @@ if 1 : #eventually for each beam id
     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
 
 c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_fps}")
-c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_gain}")
+c_dict[beam_id].send_fli_cmd(f"set gain {args.cam_gain}")
 
 # dark bias badpixels
 if 1: 
@@ -120,7 +126,7 @@ dm_rms = {}
 dm_p2v = {}
 # for r0 in ...
 #r0 = 1
-for r0 in [0.08, 0.2, 0.5, 1]:
+for r0 in [0.3, 0.5, 0.7, 1.0]:
     imgs[r0] = []
     timestamps[r0] = []
 
@@ -128,11 +134,11 @@ for r0 in [0.08, 0.2, 0.5, 1]:
     cmd = [
         'python', '/home/asg/Progs/repos/asgard-alignment/playground/baldr_CL/turbulence.py',
         '--beam_id', f'{beam_id}',
-        '--number_of_iterations', '20',
+        '--number_of_iterations', '1000',
         '--wvl', '1.65',
         '--D_tel', '1.8',
         '--r0', f'{r0}',
-        '--V', '0.2',
+        '--V', '7',
         '--number_of_modes_removed', '0',
         '--DM_chn', '3',
         '--record_telem', fname
@@ -154,6 +160,7 @@ for r0 in [0.08, 0.2, 0.5, 1]:
         else:
             process_running = False
 
+    time.sleep( 2 )
     # Main loop to get images while process running. 
     # we skip frames intentionally rto minimize correlations 
     while process_running:
@@ -194,8 +201,8 @@ for r0 in [0.08, 0.2, 0.5, 1]:
     # Normalized to ADU / s / gain!!! 
     secon_int[r0] = np.array( [args.cam_fps/args.cam_gain * i[secon_mask.astype(bool)][4] for i in img_list])
 
-    # look at median signal (ADU/s/gain) in pupil exterior pixels 
-    exter_int[r0] = np.array( [args.cam_fps/args.cam_gain * np.median( i[secon_mask.astype(bool)] ) for i in img_list])
+    # look at mean signal (ADU/s/gain) in pupil exterior pixels 
+    exter_int[r0] = np.array( [args.cam_fps/args.cam_gain * np.mean( i[secon_mask.astype(bool)] ) for i in img_list])
 
     # pupil on the DM
     dm_pup = np.zeros( [12,12] ) # pupil on DM 
@@ -210,8 +217,8 @@ for r0 in [0.08, 0.2, 0.5, 1]:
     with fits.open( f"{fname}" ) as d:
         print(d.info())
 
-        dm_rms[r0] = np.array( [np.std( dm_pup * c ) for c in d["DM_CMD"].data ] )
-        dm_p2v[r0] = np.array( [np.max( dm_pup * c ) - np.min( dm_pup * c ) for c in d["DM_CMD"].data ] ) 
+        dm_rms[r0] = np.array( [np.std( c[dm_pup.astype(bool)] ) for c in d["DM_CMD"].data ] )
+        dm_p2v[r0] = np.array( [np.max(  c[dm_pup.astype(bool)] ) - np.min( c[dm_pup.astype(bool)] ) for c in d["DM_CMD"].data ] ) 
 
     print( f"for r0 = {r0} , dm rms = {np.mean( dm_rms[r0] )}")
     print( f"for r0 = {r0} , dm p2v = {np.mean( dm_p2v[r0] )}")
@@ -219,5 +226,122 @@ for r0 in [0.08, 0.2, 0.5, 1]:
 
 
 
-rms_mean = np.array( [np.mean( v ) for _,v in dm_rms.items() ] )  
-sec_mean = np.array( [np.mean( v ) for _,v in secon_int.items() ] )  
+rms_mean = np.array( [np.mean( v ) for _,v in dm_rms.items() ] ) # [2:]
+sec_mean = np.array( [np.mean( v ) for _,v in secon_int.items() ] )# [2:]
+ext_mean = np.array( [np.mean( v ) for _,v in exter_int.items() ] )# [2:] 
+
+rms_std = np.array( [np.std( v ) for _,v in dm_rms.items() ] ) #[2:] 
+sec_std = np.array( [np.std( v ) for _,v in secon_int.items() ] ) #[2:3]
+ext_std = np.array( [np.std( v ) for _,v in exter_int.items() ] ) # [2:]
+
+# Fit a linear model for sec vs. rms.
+coef_sec = np.polyfit(rms_mean, sec_mean, 1)  # [slope, intercept]
+
+# Fit a linear model for ext vs. rms.
+coef_ext = np.polyfit(rms_mean, ext_mean, 1)
+
+print("") 
+
+
+
+
+
+dict2write = {f"beam{beam_id}":{"strehl_model": {"secondary":coef_sec, "exterior":coef_ext}}}
+
+# Check if file exists; if so, load and update.
+if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+    try:
+        current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+    except Exception as e:
+        print(f"Error loading TOML file: {e}")
+        current_data = {}
+else:
+    current_data = {}
+
+
+current_data = util.recursive_update(current_data, dict2write)
+
+with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+    toml.dump(current_data, f)
+
+print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
+
+
+# Plot errorbars:
+fs = 15
+plt.figure(figsize=(8,5))
+plt.errorbar(rms_mean, sec_mean, xerr=rms_std, yerr=sec_std, fmt='o', color='blue', label='Secondary pixel')
+plt.errorbar(rms_mean, ext_mean, xerr=rms_std, yerr=ext_std, fmt='s', color='red', label='Exterior pixels')
+
+# use the models to plot lines
+fit_ext = np.poly1d(coef_ext)
+fit_sec = np.poly1d(coef_sec)
+
+# Generate x-values for plotting the fitted lines.
+x_fit = np.linspace(rms_mean.min(), rms_mean.max(), 100)
+plt.plot(x_fit, fit_sec(x_fit), 'b--', label=f'Secondary pixel Fit: y={coef_sec[0]:.2f}x+{coef_sec[1]:.2f}')
+plt.plot(x_fit, fit_ext(x_fit), 'r--', label=f'Exterior pixels Fit: y={coef_ext[0]:.2f}x+{coef_ext[1]:.2f}')
+plt.gca().tick_params(labelsize=fs)
+plt.xlabel('DM RMS [DM units]',fontsize=fs)
+plt.ylabel('signal [ADU/s/gain/pixel]',fontsize=fs)
+plt.legend()
+#plt.xscale('log')
+plt.savefig("delme.png", bbox_inches='tight',dpi=200)
+if args.fig_path is not None:
+    plt.savefig(args.fig_path + "strehl_model_beam{beam_id}.png", bbox_inches='tight',dpi=200)
+plt.close()
+
+
+
+
+
+# # coef_sec = np.polyfit(rms_mean, sec_mean, 1)  # [slope, intercept]
+# # fit_sec = np.poly1d(coef_sec)
+
+# # # Fit a linear model for ext vs. rms.
+# # coef_ext = np.polyfit(rms_mean, ext_mean, 1)
+# # fit_ext = np.poly1d(coef_ext)
+
+# data = {
+#     "DM_RMS_MEAN": rms_mean,
+#     "SECONDARY_MEAN": sec_mean,
+#     "EXTERIOR_MEAN": ext_mean,
+#     "DM_RMS_STD":  rms_std,
+#     "SECONDARY_STD":  sec_std,
+#     "EXTERIOR_STD":  ext_std,
+#     "SEC_MODEL_FIT" : coef_sec ,
+#     "EXT_MODEL_FIT" : coef_ext ,
+# }
+
+# # Define units for each field (adjust these as needed)
+# units = {
+#     "DM_RMS_MEAN": "DM UNITS",
+#     "SECONDARY_MEAN": "ADU/s/gain/pixel",
+#     "EXTERIOR_MEAN": "ADU/s/gain/pixel",
+#     "RMS_STD":  "ADU/s/gain/pixel",
+#     "SECONDARY_MEAN":  "ADU/s/gain/pixel",
+#     "EXTERIOR_MEAN":  "ADU/s/gain/pixel",
+#     "SEC_MODEL_FIT": "linear",
+#     "EXT_MODEL_FIT": "linear",
+# }
+
+# # Create a primary HDU (can be empty)
+# primary_hdu = fits.PrimaryHDU()
+
+# # Prepare a list of HDUs
+# hdus = [primary_hdu]
+
+# # For each key in our data dictionary, create a binary table HDU.
+# for key, array in data.items():
+#     # Create a column for the 1D array; using 'E' for 32-bit float format.
+#     col = fits.Column(name=key, format='E', array=array)
+#     hdu = fits.BinTableHDU.from_columns([col])
+#     hdu.header['EXTNAME'] = key         # Set the extension name.
+#     hdu.header['BUNIT'] = units.get(key, "")  # Set the unit.
+#     hdus.append(hdu)
+
+# # Create an HDUList and write the FITS file.
+# hdulist = fits.HDUList(hdus)
+# hdulist.writeto(args.fig_path + f"strehl_model_telem_beam_{beam_id}_phasemask{args.phasemask}.fits", overwrite=True)
+
+
