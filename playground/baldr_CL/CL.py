@@ -252,7 +252,8 @@ def init_telem_dict():
     # u_* is control signals (e.g. after PID control)
     # c_* is DM command signals 
     telemetry_dict = {
-        "time" : [],
+        "time_dm" : [],
+        "time_cam" : [],
         "i" : [],
         "i_dm":[], 
         "s" : [],
@@ -355,6 +356,7 @@ D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][
 
 #util.nice_heatmap_subplots( [ D ] , savefig='delme.png')
 
+dm2opd = 7000 # nm / DM cmd
 
 # Telemetry 
 telem = init_telem_dict() #)
@@ -378,13 +380,15 @@ coe_1 = (gain / fps * strehl_coe_ext[1])
 
 #u = 0
 for it in range(args.number_of_iterations):
-    t0 = time.time()
+    
     # raw intensity 
     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
+    t0 = time.time()
 
     # model of the turbulence (in DM units)
     sss = (i[secon_mask.astype(bool)][4] - bias_sec - (1/ fps * dark_sec) )
     dm_rms_est =  (sss  - coe_1)/ coe_0
+    Sest = np.exp( - (2 * np.pi * dm2opd * dm_rms_est / (1.65e-6) )**2)
 
     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
     idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
@@ -405,30 +409,36 @@ for it in range(args.number_of_iterations):
     
     # safety
     if np.max( abs( u ) ) > 0.4:
-        print("broke")
-        #dm.zero_all()
+        print("broke, reseting")
+        dm.set_data( np.zeros( len(u)) )
         #dm.activate_calibrated_flat()
-        break
+        ctrl_HO.reset()
+        #break
+
     
     u -= np.mean( u ) # Forcefully remove piston! 
     # reconstruction
-    dcmd = -1 *  dm.cmd_2_map2D(u) ### DOUBLE CHECK THIS
-
+    dcmd = -1 *  dm.cmd_2_map2D(u) 
+    t1 = time.time()
 
     dm.set_data( dcmd )
 
 
     if 1:
-        telem["time"].append( t0 )
+        telem["time_cam"].append( t0 )
+        telem["time_dm"].append( t1 )
         telem["i"].append( i )
         telem["e_HO"].append( e )
         telem["u_HO"].append( u )
-        telem["current_dm_ch0"].append( dm.shms[0].get_data() ) 
+        
+        #telem["current_dm_ch0"].append( dm.shms[0].get_data() ) 
         telem["current_dm_ch1"].append( dm.shms[1].get_data() ) 
         telem["current_dm_ch2"].append( dm.shms[2].get_data() ) 
         telem["current_dm_ch3"].append( dm.shms[3].get_data() ) 
         telem["exterior_sig"].append( i[secon_mask.astype(bool)] )
         telem["secondary_sig"].append( i[secon_mask.astype(bool)] )
+
+
 
     t1 = time.time()
 
@@ -506,7 +516,7 @@ hdu.header['EXTNAME'] = 'Kd'
 hdul.append(hdu)
 
 # Add each list to the HDU list as a new extension
-for list_name, data_list in zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
+for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
     # Convert list to numpy array for FITS compatibility
     data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
 

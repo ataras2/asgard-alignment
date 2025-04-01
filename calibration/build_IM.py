@@ -65,6 +65,9 @@ def plot2d( thing ):
 
 
 
+
+
+
 parser = argparse.ArgumentParser(description="Interaction and control matricies.")
 
 default_toml = os.path.join("config_files", "baldr_config_#.toml") 
@@ -122,12 +125,12 @@ parser.add_argument(
 )
 
 
-parser.add_argument(
-    "--inverse_method",
-    type=str,
-    default="pinv",
-    help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
-)
+# parser.add_argument(
+#     "--inverse_method",
+#     type=str,
+#     default="pinv",
+#     help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
+# )
 
 parser.add_argument("--fig_path", 
                     type=str, 
@@ -138,6 +141,7 @@ parser.add_argument("--fig_path",
 
 
 args=parser.parse_args()
+
 
 # c, dms, darks_dict, I0_dict, N0_dict,  baldr_pupils, I2A = setup(args.beam_id,
 #                               args.global_camera_shm, 
@@ -229,7 +233,7 @@ for beam_id in args.beam_id:
     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
                                       apply_manual_reduction=True,
                                       build_bad_pixel_mask=True, 
-                                      kwargs={'std_threshold':100, 'mean_threshold':100} )
+                                      kwargs={'std_threshold':10, 'mean_threshold':10} )
 
     ####################################################################################
     ####################################################################################
@@ -318,8 +322,12 @@ for beam_id in args.beam_id:
     inner_pupil_filt = util.remove_boundary(pupil_masks[beam_id])
 
     # set as clear pupils where we set exterior and bad pixels to mean interior clear pup signal
+
+    # filter exterior pixels (that risk 1/0 error)
+    pixel_filter = secon_mask[beam_id].astype(bool)  | (~inner_pupil_filt.astype(bool) ) | (~c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1].astype(bool) )
+    
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
-    normalized_pupils[beam_id][ (~inner_pupil_filt) * (~c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1]) ] = np.mean( np.mean(clear_pupils[beam_id],0)[inner_pupil_filt * c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1]]  ) # set exterior and boundary pupils to interior mean
+    normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
     #N0 for normalization ( set exterior pixels )
     #pupil_norm = np.mean( N0s ,axis=0)
@@ -330,7 +338,8 @@ for beam_id in args.beam_id:
 # pupil_norm[~tbbb ] = np.mean( pupil_norm[tbbb] )
 # plt.figure(); plt.imshow( pupil_norm );plt.savefig('delme.png')
 
-
+# check 
+#util.nice_heatmap_subplots( [ np.mean( N0s,axis=0),  ~pixel_filter , pixel_filter, normalized_pupils[beam_id]], savefig='delme.png')
 
 ############## HERE 
 
@@ -500,14 +509,23 @@ for i,m in enumerate(modal_basis):
 
     IM.append( list(  errsig.reshape(-1) ) ) 
 
-# intensity to mode matrix 
-if args.inverse_method == 'pinv':
-    I2M = np.linalg.pinv( IM )
+# # intensity to mode matrix 
+# if args.inverse_method == 'pinv':
+#     I2M = np.linalg.pinv( IM )
 
-elif args.inverse_method == 'MAP': # minimum variance of maximum posterior estimator 
-    I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
-else:
-    raise UserWarning('no inverse method provided')
+# elif args.inverse_method == 'MAP': # minimum variance of maximum posterior estimator 
+#     I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+
+# elif args.inverse_method == 'zonal':
+    
+#     dm_mask = I2A_dict[beam_id] @ np.array( pupil_masks[beam_id] ).reshape(-1)
+#     # control matrix (zonal) - 
+#     I2M = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+    
+# elif args.inverse_method == 'SVD truncation':
+
+# else:
+#     raise UserWarning('no inverse method provided')
 
 
 
@@ -692,17 +710,17 @@ dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "ctrl_method":"MVM",
                                                "inverse_method": args.inverse_method,
                                                "IM":IM,
-                                               "I2M":I2M, 
+                                               "poke_amp":args.poke_amp,
                                                "M2C":M2C,  
                                                "I0": np.mean( zwfs_pupils[beam_id],axis=0),
                                                "N0": np.mean( clear_pupils[beam_id],axis=0),
-                                               "inner_pupil_filt": inner_pupil_filt,
                                                "norm_pupil":normalized_pupils[beam_id],
+                                               "inner_pupil_filt": inner_pupil_filt.astype(bool),
                                                "crop_pixels":baldr_pupils[f"{beam_id}"],
                                                "camera_config":c_dict[beam_id].config,
                                                "bias":c_dict[beam_id].reduction_dict["bias"][-1],
                                                "dark":c_dict[beam_id].reduction_dict["dark"][-1],
-                                               "bad_pixel_mask":c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1],
+                                               "bad_pixel_mask":c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1].astype(bool),
                                                }
                                             }
                                         }
@@ -778,17 +796,34 @@ cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
 util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list, vlims= vlims, savefig='delme.png')
 
 
+
+
+
+
 #### ZONAL 
 
 
-pp = 0.04
-m = 65
-abb = pp * modal_basis[m] 
-dm_shm_dict[beam_id].set_data(  abb ) 
+util.nice_heatmap_subplots( [util.get_DM_command_in_2D( IM[50] ) ] , savefig='delme.png' )
+
+fps = float( c_dict[beam_id].config["fps"] )
+gain = float( c_dict[beam_id].config["gain"] )
 
 
 dm_mask = I2A_dict[beam_id] @  np.array( pupil_masks[beam_id] ).reshape(-1)
 dm_act_filt = dm_mask > 0.95 # ignore actuators on the edge! 
+
+
+# control matrix 
+D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+
+
+util.nice_heatmap_subplots( [D ] , savefig='delme.png' )
+
+pp = 0.04
+m = 50
+abb = pp * modal_basis[m] 
+dm_shm_dict[beam_id].set_data(  abb ) 
+
 
 time.sleep(1)
 
@@ -801,9 +836,26 @@ i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0)
 s = (   (i - np.mean( zwfs_pupils[beam_id] , axis=0) ) / normalized_pupils[beam_id] ).reshape(-1)
 #plot2d( ((i - np.mean( zwfs_pupils[beam_id]) ) / normalized_pupils[beam_id] ) )
 
-sig = gain / fps  * ( I2A_dict[beam_id] @ s  )
+sig =  ( I2A_dict[beam_id] @ s  )
 
+err = D @  sig
 
+M2Ctmp = np.eye(140) 
+
+reco =  util.get_DM_command_in_2D( (M2Ctmp @ err).T  )
+
+res = abb - reco 
+
+rmse = np.sqrt( np.mean( (res)**2 ))
+
+im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), util.get_DM_command_in_2D( dm_act_filt ) * reco,  util.get_DM_command_in_2D( dm_act_filt ) * res ]
+
+title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
+#vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
+#vlims.append( vlims[-1] )
+cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
+#vlims= vlims,
+util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list,  savefig='delme.png')
 
 
 

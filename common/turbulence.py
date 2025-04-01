@@ -55,7 +55,7 @@ parser.add_argument(
 parser.add_argument(
     '--V',
     type=float,
-    default=20,
+    default=0.20,
     help="equivilant turbulence velocity (m/s) assuming pupil on DM has a 10 acturator diameter, and the input telescope diameter (D_tel). Default: %(default)s"
 )
 
@@ -228,8 +228,8 @@ for beam in args.beam_id:
 if args.record_telem is not None : 
     print("now saving the telemetry file..")
     # Create the TIME extension as a binary table.
-    time_col = fits.Column(name='TIME', array=np.array(telem["t_dm"]), format='E')
-    hdu_time = fits.BinTableHDU.from_columns([time_col])
+    #time_col = fits.Column(name='TIME', array=np.array(telem["t_dm"]), format='E')
+    hdu_time = fits.ImageHDU(data=np.array(telem["t_dm"])) 
     hdu_time.header['EXTNAME'] = 'TIME'
     hdu_time.header['units'] = 's'
 
