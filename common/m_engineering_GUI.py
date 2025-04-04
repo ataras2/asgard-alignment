@@ -1716,11 +1716,45 @@ with col_main:
                                 st.warning(f"Cannot find {fig_path}")
                     
 
+            st.subheader("Build Strehl Models") 
+            st.write("have the phasemask's well aligned prior to starting.")
+            st.write("We are going to apply varying degrees of turbulence and analyse the signals")
 
+            phasemask_input = st.text_input("phasemask", "H3")
+            cam_fps_input = st.number_input("Frames per sec.", min_value=100, max_value=1000, value=100, step=1)
+            cam_gain_input = st.number_input("Frames per sec.", min_value=1, max_value=10, value=1, step=1)
+
+            STREHL_SCRIPTS = {
+            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            }     
+
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+                    btn_key = f"build_Strehl_model_beam_{i+1}"
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(STREHL_SCRIPTS[btn_key])
+
+                        if success:
+                            # Note 'DM_registration_in_pixel_space.png' is generated in 
+                            # calibrate_transform_between_DM_and_image from DM_registration which
+                            # doesn't have knowlodge of the beam number - so just overwrites the same
+                            # image each time.. so looking at the most recent - fine if done immediately after running script
+                            fig_path = os.path.join(STREHL_SCRIPTS[btn_key][-1], f"strehl_model_beam{i+1}.png")
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+
+            
             st.subheader("Build Interaction Matrix") 
             st.write("have the phasemask's well aligned prior to starting.")
             
-            basis_name = st.text_input("Basis Name", "zernike")
+            basis_name = st.text_input("Basis Name", "zonal")
             poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.02, step=0.01)
             Nmodes = st.number_input("Number of Modes to Probe", min_value=1, max_value=140, value=10, step=1)
             inverse_method = st.text_input("IM Inverse Method", "pinv")

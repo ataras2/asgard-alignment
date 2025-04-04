@@ -4,13 +4,14 @@
 import numpy as np 
 import toml
 import argparse
+import threading
 import zmq
 import time
 import toml
 import os 
 import matplotlib.pyplot as plt
 import glob
-
+import subprocess 
 from astropy.io import fits
 from scipy.signal import TransferFunction, bode
 from types import SimpleNamespace
@@ -101,6 +102,72 @@ parser.add_argument("--fig_path",
                     type=str, 
                     default=None, 
                     help="path/to/output/image/ for the saved figures")
+
+
+
+#### TURBULENCE
+
+parser.add_argument(
+    '--number_of_turb_iterations',
+    type=int,
+    default=100,
+    help="how many iterations do we run? %(default)s"
+)
+
+parser.add_argument(
+    '--wvl',
+    type=float,
+    default=1.65,
+    help="simulation wavelength (um). Default: %(default)s"
+)
+
+parser.add_argument(
+    '--D_tel',
+    type=float,
+    default=1.8,
+    help="telescope diameter for simulation. Default: %(default)s"
+)
+
+parser.add_argument(
+    '--r0',
+    type=float,
+    default=0.2,
+    help="Fried paraameter (coherence length) of turbulence (in meters) at 500nm. This gets scaled by the simulation wavelength r0~(wvl/0.5)**(6/5). Default: %(default)s"
+)
+
+
+parser.add_argument(
+    '--V',
+    type=float,
+    default=0.20,
+    help="equivilant turbulence velocity (m/s) assuming pupil on DM has a 10 acturator diameter, and the input telescope diameter (D_tel). Default: %(default)s"
+)
+
+
+parser.add_argument(
+    '--number_of_modes_removed',
+    type=int,
+    default=0,
+    help="number of Zernike modes removed from Kolmogorov phasescreen to simulate first stage AO. This can slow it down for large number of modes. For reference Naomi is typically 7-14. Default: %(default)s"
+)
+
+parser.add_argument(
+    '--DM_chn',
+    type=int,
+    default=3,
+    help="what channel on DM shared memory (0,1,2,3) to apply the turbulence?. Default: %(default)s"
+)
+
+
+parser.add_argument(
+    '--record_turb_telem',
+    type=str,
+    default=None,
+    help="record telemetry? input directory/name.fits to save the fits file if you want,\
+          Otherwise None to not record. if number of iterations is > 1e5 than we stop recording! \
+          (this is around 200 MB) Default: %(default)s"
+)
+
 
 args=parser.parse_args()
 
@@ -277,35 +344,61 @@ def init_telem_dict():
 
 
 
+
+
+def run_script(command, stop_event, timeout=None):
+    try:
+        # Start the process
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        
+        # Instead of blocking on communicate(), poll periodically:
+        while process.poll() is None:
+            if stop_event.is_set():
+                print("Stop signal received. Terminating subprocess...")
+                process.terminate()  # or process.kill() if necessary
+                break
+            time.sleep(0.1)  # Check every 100ms
+        
+        # Once finished or terminated, gather output.
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            print(f"Script failed with return code {process.returncode}: {stderr}")
+        else:
+            print(stdout)
+    except Exception as e:
+        print(f"Error running script: {e}")
+
+
 with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
+
     config_dict = toml.load(f)
+    
     # Baldr pupils from global frame 
     baldr_pupils = config_dict['baldr_pupils']
     I2A = np.array( config_dict[f'beam{beam_id}']['I2A'] )
     
-    pupil_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None) ) 
-    exter_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) ) 
-    secon_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) )
-
-    # slope , intercept 
-    strehl_model_sec = np.array(config_dict.get(f"beam{beam_id}", {}).get("strehl_model", {}).get("secondary", None) ).astype(float)
-    strehl_model_ext = np.array(config_dict.get(f"beam{beam_id}", {}).get("strehl_model", {}).get("exterior", None) ).astype(float)
+    # image pixel filters
+    pupil_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None) ).astype(bool)   # matrix bool
+    exter_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) ).astype(bool) # matrix bool
+    secon_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) ).astype(bool) # matrix bool
 
     # ctrl model 
     IM = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("IM", None) ).astype(float)
-    I2M = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M", None) ).astype(float)
+    I2M_raw = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M", None) ).astype(float)
+    I2M_LO_raw = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M_LO", None) ).astype(float)
+    I2M_HO_raw = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M_HO", None) ).astype(float)
     M2C = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C", None) ).astype(float)
     I0 = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I0", None) ).astype(float)
     N0 = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("N0", None) ).astype(float)
     N0i = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("norm_pupil", None) ).astype(float)
     
     # used to normalize exterior and bad pixels in N0 (calculation of N0i)
-    inside_edge_filt = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("inner_pupil_filt", None) )
+    inside_edge_filt = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("inner_pupil_filt", None) )#.astype(bool)
     
     # reduction products
-    cam_config = config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("camera_config", None)
+    IM_cam_config = config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("camera_config", None) # dictionary
     
-    bad_pixel_mask = np.array( config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("bad_pixel_mask", None) )
+    bad_pixel_mask = np.array( config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("bad_pixel_mask", None) )#.astype(bool)
     bias = np.array( config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("bias", None) ).astype(float)
     dark = np.array( config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("dark", None) ).astype(float)
 
@@ -314,26 +407,78 @@ with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
     strehl_coe_ext = np.array( config_dict.get(f"beam{beam_id}", {}).get("strehl_model", None).get("exterior",None) ).astype(float)#coe, intercept (on median signal, ADU/s/gain)
 
 
-bad_pixel_mask = bad_pixel_mask == "True"
+# Start running turbulence.py 
+
+#python common/turbulence.py --number_of_modes_removed 0 --r0 0.2 --V 0.4 --number_of_iterations 2000
+
+# --- Build the Command Argument List ---
+turb_args = [
+    "--number_of_iterations", f"{args.number_of_turb_iterations}",
+    "--record_telem", f"{args.record_turb_telem}",
+    "--wvl", f"{args.wvl}",
+    "--D_tel", f"{args.D_tel}",
+    "--r0", f"{args.r0}",
+    "--V", f"{args.V}",
+    "--number_of_modes_removed", f"{args.number_of_modes_removed}",
+    "--DM_chn", f"{args.DM_chn}",
+]
+
+
+cmd = ["python", "common/turbulence.py"] + ["--beam_id", f"{beam_id}"] + turb_args
+# Create an Event to signal stopping the thread.
+stop_event = threading.Event()
+
+print(f"putting turbulence on DM channel {args.DM_chn}")
+#run_script(cmd) #<- Use this in a thread! 
+thread = threading.Thread(target=run_script, args=(cmd, stop_event, 10))
+thread.start()
+
+# Let the thread run for some time, then signal it to stop.
+# time.sleep(5)  # Allow script to run for 5 seconds.
+# stop_event.set()
+
+# # Optionally, join the thread to wait for it to finish.
+# thread.join()
+print("Thread terminated safely.")
+
+
+#bad_pixel_mask = bad_pixel_mask == "True"
 # Camera 
 c = FLI.fli(args.global_camera_shm, roi = baldr_pupils[f'{beam_id}'])
 
+cam_config = c.get_camera_config()
+
+gain = float( cam_config["gain"] ) 
+fps = float( cam_config["fps"] ) 
+
+
+# settings when building IM (these were the ones used to normalize frames such as I0,)
+# gain0 = float( IM_cam_config["gain"] ) 
+# fps0 = float( IM_cam_config["fps"] ) 
+
+
+# Normalize control matricies by current gain and fps 
+
+I2M = gain / fps * I2M_raw 
+I2M_LO = gain / fps * I2M_LO_raw
+I2M_HO = gain / fps * I2M_HO_raw 
 
 # DM 
 dm = dmclass( beam_id=beam_id )
 #dm.zero_all()
+# if dm_flat is 'baldr'
 dm.activate_calibrated_flat()
 
 # project reference intensities to DM (quicker for division & subtraction)
-N0dm = (I2A @ N0i.reshape(-1)) # these are already reduced #- dark_dm - bias_dm
-I0dm = (I2A @ I0.reshape(-1)) # these are already reduced  #- dark_dm - bias_dm
+N0dm = gain / fps * (I2A @ N0i.reshape(-1)) # these are already reduced #- dark_dm - bias_dm
+I0dm = gain / fps * (I2A @ I0.reshape(-1)) # these are already reduced  #- dark_dm - bias_dm
 bias_dm = I2A @ bias.reshape(-1)
 dark_dm = I2A @ dark.reshape(-1)
 badpixmap = I2A @ bad_pixel_mask.astype(int).reshape(-1)
 
 # reduction products on secondary pixels 
-bias_sec = bias[secon_mask.astype(bool)][4]
-dark_sec = dark[secon_mask.astype(bool)][4]
+bias_sec = bias[secon_mask.astype(bool).reshape(-1)][4]
+dark_sec = dark[secon_mask.astype(bool).reshape(-1)][4]
 
 #util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [N0dm, I0dm, bias_dm, dark_dm, badpixmap]] , savefig='delme.png') 
 
@@ -344,15 +489,13 @@ dark_sec = dark[secon_mask.astype(bool)][4]
 # ZONAL - Multiple Actuators 
 ######################################
 
-# control matrix 
-gain = float( cam_config["gain"] ) 
-fps = float( cam_config["fps"] ) 
+
 
 dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 #util.nice_heatmap_subplots( [ util.get_DM_command_in_2D( dm_mask) ] , savefig='delme.png')
 
 # control matrix (zonal) - normalized by current gain and fps
-D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+# D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
 #util.nice_heatmap_subplots( [ D ] , savefig='delme.png')
 
@@ -362,7 +505,7 @@ dm2opd = 7000 # nm / DM cmd
 telem = init_telem_dict() #)
 
 # PID Controller (this can be another toml)
-N = I2M.shape[1]
+N = np.array(IM).shape[0]
 kp = args.kp * np.ones( N)
 ki = args.ki * np.ones( N )
 kd = args.kd * np.ones( N )
@@ -372,11 +515,11 @@ upper_limit_pid = 100 * np.ones( N )
 
 ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
-close_after = 200
+close_after = 0
 
 ##strehl model i_s = coe0 * rms + coe1 
-coe_0 = (gain / fps * strehl_coe_ext[0] )
-coe_1 = (gain / fps * strehl_coe_ext[1])
+# coe_0 = (gain / fps * strehl_coe_ext[0] )
+# coe_1 = (gain / fps * strehl_coe_ext[1])
 
 #u = 0
 for it in range(args.number_of_iterations):
@@ -387,8 +530,10 @@ for it in range(args.number_of_iterations):
 
     # model of the turbulence (in DM units)
     sss = (i[secon_mask.astype(bool)][4] - bias_sec - (1/ fps * dark_sec) )
-    dm_rms_est =  (sss  - coe_1)/ coe_0
+    dm_rms_est =  gain / fps * np.sum( strehl_coe_ext @ [sss, 1] )
     Sest = np.exp( - (2 * np.pi * dm2opd * dm_rms_est / (1.65e-6) )**2)
+
+    print( Sest)
 
     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
     idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
@@ -397,20 +542,22 @@ for it in range(args.number_of_iterations):
     s =  ( idm - I0dm ) / (N0dm)   # 
 
     # error
-    e = D @ s 
+    e = I2M @ s 
 
     # ctrl 
-    u = ctrl_HO.process( e )
-    # if it > close_after:
-    #     u = ctrl_HO.process( e )
-    # else:
-    #     u = 0 * e 
+    #u = ctrl_HO.process( e )
+    if it > close_after:
+        u = ctrl_HO.process( e )
+    else:
+        u = 0 * e 
 
     
     # safety
     if np.max( abs( u ) ) > 0.4:
-        print("broke, reseting")
-        dm.set_data( np.zeros( len(u)) )
+        culprit = np.where( abs( u ) == np.max( abs( u ) )  )[0] 
+        print(f"broke, reseting, reducing gain act {culprit} by half")
+        ctrl_HO.ki[culprit] *= 0.5 
+        dm.set_data( dm.cmd_2_map2D( np.zeros( len(u)) ) )
         #dm.activate_calibrated_flat()
         ctrl_HO.reset()
         #break
@@ -418,35 +565,31 @@ for it in range(args.number_of_iterations):
     
     u -= np.mean( u ) # Forcefully remove piston! 
     # reconstruction
-    dcmd = -1 *  dm.cmd_2_map2D(u) 
+    dcmd = -1 *  dm.cmd_2_map2D( u ) 
     t1 = time.time()
 
     dm.set_data( dcmd )
 
 
-    if 1:
+    if telem:
         telem["time_cam"].append( t0 )
         telem["time_dm"].append( t1 )
-        telem["i"].append( i )
-        telem["e_HO"].append( e )
-        telem["u_HO"].append( u )
+        telem["i"].append( i.copy() )
+        telem["e_HO"].append( e.copy() )
+        telem["u_HO"].append( u.copy() )
         
         #telem["current_dm_ch0"].append( dm.shms[0].get_data() ) 
-        telem["current_dm_ch1"].append( dm.shms[1].get_data() ) 
-        telem["current_dm_ch2"].append( dm.shms[2].get_data() ) 
-        telem["current_dm_ch3"].append( dm.shms[3].get_data() ) 
-        telem["exterior_sig"].append( i[secon_mask.astype(bool)] )
-        telem["secondary_sig"].append( i[secon_mask.astype(bool)] )
-
-
+        telem["current_dm_ch1"].append( dm.shms[1].get_data().copy() ) 
+        telem["current_dm_ch2"].append( dm.shms[2].get_data().copy() ) 
+        telem["current_dm_ch3"].append( dm.shms[3].get_data().copy() ) 
+        telem["exterior_sig"].append( i[secon_mask.astype(bool)].copy() )
+        telem["secondary_sig"].append( i[secon_mask.astype(bool)].copy() )
 
     t1 = time.time()
 
     print(t1-t0, dm_rms_est , np.max(abs(e)), np.max(abs(u)))
     if 1/fps - (t1-t0) > 0 :
         time.sleep( 1/fps - (t1-t0) )
-
-
 
 dm.zero_all()
 dm.activate_calibrated_flat()
@@ -455,172 +598,176 @@ dm.activate_calibrated_flat()
 
 
 
-######################################
-# ANALYSIS
-######################################
+# ######################################
+# # ANALYSIS
+# ######################################
 
-# image_lists = [ telem["i"] , telem["current_dm_ch2"], telem["current_dm_ch3"]]
-# plot_titles = ["intensity","disturbance", "reconstruction" ]
-# cbar_labels = ["ADU", "DM UNITS", "DM UNITS"]
-# util.display_images_with_slider(image_lists, plot_titles=plot_titles, cbar_labels=cbar_labels)
+# # image_lists = [ telem["i"] , telem["current_dm_ch2"], telem["current_dm_ch3"]]
+# # plot_titles = ["intensity","disturbance", "reconstruction" ]
+# # cbar_labels = ["ADU", "DM UNITS", "DM UNITS"]
+# # util.display_images_with_slider(image_lists, plot_titles=plot_titles, cbar_labels=cbar_labels)
 
-fig, ax = plt.subplots( 1,4, figsize=(12,5) )
-ax[0].plot( [np.nanstd( tt) for tt in telem["current_dm_ch2"]  ], label='ch2')
-ax[1].plot( [np.std( tt) for tt in telem["current_dm_ch3"]  ], label='ch3')
-ax[2].plot( [  tt[secon_mask.astype(bool)][4]  for tt in telem["i"]  ], label='secondary')
-#ax[3].plot( [np.mean( tt )  for tt in telem["exterior_sig"]  ], label='exterior')
-
-plt.legend()
-plt.savefig('delme.png')
-
-telem["secondary_sig"]
+# fig, ax = plt.subplots( 1,4, figsize=(12,5) )
+# ax[0].plot( [np.nanstd( tt) for tt in telem["current_dm_ch2"]  ], label='ch2')
+# ax[1].plot( [np.std( tt) for tt in telem["current_dm_ch3"]  ], label='ch3')
+# ax[2].plot( [  tt[secon_mask.astype(bool)][4]  for tt in telem["i"]  ], label='secondary')
+# #ax[3].plot( [np.mean( tt )  for tt in telem["exterior_sig"]  ], label='exterior')
 
 
-# save telemetry
-runn="zonal_kolmogorov_r0-0.1"
-# Create a list of HDUs (Header Data Units)
-hdul = fits.HDUList()
+# fig, ax = plt.subplots( 1,4, figsize=(12,5) )
+# ax[0].plot( [ tt[8,8] for tt in telem["current_dm_ch2"]  ], label='ch2')
+# ax[1].plot( [tt[8,8] for tt in telem["current_dm_ch3"]  ], label='ch3')
+# plt.legend()
+# plt.savefig('delme.png')
 
-hdu = fits.ImageHDU(IM)
-hdu.header['EXTNAME'] = 'IM'
-hdul.append(hdu)
+# telem["secondary_sig"]
 
-# hdu = fits.ImageHDU(M2C)
-# hdu.header['EXTNAME'] = 'M2C'
+
+# # save telemetry
+# runn=f"kolmogorov_1500Hz_ki-{args.ki}_kd-{args.kd}_closeafter1000_r0-0.4" #"zonal_kolmogorov_r0-0.1"
+# # Create a list of HDUs (Header Data Units)
+# hdul = fits.HDUList()
+
+# hdu = fits.ImageHDU(IM)
+# hdu.header['EXTNAME'] = 'IM'
+# hdul.append(hdu)
+
+# # hdu = fits.ImageHDU(M2C)
+# # hdu.header['EXTNAME'] = 'M2C'
+# # hdul.append(hdu)
+
+
+# hdu = fits.ImageHDU(I2M)
+# hdu.header['EXTNAME'] = 'I2M'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(I2A)
+# hdu.header['EXTNAME'] = 'interpMatrix'
 # hdul.append(hdu)
 
 
-hdu = fits.ImageHDU(D)
-hdu.header['EXTNAME'] = 'I2M'
-hdul.append(hdu)
+# hdu = fits.ImageHDU(dm.shms[0].get_data())
+# hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
+# hdul.append(hdu)
 
-hdu = fits.ImageHDU(I2A)
-hdu.header['EXTNAME'] = 'interpMatrix'
-hdul.append(hdu)
+# hdu = fits.ImageHDU(ctrl_HO.kp)
+# hdu.header['EXTNAME'] = 'Kp'
+# hdul.append(hdu)
 
+# hdu = fits.ImageHDU(ctrl_HO.ki)
+# hdu.header['EXTNAME'] = 'Ki'
+# hdul.append(hdu)
 
-hdu = fits.ImageHDU(dm.shms[0].get_data())
-hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
-hdul.append(hdu)
+# hdu = fits.ImageHDU(ctrl_HO.kd)
+# hdu.header['EXTNAME'] = 'Kd'
+# hdul.append(hdu)
 
-hdu = fits.ImageHDU(ctrl_HO.kp)
-hdu.header['EXTNAME'] = 'Kp'
-hdul.append(hdu)
+# # Add each list to the HDU list as a new extension
+# for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
+#     # Convert list to numpy array for FITS compatibility
+#     data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
 
-hdu = fits.ImageHDU(ctrl_HO.ki)
-hdu.header['EXTNAME'] = 'Ki'
-hdul.append(hdu)
+#     # Create a new ImageHDU with the data
+#     hdu = fits.ImageHDU(data_array)
 
-hdu = fits.ImageHDU(ctrl_HO.kd)
-hdu.header['EXTNAME'] = 'Kd'
-hdul.append(hdu)
+#     # Set the EXTNAME header to the variable name
+#     hdu.header['EXTNAME'] = list_name
 
-# Add each list to the HDU list as a new extension
-for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
-    # Convert list to numpy array for FITS compatibility
-    data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
-
-    # Create a new ImageHDU with the data
-    hdu = fits.ImageHDU(data_array)
-
-    # Set the EXTNAME header to the variable name
-    hdu.header['EXTNAME'] = list_name
-
-    # Append the HDU to the HDU list
-    hdul.append(hdu)
+#     # Append the HDU to the HDU list
+#     hdul.append(hdu)
 
 
-# Write the HDU list to a FITS file
-tele_pth = f'/home/asg/Videos/CL_kolmogorov_AO/' #f'/home/asg/Videos/TT_on_1onf_TT_disturb_w_piston_long_{TT_disturb_rms}rms/'
-if not os.path.exists( tele_pth ):
-    os.makedirs( tele_pth )
+# # Write the HDU list to a FITS file
+# tele_pth = f'/home/asg/Videos/CL_kolmogorov_1500Hz_gain10/' #f'/home/asg/Videos/TT_on_1onf_TT_disturb_w_piston_long_{TT_disturb_rms}rms/'
+# if not os.path.exists( tele_pth ):
+#     os.makedirs( tele_pth )
 
-fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
-hdul.writeto(fits_file, overwrite=True)
-print(f'wrote telemetry to \n{fits_file}')
+# fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
+# hdul.writeto(fits_file, overwrite=True)
+# print(f'wrote telemetry to \n{fits_file}')
 
 
 
 
 
-######################################
-# ZONAL - 1 actuator 
-######################################
+# ######################################
+# # ZONAL - 1 actuator 
+# ######################################
 
-# # control matrix 
-# gain = float( cam_config["gain"] ) 
-# fps = float( cam_config["fps"] ) 
+# # # control matrix 
+# # gain = float( cam_config["gain"] ) 
+# # fps = float( cam_config["fps"] ) 
 
-# dm_mask = I2A @  np.array( pupil_mask ).reshape(-1)
+# # dm_mask = I2A @  np.array( pupil_mask ).reshape(-1)
 
-# act = 65
-# dm_mask *= 0
-# dm_mask[act] = 1
+# # act = 65
+# # dm_mask *= 0
+# # dm_mask[act] = 1
 
-# # control matrix (zonal) - normalized by current gain and fps
-# D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+# # # control matrix (zonal) - normalized by current gain and fps
+# # D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
-# # 9 ms seems to be fastest I can do 
-# method = 'zonal'
+# # # 9 ms seems to be fastest I can do 
+# # method = 'zonal'
 
-# ### PUT STATIC ABERRATION 
-# pp = 0.08
-# modal_basis = np.array([dm.cmd_2_map2D(ii) for ii in np.eye(140)]) 
-# abb = pp * modal_basis[act] 
-# dm.shms[3].set_data(  abb )  # static aberration on channel 3
-# dm.shm0.post_sems(1)
+# # ### PUT STATIC ABERRATION 
+# # pp = 0.08
+# # modal_basis = np.array([dm.cmd_2_map2D(ii) for ii in np.eye(140)]) 
+# # abb = pp * modal_basis[act] 
+# # dm.shms[3].set_data(  abb )  # static aberration on channel 3
+# # dm.shm0.post_sems(1)
 
-# # Telemetry 
-# telem = SimpleNamespace( **init_telem_dict() )
+# # # Telemetry 
+# # telem = SimpleNamespace( **init_telem_dict() )
 
-# # PID Controller (this can be another toml)
-# N = I2M.shape[1]
-# kp = 0. * np.ones( N)
-# ki = 0.2 * np.ones( N )
-# kd = 0. * np.ones( N )
-# setpoint = np.zeros( N )
-# lower_limit_pid = -100 * np.ones( N )
-# upper_limit_pid = 100 * np.ones( N )
+# # # PID Controller (this can be another toml)
+# # N = I2M.shape[1]
+# # kp = 0. * np.ones( N)
+# # ki = 0.2 * np.ones( N )
+# # kd = 0. * np.ones( N )
+# # setpoint = np.zeros( N )
+# # lower_limit_pid = -100 * np.ones( N )
+# # upper_limit_pid = 100 * np.ones( N )
 
-# ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
-# #u = 0
-# for it in range(1000):
-#     time.sleep( 1.5/fps )
-#     t0 = time.time()
-#     # raw intensity 
-#     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
+# # ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
+# # #u = 0
+# # for it in range(1000):
+# #     time.sleep( 1.5/fps )
+# #     t0 = time.time()
+# #     # raw intensity 
+# #     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
 
-#     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
-#     idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
+# #     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
+# #     idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
 
-#     # adu normalized pupil signal 
-#     s =  ( idm - I0dm ) / N0dm   # 
+# #     # adu normalized pupil signal 
+# #     s =  ( idm - I0dm ) / N0dm   # 
 
-#     # error
-#     e = D @ s 
+# #     # error
+# #     e = D @ s 
 
-#     # ctrl 
-#     u = ctrl_HO.process( e )
+# #     # ctrl 
+# #     u = ctrl_HO.process( e )
 
-#     # safety
-#     if np.max( abs( u ) ) > 0.4:
-#         print("broke")
-#         dm.zero_all()
-#         dm.activate_calibrated_flat()
-#         break
+# #     # safety
+# #     if np.max( abs( u ) ) > 0.4:
+# #         print("broke")
+# #         dm.zero_all()
+# #         dm.activate_calibrated_flat()
+# #         break
 
-#     # reconstruction
-#     dcmd = -1 *  dm.cmd_2_map2D(u) ### DOUBLE CHECK THIS
+# #     # reconstruction
+# #     dcmd = -1 *  dm.cmd_2_map2D(u) ### DOUBLE CHECK THIS
 
-#     # update dm 
-#     dm.set_data( dcmd )
+# #     # update dm 
+# #     dm.set_data( dcmd )
 
-#     t1 = time.time()
-#     print(t1-t0, e[act], u[act])
+# #     t1 = time.time()
+# #     print(t1-t0, e[act], u[act])
 
-# dm.zero_all()
-# dm.activate_calibrated_flat()
+# # dm.zero_all()
+# # dm.activate_calibrated_flat()
 
-# #util.nice_heatmap_subplots( [dcmd - abb ] , savefig='delme.png')
+# # #util.nice_heatmap_subplots( [dcmd - abb ] , savefig='delme.png')
 
 

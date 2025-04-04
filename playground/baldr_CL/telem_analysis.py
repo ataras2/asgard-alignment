@@ -14,6 +14,7 @@ import scipy.signal as signal
 
 from scipy.signal import TransferFunction,welch, csd, dlti, dstep
 
+from pyBaldr import utilities as util
 
 
 def offset_ts( t, data, offset='10std', savefig='delme.jpeg',**kwargs):
@@ -110,6 +111,34 @@ def waterfall_ts(t, data, savefig=None, **kwargs):
 
 
 
+
+def plot_ts( t_list, sig_list, savefig = None, **kwargs ):
+
+    xlabel = kwargs.get("xlabel","Time [s]")
+    ylabel = kwargs.get("ylabel", "Signal")
+    title = kwargs.get("title", None)
+    fontsize = kwargs.get("fontsize", 15)
+    labelsize = kwargs.get("labelsize", 15)
+    labels = kwargs.get("labels", [None for _ in range(len(t_list))])
+    colors = kwargs.get("colors", ["k" for _ in range(len(t_list))])
+    plt.figure( figsize=(8,5) )
+
+    for i, (t, s) in enumerate( zip( t_list, sig_list) ) :
+        
+        plt.plot( t, s , color=colors[i], label = f"{labels[i]}") 
+    plt.gca().tick_params(labelsize=labelsize)
+    plt.xlabel(xlabel,fontsize=fontsize)
+    plt.ylabel(ylabel,fontsize=fontsize)
+    plt.title( title )
+
+    #plt.title("Pixel-wise Power Spectral Density (Welch)")
+    plt.legend(fontsize=12)
+    #plt.grid(True, which="both", linestyle="--", alpha=0.5)
+    #plt.tight_layout()
+    if savefig is not None:
+        plt.savefig( savefig, dpi=200, bbox_inches = 'tight')
+    plt.show()
+
 def plot_psd( f_list, psd_list, savefig = None, **kwargs ):
 
     xlabel = kwargs.get("xlabel","Frequency [Hz]")
@@ -118,14 +147,15 @@ def plot_psd( f_list, psd_list, savefig = None, **kwargs ):
     fontsize = kwargs.get("fontsize", 15)
     labelsize = kwargs.get("labelsize", 15)
     plot_cumulative = kwargs.get("plot_cumulative",True)
-
+    labels = kwargs.get("labels", [None for _ in range(len(f_list))])
+    colors = kwargs.get("colors", ["k" for _ in range(len(f_list))])
     plt.figure( figsize=(8,5) )
 
-    for f, psd in zip( f_list, psd_list) :
+    for i, (f, psd) in enumerate( zip( f_list, psd_list) ) :
         df = np.mean( np.diff( f ) )
-        plt.loglog( f, psd , color='k') 
+        plt.loglog( f, psd , color=colors[i] , label = f"{labels[i]}") 
         if plot_cumulative:
-            plt.loglog(f, np.cumsum(psd[::-1] * df )[::-1], color='k', ls=':',linewidth=2, label=f"Reverse Cumulative")
+            plt.loglog(f, np.cumsum(psd[::-1] * df )[::-1], color=colors[i], alpha =0.5, ls=':', linewidth=2) #, label=f"{labels[i]} Reverse Cumulative")
 
     plt.gca().tick_params(labelsize=labelsize)
     plt.xlabel(xlabel,fontsize=fontsize)
@@ -191,8 +221,8 @@ f_disturb_CL = "/home/asg/Videos/CL_kolmogorov_AO/disturb_telem.fits"
 f_telem_CL = "/home/asg/Videos/CL_kolmogorov_AO/CL_beam2_maskH3_zonal_kolmogorov_r0-0.1.fits"
 
 # open loop 
-f_disturb_OL = "/home/asg/Videos/CL_kolmogorov_AO/disturb_telem.fits"
-f_telem_OL = "/home/asg/Videos/CL_kolmogorov_AO/CL_beam2_maskH3_zonal_kolmogorov_r0-0.1.fits"
+f_disturb_OL = "/home/asg/Videos/CL_kolmogorov_AO/disturb_telem_ki0.fits"
+f_telem_OL = "/home/asg/Videos/CL_kolmogorov_AO/CL_beam2_maskH3_zonal_kolmogorov_r0-0.1_ki0.fits"
 
 # what we want to extract from telemetry
 extnames = ["e_HO",
@@ -262,7 +292,6 @@ for (f_dist,f_telem), lab in zip([ ( f_disturb_CL, f_telem_CL ), (f_disturb_OL,f
 #------------------------------------------
 
 
-
 ### Analysis 
 mode = 65 
 fs = 1/np.mean(np.diff(t_grid))
@@ -270,76 +299,238 @@ nperseg = 512
 
 
 # only look where we have common non NAN data 
-tFilt = np.isfinite(process_dm_signals( interpolated_data["CL"]["disturbance"])[:,mode] ) * np.isfinite( interpolated_data["CL"]["e_HO"][:, mode] )
+tFilt_CL = np.isfinite(process_dm_signals( interpolated_data["CL"]["disturbance"])[:,mode] ) * np.isfinite( interpolated_data["CL"]["e_HO"][:, mode] )
+tFilt_OL = np.isfinite(process_dm_signals( interpolated_data["OL"]["disturbance"])[:,mode] ) * np.isfinite( interpolated_data["OL"]["e_HO"][:, mode] )
+
+
+# time series 
+
+# checking the disturbances in valid OL and CL data 
+plot_ts( t_list= [t_grid[tFilt_CL], t_grid[tFilt_OL]], sig_list = [process_dm_signals( interpolated_data["CL"]["disturbance"])[:,mode], process_dm_signals( interpolated_data["OL"]["disturbance"])[:,mode]], savefig = 'delme.png', labels=["dist CL","dist OL"] )
+
+# checking the error signals in valid OL and CL data 
+plot_ts( t_list= [t_grid[tFilt_CL], t_grid[tFilt_OL]], sig_list = [interpolated_data["CL"]["e_HO"][:,mode], interpolated_data["OL"]["e_HO"][:,mode]], savefig = 'delme.png', colors = ["r", "k"] , labels=["err CL","err OL"] )
+
+
+# Looking at the disturbances on all the actuators 
+offset_ts( t=t_grid, data=process_dm_signals( interpolated_data["OL"]["disturbance"]) [tFilt_OL , :], offset='10std', savefig='delme.jpeg')
+# narrow in on a few 
+offset_ts( t=t_grid, data=process_dm_signals( interpolated_data["CL"]["disturbance"]) [tFilt_CL , 62:67], offset='10std', savefig='delme.jpeg')
+
+# lets do a waterfall plot 
+waterfall_ts(t = t_grid, data = interpolated_data["CL"]["e_HO"][:,:], savefig='delme.png')
+
+
 # Power Spectral Densities 
 # closed loop data 
-f, S_dd = welch(process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt , mode], fs=fs, nperseg=nperseg)
-_, S_ee = welch(interpolated_data["CL"]["e_HO"][tFilt , mode], fs=fs, nperseg=nperseg)
-_, S_uu = welch(interpolated_data["CL"]["u_HO"][tFilt , mode], fs=fs, nperseg=nperseg)
+f, S_dd = welch(process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode], fs=fs, nperseg=nperseg)
+_, S_ee = welch(interpolated_data["CL"]["e_HO"][tFilt_CL , mode], fs=fs, nperseg=nperseg)
+_, S_uu = welch(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], fs=fs, nperseg=nperseg)
 
 # open loop (ki=0) versions 
-_, S_dd_0 = welch(process_dm_signals( interpolated_data["OL"]["disturbance"] )[tFilt , mode], fs=fs, nperseg=nperseg)
-_, S_ee_0 = welch(interpolated_data["OL"]["e_HO"][tFilt , mode], fs=fs, nperseg=nperseg)  # Open loop
+_, S_dd_0 = welch(process_dm_signals( interpolated_data["OL"]["disturbance"] )[tFilt_OL , mode], fs=fs, nperseg=nperseg)
+_, S_ee_0 = welch(interpolated_data["OL"]["e_HO"][tFilt_OL , mode], fs=fs, nperseg=nperseg)  # Open loop
 
 # Cross Spectral Densities (CL)
-_, S_ed = csd(interpolated_data["CL"]["e_HO"][tFilt , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt , mode] , fs=fs, nperseg=512)  # e/d
-_, S_ud = csd(interpolated_data["CL"]["u_HO"][tFilt , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt , mode], fs=fs, nperseg=512)  # u/d
-_, S_ue = csd(interpolated_data["CL"]["u_HO"][tFilt , mode], interpolated_data["CL"]["e_HO"][tFilt , mode], fs=fs, nperseg=512)  # u/e
+_, S_ed = csd(interpolated_data["CL"]["e_HO"][tFilt_CL , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode] , fs=fs, nperseg=512)  # e/d
+_, S_ud = csd(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode], fs=fs, nperseg=512)  # u/d
+_, S_ue = csd(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], interpolated_data["CL"]["e_HO"][tFilt_CL , mode], fs=fs, nperseg=512)  # u/e
 
 
 
-
-plot_psd( f_list = [f], psd_list=[S_dd], savefig = 'delme.png') 
-
+plot_psd( f_list = [f[1:],f[1:]], psd_list=[abs(L_f[1:])**2, abs(S_f2[1:])**2],  labels=["OL", "CL"], colors=['k', 'r'], savefig = 'delme.png') 
 
 
+plot_psd( f_list = [f,f], psd_list=[abs(S_ed), abs(S_ee_0)], labels=[""] savefig = 'delme.png') 
+
+
+plot_psd( f_list = [f[1:]], psd_list = [ abs( S_ed / S_dd)[1:]**2 ],  savefig = 'delme.png') 
+plot_psd( f_list = [f[1:]], psd_list = [ abs( S_ee / S_ee_0)[1:]**2 ],  savefig = 'delme.png') 
 
 
 
-############# SOME ANALYSIS 
-
+############# MAX STABLE GAIN ANALYSIS  
 
 # Known controller: Ki only (integrator)
-Ki = 0.8
-K_f = Ki / (1j * 2 * np.pi * f)  # Controller in freq domain: K(s) = Ki / s
+dd = fits.open( f_telem_CL )
 
-# === Transfer Function Estimates ===
+Ki =  dd['ki'].data # shape = Nmodes
 
-# Sensitivity Function (two methods)
-S_f = S_ed / S_dd               # Method 1: e/d via CSD
-S_f2 = S_ee / S_ee_0            # Method 2: PSD ratio e_CL / e_OL
+valid_modes = np.where( np.diag(dd["IM"].data)  > 0 )[0] 
 
-# Complementary Sensitivity
-T_f = S_ud / S_dd               # u/d via CSD
+dd.close()
 
-# Open Loop Transfer Function  Hjw = Ped / Pdd  
-#L_f = T_f / S_f                 # S_ee_0 / S_dd_0   # # L = T / S S_ud/S_dd / S_ed / S_dd =  S_ud / S_ed
-# OR 
-L_f  = S_f / (1 - K_f * S_f)
+tf_dict = {}
+max_modal_gain = []
+for mode in range(140) : #valid_modes :
+    print(mode)
+    tf_dict[mode] = {}
+    # Power Spectral Densities 
+    # closed loop data 
+    f, S_dd = welch(process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode], fs=fs, nperseg=nperseg)
+    _, S_ee = welch(interpolated_data["CL"]["e_HO"][tFilt_CL , mode], fs=fs, nperseg=nperseg)
+    _, S_uu = welch(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], fs=fs, nperseg=nperseg)
 
-# Control Sensitivity (F = C / (1 + PC))
-F_f = S_ue / S_ee               # u/e
+    # open loop (ki=0) versions 
+    _, S_dd_0 = welch(process_dm_signals( interpolated_data["OL"]["disturbance"] )[tFilt_OL , mode], fs=fs, nperseg=nperseg)
+    _, S_ee_0 = welch(interpolated_data["OL"]["e_HO"][tFilt_OL , mode], fs=fs, nperseg=nperseg)  # Open loop
 
-# Plant Estimate (G = L / C)
-G_f = L_f / K_f                 # G = P(s) = L / C
+    # Cross Spectral Densities (CL)
+    _, S_ed = csd(interpolated_data["CL"]["e_HO"][tFilt_CL , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode] , fs=fs, nperseg=512)  # e/d
+    _, S_ud = csd(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], process_dm_signals( interpolated_data["CL"]["disturbance"] )[tFilt_CL , mode], fs=fs, nperseg=512)  # u/d
+    _, S_ue = csd(interpolated_data["CL"]["u_HO"][tFilt_CL , mode], interpolated_data["CL"]["e_HO"][tFilt_CL , mode], fs=fs, nperseg=512)  # u/e
 
-# Optional: Inverse Plant (for checking model error)
-G_inv_f = K_f / L_f             # Could also check phase lag, etc.
 
-# Package into dict for optional return
-tf_dict = {
-    "f": f,
-    "S_f": S_f,
-    "S_f2": S_f2,
-    "T_f": T_f,
-    "L_f": L_f,
-    "F_f": F_f,
-    "K_f": K_f,
-    "G_f": G_f
-}
 
-# Max stable gain = 1 / |G|
-max_stable_gain = 1.0 / np.abs(G_f)
+
+    K_f = Ki[mode] / (1j * 2 * np.pi * f)  # Controller in freq domain: K(s) = Ki / s
+
+    # === Transfer Function Estimates ===
+
+    # Sensitivity Function (two methods)
+    S_f = S_ed / S_dd               # Method 1: e/d via CSD
+    S_f2 = S_ee / S_ee_0            # Method 2: PSD ratio e_CL / e_OL
+
+    # Complementary Sensitivity
+    T_f = S_ud / S_dd               # u/d via CSD
+
+    # Open Loop Transfer Function  Hjw = Ped / Pdd  
+    #L_f = T_f / S_f                 # S_ee_0 / S_dd_0   # # L = T / S S_ud/S_dd / S_ed / S_dd =  S_ud / S_ed
+    # OR 
+    L_f  = S_f / (1 - K_f * S_f)
+
+    # Control Sensitivity (F = C / (1 + PC))
+    F_f = S_ue / S_ee               # u/e
+
+    # Plant Estimate (G = L / C)
+    G_f = L_f / K_f                 # G = P(s) = L / C
+
+    # Optional: Inverse Plant (for checking model error)
+    G_inv_f = K_f / L_f             # Could also check phase lag, etc.
+
+    # Package into dict for optional return
+    tf_dict[mode] = {
+        "f": f,
+        "S_f": S_f,
+        "S_f2": S_f2,
+        "T_f": T_f,
+        "L_f": L_f,
+        "F_f": F_f,
+        "K_f": K_f,
+        "G_f": G_f
+    }
+
+    # Max stable gain = 1 / |G|
+    max_stable_gain = 1.0 / np.abs(G_f)
+
+
+
+    Hjw = tf_dict[mode]["L_f"] # S_ed / S_dd  
+
+    phase_margin_limit = 30  # degrees
+
+    Hjw = S_ed / S_dd 
+    ki_max = None
+    for ki in np.logspace(-3, 5, 500):
+        Cjw = ki / (1j * 2 * np.pi * f)         # Controller: Ki / s
+        Gjw_test = Hjw / (1 - Hjw * Cjw)        # Estimate of plant G(jw)
+        Ljw = Cjw[1:] * Gjw_test[1:]                    # Open-loop TF , index from 1 to avoid zero freqzz
+
+        L_mag = np.abs(Ljw)
+        L_phase = np.angle(Ljw, deg=True)      # Phase in degrees
+
+        # Find gain crossover frequencies (where |L| ~ 1)
+        idx = np.argmin(np.abs(L_mag - 1))
+
+        if L_mag[idx] < 0.95 : #or L_mag[idx] > 1.05:
+            # No valid gain crossover → system is stable
+            ki_max = ki
+            continue
+
+        phase_margin = 180 + L_phase[idx]
+        if phase_margin > phase_margin_limit:
+            ki_max = ki
+        else:
+            break
+    max_modal_gain.append( ki_max )
+
+    print(f"Maximum stable Ki with > {phase_margin_limit}° phase margin: {ki_max:.4f}")
+
+# max_modal_gain = np.array( max_modal_gain )
+# max_modal_gain[ max_modal_gain > 20 ] = 0
+util.nice_heatmap_subplots( [util.get_DM_command_in_2D( max_modal_gain) ] , cbar_label_list=["max gain [Ki] per actuator"], savefig='delme.png')
+
+plt.figure(figsize=(8,5))
+plt.hist( np.array( max_modal_gain )[ np.array( max_modal_gain) < 20 ], bins = np.logspace( -2, 1, 10) ,alpha=0.5)
+plt.xlabel("max gain [ki] per actuator",fontsize=15)
+plt.xscale('log')
+plt.ylabel("Frequency [Hz]",fontsize=15)
+plt.gca().tick_params(labelsize=15)
+plt.savefig("delme.jpeg",bbox_inches = 'tight', dpi=200)
+
+
+
+# plot_ts( [f[1:]] , [max_stable_gain[1:]] , xlabel = "frequency [Hz]", ylabel = "max stable gain [ki]" , yscale='logl', savefig='delme.png')
+
+
+############# OPTIMAL GAIN ANALYSIS  
+
+
+def cost_fn(Kp, Ki, Kd, G_f, f, phase_margin_limit=30):
+    s = 1j * 2 * np.pi * f
+    C_f = Kp + Ki / s + Kd * s
+    L_f = G_f * C_f
+    S_f = 1 / (1 + L_f)
+
+    # Check phase margin at gain crossover
+    mag = np.abs(L_f)
+    phase = np.angle(L_f, deg=True)
+    idx = np.argmin(np.abs(mag - 1))
+    phase_margin = 180 + phase[idx]
+
+    if phase_margin < phase_margin_limit or mag[idx] < 0.8:
+        return np.inf  # Reject unstable or low-margin configs
+
+    return np.trapz(np.abs(S_f)**2, f)  # Integrated sensitivity
+
+
+NN = 10
+mode = 65
+kdgrid = np.logspace( -4, 0, NN)
+kigrid = np.linspace(0,1,NN)
+cost_map = np.zeros([NN,NN] )
+for i,kd in enumerate( kdgrid ):
+    for j, ki in enumerate( kigrid ):
+        cost_map[i,j] = cost_fn(Kp=0, Ki=ki, Kd=kd, G_f=tf_dict[mode]["G_f"][1:], f=tf_dict[mode]["f"][1:])
+
+plt.figure()
+plt.imshow( np.log10( cost_map ) )
+plt.colorbar()
+plt.savefig("delme.png")
+
+ib, jb = np.unravel_index( np.argmin( cost_map ),cost_map.shape)
+
+print( f"best gains : ki = {kdgrid[ib]}, kd = {kdgrid[jb]}")
+
+
+
+
+# from scipy.optimize import minimize
+# def wrapped_cost(params):
+#     Kp, Ki, Kd = params
+#     # skip first index which is usually 0 Hz <- 1/0
+#     return cost_fn(Kp, Ki, Kd, G_f=tf_dict["G_f"][1:], f=tf_dict["f"][1:])
+
+# res = minimize(wrapped_cost, x0=[0.1, 0.1, 0.0], bounds=[(1e-6, 1000)]*3)
+# Kp_opt, Ki_opt, Kd_opt = res.x
+# print(f"Optimal PID gains: Kp={Kp_opt:.4f}, Ki={Ki_opt:.4f}, Kd={Kd_opt:.4f}")
+
+# print( cost_fn(Kp=Kp_opt, Ki= Ki_opt, Kd=Kd_opt, G_f=tf_dict["G_f"][1:], f=tf_dict["f"][1:]) )
+
+
+
+
+
 
 # Plotting
 plt.figure(figsize=(12, 6))
@@ -371,7 +562,8 @@ plt.ylabel("Gain")
 plt.grid(True)
 
 plt.tight_layout()
-plt.show()
+plt.savefig('delme.png')
+#plt.show()
 
 ## PHASE 
 
@@ -422,36 +614,6 @@ plt.show()
 #         break
 
 
-Hjw = tf_dict["L_f"] # S_ed / S_dd  
-
-phase_margin_limit = 30  # degrees
-
-Hjw = S_ed / S_dd 
-ki_max = None
-for ki in np.logspace(-3, 5, 500):
-    Cjw = ki / (1j * 2 * np.pi * f)         # Controller: Ki / s
-    Gjw_test = Hjw / (1 - Hjw * Cjw)        # Estimate of plant G(jw)
-    Ljw = Cjw[1:] * Gjw_test[1:]                    # Open-loop TF , index from 1 to avoid zero freqzz
-
-    L_mag = np.abs(Ljw)
-    L_phase = np.angle(Ljw, deg=True)      # Phase in degrees
-
-    # Find gain crossover frequencies (where |L| ~ 1)
-    idx = np.argmin(np.abs(L_mag - 1))
-
-    if L_mag[idx] < 0.95 : #or L_mag[idx] > 1.05:
-        # No valid gain crossover → system is stable
-        ki_max = ki
-        continue
-
-    phase_margin = 180 + L_phase[idx]
-    if phase_margin > phase_margin_limit:
-        ki_max = ki
-    else:
-        break
-
-print(f"Maximum stable Ki with > {phase_margin_limit}° phase margin: {ki_max:.4f}")
-
 # Plot results
 plt.figure(figsize=(8, 5))
 plt.semilogy(range(N_modes), ki_max, 'o-', label='Max Stable $k_i$')
@@ -498,13 +660,12 @@ print(f"Optimal PID gains: Kp={Kp_opt:.4f}, Ki={Ki_opt:.4f}, Kd={Kd_opt:.4f}")
 print( cost_fn(Kp=Kp_opt, Ki= Ki_opt, Kd=Kd_opt, G_f=tf_dict["G_f"][1:], f=tf_dict["f"][1:]) )
 
 NN = 10
-kdgrid = np.logspace( -4, , NN)
+kdgrid = np.logspace( -4, 0, NN)
 kigrid = np.linspace(0,1,NN)
 cost_map = np.zeros([NN,NN] )
 for i,kd in enumerate( kdgrid ):
     for j, ki in enumerate( kigrid ):
         cost_map[i,j] = cost_fn(Kp=0, Ki=ki, Kd=kd, G_f=tf_dict["G_f"][1:], f=tf_dict["f"][1:])
-
 
 plt.figure()
 plt.imshow( np.log10( cost_map ) )

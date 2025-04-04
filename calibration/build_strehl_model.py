@@ -132,7 +132,7 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
 
     fname = f'/home/asg/Videos/test.fits'
     cmd = [
-        'python', '/home/asg/Progs/repos/asgard-alignment/playground/baldr_CL/turbulence.py',
+        'python', '/home/asg/Progs/repos/asgard-alignment/common/turbulence.py',
         '--beam_id', f'{beam_id}',
         '--number_of_iterations', '1000',
         '--wvl', '1.65',
@@ -235,18 +235,16 @@ sec_std = np.array( [np.std( v ) for _,v in secon_int.items() ] ) #[2:3]
 ext_std = np.array( [np.std( v ) for _,v in exter_int.items() ] ) # [2:]
 
 # Fit a linear model for sec vs. rms.
-coef_sec = np.polyfit(rms_mean, sec_mean, 1)  # [slope, intercept]
+coef_sec = np.polyfit( sec_mean,rms_mean, 1)  # [slope, intercept]
 
 # Fit a linear model for ext vs. rms.
-coef_ext = np.polyfit(rms_mean, ext_mean, 1)
+coef_ext = np.polyfit( ext_mean,rms_mean,  1)
 
 print("") 
 
 
 
-
-
-dict2write = {f"beam{beam_id}":{"strehl_model": {"secondary":coef_sec, "exterior":coef_ext}}}
+dict2write = {f"beam{beam_id}":{"strehl_model": {"secondary":np.diag( coef_sec ), "exterior": np.diag( coef_ext )}}}
 
 # Check if file exists; if so, load and update.
 if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
@@ -270,25 +268,27 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 # Plot errorbars:
 fs = 15
 plt.figure(figsize=(8,5))
-plt.errorbar(rms_mean, sec_mean, xerr=rms_std, yerr=sec_std, fmt='o', color='blue', label='Secondary pixel')
-plt.errorbar(rms_mean, ext_mean, xerr=rms_std, yerr=ext_std, fmt='s', color='red', label='Exterior pixels')
+plt.errorbar(sec_mean, rms_mean, yerr=rms_std, xerr=sec_std, fmt='o', color='blue', label='Secondary pixel')
+plt.errorbar(ext_mean, rms_mean,  yerr=rms_std, xerr=ext_std, fmt='s', color='red', label='Exterior pixels')
 
 # use the models to plot lines
 fit_ext = np.poly1d(coef_ext)
 fit_sec = np.poly1d(coef_sec)
 
 # Generate x-values for plotting the fitted lines.
-x_fit = np.linspace(rms_mean.min(), rms_mean.max(), 100)
-plt.plot(x_fit, fit_sec(x_fit), 'b--', label=f'Secondary pixel Fit: y={coef_sec[0]:.2f}x+{coef_sec[1]:.2f}')
-plt.plot(x_fit, fit_ext(x_fit), 'r--', label=f'Exterior pixels Fit: y={coef_ext[0]:.2f}x+{coef_ext[1]:.2f}')
+
+xsec = np.linspace(sec_mean.min(), sec_mean.max(), 100)
+xext = np.linspace(ext_mean.min(), ext_mean.max(), 100)
+plt.plot(xsec, fit_sec(xsec), 'b--', label=f'Secondary pixel Fit: y={coef_sec[0]:.2e}x+{coef_sec[1]:.2e}')
+plt.plot(xext, fit_ext(xext), 'r--', label=f'Exterior pixels Fit: y={coef_ext[0]:.2e}x+{coef_ext[1]:.2e}')
 plt.gca().tick_params(labelsize=fs)
-plt.xlabel('DM RMS [DM units]',fontsize=fs)
-plt.ylabel('signal [ADU/s/gain/pixel]',fontsize=fs)
+plt.ylabel('DM RMS [DM units]',fontsize=fs)
+plt.xlabel('signal [ADU/s/gain/pixel]',fontsize=fs)
 plt.legend()
 #plt.xscale('log')
-plt.savefig("delme.png", bbox_inches='tight',dpi=200)
+#plt.savefig("delme.png", bbox_inches='tight',dpi=200)
 if args.fig_path is not None:
-    plt.savefig(args.fig_path + "strehl_model_beam{beam_id}.png", bbox_inches='tight',dpi=200)
+    plt.savefig(args.fig_path + f"strehl_model_beam{beam_id}.png", bbox_inches='tight',dpi=200)
 plt.close()
 
 

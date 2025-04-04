@@ -124,6 +124,20 @@ parser.add_argument(
     help="amplitude to poke DM modes for building interaction matrix"
 )
 
+parser.add_argument(
+    "--signal_space",
+    type=str,
+    default='dm',
+    help="what space do we consider the signal on. either dm (uses I2A) or pixel"
+)
+
+parser.add_argument(
+    "--DM_flat",
+    type=str,
+    default="baldr",
+    help="What flat do we use on the DM during the calibration. either 'baldr' or 'factory'. Default: %(default)s"
+)
+
 
 # parser.add_argument(
 #     "--inverse_method",
@@ -150,8 +164,9 @@ args=parser.parse_args()
 NNN= 10 # how many groups of 100 to take for reference images 
 
 I2A_dict = {}
-pupil_masks = {}
-secon_mask = {}
+pupil_mask = {}
+secondary_mask = {}
+exterior_mask = {}
 for beam_id in args.beam_id:
 
     # read in TOML as dictionary for config 
@@ -161,16 +176,17 @@ for beam_id in args.beam_id:
         baldr_pupils = config_dict['baldr_pupils']
         I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
         
-        pupil_masks[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+        pupil_mask[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
 
-        secon_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) )
+        secondary_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) )
 
+        exterior_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) )
 
 # Set up global camera frame SHM 
 #print('Setting up camera. You should manually set up camera settings before hand')
 
 # I2A_dict = {}
-# pupil_masks = {}
+# pupil_mask = {}
 # for beam_id in [1,2,3,4]:
 
 #     # read in TOML as dictionary for config 
@@ -180,7 +196,7 @@ for beam_id in args.beam_id:
 #         baldr_pupils = config_dict['baldr_pupils']
 #         I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
         
-#         pupil_masks[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+#         pupil_mask[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
 
 
 # # #---------- New Darks 
@@ -258,13 +274,17 @@ for beam_id in args.beam_id:
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     
-    # activate flat (does this on channel 1)
-    #dm_shm_dict[beam_id].activate_flat()
-
-    # apply dm flat + calibrated offset (does this on channel 1)
-    dm_shm_dict[beam_id].activate_calibrated_flat()
-    
-
+    if args.DM_flat.lower() == 'factory':
+        # activate flat (does this on channel 1)
+        dm_shm_dict[beam_id].activate_flat()
+    elif args.DM_flat.lower() == 'baldr':
+        # apply dm flat + calibrated offset (does this on channel 1)
+        dm_shm_dict[beam_id].activate_calibrated_flat()
+        
+    else:
+        print( "Unknow flat option. Valid options are 'factory' or 'baldr'. Using baldr flat as default")
+        args.DM_flat == 'baldr'
+        dm_shm_dict[beam_id].activate_calibrated_flat()
 
 # Move to phase mask
 for beam_id in args.beam_id:
@@ -295,6 +315,7 @@ for beam_id in args.beam_id:
 ############## HERE  
 
 #Clear Pupil
+inner_pupil_filt = {} # strictly inside (not on boundary)
 for beam_id in args.beam_id:
 
     print( 'gettin clear pupils')
@@ -319,21 +340,21 @@ for beam_id in args.beam_id:
     print(res) 
     time.sleep(10)
 
-    inner_pupil_filt = util.remove_boundary(pupil_masks[beam_id])
+    inner_pupil_filt[beam_id] = util.remove_boundary(pupil_mask[beam_id])
 
     # set as clear pupils where we set exterior and bad pixels to mean interior clear pup signal
 
     # filter exterior pixels (that risk 1/0 error)
-    pixel_filter = secon_mask[beam_id].astype(bool)  | (~inner_pupil_filt.astype(bool) ) | (~c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1].astype(bool) )
+    pixel_filter = secondary_mask[beam_id].astype(bool)  | (~inner_pupil_filt[beam_id].astype(bool) ) | (~c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1].astype(bool) )
     
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
     #N0 for normalization ( set exterior pixels )
     #pupil_norm = np.mean( N0s ,axis=0)
-    #pupil_norm[~np.array( pupil_masks[beam_id] ) ] = np.mean( pupil_norm[pupil_masks[beam_id]])
+    #pupil_norm[~np.array( pupil_mask[beam_id] ) ] = np.mean( pupil_norm[pupil_mask[beam_id]])
 
-# tbbb = util.remove_boundary(pupil_masks[beam_id])
+# tbbb = util.remove_boundary(pupil_mask[beam_id])
 # pupil_norm = np.mean( N0s ,axis=0)
 # pupil_norm[~tbbb ] = np.mean( pupil_norm[tbbb] )
 # plt.figure(); plt.imshow( pupil_norm );plt.savefig('delme.png')
@@ -369,7 +390,7 @@ for beam_id in args.beam_id:
 
     #r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
-    #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
+    #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
     zwfs_pupils[beam_id] = I0s #cropped_img
 
 
@@ -395,7 +416,7 @@ for beam_id in args.beam_id:
 # dm_mask = {}
 # for beam_id in args.beam_id:
 #     ### IMPORTANT THIS IS WHERE WE FILTER ACTUATOR SPACE IN IM 
-#     dm_mask[beam_id] = I2A_dict[beam_id] @  np.array(pupil_masks[beam_id] ).reshape(-1)
+#     dm_mask[beam_id] = I2A_dict[beam_id] @  np.array(pupil_mask[beam_id] ).reshape(-1)
 #     dm_act_filt[beam_id] = dm_mask[beam_id] > 0.95 # ignore actuators on the edge! 
 
 
@@ -461,6 +482,9 @@ beam_id = args.beam_id[0]
 # time.sleep(1)
 # #dms[beam_id].activate_flat()
 
+if args.signal_space.lower() not in ["dm", "pixel"] :
+    raise UserWarning("signal space must either be 'dm' or 'pixel'")
+
 cam_config = c_dict[beam_id].get_camera_config()
 
 IM = []
@@ -497,8 +521,12 @@ for i,m in enumerate(modal_basis):
     #############
     
     # removing seoconary pixels 
-    #(~secon_mask[beam_id].astype(bool)).reshape(-1) 
-    errsig = I2A_dict[beam_id] @ ( float( cam_config["gain"] ) / float( cam_config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
+    #(~secondary_mask[beam_id].astype(bool)).reshape(-1) 
+
+    if args.signal_space.lower() == 'dm':
+        errsig = I2A_dict[beam_id] @ ( float( cam_config["gain"] ) / float( cam_config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
+    elif args.signal_space.lower() == 'pixel':
+        errsig = ( float( cam_config["gain"] ) / float( cam_config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
     
     #############
     #############
@@ -518,7 +546,7 @@ for i,m in enumerate(modal_basis):
 
 # elif args.inverse_method == 'zonal':
     
-#     dm_mask = I2A_dict[beam_id] @ np.array( pupil_masks[beam_id] ).reshape(-1)
+#     dm_mask = I2A_dict[beam_id] @ np.array( pupil_mask[beam_id] ).reshape(-1)
 #     # control matrix (zonal) - 
 #     I2M = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
     
@@ -593,6 +621,68 @@ dm_shm_dict[beam_id].zero_all()
 dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
+
+
+
+
+######## WRITE TO TOML 
+#  # we store all reference images as flattened array , boolean masks as ints
+dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
+                                                "build_method":"double-sided-poke",
+                                                "DM_flat ":args.DM_flat.lower(),
+                                                "signal_space":args.signal_space.lower(),
+                                               "crop_pixels":baldr_pupils[f"{beam_id}"], # global corners (r1,r2,c1,c2) of sub pupil cropping region  (local frame)
+                                               "pupil_pixels" : np.where(  np.array( pupil_mask[beam_id] ).reshape(-1) ),  # pupil pixels in local frame 
+                                               "interior_pixels" : np.where( np.array( inner_pupil_filt[beam_id].reshape(-1) )   ), # strictly interior pupil pixels in local frame
+                                               "secondary_pixels" : np.where( np.array( secondary_mask[beam_id].reshape(-1) )  ),   # pixels in secondary obstruction in local frame
+                                               "exterior_pixels" : np.where(  np.array( exterior_mask[beam_id].reshape(-1) )   ),  # exterior pixels that maximise diffracted light from mask in local frame 
+                                               "bad_pixels" : np.where( np.array( c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] ).reshape(-1)   ),
+                                               "IM":IM,
+                                               "poke_amp":args.poke_amp,
+                                               "M2C":M2C,  
+                                               "I0": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1),  # ADU / s / gain (flattened)
+                                               "N0": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1), # ADU / s / gain (flattened)
+                                               "norm_pupil": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1),
+                                               "camera_config":c_dict[beam_id].config,
+                                               "bias": np.array( c_dict[beam_id].reduction_dict["bias"][-1]).reshape(-1),
+                                               "dark": np.array( c_dict[beam_id].reduction_dict["dark"][-1] ).reshape(-1),
+                                               "bad_pixel_mask": np.array(c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1]).astype(int).reshape(-1),
+                                               "pupil": np.array(pupil_mask[beam_id]).astype(int).reshape(-1),
+                                               "secondary": np.array(secondary_mask[beam_id]).astype(int).reshape(-1),
+                                               "exterior" : np.array(exterior_mask[beam_id]).astype(int).reshape(-1),
+                                               "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1),
+
+                                               }
+                                            }
+                                        }
+                                    }
+
+# Check if file exists; if so, load and update.
+if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+    try:
+        current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+    except Exception as e:
+        print(f"Error loading TOML file: {e}")
+        current_data = {}
+else:
+    current_data = {}
+
+
+current_data = util.recursive_update(current_data, dict2write)
+
+with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+    toml.dump(current_data, f)
+
+print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
+
+
+
+
+
+
+
+
+
 # dms[beam_id].zero_all()
 # time.sleep(1)
 # dms[beam_id].activate_flat()
@@ -647,7 +737,7 @@ hdu = fits.ImageHDU(Iminus_all)
 hdu.header['EXTNAME'] = 'I-'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU( np.array(pupil_masks[beam_id]).astype(int)) 
+hdu = fits.ImageHDU( np.array(pupil_mask[beam_id]).astype(int)) 
 hdu.header['EXTNAME'] = 'PUPIL_MASK'
 hdul.append(hdu)
 
@@ -659,9 +749,9 @@ hdu = fits.ImageHDU(modal_basis)
 hdu.header['EXTNAME'] = 'M2C'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(I2M)
-hdu.header['EXTNAME'] = 'I2M'
-hdul.append(hdu)
+# hdu = fits.ImageHDU(I2M)
+# hdu.header['EXTNAME'] = 'I2M'
+# hdul.append(hdu)
 
 hdu = fits.ImageHDU(I2A_dict[beam_id])
 hdu.header['EXTNAME'] = 'interpMatrix'
@@ -675,7 +765,7 @@ hdul.append(hdu)
 # hdu.header['EXTNAME'] = 'N0'
 # hdul.append(hdu)
 
-fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_name}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}.fits' #_{args.phasemask}.fits'
+fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_name}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}_fps-{cam_config["fps"]}_gain-{cam_config["gain"]}.fits' #_{args.phasemask}.fits'
 #f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
 hdul.writeto(fits_file, overwrite=True)
 print(f'wrote telemetry to \n{fits_file}')
@@ -704,159 +794,115 @@ print(f'wrote telemetry to \n{fits_file}')
 
 
 
-######## WRITE TO TOML 
-#  
-dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
-                                               "ctrl_method":"MVM",
-                                               "inverse_method": args.inverse_method,
-                                               "IM":IM,
-                                               "poke_amp":args.poke_amp,
-                                               "M2C":M2C,  
-                                               "I0": np.mean( zwfs_pupils[beam_id],axis=0),
-                                               "N0": np.mean( clear_pupils[beam_id],axis=0),
-                                               "norm_pupil":normalized_pupils[beam_id],
-                                               "inner_pupil_filt": inner_pupil_filt.astype(bool),
-                                               "crop_pixels":baldr_pupils[f"{beam_id}"],
-                                               "camera_config":c_dict[beam_id].config,
-                                               "bias":c_dict[beam_id].reduction_dict["bias"][-1],
-                                               "dark":c_dict[beam_id].reduction_dict["dark"][-1],
-                                               "bad_pixel_mask":c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1].astype(bool),
-                                               }
-                                            }
-                                        }
-                                    }
-
-# Check if file exists; if so, load and update.
-if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
-    try:
-        current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
-    except Exception as e:
-        print(f"Error loading TOML file: {e}")
-        current_data = {}
-else:
-    current_data = {}
-
-
-current_data = util.recursive_update(current_data, dict2write)
-
-with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
-    toml.dump(current_data, f)
-
-print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
-
-
-
-
-
-
-
-
 ######## TESTING 
 
-pp = 0.04
-m = 65
-abb = pp * modal_basis[m] 
-dm_shm_dict[beam_id].set_data(  abb ) 
+# dm_mask = I2A_dict[beam_id] @ np.array( pupil_mask[beam_id] ).reshape(-1)
+# # control matrix (zonal) - 
+# I2M = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
+# pp = 0.04
+# m = 65
+# abb = pp * modal_basis[m] 
+# dm_shm_dict[beam_id].set_data(  abb ) 
 
-dm_mask = I2A_dict[beam_id] @  np.array( pupil_masks[beam_id] ).reshape(-1)
-dm_act_filt = dm_mask > 0.95 # ignore actuators on the edge! 
 
-time.sleep(1)
+# dm_mask = I2A_dict[beam_id] @  np.array( pupil_mask[beam_id] ).reshape(-1)
+# dm_act_filt = dm_mask > 0.95 # ignore actuators on the edge! 
 
-fps = float( c_dict[beam_id].config["fps"] )
-gain = float( c_dict[beam_id].config["gain"] )
+# time.sleep(1)
 
-i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0) 
-# plot2d( i )
-# (~secon_mask[beam_id].astype(bool))
-s = (   (i - np.mean( zwfs_pupils[beam_id] , axis=0) ) / normalized_pupils[beam_id] ).reshape(-1)
-#plot2d( ((i - np.mean( zwfs_pupils[beam_id]) ) / normalized_pupils[beam_id] ) )
+# fps = float( c_dict[beam_id].config["fps"] )
+# gain = float( c_dict[beam_id].config["gain"] )
 
-sig = gain / fps  * ( I2A_dict[beam_id] @ s  )
-#plot2d( util.get_DM_command_in_2D( sig ) )
+# i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0) 
+# # plot2d( i )
+# # (~secondary_mask[beam_id].astype(bool))
+# s = (   (i - np.mean( zwfs_pupils[beam_id] , axis=0) ) / normalized_pupils[beam_id] ).reshape(-1)
+# #plot2d( ((i - np.mean( zwfs_pupils[beam_id]) ) / normalized_pupils[beam_id] ) )
 
-err = I2M.T @ sig
+# sig = gain / fps  * ( I2A_dict[beam_id] @ s  )
+# #plot2d( util.get_DM_command_in_2D( sig ) )
 
-# err[9] = 0 # filter out spherical 
-reco =  (M2C.T @ err).T 
+# err = I2M.T @ sig
 
-res = abb - reco 
+# # err[9] = 0 # filter out spherical 
+# reco =  (M2C.T @ err).T 
 
-rmse = np.sqrt( np.mean( (res)**2 ))
+# res = abb - reco 
 
-#dmfilt_12x12 = util.get_DM_command_in_2D( dm_act_filt[beam_id] )
-#im_list = [i, util.get_DM_command_in_2D(sig), dm_act_filt[beam_id] * reco, dm_act_filt[beam_id] * res ]
-im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), util.get_DM_command_in_2D( dm_act_filt ) * reco,  util.get_DM_command_in_2D( dm_act_filt ) * res ]
+# rmse = np.sqrt( np.mean( (res)**2 ))
 
-title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
-vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
-vlims.append( vlims[-1] )
-cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
-util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list, vlims= vlims, savefig='delme.png')
+# #dmfilt_12x12 = util.get_DM_command_in_2D( dm_act_filt[beam_id] )
+# #im_list = [i, util.get_DM_command_in_2D(sig), dm_act_filt[beam_id] * reco, dm_act_filt[beam_id] * res ]
+# im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), util.get_DM_command_in_2D( dm_act_filt ) * reco,  util.get_DM_command_in_2D( dm_act_filt ) * res ]
 
+# title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
+# vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
+# vlims.append( vlims[-1] )
+# cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
+# util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list, vlims= vlims, savefig='delme.png')
 
 
 
 
 
-#### ZONAL 
 
+# #### ZONAL 
 
-util.nice_heatmap_subplots( [util.get_DM_command_in_2D( IM[50] ) ] , savefig='delme.png' )
 
-fps = float( c_dict[beam_id].config["fps"] )
-gain = float( c_dict[beam_id].config["gain"] )
+# util.nice_heatmap_subplots( [util.get_DM_command_in_2D( IM[50] ) ] , savefig='delme.png' )
 
+# fps = float( c_dict[beam_id].config["fps"] )
+# gain = float( c_dict[beam_id].config["gain"] )
 
-dm_mask = I2A_dict[beam_id] @  np.array( pupil_masks[beam_id] ).reshape(-1)
-dm_act_filt = dm_mask > 0.95 # ignore actuators on the edge! 
 
+# dm_mask = I2A_dict[beam_id] @  np.array( pupil_mask[beam_id] ).reshape(-1)
+# dm_act_filt = dm_mask > 0.95 # ignore actuators on the edge! 
 
-# control matrix 
-D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
+# # control matrix 
+# D = np.diag( gain / fps * np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
-util.nice_heatmap_subplots( [D ] , savefig='delme.png' )
 
-pp = 0.04
-m = 50
-abb = pp * modal_basis[m] 
-dm_shm_dict[beam_id].set_data(  abb ) 
+# util.nice_heatmap_subplots( [D ] , savefig='delme.png' )
 
+# pp = 0.04
+# m = 50
+# abb = pp * modal_basis[m] 
+# dm_shm_dict[beam_id].set_data(  abb ) 
 
-time.sleep(1)
 
-fps = float( c_dict[beam_id].config["fps"] )
-gain = float( c_dict[beam_id].config["gain"] )
+# time.sleep(1)
 
-i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0) 
-# plot2d( i )
-# (~secon_mask[beam_id].astype(bool))
-s = (   (i - np.mean( zwfs_pupils[beam_id] , axis=0) ) / normalized_pupils[beam_id] ).reshape(-1)
-#plot2d( ((i - np.mean( zwfs_pupils[beam_id]) ) / normalized_pupils[beam_id] ) )
+# fps = float( c_dict[beam_id].config["fps"] )
+# gain = float( c_dict[beam_id].config["gain"] )
 
-sig =  ( I2A_dict[beam_id] @ s  )
+# i = np.mean( c_dict[beam_id].get_data( apply_manual_reduction=True ), axis=0) 
+# # plot2d( i )
+# # (~secondary_mask[beam_id].astype(bool))
+# s = (   (i - np.mean( zwfs_pupils[beam_id] , axis=0) ) / normalized_pupils[beam_id] ).reshape(-1)
+# #plot2d( ((i - np.mean( zwfs_pupils[beam_id]) ) / normalized_pupils[beam_id] ) )
 
-err = D @  sig
+# sig =  ( I2A_dict[beam_id] @ s  )
 
-M2Ctmp = np.eye(140) 
+# err = D @  sig
 
-reco =  util.get_DM_command_in_2D( (M2Ctmp @ err).T  )
+# M2Ctmp = np.eye(140) 
 
-res = abb - reco 
+# reco =  util.get_DM_command_in_2D( (M2Ctmp @ err).T  )
 
-rmse = np.sqrt( np.mean( (res)**2 ))
+# res = abb - reco 
 
-im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), util.get_DM_command_in_2D( dm_act_filt ) * reco,  util.get_DM_command_in_2D( dm_act_filt ) * res ]
+# rmse = np.sqrt( np.mean( (res)**2 ))
 
-title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
-#vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
-#vlims.append( vlims[-1] )
-cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
-#vlims= vlims,
-util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list,  savefig='delme.png')
+# im_list = [abb ,  i.T , util.get_DM_command_in_2D(sig), util.get_DM_command_in_2D( dm_act_filt ) * reco,  util.get_DM_command_in_2D( dm_act_filt ) * res ]
 
+# title_list = ["disturbance", "intensity", "signal", "reco.", "residual"]
+# #vlims = [[np.nanmin(thing), np.nanmax(thing)] for thing in im_list[:-1]] 
+# #vlims.append( vlims[-1] )
+# cbar_label_list = ["DM UNITS", "ADU", "ADU", "DM UNITS", "DM UNITS"]
+# #vlims= vlims,
+# util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cbar_label_list,  savefig='delme.png')
 
 
 
@@ -868,364 +914,365 @@ util.nice_heatmap_subplots( im_list, title_list = title_list, cbar_label_list=cb
 
 
 
-###########################################################
 
-# def setup(beam_ids, global_camera_shm, toml_file) :
+# ###########################################################
 
-#     NNN = 10 # number of time get_data() called / appended
+# # def setup(beam_ids, global_camera_shm, toml_file) :
 
-#     print( 'setting up controllino and MDS ZMQ communication')
+# #     NNN = 10 # number of time get_data() called / appended
 
-#     controllino_port = '172.16.8.200'
+# #     print( 'setting up controllino and MDS ZMQ communication')
 
-#     myco = co.Controllino(controllino_port)
+# #     controllino_port = '172.16.8.200'
 
+# #     myco = co.Controllino(controllino_port)
 
-#     print( 'Reading in configurations') 
 
-#     I2A_dict = {}
-#     for beam_id in beam_ids:
+# #     print( 'Reading in configurations') 
 
-#         # read in TOML as dictionary for config 
-#         with open(toml_file.replace('#',f'{beam_id}'), "r") as f:
-#             config_dict = toml.load(f)
-#             # Baldr pupils from global frame 
-#             baldr_pupils = config_dict['baldr_pupils']
-#             I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
+# #     I2A_dict = {}
+# #     for beam_id in beam_ids:
 
+# #         # read in TOML as dictionary for config 
+# #         with open(toml_file.replace('#',f'{beam_id}'), "r") as f:
+# #             config_dict = toml.load(f)
+# #             # Baldr pupils from global frame 
+# #             baldr_pupils = config_dict['baldr_pupils']
+# #             I2A_dict[beam_id] = config_dict[f'beam{beam_id}']['I2A']
 
-#     # Set up global camera frame SHM 
-#     print('Setting up camera. You should manually set up camera settings before hand')
-#     c = shm(global_camera_shm)
 
-#     # set up DM SHMs 
-#     print( 'setting up DMs')
-#     dm_shm_dict = {}
-#     for beam_id in beam_ids:
-#         dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
-#         # zero all channels
-#         dm_shm_dict[beam_id].zero_all()
-#         # activate flat (does this on channel 1)
-#         dm_shm_dict[beam_id].activate_flat()
-#         # apply dm flat offset (does this on channel 2)
-#         #dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
+# #     # Set up global camera frame SHM 
+# #     print('Setting up camera. You should manually set up camera settings before hand')
+# #     c = shm(global_camera_shm)
+
+# #     # set up DM SHMs 
+# #     print( 'setting up DMs')
+# #     dm_shm_dict = {}
+# #     for beam_id in beam_ids:
+# #         dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
+# #         # zero all channels
+# #         dm_shm_dict[beam_id].zero_all()
+# #         # activate flat (does this on channel 1)
+# #         dm_shm_dict[beam_id].activate_flat()
+# #         # apply dm flat offset (does this on channel 2)
+# #         #dm_shm_dict[beam_id].set_data( np.array( dm_flat_offsets[beam_id] ) )
     
 
 
-#     # Get Darks
-#     print( 'getting Darks')
-#     myco.turn_off("SBB")
-#     time.sleep(15)
-#     darks = []
-#     for _ in range(NNN):
-#         darks.append(  c.get_data() )
+# #     # Get Darks
+# #     print( 'getting Darks')
+# #     myco.turn_off("SBB")
+# #     time.sleep(15)
+# #     darks = []
+# #     for _ in range(NNN):
+# #         darks.append(  c.get_data() )
 
-#     darks = np.array( darks ).reshape(-1, darks[0].shape[1], darks[0].shape[2])
+# #     darks = np.array( darks ).reshape(-1, darks[0].shape[1], darks[0].shape[2])
 
-#     myco.turn_on("SBB")
-#     time.sleep(10)
+# #     myco.turn_on("SBB")
+# #     time.sleep(10)
 
-#     # crop for each beam
-#     dark_dict = {}
-#     for beam_id in beam_ids:
-#         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-#         cropped_imgs = [nn[r1:r2,c1:c2] for nn in darks]
-#         dark_dict[beam_id] = cropped_imgs
-
-
-#     # Get reference pupils (later this can just be a SHM address)
-#     zwfs_pupils = {}
-#     clear_pupils = {}
-#     rel_offset = 200.0 #um phasemask offset for clear pupil
-#     print( 'Moving FPM out to get clear pupils')
-#     for beam_id in beam_ids:
-#         message = f"moverel BMX{beam_id} {rel_offset}"
-#         res = send_and_get_response(message)
-#         print(res) 
-#         time.sleep( 1 )
-#         message = f"moverel BMY{beam_id} {rel_offset}"
-#         res = send_and_get_response(message)
-#         print(res) 
-#         time.sleep(10)
+# #     # crop for each beam
+# #     dark_dict = {}
+# #     for beam_id in beam_ids:
+# #         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# #         cropped_imgs = [nn[r1:r2,c1:c2] for nn in darks]
+# #         dark_dict[beam_id] = cropped_imgs
 
 
-#     #Clear Pupil
-#     print( 'gettin clear pupils')
-#     N0s = []
-#     for _ in range(NNN):
-#          N0s.append(  c.get_data() )
-#     N0s = np.array(  N0s ).reshape(-1,  N0s[0].shape[1],  N0s[0].shape[2])
+# #     # Get reference pupils (later this can just be a SHM address)
+# #     zwfs_pupils = {}
+# #     clear_pupils = {}
+# #     rel_offset = 200.0 #um phasemask offset for clear pupil
+# #     print( 'Moving FPM out to get clear pupils')
+# #     for beam_id in beam_ids:
+# #         message = f"moverel BMX{beam_id} {rel_offset}"
+# #         res = send_and_get_response(message)
+# #         print(res) 
+# #         time.sleep( 1 )
+# #         message = f"moverel BMY{beam_id} {rel_offset}"
+# #         res = send_and_get_response(message)
+# #         print(res) 
+# #         time.sleep(10)
 
 
-#     for beam_id in beam_ids:
-#         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-#         cropped_imgs = [nn[r1:r2,c1:c2] for nn in N0s]
-#         clear_pupils[beam_id] = cropped_imgs
-
-#         # move back 
-#         print( 'Moving FPM back in beam.')
-#         message = f"moverel BMX{beam_id} {-rel_offset}"
-#         res = send_and_get_response(message)
-#         print(res) 
-#         time.sleep(1)
-#         message = f"moverel BMY{beam_id} {-rel_offset}"
-#         res = send_and_get_response(message)
-#         print(res) 
-#         time.sleep(10)
+# #     #Clear Pupil
+# #     print( 'gettin clear pupils')
+# #     N0s = []
+# #     for _ in range(NNN):
+# #          N0s.append(  c.get_data() )
+# #     N0s = np.array(  N0s ).reshape(-1,  N0s[0].shape[1],  N0s[0].shape[2])
 
 
-#     # check the alignment is still ok 
-#     beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
-#     while beam :
-#         save_tmp = 'delme.png'
-#         print(f'open {save_tmp } to see generated images after each iteration')
+# #     for beam_id in beam_ids:
+# #         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# #         cropped_imgs = [nn[r1:r2,c1:c2] for nn in N0s]
+# #         clear_pupils[beam_id] = cropped_imgs
+
+# #         # move back 
+# #         print( 'Moving FPM back in beam.')
+# #         message = f"moverel BMX{beam_id} {-rel_offset}"
+# #         res = send_and_get_response(message)
+# #         print(res) 
+# #         time.sleep(1)
+# #         message = f"moverel BMY{beam_id} {-rel_offset}"
+# #         res = send_and_get_response(message)
+# #         print(res) 
+# #         time.sleep(10)
+
+
+# #     # check the alignment is still ok 
+# #     beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
+# #     while beam :
+# #         save_tmp = 'delme.png'
+# #         print(f'open {save_tmp } to see generated images after each iteration')
         
-#         move_relative_and_get_image(cam=c, beam=beam, baldr_pupils = baldr_pupils, phasemask=state_dict["socket"],  savefigName = save_tmp, use_multideviceserver=True )
+# #         move_relative_and_get_image(cam=c, beam=beam, baldr_pupils = baldr_pupils, phasemask=state_dict["socket"],  savefigName = save_tmp, use_multideviceserver=True )
         
-#         beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
+# #         beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
     
 
-#     # ZWFS Pupil
-#     print( 'Getting ZWFS pupils')
-#     I0s = []
-#     for _ in range(NNN):
-#         I0s.append(  c.get_data() )
-#     I0s = np.array(  I0s ).reshape(-1,  I0s[0].shape[1],  I0s[0].shape[2])
+# #     # ZWFS Pupil
+# #     print( 'Getting ZWFS pupils')
+# #     I0s = []
+# #     for _ in range(NNN):
+# #         I0s.append(  c.get_data() )
+# #     I0s = np.array(  I0s ).reshape(-1,  I0s[0].shape[1],  I0s[0].shape[2])
 
-#     for beam_id in beam_ids:
-#         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-#         #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
-#         cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_masks[bb]])
-#         zwfs_pupils[beam_id] = cropped_img
+# #     for beam_id in beam_ids:
+# #         r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# #         #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
+# #         cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
+# #         zwfs_pupils[beam_id] = cropped_img
 
-#     return c, dm_shm_dict, dark_dict, zwfs_pupils, clear_pupils, baldr_pupils, I2A_dict
-
-
-# def process_signal( i, I0, N0):
-#     # must be same as model cal. import from common module
-#     # i is intensity, I0 reference intensity (zwfs in), N0 clear pupil (zwfs out)
-#     return ( i - I0 ) / N0 
+# #     return c, dm_shm_dict, dark_dict, zwfs_pupils, clear_pupils, baldr_pupils, I2A_dict
 
 
+# # def process_signal( i, I0, N0):
+# #     # must be same as model cal. import from common module
+# #     # i is intensity, I0 reference intensity (zwfs in), N0 clear pupil (zwfs out)
+# #     return ( i - I0 ) / N0 
 
 
 
 
-# # PID and leaky integrator copied from /Users/bencb/Documents/asgard-alignment/playground/open_loop_tests_HO.py
-# class PIDController:
-#     def __init__(self, kp=None, ki=None, kd=None, upper_limit=None, lower_limit=None, setpoint=None):
-#         if kp is None:
-#             kp = np.zeros(1)
-#         if ki is None:
-#             ki = np.zeros(1)
-#         if kd is None:
-#             kd = np.zeros(1)
-#         if lower_limit is None:
-#             lower_limit = np.zeros(1)
-#         if upper_limit is None:
-#             upper_limit = np.ones(1)
-#         if setpoint is None:
-#             setpoint = np.zeros(1)
 
-#         self.kp = np.array(kp)
-#         self.ki = np.array(ki)
-#         self.kd = np.array(kd)
-#         self.lower_limit = np.array(lower_limit)
-#         self.upper_limit = np.array(upper_limit)
-#         self.setpoint = np.array(setpoint)
-#         self.ctrl_type = 'PID'
+
+# # # PID and leaky integrator copied from /Users/bencb/Documents/asgard-alignment/playground/open_loop_tests_HO.py
+# # class PIDController:
+# #     def __init__(self, kp=None, ki=None, kd=None, upper_limit=None, lower_limit=None, setpoint=None):
+# #         if kp is None:
+# #             kp = np.zeros(1)
+# #         if ki is None:
+# #             ki = np.zeros(1)
+# #         if kd is None:
+# #             kd = np.zeros(1)
+# #         if lower_limit is None:
+# #             lower_limit = np.zeros(1)
+# #         if upper_limit is None:
+# #             upper_limit = np.ones(1)
+# #         if setpoint is None:
+# #             setpoint = np.zeros(1)
+
+# #         self.kp = np.array(kp)
+# #         self.ki = np.array(ki)
+# #         self.kd = np.array(kd)
+# #         self.lower_limit = np.array(lower_limit)
+# #         self.upper_limit = np.array(upper_limit)
+# #         self.setpoint = np.array(setpoint)
+# #         self.ctrl_type = 'PID'
         
-#         size = len(self.kp)
-#         self.output = np.zeros(size)
-#         self.integrals = np.zeros(size)
-#         self.prev_errors = np.zeros(size)
+# #         size = len(self.kp)
+# #         self.output = np.zeros(size)
+# #         self.integrals = np.zeros(size)
+# #         self.prev_errors = np.zeros(size)
 
-#     def process(self, measured):
-#         measured = np.array(measured)
-#         size = len(self.setpoint)
+# #     def process(self, measured):
+# #         measured = np.array(measured)
+# #         size = len(self.setpoint)
 
-#         if len(measured) != size:
-#             raise ValueError(f"Input vector size must match setpoint size: {size}")
+# #         if len(measured) != size:
+# #             raise ValueError(f"Input vector size must match setpoint size: {size}")
 
-#         # Check all vectors have the same size
-#         error_message = []
-#         for attr_name in ['kp', 'ki', 'kd', 'lower_limit', 'upper_limit']:
-#             if len(getattr(self, attr_name)) != size:
-#                 error_message.append(attr_name)
+# #         # Check all vectors have the same size
+# #         error_message = []
+# #         for attr_name in ['kp', 'ki', 'kd', 'lower_limit', 'upper_limit']:
+# #             if len(getattr(self, attr_name)) != size:
+# #                 error_message.append(attr_name)
         
-#         if error_message:
-#             raise ValueError(f"Input vectors of incorrect size: {' '.join(error_message)}")
+# #         if error_message:
+# #             raise ValueError(f"Input vectors of incorrect size: {' '.join(error_message)}")
 
-#         if len(self.integrals) != size:
-#             print("Reinitializing integrals, prev_errors, and output to zero with correct size.")
-#             self.integrals = np.zeros(size)
-#             self.prev_errors = np.zeros(size)
-#             self.output = np.zeros(size)
+# #         if len(self.integrals) != size:
+# #             print("Reinitializing integrals, prev_errors, and output to zero with correct size.")
+# #             self.integrals = np.zeros(size)
+# #             self.prev_errors = np.zeros(size)
+# #             self.output = np.zeros(size)
 
-#         for i in range(size):
-#             error = measured[i] - self.setpoint[i]  # same as rtc
+# #         for i in range(size):
+# #             error = measured[i] - self.setpoint[i]  # same as rtc
             
-#             if self.ki[i] != 0: # ONLY INTEGRATE IF KI IS NONZERO!! 
-#                 self.integrals[i] += error
-#                 self.integrals[i] = np.clip(self.integrals[i], self.lower_limit[i], self.upper_limit[i])
+# #             if self.ki[i] != 0: # ONLY INTEGRATE IF KI IS NONZERO!! 
+# #                 self.integrals[i] += error
+# #                 self.integrals[i] = np.clip(self.integrals[i], self.lower_limit[i], self.upper_limit[i])
 
-#             derivative = error - self.prev_errors[i]
-#             self.output[i] = (self.kp[i] * error +
-#                               self.ki[i] * self.integrals[i] +
-#                               self.kd[i] * derivative)
-#             self.prev_errors[i] = error
+# #             derivative = error - self.prev_errors[i]
+# #             self.output[i] = (self.kp[i] * error +
+# #                               self.ki[i] * self.integrals[i] +
+# #                               self.kd[i] * derivative)
+# #             self.prev_errors[i] = error
 
-#         return self.output
+# #         return self.output
 
-#     def set_all_gains_to_zero(self):
-#         self.kp = np.zeros( len(self.kp ))
-#         self.ki = np.zeros( len(self.ki ))
-#         self.kd = np.zeros( len(self.kd ))
+# #     def set_all_gains_to_zero(self):
+# #         self.kp = np.zeros( len(self.kp ))
+# #         self.ki = np.zeros( len(self.ki ))
+# #         self.kd = np.zeros( len(self.kd ))
         
-#     def reset(self):
-#         self.integrals.fill(0.0)
-#         self.prev_errors.fill(0.0)
-#         self.output.fill(0.0)
+# #     def reset(self):
+# #         self.integrals.fill(0.0)
+# #         self.prev_errors.fill(0.0)
+# #         self.output.fill(0.0)
         
-#     def get_transfer_function(self, mode_index=0):
-#         """
-#         Returns the transfer function for the specified mode index.
+# #     def get_transfer_function(self, mode_index=0):
+# #         """
+# #         Returns the transfer function for the specified mode index.
 
-#         Parameters:
-#         - mode_index: Index of the mode for which to get the transfer function (default is 0).
+# #         Parameters:
+# #         - mode_index: Index of the mode for which to get the transfer function (default is 0).
         
-#         Returns:
-#         - scipy.signal.TransferFunction: Transfer function object.
-#         """
-#         if mode_index >= len(self.kp):
-#             raise IndexError("Mode index out of range.")
+# #         Returns:
+# #         - scipy.signal.TransferFunction: Transfer function object.
+# #         """
+# #         if mode_index >= len(self.kp):
+# #             raise IndexError("Mode index out of range.")
         
-#         # Extract gains for the selected mode
-#         kp = self.kp[mode_index]
-#         ki = self.ki[mode_index]
-#         kd = self.kd[mode_index]
+# #         # Extract gains for the selected mode
+# #         kp = self.kp[mode_index]
+# #         ki = self.ki[mode_index]
+# #         kd = self.kd[mode_index]
         
-#         # Numerator and denominator for the PID transfer function: G(s) = kp + ki/s + kd*s
-#         # Which can be expressed as G(s) = (kd*s^2 + kp*s + ki) / s
-#         num = [kd, kp, ki]  # coefficients of s^2, s, and constant term
-#         den = [1, 0]        # s term in the denominator for integral action
+# #         # Numerator and denominator for the PID transfer function: G(s) = kp + ki/s + kd*s
+# #         # Which can be expressed as G(s) = (kd*s^2 + kp*s + ki) / s
+# #         num = [kd, kp, ki]  # coefficients of s^2, s, and constant term
+# #         den = [1, 0]        # s term in the denominator for integral action
         
-#         return TransferFunction(num, den)
+# #         return TransferFunction(num, den)
 
-#     def plot_bode(self, mode_index=0):
-#         """
-#         Plots the Bode plot for the transfer function of a specified mode.
+# #     def plot_bode(self, mode_index=0):
+# #         """
+# #         Plots the Bode plot for the transfer function of a specified mode.
 
-#         Parameters:
-#         - mode_index: Index of the mode for which to plot the Bode plot (default is 0).
-#         """
-#         # Get transfer function
-#         tf = self.get_transfer_function(mode_index)
+# #         Parameters:
+# #         - mode_index: Index of the mode for which to plot the Bode plot (default is 0).
+# #         """
+# #         # Get transfer function
+# #         tf = self.get_transfer_function(mode_index)
 
-#         # Generate Bode plot data
-#         w, mag, phase = bode(tf)
+# #         # Generate Bode plot data
+# #         w, mag, phase = bode(tf)
         
-#         # Plot magnitude and phase
-#         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
+# #         # Plot magnitude and phase
+# #         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6))
         
-#         # Magnitude plot
-#         ax1.semilogx(w, mag)  # Bode magnitude plot
-#         ax1.set_title(f"Bode Plot for Mode {mode_index}")
-#         ax1.set_ylabel("Magnitude (dB)")
-#         ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
+# #         # Magnitude plot
+# #         ax1.semilogx(w, mag)  # Bode magnitude plot
+# #         ax1.set_title(f"Bode Plot for Mode {mode_index}")
+# #         ax1.set_ylabel("Magnitude (dB)")
+# #         ax1.grid(True, which="both", linestyle="--", linewidth=0.5)
 
-#         # Phase plot
-#         ax2.semilogx(w, phase)  # Bode phase plot
-#         ax2.set_xlabel("Frequency (rad/s)")
-#         ax2.set_ylabel("Phase (degrees)")
-#         ax2.grid(True, which="both", linestyle="--", linewidth=0.5)
+# #         # Phase plot
+# #         ax2.semilogx(w, phase)  # Bode phase plot
+# #         ax2.set_xlabel("Frequency (rad/s)")
+# #         ax2.set_ylabel("Phase (degrees)")
+# #         ax2.grid(True, which="both", linestyle="--", linewidth=0.5)
 
-#         plt.tight_layout()
-#         plt.show()
-
-
-
-
-# def init_telem_dict(): 
-#     # i_list is intensity measured on the detector
-#     # i_dm_list is intensity interpolated onto DM actuators - it is used only in zonal_interp control methods 
-#     # s_list is processed intensity signal used in the control loop (e.g. I - I0)
-#     # e_* is control error signals 
-#     # u_* is control signals (e.g. after PID control)
-#     # c_* is DM command signals 
-#     telemetry_dict = {
-#         "time" : [],
-#         "i_list" : [],
-#         "i_dm_list":[], 
-#         "s_list" : [],
-#         "e_TT_list" : [],
-#         "u_TT_list" : [],
-#         "c_TT_list" : [], # the next TT cmd to send to ch2
-#         "e_HO_list" : [],
-#         "u_HO_list" : [], 
-#         "c_HO_list" : [], # the next H0 cmd to send to ch2 
-#         "current_dm_ch0" : [], # the current DM cmd on ch1
-#         "current_dm_ch1" : [], # the current DM cmd on ch2
-#         "current_dm_ch2" : [], # the current DM cmd on ch3
-#         "current_dm_ch3" : [], # the current DM cmd on ch4
-#         "current_dm":[], # the current DM cmd (sum of all channels)
-#         "modal_disturb_list":[],
-#         "dm_disturb_list" : []
-#         # "dm_disturb_list" : [],
-#         # "rmse_list" : [],
-#         # "flux_outside_pupil_list" : [],
-#         # "residual_list" : [],
-#         # "field_phase" : [],
-#         # "strehl": []
-#     }
-#     return telemetry_dict
+# #         plt.tight_layout()
+# #         plt.show()
 
 
 
-# ### using SHM camera structure
-# def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
-#     print(
-#         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
-#     )
-#     r1,r2,c1,c2 = baldr_pupils[f"{beam}"]
-#     exit = 0
-#     while not exit:
-#         input_str = input('enter "e" to exit, else input relative movement in um: x,y')
-#         if input_str == "e":
-#             exit = 1
-#         else:
-#             try:
-#                 xy = input_str.split(",")
-#                 x = float(xy[0])
-#                 y = float(xy[1])
 
-#                 if use_multideviceserver:
-#                     #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
-#                     #phasemask.send_string(message)
-#                     message = f"moverel BMX{beam} {x}"
-#                     phasemask.send_string(message)
-#                     response = phasemask.recv_string()
-#                     print(response)
+# # def init_telem_dict(): 
+# #     # i_list is intensity measured on the detector
+# #     # i_dm_list is intensity interpolated onto DM actuators - it is used only in zonal_interp control methods 
+# #     # s_list is processed intensity signal used in the control loop (e.g. I - I0)
+# #     # e_* is control error signals 
+# #     # u_* is control signals (e.g. after PID control)
+# #     # c_* is DM command signals 
+# #     telemetry_dict = {
+# #         "time" : [],
+# #         "i_list" : [],
+# #         "i_dm_list":[], 
+# #         "s_list" : [],
+# #         "e_TT_list" : [],
+# #         "u_TT_list" : [],
+# #         "c_TT_list" : [], # the next TT cmd to send to ch2
+# #         "e_HO_list" : [],
+# #         "u_HO_list" : [], 
+# #         "c_HO_list" : [], # the next H0 cmd to send to ch2 
+# #         "current_dm_ch0" : [], # the current DM cmd on ch1
+# #         "current_dm_ch1" : [], # the current DM cmd on ch2
+# #         "current_dm_ch2" : [], # the current DM cmd on ch3
+# #         "current_dm_ch3" : [], # the current DM cmd on ch4
+# #         "current_dm":[], # the current DM cmd (sum of all channels)
+# #         "modal_disturb_list":[],
+# #         "dm_disturb_list" : []
+# #         # "dm_disturb_list" : [],
+# #         # "rmse_list" : [],
+# #         # "flux_outside_pupil_list" : [],
+# #         # "residual_list" : [],
+# #         # "field_phase" : [],
+# #         # "strehl": []
+# #     }
+# #     return telemetry_dict
 
-#                     message = f"moverel BMY{beam} {y}"
-#                     phasemask.send_string(message)
-#                     response = phasemask.recv_string()
-#                     print(response)
 
-#                 else:
-#                     phasemask.move_relative([x, y])
 
-#                 time.sleep(0.5)
-#                 img = np.mean(
-#                     cam.get_data(),
-#                     axis=0,
-#                 )[r1:r2,c1:c2]
-#                 if savefigName != None:
-#                     plt.figure()
-#                     plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
-#                     plt.colorbar()
-#                     plt.savefig(savefigName)
-#             except:
-#                 print('incorrect input. Try input "1,1" as an example, or "e" to exit')
+# # ### using SHM camera structure
+# # def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True,roi=[None,None,None,None]):
+# #     print(
+# #         f"input savefigName = {savefigName} <- this is where output images will be saved.\nNo plots created if savefigName = None"
+# #     )
+# #     r1,r2,c1,c2 = baldr_pupils[f"{beam}"]
+# #     exit = 0
+# #     while not exit:
+# #         input_str = input('enter "e" to exit, else input relative movement in um: x,y')
+# #         if input_str == "e":
+# #             exit = 1
+# #         else:
+# #             try:
+# #                 xy = input_str.split(",")
+# #                 x = float(xy[0])
+# #                 y = float(xy[1])
 
-#     plt.close()
+# #                 if use_multideviceserver:
+# #                     #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
+# #                     #phasemask.send_string(message)
+# #                     message = f"moverel BMX{beam} {x}"
+# #                     phasemask.send_string(message)
+# #                     response = phasemask.recv_string()
+# #                     print(response)
+
+# #                     message = f"moverel BMY{beam} {y}"
+# #                     phasemask.send_string(message)
+# #                     response = phasemask.recv_string()
+# #                     print(response)
+
+# #                 else:
+# #                     phasemask.move_relative([x, y])
+
+# #                 time.sleep(0.5)
+# #                 img = np.mean(
+# #                     cam.get_data(),
+# #                     axis=0,
+# #                 )[r1:r2,c1:c2]
+# #                 if savefigName != None:
+# #                     plt.figure()
+# #                     plt.imshow( np.log10( img[roi[0]:roi[1],roi[2]:roi[3]] ) )
+# #                     plt.colorbar()
+# #                     plt.savefig(savefigName)
+# #             except:
+# #                 print('incorrect input. Try input "1,1" as an example, or "e" to exit')
+
+# #     plt.close()

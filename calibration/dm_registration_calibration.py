@@ -175,14 +175,14 @@ c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_th
 ####################################################################################
 ####################################################################################
 #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
-bad_ron = np.ones_like( c.get_image() ).astype(bool)
-bad_ron[:, ::32 ] = False
-bad_ron[:, 1::32 ] = False
-bad_ron[:, 2::32 ] = False
-bad_ron[:, 3::32 ] = False
-plt.figure();plt.imshow( bad_ron) ;plt.colorbar() ; plt.savefig('delme.png')
+# bad_ron = np.ones_like( c.get_image() ).astype(bool)
+# bad_ron[:, ::32 ] = False
+# bad_ron[:, 1::32 ] = False
+# bad_ron[:, 2::32 ] = False
+# bad_ron[:, 3::32 ] = False
+# plt.figure();plt.imshow( bad_ron) ;plt.colorbar() ; plt.savefig('delme.png')
 
-c.reduction_dict['bad_pixel_mask'][-1] *= bad_ron
+#c.reduction_dict['bad_pixel_mask'][-1] *= bad_ron
 ####################################################################################
 ####################################################################################
 
