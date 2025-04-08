@@ -15,7 +15,9 @@ import toml
 
 from asgard_alignment import FLI_Cameras as FLI
 from common import phasemask_centering_tool as pct
+from pyBaldr import utilities as util
 import atexit
+
 
 # if server is stuck 
 # sudo lsof -i :5555 then kill the PID 
@@ -119,12 +121,12 @@ parser.add_argument(
     help="how many frames to take in each setting. Default: %(default)s - easy to find"
 )
 
-parser.add_argument(
-    '--cam_mode',
-    type=str,
-    default='globalresetsingle',
-    help="camera mode. Default: %(default)s"
-)
+# parser.add_argument(
+#     '--cam_mode',
+#     type=str,
+#     default='globalresetcds',
+#     help="camera mode. Default: %(default)s"
+# )
 
 
 parser.add_argument(
@@ -195,8 +197,6 @@ if not os.path.exists(args.data_path):
 
 
 
-
-
 ######################################
 # Start Data Acquisition 
 ######################################
@@ -214,7 +214,18 @@ roi = baldr_pupils[args.beam]
 
 c = FLI.fli(roi=roi)
 
-fps_grid = np.array( [20, 50, 100, 200, 500, 1000, 1500])
+c.send_fli_cmd(f"set gain {args.cam_gain}")
+
+
+def get_quick_image() :
+    im = c.get_image(apply_manual_reduction=True) 
+
+    plt.figure();plt.imshow( im) ;plt.savefig( "delme.png" )
+
+
+get_quick_image()
+
+fps_grid = np.array( [ 50, 100, 500, 1000,1500, 1720]) #np.array( [ 1500, 1720]) #
 N0_dict = {} 
 I0_dict = {} 
 
@@ -228,13 +239,16 @@ for fps in fps_grid:
     time.sleep(1)
 
     # get a dark 
-    c.build_manual_dark( )
-
+    c.build_manual_bias(number_of_frames=args.no_frames)
+    c.build_manual_dark(number_of_frames=args.no_frames, 
+                                      apply_manual_reduction=True,
+                                      build_bad_pixel_mask=True, 
+                                      kwargs={'std_threshold':10, 'mean_threshold':10} )
     time.sleep(5)
 
     c.save_fits( fname = args.data_path + fname_base + f'N0_{tstamp}.fits' ,
                  number_of_frames=args.no_frames,
-                 apply_manual_reduction=False)
+                 apply_manual_reduction=True)
 
 
 
@@ -247,111 +261,169 @@ for fps in fps_grid:
 # import glob
 # from astropy.io import fits
 
-# def detect_circle(image, sigma=2, threshold=0.5, plot=False):
-#     """
-#     Detects a circular pupil in a given image using edge detection and circle fitting.
 
-#     Returns:
-#         (center_x, center_y, radius) of the detected pupil.
-#     """
-#     from scipy.ndimage import gaussian_filter
-#     from scipy.optimize import leastsq
+# Get all FITS files
+files = glob.glob(args.data_path + "*fits")
 
-#     # Normalize and smooth the image
-#     image = image / np.max(image)
-#     smoothed_image = gaussian_filter(image, sigma=sigma)
+def extract_fps(filename):
+    import re
+    """
+    Extracts the fps value from the filename using a regular expression.
+    Assumes the filename contains 'fps-<number>'.
+    Returns the fps as an integer. If not found, returns a large number to sort it to the end.
+    """
+    m = re.search(r'fps-(\d+)', filename)
+    if m:
+        return int(m.group(1))
+    return float('inf')
 
-#     # Compute gradient-based edge detection
-#     grad_x = np.gradient(smoothed_image, axis=1)
-#     grad_y = np.gradient(smoothed_image, axis=0)
-#     edges = np.sqrt(grad_x**2 + grad_y**2)
-
-#     # Threshold the edges
-#     binary_edges = edges > (threshold * edges.max())
-
-#     # Get edge coordinates
-#     y, x = np.nonzero(binary_edges)
-
-#     # Initial guess: Center is mean position of edge points
-#     center_x, center_y = np.mean(x), np.mean(y)
-#     radius = np.sqrt(((x - center_x) ** 2 + (y - center_y) ** 2).mean())
-
-#     if plot:
-#         import matplotlib.pyplot as plt
-#         fig, ax = plt.subplots()
-#         ax.imshow(image, cmap="gray", origin="upper")
-#         circle = plt.Circle((center_x, center_y), radius, color='red', fill=False)
-#         ax.add_patch(circle)
-#         ax.scatter(center_x, center_y, color='blue', marker='+')
-#         plt.title("Detected Pupil")
-#         plt.show()
-
-#     return int(center_x), int(center_y), int(radius)
+# Sort the files based on the extracted fps value.
+sorted_files = sorted(files, key=extract_fps)
 
 
-# # Get all FITS files
-# files = glob.glob("*fits")
+# Store results
+fps_list = []
+snr_list = []
+snr_unc_list = []
+mean_list = []
+mean_unc_list = []
+# Process each FITS file
+for file in sorted_files:
+    with fits.open(file) as hdul:
+        # Extract FPS from header
+        fps = float(hdul[0].header.get("FPS", -1))  # Use -1 if FPS is missing
+        print(f"file {file} with fps {fps}")
+        if fps == -1:
+            print(f"Warning: FPS not found in {file}. Skipping.")
+            continue
 
-# # Store results
-# fps_list = []
-# snr_list = []
+        # Read frames (shape: (1000, 53, 54))
+        frames = hdul['FRAMES'].data  # Shape: (1000, 53, 54)
 
-# # Process each FITS file
-# for file in files:
-#     with fits.open(file) as hdul:
-#         # Extract FPS from header
-#         fps = float(hdul[0].header.get("FPS", -1))  # Use -1 if FPS is missing
+        if frames is None:
+            print(f"Warning: No frame data in {file}. Skipping.")
+            continue
 
-#         if fps == -1:
-#             print(f"Warning: FPS not found in {file}. Skipping.")
-#             continue
+        # Sum over time axis (0) to get the pupil image
+        summed_image = np.sum(frames, axis=0)  # Shape: (53, 54)
 
-#         # Read frames (shape: (1000, 53, 54))
-#         frames = hdul['FRAMES'].data  # Shape: (1000, 53, 54)
+        # Detect pupil in summed image
+        center_x, center_y, radius = util.detect_circle(summed_image, plot=False)
 
-#         if frames is None:
-#             print(f"Warning: No frame data in {file}. Skipping.")
-#             continue
+        # Define pupil mask
+        y, x = np.ogrid[:frames.shape[1], :frames.shape[2]]
+        pupil_mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
 
-#         # Sum over time axis (0) to get the pupil image
-#         summed_image = np.sum(frames, axis=0)  # Shape: (53, 54)
+        # Extract pupil pixels over all 1000 frames
+        pupil_pixels = frames[:, pupil_mask]  # Shape: (1000, pupil_pixels)
 
-#         # Detect pupil in summed image
-#         center_x, center_y, radius = detect_circle(summed_image, plot=False)
+        # Compute mean signal per frame in pupil region
+        mean_signal_per_frame = np.mean(pupil_pixels, axis=1)  # Mean over pupil pixels
 
-#         # Define pupil mask
-#         y, x = np.ogrid[:frames.shape[1], :frames.shape[2]]
-#         pupil_mask = (x - center_x)**2 + (y - center_y)**2 <= radius**2
+        # Compute standard deviation across frames
+        std_signal_over_time = np.std(mean_signal_per_frame)  # STD over 1000 frames
 
-#         # Extract pupil pixels over all 1000 frames
-#         pupil_pixels = frames[:, pupil_mask]  # Shape: (1000, pupil_pixels)
+        mean_signal_over_time = np.mean(mean_signal_per_frame) 
 
-#         # Compute mean signal per frame in pupil region
-#         mean_signal_per_frame = np.mean(pupil_pixels, axis=1)  # Mean over pupil pixels
+        # Compute SNR ratio
+        snr = mean_signal_over_time / std_signal_over_time
+        
+        delta_m = std_signal_over_time / np.sqrt(len(mean_signal_per_frame))
+        delta_sigma = std_signal_over_time / np.sqrt(2 * len(mean_signal_per_frame))
 
-#         # Compute standard deviation across frames
-#         std_signal_over_time = np.std(mean_signal_per_frame)  # STD over 1000 frames
+        # Error propagation:
+        delta_snr = np.sqrt((delta_m / std_signal_over_time)**2 + ((mean_signal_over_time * delta_sigma) / std_signal_over_time**2)**2)
 
-#         # Compute SNR ratio
-#         snr = np.mean(mean_signal_per_frame) / std_signal_over_time
+        # Store results
+        fps_list.append(fps)
+        snr_list.append(snr)
+        snr_unc_list.append(delta_snr)
+        mean_list.append(  mean_signal_over_time )
+        mean_unc_list.append( delta_m  )
+        print(f"Processed {file}: FPS={fps}, SNR={snr:.2f}")
 
-#         # Store results
-#         fps_list.append(fps)
-#         snr_list.append(snr)
+# Sort FPS in **ascending** order before plotting
+#fps_list, snr_list = zip(*sorted(zip(fps_list, snr_list), key=lambda x: x[0]))
 
-#         print(f"Processed {file}: FPS={fps}, SNR={snr:.2f}")
 
-# # Sort FPS in **ascending** order before plotting
-# fps_list, snr_list = zip(*sorted(zip(fps_list, snr_list), key=lambda x: x[0]))
+# snr ~ a * (tint - bias)^(0.5) + b
+# snr ~ a * tint^(b) 
+m1,b1 = np.polyfit( np.sqrt( 1/ np.array(fps_list) ) , snr_list , deg = 1)
 
-# # Plot results
-# plt.figure(figsize=(8, 5))
-# plt.plot(fps_list, snr_list, marker='o', linestyle='-', color='b')
-# plt.xlabel("Integration Time (1/FPS)")
-# plt.ylabel("Mean Signal / Std Dev")
+fit_label1 = f"Model: SNR = {m1:.2e} sqrt(T) + {b1:.2e}"
+
+m2,b2 = np.polyfit(  np.log10( 1/ np.array(fps_list) )  , np.log10( snr_list ) , deg = 1)
+
+# fit_label2 = f"Model: SNR = {10**(b2):.2e} T ^ {m2:.2e}"
+
+# from scipy.optimize import curve_fit
+# # Define the model function: snr = a * sqrt(tint - bias) + b.
+# # Note: tint - bias must be positive.
+# def model_func(t, a, bias, b):
+#     return a * np.sqrt(t - bias) + b
+
+# # Initial guesses for parameters a, bias, and b.
+# initial_guess = [1.0, 0.0, 0.0]
+
+# # # Fit the model to the data.
+# # # curve_fit will try to adjust a, bias, and b to best match snr_list.
+# # params, covariance = curve_fit(model_func,  1/ np.array(fps_list), snr_list, p0=initial_guess)
+# # a_fit, bias_fit, b_fit = params
+
+# # # Compute the fitted SNR values.
+# # snr_fit = model_func(tint, a_fit, bias_fit, b_fit)
+
+# # # Create a label string with the fitted coefficients in scientific notation (2 decimals).
+# # fit_label = f"Model: snr = {a_fit:.2e} √(tint - {bias_fit:.2e}) + {b_fit:.2e}"
+# # snr_fit = model_func(1/ np.array(fps_list), a_fit, bias_fit, b_fit)
+
+
+kwargs = {"fontsize":15}
+
+fit_label1_norm_gain1 = f"Model: SNR = {m1/args.cam_gain:.2e} sqrt(T) + {b1/args.cam_gain:.2e}"
+
+# Plot results
+plt.figure(figsize=(8, 5))
+#plt.plot( 1/ np.array(fps_list) , (m1* np.sqrt( 1/ np.array(fps_list) ) + b1)/ args.cam_gain,  ":", color='k', label= fit_label1_norm_gain1  )
+plt.plot( 1/ np.array(fps_list) , (m1* np.sqrt( 1/ np.array(fps_list) ) + b1),  ":", color='k', label= fit_label1 )
+#plt.plot( 1/ np.array(fps_list) , (10**b2) * ( 1/ np.array(fps_list) )**(m2) , ":", color='k',label= fit_label2 )
+#plt.plot(1/ np.array(fps_list), 100 * (1/ np.array(fps_list) )**0.5 , label=r"$\sqrt{t}$", color='r')
+plt.errorbar(1/ np.array(fps_list), np.array(snr_list) , yerr=snr_unc_list, fmt='.', color='b', ecolor='b', capsize=0, label="Measured")
+plt.xscale('log')
+plt.yscale('log')
+plt.ylim( [10, 1000])
+#plt.loglog( 1/ np.array(fps_list) , snr_list, marker='o', linestyle='-', color='b')
+plt.xlabel("Integration Time [s]", kwargs)
+plt.ylabel(r"Clear Pupil Pixel SNR [$\mu/\sigma$]", kwargs)
+plt.text( 5e-3, 50, f"C-RED One\nmode = CDS\ngain = {args.cam_gain}" )
+plt.gca().tick_params(labelsize=15)
+plt.legend()
 # plt.title("SNR vs Integration Time")
-# plt.grid(True)
-# plt.show()
+plt.grid(True)
+'clear_pupil_SNR_vs_tint.jpeg'
+"clear_pupil_SNR_vs_tint.jpeg"
+'/home/asg/Progs/repos/asgard-alignment/delme.png'
+plt.savefig(args.data_path + "clear_pupil_SNR_vs_tint.jpeg" ,bbox_inches = 'tight', dpi=200)
+#plt.show()
+
+
+kwargs = {"fontsize":15}
+# Plot results
+plt.figure(figsize=(8, 5))
+#plt.loglog( 1/ np.array(fps_list) , mean_list, marker='o', linestyle='-', color='b')
+plt.errorbar(x=1/ np.array(fps_list), y=mean_list, yerr=mean_unc_list,  color='b', ecolor='b', capsize=0)
+plt.xscale('log')
+plt.yscale('log')
+plt.xlabel("Integration Time [s]", kwargs)
+plt.ylabel(r"Clear Pupil Pixel Mean [ADU]", kwargs)
+plt.gca().tick_params(labelsize=15)
+# plt.title("SNR vs Integration Time")
+plt.grid(True)
+plt.savefig('/home/asg/Progs/repos/asgard-alignment/clear_pupil_adu_vs_tint.jpeg',bbox_inches = 'tight', dpi=200)
+#plt.show()
+
+
+
 
 
 

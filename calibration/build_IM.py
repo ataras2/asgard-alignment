@@ -138,18 +138,26 @@ parser.add_argument(
     help="What flat do we use on the DM during the calibration. either 'baldr' or 'factory'. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--cam_fps',
+    type=int,
+    default=100,
+    help="frames per second on camera. Default: %(default)s"
+)
 
-# parser.add_argument(
-#     "--inverse_method",
-#     type=str,
-#     default="pinv",
-#     help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
-# )
+
+parser.add_argument(
+    '--cam_gain',
+    type=int,
+    default=1,
+    help="camera gain. Default: %(default)s"
+)
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='', 
+                    default='~/Downloads/', 
                     help="path/to/output/image/ for the saved figures")
+
 
 
 
@@ -204,9 +212,10 @@ for beam_id in args.beam_id:
 # get_new_dark = False
 # if get_new_dark:
 #     script_path = "/home/asg/Progs/repos/asgard-alignment/calibration/gen_dark_bias_badpix.py"
+#     params = [--gains, f"{args.cam_gain}", --fps, f"{args.cam_fps}"]
 #     try:
 #         # Run the script and ensure it completes
-#         with subprocess.Popen(["python", script_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#         with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
 #             stdout, stderr = process.communicate()  # Wait for process to complete
 
 #             if process.returncode == 0:
@@ -232,11 +241,11 @@ for beam_id in args.beam_id:
 ####################################################################################
 ####################################################################################
 #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
-bad_ron = np.ones( [256,320] ).astype(bool) 
-bad_ron[:, ::32 ] = False
-bad_ron[:, 1::32 ] = False
-bad_ron[:, 2::32 ] = False
-bad_ron[:, 3::32 ] = False
+# bad_ron = np.ones( [256,320] ).astype(bool) 
+# bad_ron[:, ::32 ] = False
+# bad_ron[:, 1::32 ] = False
+# bad_ron[:, 2::32 ] = False
+# bad_ron[:, 3::32 ] = False
 ####################################################################################
 ####################################################################################
 c_dict = {}
@@ -245,7 +254,15 @@ for beam_id in args.beam_id:
     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
     #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
     #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
-    c_dict[beam_id].build_manual_bias(number_of_frames=500)
+
+    # change to append master dark , bias , bad pixel mask 
+    c_dict[beam_id].send_fli_cmd(f"set gain {args.cam_gain}") 
+    time.sleep(1)
+    c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_fps}")
+    time.sleep(1)
+
+    c_dict[beam_id].build_manual_bias(number_of_frames=500) # sets to fastest fps (keeping current gain) to calculate bias 
+
     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
                                       apply_manual_reduction=True,
                                       build_bad_pixel_mask=True, 
@@ -254,7 +271,7 @@ for beam_id in args.beam_id:
     ####################################################################################
     ####################################################################################
     #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
-    c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] *= bad_ron[r1:r2,c1:c2]
+    # c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] *= bad_ron[r1:r2,c1:c2]
     ####################################################################################
     ####################################################################################
 
@@ -366,7 +383,17 @@ for beam_id in args.beam_id:
 
 
 # check the alignment is still ok 
-input('ensure mask is realigned')
+#input('ensure mask is realigned')
+print("running fine mask alignment")
+for beam_id in args.beam_id:
+    cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","brute_scan"]
+
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+        stdout, stderr = process.communicate()
+
+    print("STDOUT:", stdout)
+    print("STDERR:", stderr)
+
 
 # beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
 # while beam :
@@ -629,7 +656,7 @@ dm_shm_dict[beam_id].activate_calibrated_flat()
 #  # we store all reference images as flattened array , boolean masks as ints
 dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                 "build_method":"double-sided-poke",
-                                                "DM_flat ":args.DM_flat.lower(),
+                                                "DM_flat":args.DM_flat.lower(),
                                                 "signal_space":args.signal_space.lower(),
                                                "crop_pixels":baldr_pupils[f"{beam_id}"], # global corners (r1,r2,c1,c2) of sub pupil cropping region  (local frame)
                                                "pupil_pixels" : np.where(  np.array( pupil_mask[beam_id] ).reshape(-1) ),  # pupil pixels in local frame 

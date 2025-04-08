@@ -6,6 +6,10 @@ import argparse
 import os
 import json
 import time
+import datetime
+import subprocess 
+import glob 
+from astropy.io import fits
 import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
 
@@ -40,16 +44,19 @@ def plot_strehl_pixel_registration(data , exterior_filter, secondary_filter, sav
 
     label = "I0-N0"
     fs = 18
-    # Exterior filter boundaries (red)
-    ext_x_min, ext_x_max = 0.5 + np.min(np.where(np.abs(np.diff(exterior_filter, axis=1)) > 0)[1]), \
-                        0.5 + np.max(np.where(np.abs(np.diff(exterior_filter, axis=1)) > 0)[1])
-    ext_y_min, ext_y_max = 0.5+ np.min(np.where(np.abs(np.diff(exterior_filter, axis=0)) > 0)[0]), \
-                        0.5 + np.max(np.where(np.abs(np.diff(exterior_filter, axis=0)) > 0)[0])
-    # Secondary filter boundaries (blue)
-    sec_x_min, sec_x_max =  0.5 + np.min( np.where( abs(np.diff( secondary_filter, axis=1  )) > 0)[1] ), \
-                            0.5 + np.max( np.where( abs(np.diff( secondary_filter, axis=1  )) > 0)[1] )
-    sec_y_min, sec_y_max =  0.5 + np.min( np.where( abs(np.diff( secondary_filter, axis=0   )) > 0)[0] ), \
-                            0.5 + np.max( np.where( abs(np.diff( secondary_filter, axis=0  )) > 0)[0] )
+    if np.sum( exterior_filter ):
+        # Exterior filter boundaries (red)
+        ext_x_min, ext_x_max = 0.5 + np.min(np.where(np.abs(np.diff(exterior_filter, axis=1)) > 0)[1]), \
+                            0.5 + np.max(np.where(np.abs(np.diff(exterior_filter, axis=1)) > 0)[1])
+        ext_y_min, ext_y_max = 0.5+ np.min(np.where(np.abs(np.diff(exterior_filter, axis=0)) > 0)[0]), \
+                            0.5 + np.max(np.where(np.abs(np.diff(exterior_filter, axis=0)) > 0)[0])
+    
+    if np.sum( secondary_filter ):   
+        # Secondary filter boundaries (blue)
+        sec_x_min, sec_x_max =  0.5 + np.min( np.where( abs(np.diff( secondary_filter, axis=1  )) > 0)[1] ), \
+                                0.5 + np.max( np.where( abs(np.diff( secondary_filter, axis=1  )) > 0)[1] )
+        sec_y_min, sec_y_max =  0.5 + np.min( np.where( abs(np.diff( secondary_filter, axis=0   )) > 0)[0] ), \
+                                0.5 + np.max( np.where( abs(np.diff( secondary_filter, axis=0  )) > 0)[0] )
 
     # Create figure and gridspec for joint plot
     fig = plt.figure(figsize=(10, 8))
@@ -90,53 +97,61 @@ def plot_strehl_pixel_registration(data , exterior_filter, secondary_filter, sav
     # Draw contours for the filter regions 
     # --------------------------
     # Convert boolean filters to float so that contour finds a level at 0.5.
-    ax_main.contour(exterior_filter.astype(float), levels=[0.5], extent=[-0.5, data.shape[1]-0.5, -0.5, data.shape[0]-0.5],
-                    colors='red', linestyles='-', linewidths=2, origin='lower')
-    ax_main.contour(secondary_filter.astype(float), levels=[0.5], extent=[-0.5, data.shape[1]-0.5, -0.5, data.shape[0]-0.5],
-                    colors='blue', linestyles='-', linewidths=2, origin='lower')
+    if np.sum( exterior_filter ):
+        ax_main.contour(exterior_filter.astype(float), levels=[0.5], extent=[-0.5, data.shape[1]-0.5, -0.5, data.shape[0]-0.5],
+                        colors='red', linestyles='-', linewidths=2, origin='lower')
 
-    ex_coords = np.argwhere(exterior_filter)      # shape (N, 2)
-    sec_coords = np.argwhere(secondary_filter)    # shape (M, 2)
+        ex_coords = np.argwhere(exterior_filter)      # shape (N, 2)
 
-    # Plot a cross at each True pixel - to be ABSOLUTTTELY SURE
-    # Note: row = y, col = x. So when calling scatter or plot, pass x=col, y=row.
-    ax_main.scatter(ex_coords[:,1], ex_coords[:,0],
-                    marker='x', color='red', alpha =0.4, label='Exterior Filter')
+        # Plot a cross at each True pixel - to be ABSOLUTTTELY SURE
+        # Note: row = y, col = x. So when calling scatter or plot, pass x=col, y=row.
+        ax_main.scatter(ex_coords[:,1], ex_coords[:,0],
+                        marker='x', color='red', alpha =0.4, label='Exterior Filter')
 
-    ax_main.scatter(sec_coords[:,1], sec_coords[:,0],
-                    marker='x', color='blue',alpha =0.4, label='Secondary Filter')
+    if np.sum( secondary_filter ):    
+        ax_main.contour(secondary_filter.astype(float), levels=[0.5], extent=[-0.5, data.shape[1]-0.5, -0.5, data.shape[0]-0.5],
+                        colors='blue', linestyles='-', linewidths=2, origin='lower')
+
+        sec_coords = np.argwhere(secondary_filter)    # shape (M, 2)
+
+        ax_main.scatter(sec_coords[:,1], sec_coords[:,0],
+                        marker='x', color='blue',alpha =0.4, label='Secondary Filter')
 
     ax_main.legend(fontsize=fs)
     # --------------------------
     # Draw vertical lines on the x-axis (top histogram and main heatmap)
 
     # Exterior filter (red)
-    ax_xhist.axvline(ext_x_min, color='red', linestyle='--', linewidth=2, label='Exterior Boundary')
-    ax_xhist.axvline(ext_x_max, color='red', linestyle='--', linewidth=2)
-    ax_main.axvline(ext_x_min, color='red', linestyle='--', linewidth=2)
-    ax_main.axvline(ext_x_max, color='red', linestyle='--', linewidth=2)
+    if np.sum( exterior_filter ):
+        ax_xhist.axvline(ext_x_min, color='red', linestyle='--', linewidth=2, label='Exterior Boundary')
+        ax_xhist.axvline(ext_x_max, color='red', linestyle='--', linewidth=2)
+        ax_main.axvline(ext_x_min, color='red', linestyle='--', linewidth=2)
+        ax_main.axvline(ext_x_max, color='red', linestyle='--', linewidth=2)
 
     # Secondary filter (blue)
-    ax_xhist.axvline(sec_x_min, color='blue', linestyle='--', linewidth=2, label='Secondary Boundary')
-    ax_xhist.axvline(sec_x_max, color='blue', linestyle='--', linewidth=2)
-    ax_main.axvline(sec_x_min, color='blue', linestyle='--', linewidth=2)
-    ax_main.axvline(sec_x_max, color='blue', linestyle='--', linewidth=2)
+    if np.sum( secondary_filter ):  
+        ax_xhist.axvline(sec_x_min, color='blue', linestyle='--', linewidth=2, label='Secondary Boundary')
+        ax_xhist.axvline(sec_x_max, color='blue', linestyle='--', linewidth=2)
+        ax_main.axvline(sec_x_min, color='blue', linestyle='--', linewidth=2)
+        ax_main.axvline(sec_x_max, color='blue', linestyle='--', linewidth=2)
 
     #ax_xhist.legend(loc='upper right', fontsize=fs)
 
     # Draw horizontal lines on the y-axis (right histogram and main heatmap)
     # --------------------------
     # Exterior filter (red)
-    ax_yhist.axhline(ext_y_min, color='red', linestyle='--', linewidth=2)
-    ax_yhist.axhline(ext_y_max, color='red', linestyle='--', linewidth=2)
-    ax_main.axhline(ext_y_min, color='red', linestyle='--', linewidth=2)
-    ax_main.axhline(ext_y_max, color='red', linestyle='--', linewidth=2)
+    if np.sum( exterior_filter ):
+        ax_yhist.axhline(ext_y_min, color='red', linestyle='--', linewidth=2)
+        ax_yhist.axhline(ext_y_max, color='red', linestyle='--', linewidth=2)
+        ax_main.axhline(ext_y_min, color='red', linestyle='--', linewidth=2)
+        ax_main.axhline(ext_y_max, color='red', linestyle='--', linewidth=2)
 
     # Secondary filter (blue)
-    ax_yhist.axhline(sec_y_min, color='blue', linestyle='--', linewidth=2)
-    ax_yhist.axhline(sec_y_max, color='blue', linestyle='--', linewidth=2)
-    ax_main.axhline(sec_y_min, color='blue', linestyle='--', linewidth=2)
-    ax_main.axhline(sec_y_max, color='blue', linestyle='--', linewidth=2)
+    if np.sum( secondary_filter ):  
+        ax_yhist.axhline(sec_y_min, color='blue', linestyle='--', linewidth=2)
+        ax_yhist.axhline(sec_y_max, color='blue', linestyle='--', linewidth=2)
+        ax_main.axhline(sec_y_min, color='blue', linestyle='--', linewidth=2)
+        ax_main.axhline(sec_y_max, color='blue', linestyle='--', linewidth=2)
 
 
     ax_xhist.tick_params(labelsize=15)
@@ -149,6 +164,8 @@ def plot_strehl_pixel_registration(data , exterior_filter, secondary_filter, sav
         print( f"saving image {savepath}")
     #plt.show()
     plt.close()
+
+
 
 parser = argparse.ArgumentParser(description="Interaction and control matricies for fine phasemask alignment")
 
@@ -178,7 +195,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1,2,3,4], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -211,7 +228,7 @@ parser.add_argument(
 
 args=parser.parse_args()
 
-
+tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
 
 # set up commands to move motors phasemask
 context = zmq.Context()
@@ -226,8 +243,6 @@ state_dict = {"message_history": [], "socket": socket}
 #########################
 
 
-
-
 pupil_masks = {}
 for beam_id in args.beam_id:
 
@@ -238,10 +253,12 @@ for beam_id in args.beam_id:
         baldr_pupils = config_dict['baldr_pupils'] 
 
 
-c_dict = {}
-for beam_id in args.beam_id:
-    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-    c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
+#c_dict = {}
+# just open one camera
+c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+# for beam_id in args.beam_id:
+#     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+#     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
 
 #####################
 #Hard coded frame rate and gain 
@@ -249,23 +266,93 @@ for beam_id in args.beam_id:
 
 
 ## get initial gain and fps
-fps0 = FLI.extract_value( c_dict[beam_id].send_fli_cmd( "fps raw" ) ) 
-gain0 = FLI.extract_value( c_dict[beam_id].send_fli_cmd( "gain raw" ) ) 
+# fps0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "fps raw" ) ) 
+# gain0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "gain raw" ) ) 
+fps0 = FLI.extract_value( c.send_fli_cmd( "fps raw" ) ) 
+gain0 = FLI.extract_value( c.send_fli_cmd( "gain raw" ) ) 
+
 
 
 ## Set to standard hard coded frame rate and gain for this script
-c_dict[beam_id].send_fli_cmd(f"set fps {hc_fps}")
+# c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {hc_fps}")
+# time.sleep(1)
+# c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {hc_gain}")
+# time.sleep(1)
+c.send_fli_cmd(f"set fps {hc_fps}")
 time.sleep(1)
-c_dict[beam_id].send_fli_cmd(f"set gain {hc_gain}")
+c.send_fli_cmd(f"set gain {hc_gain}")
 time.sleep(1)
 
-for beam_id in args.beam_id:
-    c_dict[beam_id].build_manual_bias(number_of_frames=500)
-    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
-                                      apply_manual_reduction=True,
-                                      build_bad_pixel_mask=True, 
-                                      sleeptime = 10,
-                                      kwargs={'std_threshold':10, 'mean_threshold':6} )
+# get new darks, bias bad pixel map 
+# #---------- New Darks 
+# run a new set of darks 
+# we should later just find a recent one that fits settings and then go with that 
+
+
+valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
+
+
+#
+if not valid_cal_files: # then we generate new ones 
+    print( "no valid calibration files within the last few days. Taking new ones! ")
+    script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
+    params = ["--gains", f"{hc_gain}", 
+              "--fps", f"{hc_fps}", 
+              "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
+              "--method", "linear_fit" ]
+    try:
+        # Run the script and ensure it completes
+        with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            stdout, stderr = process.communicate()  # Wait for process to complete
+
+            if process.returncode == 0:
+                print("Script executed successfully!")
+                print(stdout)  # Print standard output (optional)
+            else:
+                print(f"Script failed with error:\n{stderr}")
+
+    except Exception as e:
+        print(f"Error running script: {e}")
+
+
+# get darks and bad pixels 
+bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
+dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
+raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
+
+for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
+    # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
+    most_recent = max(ff, key=os.path.getmtime) 
+    with fits.open( most_recent ) as d:
+        c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
+        #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+        #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
+
+# bad pixels 
+most_recent = max(raw_darks_files , key=os.path.getmtime) 
+with fits.open( most_recent ) as d:
+
+    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
+    bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+    c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+
+    # for beam_id in args.beam_id:
+    #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+    #     # we reverse so its true on pixels we want to keep 
+    #     c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int)[r1:r2, c1:c2] )
+
+
+#c_dict[beam_id].reduction_dict["dark"].append( dark )
+
+
+# for beam_id in args.beam_id:
+#     c_dict[beam_id].build_manual_bias(number_of_frames=500)
+#     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+#                                       apply_manual_reduction=True,
+#                                       build_bad_pixel_mask=True, 
+#                                       sleeptime = 10,
+#                                       kwargs={'std_threshold':10, 'mean_threshold':6} )
   
 
 
@@ -296,26 +383,38 @@ for beam_id in args.beam_id:
 ########____ ASSUME THAT WE HAAVE THINGS ALIGNED WHEN CALLING THIS SCRIPT 
 zwfs_pupils = {}
 for beam_id in args.beam_id:
-    zwfs_pupils[beam_id] = float(c_dict[beam_id].config['fps']) * np.mean( 
-                c_dict[beam_id].get_some_frames( 
-                    number_of_frames = 1000, 
-                    apply_manual_reduction = True ),
-                    axis = 0) # ADU/s !   
+    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+    # zwfs_pupils[beam_id] = float(c_dict[beam_id].config['fps']) * np.mean( 
+    #     c_dict[beam_id].get_data( 
+    #         apply_manual_reduction = True ),
+    #         axis = 0) # ADU/s !    so we multiply by FPS
+
+    zwfs_pupils[beam_id] = float(c.config['fps']) * np.mean( 
+        c.get_data( 
+            apply_manual_reduction = True ),
+            axis = 0)[r1:r2,c1:c2] # ADU/s !    so we multiply by FPS
+
+
 
 
 # Get reference pupils (later this can just be a SHM address)
 clear_pupils = {}
 secondary_filter_dict = {}
 exterior_filter_dict = {}
+#initial_pos = {}
 rel_offset = 200.0 #um phasemask offset for clear pupil
 print( 'Moving FPM out to get clear pupils')
 for beam_id in args.beam_id:
+
+    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+
     message = f"moverel BMX{beam_id} {rel_offset}"
     res = send_and_get_response(message)
     print(res) 
     time.sleep(2)
     print( 'gettin clear pupils')
-    N0s = c_dict[beam_id].get_some_frames(number_of_frames = 1000, apply_manual_reduction=True) 
+    N0s = c.get_data( apply_manual_reduction=True)
+    #N0s = c_dict[beam_id].get_data( apply_manual_reduction=True) #get_some_frames(number_of_frames = 1000, apply_manual_reduction=True) 
 
     # move back (so we have time buffer while calculating b)
     print( 'Moving FPM back in beam.')
@@ -325,25 +424,22 @@ for beam_id in args.beam_id:
     time.sleep(2)
 
     # Now procees/fit the pupil  (ADU/S)!!
-    clear_pupils[beam_id] = float(c_dict[beam_id].config['fps']) *  np.mean( N0s , axis=0) 
-
+    #clear_pupils[beam_id] = float(c_dict[beam_id].config['fps']) *  np.mean( N0s , axis=0)
+    clear_pupils[beam_id] = float(c.config['fps']) *  np.mean( N0s , axis=0)[r1:r2,c1:c2]
 
     ### DETECT A PUPIL MASK FROM CLEAR MASK 
     center_x, center_y, a, b, theta, pupil_mask = util.detect_pupil(clear_pupils[beam_id], sigma=2, threshold=0.5, plot=False, savepath=None)
 
 
+    # for beam_id in args.beam_id:
+    #     message = f"read BMX{beam_id}"
+    #     initial_Xpos = float(send_and_get_response(message))
 
-    initial_pos = {}
-    for beam_id in args.beam_id:
-        message = f"read BMX{beam_id}"
-        initial_Xpos = float(send_and_get_response(message))
-
-        message = f"read BMY{beam_id}"
-        initial_Ypos = float(send_and_get_response(message))
+    #     message = f"read BMY{beam_id}"
+    #     initial_Ypos = float(send_and_get_response(message))
         
-        # definition is [X,Y]
-        initial_pos[beam_id] = [initial_Xpos, initial_Ypos]
-
+    #     # definition is [X,Y]
+    #     initial_pos[beam_id] = [initial_Xpos, initial_Ypos]
 
 
     secondary_filter = util.get_secondary_mask(pupil_mask, (center_x, center_y))
@@ -392,11 +488,14 @@ for beam_id in args.beam_id:
 
 
 print("returning back to prior camera settings")
-c_dict[beam_id].send_fli_cmd(f"set fps {fps0}")
+# c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {fps0}")
+# time.sleep(1)
+# c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {gain0}")
+# time.sleep(1)
+c.send_fli_cmd(f"set fps {fps0}")
 time.sleep(1)
-c_dict[beam_id].send_fli_cmd(f"set gain {gain0}")
+c.send_fli_cmd(f"set gain {gain0}")
 time.sleep(1)
-
 
 print('saving output figure')
 
@@ -406,6 +505,7 @@ try:
             savepath=f"delme{beam_id}.png"
         else: # we save with default name at fig path 
             savepath=args.fig_path + f'strehl_pixel_filter{beam_id}.png'
+
         print(f"saving figure at : {savepath}")
         
         plot_strehl_pixel_registration( data = np.array( zwfs_pupils[beam_id] ) - np.array( clear_pupils[beam_id] ),  
@@ -421,7 +521,9 @@ except Exception as e:
 
 print("closing camera and DM SHM objects")
 
+c.close(erase_file=False)
 for beam_id in args.beam_id:
-    c_dict[beam_id].close(erase_file=False)
+    #c_dict[beam_id].close(erase_file=False)
+    
     dm_shm_dict[beam_id].close(erase_file=False)
 

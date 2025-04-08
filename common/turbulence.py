@@ -30,6 +30,15 @@ parser.add_argument(
     help="how many iterations do we run? %(default)s"
 )
 
+
+parser.add_argument(
+    '--max_time',
+    type=int,
+    default=120,
+    help="maximum time to run this for (in seconds)? %(default)s"
+)
+
+
 parser.add_argument(
     '--wvl',
     type=float,
@@ -169,7 +178,8 @@ for beam in args.beam_id:
 # remember we stop recording telemetry (if requested) when cnt > 1e5
 telem = {"t_dm":[], "dm_disturb":[]}
 cnt = 0 
-while cnt < args.number_of_iterations:
+start_time = time.time()
+while (not (cnt > args.number_of_iterations) ) and (not (time_elapsed > args.max_time)):
 
     t0 = time.time() #iteration start time
     
@@ -212,6 +222,7 @@ while cnt < args.number_of_iterations:
         time.sleep( dt - (t1-t0))
 
     cnt += 1 
+    time_elapsed = t1 - start_time
 
 
 print("DONE - returning DM to flat and closing DM SHM")

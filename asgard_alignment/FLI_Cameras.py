@@ -851,9 +851,10 @@ class fli( ):
         self.mySHM.catch_up_with_sem(self.semid)
         # do this as fast as possible (manual reduction is done after)
         while len(frames) < number_of_frames:
+
             fullframe = self.mySHM.get_latest_data_slice( self.semid )
             frames.append( fullframe[self.pupil_crop_region[0]:self.pupil_crop_region[1],self.pupil_crop_region[2]: self.pupil_crop_region[3]] )
-            cnt.append( fullframe[0][0])
+            cnt.append( fullframe[0][0] )
 
         # delete this later but keep for now to test behaviour!         
         
@@ -928,7 +929,10 @@ class fli( ):
         # append reduction info
         for k, v in self.reduction_dict.items():
             if len(v) > 0 :
-                hdu = fits.ImageHDU( v[-1] )
+                if np.array( v[-1] ).dtype == 'bool':
+                    hdu = fits.ImageHDU(  np.array( v[-1] ).astype(int) )
+                else:
+                    hdu = fits.ImageHDU( v[-1] )
                 hdu.header['EXTNAME'] = k
                 hdulist.append(hdu)
             else: # we just append empty list to show that its empty!
@@ -940,8 +944,8 @@ class fli( ):
 
 
     def close(self, erase_file=False):
-        print('setting gain = 1 before closing')
-        self.send_fli_cmd( "set gain 1" )
+        #print('setting gain = 1 before closing')
+        #self.send_fli_cmd( "set gain 1" )
         self.mySHM.close( erase_file = erase_file)
         print(f'closed camera SHM that used target {self.shm_loc}') 
 
@@ -1004,7 +1008,7 @@ if __name__ == "__main__":
 
     dark_dict = {}
     gain_grid = np.arange(1, 6).astype(int)
-    fps_grid = [25, 50, 100, 200, 500, 1000, 1700]
+    fps_grid = [100, 200, 500, 1000, 1700] #[25, 50, 100, 200, 500, 1000, 1700]
     number_of_frames = 500
     for cnt, gain in enumerate( gain_grid ):
         

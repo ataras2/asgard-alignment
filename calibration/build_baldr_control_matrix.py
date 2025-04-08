@@ -104,6 +104,13 @@ parser.add_argument(
     help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
 )
 
+parser.add_argument("--fig_path", 
+                    type=str, 
+                    default='~/Downloads/', 
+                    help="path/to/output/image/ for the saved figures"
+                    )
+
+
 
 args=parser.parse_args()
 
@@ -200,25 +207,25 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
-# I2M_1 = np.linalg.pinv( IM )
+I2M_1 = np.linalg.pinv( IM )
 
-# phase_cov = np.eye( IM.shape[0] )
-# noise_cov = 10 * np.eye( IM.shape[1] )
-# I2M_2 = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+phase_cov = np.eye( IM.shape[0] )
+noise_cov = 10 * np.eye( IM.shape[1] )
+I2M_2 = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
 
-# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+I2M_3 = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
-# U,S,Vt = np.linalg.svd( IM, full_matrices=True)
+U,S,Vt = np.linalg.svd( IM, full_matrices=True)
 
-# k= 20 # int( 5**2 * np.pi)
-# I2M_4 = truncated_pseudoinverse(U, S, Vt, k=50)
+k= 20 # int( 5**2 * np.pi)
+I2M_4 = truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 65
-# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
-# titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+act = 65
+im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
-# util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
+util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
 
 
 # ## TT projection HO / TT 

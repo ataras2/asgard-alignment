@@ -335,6 +335,12 @@ parser.add_argument(
     help="camera gain. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--sleeptime',
+    type=int,
+    default=0.2,
+    help="sleep time (seconds) between moving the motors: %(default)s"
+)
 
 
 args = parser.parse_args()
@@ -574,7 +580,7 @@ if 1:
         elapsed_time = end_time - start_time
         print(f"Execution time: {elapsed_time:.6f} seconds")
             
-        time.sleep(2)  # wait for the phase mask to move and settle
+        time.sleep(args.sleeptime)  # wait for the phase mask to move and settle
 
         img = np.mean(
             c.get_data(), #get_some_frames( number_of_frames=10, apply_manual_reduction=True),

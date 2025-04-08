@@ -244,6 +244,7 @@ def handle_phasemask():
 
     st.write("Registered mask", st.session_state["selected_mask"][0])
 
+
     st.subheader("Manual Alignment")
     increment = st.number_input(
         "Relative increment (um)",
@@ -281,10 +282,10 @@ def handle_phasemask():
 
     
     AUTOCENTER_SCRIPTS = {
-    "auto_center_beam_1": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "1","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
-    "auto_center_beam_2": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "2","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
-    "auto_center_beam_3": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "3","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
-    "auto_center_beam_4": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "4","--sleeptime",f"{0.4}","--fig_path", quick_data_path ],
+    "auto_center_beam_1": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "1","--sleeptime",f"{0.1}","--fig_path", quick_data_path ],
+    "auto_center_beam_2": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "2","--sleeptime",f"{0.1}","--fig_path", quick_data_path ],
+    "auto_center_beam_3": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "3","--sleeptime",f"{0.1}","--fig_path", quick_data_path ],
+    "auto_center_beam_4": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", "4","--sleeptime",f"{0.1}","--fig_path", quick_data_path ],
     }     
 
     st.subheader(f"Automatic phase mask centering")
@@ -1540,13 +1541,6 @@ with col_main:
             with col4:
                 beam_4 = st.checkbox("Beam 4", value=True)
     
-            offset_input = st.text_input("Relative Offset Amp (μm)", value="20.0")
-            try:
-                increment = float(offset_input)  # Convert input to float
-            except ValueError:
-                st.error("Please enter a valid number for the offset.")
-                increment = 20.0  # Default value if input is invalid
-
                 
             selected_beams = []
             if beam_1: selected_beams.append(1)
@@ -1555,7 +1549,29 @@ with col_main:
             if beam_4: selected_beams.append(4)
 
 
-            #st.subheader("Move Beams")
+            st.subheader("Auto Alignment")
+
+            autoAlign_method = st.selectbox("Align method",["gradient_descent","brute_scan"],key="autoalignquickbutton")
+
+            AUTOCENTER_SCRIPTS = {
+            f"auto_center_beam_{beam}": ["python", "calibration/fine_phasemask_alignment.py", "--beam_id", f"{beam}","--method",f"{autoAlign_method}","--sleeptime",f"{0.1}","--fig_path", quick_data_path ] for beam in selected_beams
+            }     
+
+            import concurrent.futures
+            if st.button("Auto Align Phasemasks for Selected Beams"):
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(AUTOCENTER_SCRIPTS)) as executor:
+                    results = list(executor.map(run_script, list(AUTOCENTER_SCRIPTS.values())))
+
+
+            st.subheader("Move Phasmasks Manually")
+
+            offset_input = st.text_input("Relative Offset Amp (μm)", value="20.0")
+            try:
+                increment = float(offset_input)  # Convert input to float
+            except ValueError:
+                st.error("Please enter a valid number for the offset.")
+                increment = 20.0  # Default value if input is invalid
+
 
             # Movement Buttons (Grid Layout)
             ul, um, ur = st.columns(3)
@@ -1640,6 +1656,7 @@ with col_main:
             cols = st.columns(4)
             beam_titles = ["Beam 1", "Beam 2", "Beam 3", "Beam 4"]
 
+
             for i, col in enumerate(cols):
                 with col:
                     st.header(beam_titles[i])
@@ -1647,6 +1664,21 @@ with col_main:
             st.subheader("Register the Pupil Pixels")
             st.write("Run this with clear pupils (phase masks out). This can take a minute.")
 
+
+            btn_key = f"register_pupil_ALL_BEAMS"
+            if st.button(f"{btn_key}"):
+                success = run_script(["python", "calibration/pupil_registration.py", "--beam_ids", "1,2,3,4", "--fig_path", quick_data_path ])
+            
+                if success:
+                    cols = st.columns(4)
+                    for i, col in enumerate(cols):
+                        with col:
+                            fig_path = os.path.join(quick_data_path, f'pupil_reg_beam{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+            
             cols = st.columns(4)
             for i, col in enumerate(cols):
                 with col:
@@ -1670,6 +1702,21 @@ with col_main:
             st.subheader("Register the DM Actuators in Pixel Space.") 
             st.write("This requires alignment on a phasemask (try H3)! This can take a minute.")
             
+
+            btn_key = f"register_DM_ALL_BEAMS"
+            if st.button(f"{btn_key}"):
+                success = run_script(["python", "calibration/dm_registration_calibration.py", "--beam_id", "1,2,3,4", "--fig_path", quick_data_path ])
+            
+                if success:
+                    cols = st.columns(4)
+                    for i, col in enumerate(cols):
+                        with col:
+                            fig_path = os.path.join(quick_data_path, f'beam{i+1}/DM_registration_in_pixel_space.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+            
             cols = st.columns(4)
             for i, col in enumerate(cols):
                 with col:
@@ -1686,7 +1733,7 @@ with col_main:
                             # calibrate_transform_between_DM_and_image from DM_registration which
                             # doesn't have knowlodge of the beam number - so just overwrites the same
                             # image each time.. so looking at the most recent - fine if done immediately after running script
-                            fig_path = os.path.join(QUICK_SCRIPTS[btn_key][-1], 'DM_registration_in_pixel_space.png')
+                            fig_path = os.path.join(QUICK_SCRIPTS[btn_key][-1], f'beam{i+1}/DM_registration_in_pixel_space.png')
                             if os.path.exists(fig_path):
                                 st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
                             else:
@@ -1696,6 +1743,22 @@ with col_main:
 
             st.subheader("Register Strehl Proxy Pixels") 
             st.write("This requires alignment on a phasemask (try H3)! This can take a minute.")
+
+
+            btn_key = f"register_strehl_pixels_ALL_BEAMS"
+            if st.button(f"{btn_key}"):
+                success = run_script(["python", "calibration/strehl_filter_registration.py",  "--beam_id", "1,2,3,4", "--fig_path", quick_data_path ])
+            
+                if success:
+                    cols = st.columns(4)
+                    for i, col in enumerate(cols):
+                        with col:
+                            fig_path = os.path.join(quick_data_path,  f'strehl_pixel_filter{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+            
 
             cols = st.columns(4)
             for i, col in enumerate(cols):
@@ -1721,16 +1784,31 @@ with col_main:
             st.write("We are going to apply varying degrees of turbulence and analyse the signals")
 
             phasemask_input = st.text_input("phasemask", "H3")
-            cam_fps_input = st.number_input("Frames per sec.", min_value=100, max_value=1000, value=100, step=1)
-            cam_gain_input = st.number_input("Frames per sec.", min_value=1, max_value=10, value=1, step=1)
+            cam_fps_input = st.number_input("Camera frames per seconds", min_value=100, max_value=1000, value=100, step=1)
+            cam_gain_input = st.number_input("Camera gain", min_value=1, max_value=10, value=1, step=1)
 
             STREHL_SCRIPTS = {
-            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input, "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
             }     
 
+
+            btn_key = f"build_Strehl_model_ALL_BEAMS"
+            if st.button(f"{btn_key}"):
+                success = run_script(["python", "calibration/build_strehl_model.py", "--beam_id", "1,2,3,4", "--phasemask", phasemask_input, "--max_time","120","--number_of_iterations","10000","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ] )
+            
+                if success:
+                    cols = st.columns(4)
+                    for i, col in enumerate(cols):
+                        with col:
+                            fig_path = os.path.join(quick_data_path,  f'strehl_model_beam{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+            
 
             cols = st.columns(4)
             for i, col in enumerate(cols):
@@ -1754,18 +1832,20 @@ with col_main:
             st.subheader("Build Interaction Matrix") 
             st.write("have the phasemask's well aligned prior to starting.")
             
-            basis_name = st.text_input("Basis Name", "zonal")
-            poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.02, step=0.01)
-            Nmodes = st.number_input("Number of Modes to Probe", min_value=1, max_value=140, value=10, step=1)
-            inverse_method = st.text_input("IM Inverse Method", "pinv")
+            cam_fps = st.number_input("Frames per sec", min_value=100, max_value=1500, value=100, step=50)
+            cam_gain = st.number_input("Gain", min_value=1, max_value=20, value=1, step=1)
+            signal_space =  st.selectbox('signal space for IM',('dm','pixel'))
+            DM_flat = st.selectbox('DM flat',('baldr','factory'))
+            basis_name = st.selectbox("Basis Name",('zonal','zernike')) #st.text_input("Basis Name", "zonal")
+            poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.05, step=0.01)
+            Nmodes = st.number_input("Number of Modes to Probe (zonal does 140 automatically)", min_value=1, max_value=140, value=140, step=1)
             phasemask = st.text_input("Phasemask", "H3")
 
-
             IM_SCRIPTS = {
-            "build_IM_beam_1": ["python", "calibration/build_IM.py", "--beam_id", "1","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_2": ["python", "calibration/build_IM.py", "--beam_id", "2","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_3": ["python", "calibration/build_IM.py", "--beam_id", "3","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_4": ["python", "calibration/build_IM.py", "--beam_id", "4","--basis_name", f"{basis_name}","--Nmodes",f"{Nmodes}","--inverse_method", f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_1": ["python", "calibration/build_IM.py", "--beam_id", "1","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_2": ["python", "calibration/build_IM.py", "--beam_id", "2","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_3": ["python", "calibration/build_IM.py", "--beam_id", "3","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "build_IM_beam_4": ["python", "calibration/build_IM.py", "--beam_id", "4","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
             }     
 
 
@@ -1786,6 +1866,40 @@ with col_main:
                             else:
                                 st.warning(f"Cannot find {fig_path}")
                     
+
+            st.subheader("Process Interaction Matrix (Build Control Matrix)") 
+            st.write("have the phasemask's well aligned prior to starting.")
+            
+            LO = st.number_input("Max Zernike Index considered for low order modes (2 = tip/tilt)", min_value=2, max_value=10, value=2, step=1)
+            inverse_method = st.selectbox("IM matrix inverse method",["zonal","map","pinv"]+[f"svd_truncation-{x}" for x in [2,5,10,15,20,30,40,50,60,70,80,90]]) 
+            phasemask = st.text_input("Phasemask", "H3", key="phasemask_ctrl_matrix")
+
+
+            PROCESS_IM_SCRIPTS = {
+            "proc_IM_beam_1": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "1","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "proc_IM_beam_2": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "2","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "proc_IM_beam_3": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "3","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            "proc_IM_beam_4": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "4","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            }     
+
+
+            cols = st.columns(4)
+            for i, col in enumerate(cols):
+                with col:
+
+                    btn_key = f"proc_IM_beam_{i+1}"
+
+                    # Run the script when button is clicked
+                    if st.button(f"Run {btn_key}"):
+                        success = run_script(PROCESS_IM_SCRIPTS[btn_key])
+
+                        if success:
+                            fig_path = os.path.join(PROCESS_IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
+                            if os.path.exists(fig_path):
+                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+                            else:
+                                st.warning(f"Cannot find {fig_path}")
+
 
 
             st.subheader("Apply Turbulence") 

@@ -11,7 +11,7 @@ from scipy.interpolate import RegularGridInterpolator
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
 from asgard_alignment.DM_shm_ctrl import dmclass
-
+from common import phasemask_centering_tool as pct
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -36,8 +36,8 @@ parser = argparse.ArgumentParser(description="Controller for fine phasemask alig
 
 
 ######## HARD CODED 
-hc_fps = 100
-hc_gain = 1
+hc_fps = 500
+hc_gain = 15
 default_toml = os.path.join("config_files", "baldr_config_#.toml") 
 
 # Camera shared memory path
@@ -73,8 +73,8 @@ parser.add_argument("--fig_path",
 parser.add_argument(
     "--phasemask_gain",
     type=float,
-    default=1e6 * 0.5,
-    help="gain for phasemask feedback control (um/(ADU/s)). Dont be shy, we check and limit movement - This should be a high number. Default: %(defult)s"
+    default=2500 , #1e6 * 0.5,
+    help="gain for phasemask feedback control (um/(ADU/s)). Dont be shy, this should be a high number, and we check and limit movement . Default: %(defult)s"
 )
 
 parser.add_argument(
@@ -86,9 +86,18 @@ parser.add_argument(
 parser.add_argument(
     "--sleeptime",
     type=float,
-    default=0.5,
+    default=0.1,
     help="sleeptime between phase mask movements. Default: %(defult)s"
 )
+
+
+parser.add_argument(
+    "--method",
+    type=str,
+    default="gradient_descent",
+    help="method for fine alignment. gradient_descent or brute_scan. Default: %(defult)s"
+)
+
 
 # parser.add_argument(
 #     "--phasemask",
@@ -137,6 +146,8 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 pupil_masks = {}
+exterior_filter = {}
+sec_filter = {}
 for beam_id in args.beam_id:
 
     # read in TOML as dictionary for config 
@@ -145,7 +156,9 @@ for beam_id in args.beam_id:
         # Baldr pupils from global frame 
         baldr_pupils = config_dict['baldr_pupils'] 
         # exterior strehl pixels
-        exterior_filter = config_dict[f"beam{beam_id}"]["pupil_mask"]["exterior"]
+        exterior_filter[beam_id] = config_dict[f"beam{beam_id}"]["pupil_mask"]["exterior"]
+        # secondary obstruction pixels
+        sec_filter[beam_id] = config_dict[f"beam{beam_id}"]["pupil_mask"]["secondary"]
 
 
 c_dict = {}
@@ -162,19 +175,20 @@ gain0 = FLI.extract_value( c_dict[beam_id].send_fli_cmd( "gain raw" ) )
 #Hard coded frame rate and gain 
 #####################
 
-c_dict[beam_id].send_fli_cmd(f"set fps {hc_fps}")
+# only set once (sin)
+c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {hc_fps}")
 time.sleep(1)
-c_dict[beam_id].send_fli_cmd(f"set gain {hc_gain}")
+c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {hc_gain}")
 time.sleep(1)
 
 # can probably do it without reduction ... test later
-for beam_id in args.beam_id:
-    c_dict[beam_id].build_manual_bias(number_of_frames=500)
-    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
-                                      apply_manual_reduction=True,
-                                      build_bad_pixel_mask=True, 
-                                      sleeptime = 3,
-                                      kwargs={'std_threshold':10, 'mean_threshold':6} )
+# for beam_id in args.beam_id:
+#     c_dict[beam_id].build_manual_bias(number_of_frames=500)
+#     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+#                                       apply_manual_reduction=True,
+#                                       build_bad_pixel_mask=True, 
+#                                       sleeptime = 3,
+#                                       kwargs={'std_threshold':10, 'mean_threshold':6} )
   
 
 
@@ -200,9 +214,6 @@ for beam_id in args.beam_id:
     
 
 
-####################################################################
-### GRADIENT DESENT WITH DITHERING TECHNIQUE FOR GRADIENT ESTIMATION
-
 initial_pos = {}
 for beam_id in args.beam_id:
     message = f"read BMX{beam_id}"
@@ -216,118 +227,219 @@ for beam_id in args.beam_id:
 
 
 
+import concurrent.futures
 
-close = True 
-prev_pos = initial_pos[beam_id].copy()
-dz = args.dither_amp # dither amplitude
-cnt = 0 # limit number of iterations 
-max_iterations = 20 
-dx_prev = 0
-dy_prev = 0
-near_flag_passed = False  # flag to change dither amplitude if we are getting close! 
+def brute_scan(beam_id):
 
-# err_x = 0 
-# err_y = 0
+    result1 = pct.spiral_square_search_and_save_images(
+        cam=c_dict[beam_id],
+        beam=beam_id,
+        phasemask=state_dict["socket"],
+        starting_point=initial_pos[beam_id],
+        step_size=5,
+        search_radius=40,
+        sleep_time=0.1,
+        use_multideviceserver=True,
+    )
 
-telem = {"i":[], "signal":[], "dx":[],"dy":[]}
+    ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result1.items()])
 
-while close: 
+    Xb, Yb = list(  result1.keys() )[ib]
 
-    cnt += 1 
-    dxtmp = []
-    dytmp = []
-    signaltmp2 = []
-    for _ in range(2): # median of 5 iterations - seems very noisy
-        signaltmp = []
+    # go finer
+    result2 = pct.spiral_square_search_and_save_images(
+            cam=c_dict[beam_id],
+            beam=beam_id,
+            phasemask=state_dict["socket"],
+            starting_point=[Xb, Yb],
+            step_size=2,
+            search_radius=5,
+            sleep_time=0.1,
+            use_multideviceserver=True,
+        )
 
-        #for _ in range(4): # could get the mean after a few iterations 
-        for j, m in enumerate( ["BMX","BMX","BMY","BMY"] ):
+    ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result2[beam_id].items()])
 
-            sign = (-1)**j # direction of movement (+/-)
+    Xb, Yb = list(  result2.keys() )[ib]
+
+    print(f"moving to best position at {Xb, Yb} for beam {beam_id}")
+    for m, p in zip(["BMX","BMY"], [Xb,Yb]):
+        time.sleep(1)
+        message = f"moveabs {m}{beam_id} {p}"
+        res = send_and_get_response(message)
+        print(res)
+
+if args.method.lower() == "brute_scan":
+    # Use ThreadPoolExecutor to run functions in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(args.beam_id)) as executor:
+        # Map each input to the function and execute in parallel
+        results = list(executor.map(brute_scan, args.beam_id))
+
+####################################################################
+### FINE SPIRAL SEARCH 
+
+# if args.method.lower() == "brute_scan":
+#     beams_img_dict = {}
+#     for beam_id in args.beam_id:
+
+#         beams_img_dict[beam_id]= pct.spiral_square_search_and_save_images(
+#             cam=c_dict[beam_id],
+#             beam=beam_id,
+#             phasemask=state_dict["socket"],
+#             starting_point=initial_pos[beam_id],
+#             step_size=5,
+#             search_radius=40,
+#             sleep_time=0.1,
+#             use_multideviceserver=True,
+#         )
+
+#         ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in beams_img_dict[beam_id].items()])
+
+#         Xb, Yb = list(  beams_img_dict[beam_id].keys() )[ib]
+
+#         # go finer
+#         for beam_id in args.beam_id:
+#             beams_img_dict[beam_id]= pct.spiral_square_search_and_save_images(
+#                 cam=c_dict[beam_id],
+#                 beam=beam_id,
+#                 phasemask=state_dict["socket"],
+#                 starting_point=[Xb, Yb],
+#                 step_size=2,
+#                 search_radius=5,
+#                 sleep_time=0.1,
+#                 use_multideviceserver=True,
+#             )
+
+#         ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in beams_img_dict[beam_id].items()])
+
+#         Xb, Yb = list(  beams_img_dict[beam_id].keys() )[ib]
+
+#         print(f"moving to best position at {Xb, Yb} for beam {beam_id}")
+#         for m, p in zip(["BMX","BMY"], [Xb,Yb]):
+#             time.sleep(1)
+#             message = f"moveabs {m}{beam_id} {p}"
+#             res = send_and_get_response(message)
+#             print(res)
+
+####################################################################
+### GRADIENT DESENT WITH DITHERING TECHNIQUE FOR GRADIENT ESTIMATION
+
+elif args.method.lower() == "gradient_descent":
+    for beam_id in args.beam_id:
+        close = True 
+        prev_pos = initial_pos[beam_id].copy()
+        dz = args.dither_amp # dither amplitude
+        cnt = 0 # limit number of iterations 
+        max_iterations = 20 
+        dx_prev = 0
+        dy_prev = 0
+        near_flag_passed = False  # flag to change dither amplitude if we are getting close! 
+
+        # err_x = 0 
+        # err_y = 0
+
+        telem = {"i":[], "signal":[], "dx":[],"dy":[]}
+
+        while close: 
+
+            cnt += 1 
+            dxtmp = []
+            dytmp = []
+            signaltmp2 = []
+            for _ in range(2): # median of 2 iterations - can be noisy
+                signaltmp = []
+
+                #for _ in range(4): # could get the mean after a few iterations 
+                for j, m in enumerate( ["BMX","BMX","BMY","BMY"] ):
+
+                    sign = (-1)**j # direction of movement (+/-)
+                    
+                    z0 = prev_pos[int(j > 1)] # if j < 1 than we look at x (index = 0), else y (index = 1)
+
+                    message = f"moveabs {m}{beam_id} { z0 + sign * dz }"
+                    print(message)
+                    res = send_and_get_response(message)
+                    print(res)
+                    time.sleep(args.sleeptime)
+                    # ADU/s! 
+                    i = float( c_dict[beam_id].config["fps"]) * np.mean(  c_dict[beam_id].get_some_frames( 
+                                        number_of_frames = 100, 
+                                        apply_manual_reduction = True ),
+                                        axis = 0)
+
+                    #signaltmp.append(  np.mean( i[ np.array(exterior_filter).astype(bool) ] ) / np.sum( i ) ) # [+x, -x, +y, -y] 
+                    signaltmp.append(  i[ np.array(sec_filter[beam_id]).astype(bool) ][4] / np.sum( i ) ) # [+x, -x, +y, -y] 
+
+                
+                dxtmp.append( args.phasemask_gain * ( signaltmp[0] - signaltmp[1] ) )  # seems to work , may change with different cropping sizes, 
+                dytmp.append( args.phasemask_gain * ( signaltmp[2] - signaltmp[3] ) )
+                signaltmp2.append( signaltmp )
             
-            z0 = prev_pos[int(j > 1)] # if j < 1 than we look at x (index = 0), else y (index = 1)
+            signal = np.median( signaltmp, axis=0) # 4 signals (up,down,left,right)
+            dx = np.median( dxtmp )
+            dy = np.median( dytmp )
 
-            message = f"moveabs {m}{beam_id} { z0 + sign * dz }"
-            print(message)
-            res = send_and_get_response(message)
-            print(res)
-            time.sleep(args.sleeptime)
-            # ADU/s! 
-            i = float( c_dict[beam_id].config["fps"]) * np.mean(  c_dict[beam_id].get_some_frames( 
-                                number_of_frames = 100, 
-                                apply_manual_reduction = True ),
-                                axis = 0)
+            # err_x += dx 
+            # err_y += dy 
 
-            signaltmp.append(  np.mean( i[ exterior_filter ] ) / np.sum( i ) ) # [+x, -x, +y, -y] 
+            if dx**2 + dy**2 > 0 :
+                rel_change = ( np.sqrt( dx**2 + dy**2 ) - np.sqrt( dx_prev**2 + dy_prev**2 ) ) / np.sqrt( dx**2 + dy**2 ) 
+            else:
+                rel_change = 0 
 
-        
-        dxtmp.append( args.phasemask_gain * ( signaltmp[0] - signaltmp[1] ) )  # seems to work , may change with different cropping sizes, 
-        dytmp.append( args.phasemask_gain * ( signaltmp[2] - signaltmp[3] ) )
-        signaltmp2.append( signaltmp )
-    
-    signal = np.median( signaltmp, axis=0) # 4 signals (up,down,left,right)
-    dx = np.median( dxtmp )
-    dy = np.median( dytmp )
+            if (abs(dx) > 70) or (abs(dy) > 70):
+                close = False
+                print(f'error signals dx, dy = {round(dx)}, {round(dy)}um seem too high.. check gains and limits.')
+                convergence = False 
 
-    # err_x += dx 
-    # err_y += dy 
+            if (dx**2 + dy**2)**0.5 < 1  and not near_flag_passed: #(np.sqrt( dx**2 + dy**2 ) < 0.35) and not near_flag_passed:
+                # 2 was roughly the measured std in the signal * default gain 
+                near_flag_passed = True
+                dz *= 1.3
+                args.phasemask_gain *= 0.5 # reduce the gain
+                print('getting close, going to increase dither amplitude')
 
-    if dx**2 + dy**2 > 0 :
-        rel_change = ( np.sqrt( dx**2 + dy**2 ) - np.sqrt( dx_prev**2 + dy_prev**2 ) ) / np.sqrt( dx**2 + dy**2 ) 
-    else:
-        rel_change = 0 
+            
+            # if rel_change < 0.03 : #np.sqrt( dx**2 + dy**2 ) < 0.15:
+            #     close = False
+            #     message = f"moveabs BMX{beam_id} { prev_pos[0] }"
+            #     res = send_and_get_response(message)
+            #     message = f"moveabs BMY{beam_id} { prev_pos[1] }"
+            #     res = send_and_get_response(message)
+            #     print("relative movements seem to have converged. Stopping here")
+            #     convergence = True
 
-    if (abs(dx) > 70) or (abs(dy) > 70):
-        close = False
-        print(f'error signals dx, dy = {round(dx)}, {round(dy)}um seem too high.. check gains and limits.')
-        convergence = False 
+            if (dx**2 + dy**2)**0.5 < 1.5 : #np.sqrt( dx**2 + dy**2 ) < 0.15:
+                close = False
+                message = f"moveabs BMX{beam_id} { prev_pos[0] }"
+                res = send_and_get_response(message)
+                message = f"moveabs BMY{beam_id} { prev_pos[1] }"
+                res = send_and_get_response(message)
+                print("relative movements seem to have converged. Stopping here")
+                convergence = True
 
-    if (dx**2 + dy**2)**0.5 < 1  and not near_flag_passed: #(np.sqrt( dx**2 + dy**2 ) < 0.35) and not near_flag_passed:
-        # 2 was roughly the measured std in the signal * default gain 
-        near_flag_passed = True
-        dz *= 1.3
-        args.phasemask_gain *= 0.5 # reduce the gain
-        print('getting close, going to increase dither amplitude')
-
-    
-    # if rel_change < 0.03 : #np.sqrt( dx**2 + dy**2 ) < 0.15:
-    #     close = False
-    #     message = f"moveabs BMX{beam_id} { prev_pos[0] }"
-    #     res = send_and_get_response(message)
-    #     message = f"moveabs BMY{beam_id} { prev_pos[1] }"
-    #     res = send_and_get_response(message)
-    #     print("relative movements seem to have converged. Stopping here")
-    #     convergence = True
-
-    if (dx**2 + dy**2)**0.5 < 1.5 : #np.sqrt( dx**2 + dy**2 ) < 0.15:
-        close = False
-        message = f"moveabs BMX{beam_id} { prev_pos[0] }"
-        res = send_and_get_response(message)
-        message = f"moveabs BMY{beam_id} { prev_pos[1] }"
-        res = send_and_get_response(message)
-        print("relative movements seem to have converged. Stopping here")
-        convergence = True
-
-    if cnt > max_iterations:
-        close = False
-        print(f"passed maximum of {max_iterations} iterations. Stopping here")
-        convergence = False 
+            if cnt > max_iterations:
+                close = False
+                print(f"passed maximum of {max_iterations} iterations. Stopping here")
+                convergence = False 
 
 
-    dx_prev = dx
-    dy_prev = dy
+            dx_prev = dx
+            dy_prev = dy
 
-    prev_pos = prev_pos +  np.array( [dx, dy] ) #np.array( [err_x, err_y] ) # #[dx, dy] )
+            prev_pos = prev_pos +  np.array( [dx, dy] ) #np.array( [err_x, err_y] ) # #[dx, dy] )
 
-    print( f"moved {dx}, {dy}")
+            print( f"moved {dx}, {dy}")
 
-    telem["i"].append( i )
-    telem["signal"].append( signal )
-    telem["dx"].append( dx )
-    telem["dy"].append( dy )
+            telem["i"].append( i )
+            telem["signal"].append( signal )
+            telem["dx"].append( dx )
+            telem["dy"].append( dy )
 
-print( f"\n==============\n  CONVERGENCE: {convergence}" )
+        print( f"\n==============\n  CONVERGENCE: {convergence}" )
 
+else:
+    raise UserWarning("invalid method input. Try --method brute_scan for example")
 
 
 #### SAVING JSON DATA
@@ -348,119 +460,119 @@ for beam_id in args.beam_id:
     dm_shm_dict[beam_id].close(erase_file=False)
 
 
-print('plotting')
+# print('plotting')
 
-try: 
-    from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-    # Compute cumulative positions
-    cumulative_dx = np.cumsum(telem["dx"])
-    cumulative_dy = np.cumsum(telem["dy"])
+# try: 
+#     from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+#     # Compute cumulative positions
+#     cumulative_dx = np.cumsum(telem["dx"])
+#     cumulative_dy = np.cumsum(telem["dy"])
 
-    # Create scatter plot of cumulative dx vs cumulative dy
-    plt.figure(figsize=(6, 6))
-    plt.scatter(cumulative_dx, cumulative_dy, c='blue', marker='o')
-    plt.xlabel("Relative phase mask X position [microns]")
-    plt.ylabel("Relative phase mask Y position [microns]")
-    #plt.title("Scatter Plot of Cumulative dx vs dy")
-    plt.grid(True)
-    plt.savefig('delme.png') #,bbox_='tight')
-
-
-
-
-    fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 10), sharex=True)
-    cost_fn = telem["signal"] #1/np.mean( telem["signal"],axis=1)
-    axes[0].plot(cost_fn , marker='o', color='k')
-    axes[0].set_ylabel(r"Cost Function [unitless]",fontsize=15)
-    axes[0].grid(True)
-    axes[0].tick_params(labelsize=15)
-
-    axes[1].plot( cumulative_dx, ls=':', color='k',label=r"X")
-    axes[1].plot(cumulative_dy, ls='--', color='k',label=r"Y")
-    axes[1].set_ylabel("Phase mask motor\n"+r"relative offset [$\mu$m]",fontsize=15)
-    axes[1].tick_params(labelsize=15)
-    #axes[1].set_title("Cumulative X Position")
-    axes[1].legend(fontsize=15)
-    axes[1].grid(True)
-
-    zoom_val = 1.8 
-
-    # Image at the beginning: telem["i"][0]
-    img0 = telem["i"][0]
-    ab0 = AnnotationBbox(OffsetImage(img0, zoom=zoom_val),
-                        (1, cost_fn[1]),
-                        frameon=False)
-    axes[0].add_artist(ab0)
-
-    # Image at the end: telem["i"][-1]
-    img_last = telem["i"][-1]
-    ab_last = AnnotationBbox(OffsetImage(img_last, zoom=zoom_val),
-                            (len(cost_fn)-2, cost_fn[1]),
-                            frameon=False)
-    axes[0].add_artist(ab_last)
-
-    plt.xlabel("Iteration",fontsize=15)
-
-
-    if args.fig_path is None:
-        savepath="delme{beam_id}.png"
-    else: # we save with default name at fig path 
-        savepath=args.fig_path + f'phasemask_auto_center_beam{beam_id}'
-    print(f"saving figure {savepath}")
-
-    plt.savefig(savepath, bbox_inches='tight')
-
-
-    # ### NOISE ANALYSIS 
-    # Sx=[]
-    # Sy=[]
-    # for ss in telem["signal"]:
-    #     Sx.append( ( ss[0] - ss[1] )  ) # ADU /s
-    #     Sy.append( ( ss[2] - ss[3] ) ) # ADU /s
-
-
-    #     dx = args.phasemask_gain * ( ss[0] - ss[1] )  # seems to work , may change with different cropping sizes, 
-    #     dy = args.phasemask_gain * ( ss[2] - ss[3] )
-
-    # # Convert to numpy arrays (optional, but useful for computing stats)
-    # Sx = np.array(Sx)
-    # Sy = np.array(Sy)
-
-    # # Compute mean and standard deviation for each distribution
-    # mean_Sx = np.mean(Sx)
-    # std_Sx = np.std(Sx)
-    # mean_Sy = np.mean(Sy)
-    # std_Sy = np.std(Sy)
-    # print( f"sx, mean = {mean_Sx}, std={std_Sx}")
-    # print( f"sy, mean = {mean_Sy}, std={std_Sy}")
-    # # sx, mean = 0.000560768241116661, std=0.0012595275496219676
-    # # sy, mean = 0.0003143405690655363, std=0.00425961632425167
-
-    # # real system was off +25 in x, +15 in y , so good gain per um
-    # # gain_x = 25 / mean_Sx = 50000.0 (um / iter)
-
-    # # issues is the noise on this is very large! 
-    # # Create a figure with two rows (subplots)
-    # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
-
-    # # Histogram for Sx
-    # axes.hist(Sx, bins=np.linspace(-5*std_Sx, 5*std_Sx,20), alpha=0.5, label="X")
-    # axes.hist(Sy, bins=np.linspace(-5*std_Sy, 5*std_Sy,20), alpha=0.5, label="Y")
-    # axes.axvline(mean_Sx, color='red', linestyle='--', linewidth=2,
-    #             label=f'X Mean={mean_Sx:.2e} ADU/s, X Std={std_Sx:.2e} ADU/s')
-    # axes.axvline(mean_Sy, color='red', linestyle='--', linewidth=2,
-    #             label=f'Y Mean={mean_Sy:.2e} ADU/s, Y Std={std_Sy:.2e} ADU/s')
-    # axes.legend()
-    # #axe].set_title("Histogram of Sx (ADU/s)")
-    # axes.set_xlabel("Strehl pixel signal (ADU/s)",fontsize=15)
-    # axes.set_ylabel("Frequency",fontsize=15)
-    # axes.tick_params(labelsize=15)
-    # plt.savefig("delme.jpeg",bbox_inches='tight')
+#     # Create scatter plot of cumulative dx vs cumulative dy
+#     plt.figure(figsize=(6, 6))
+#     plt.scatter(cumulative_dx, cumulative_dy, c='blue', marker='o')
+#     plt.xlabel("Relative phase mask X position [microns]")
+#     plt.ylabel("Relative phase mask Y position [microns]")
+#     #plt.title("Scatter Plot of Cumulative dx vs dy")
+#     plt.grid(True)
+#     plt.savefig('delme.png') #,bbox_='tight')
 
 
 
-except Exception as e:
-    print(f"failed to make plots : {e}")
+
+#     fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 10), sharex=True)
+#     cost_fn = telem["signal"] #1/np.mean( telem["signal"],axis=1)
+#     axes[0].plot(cost_fn , marker='o', color='k')
+#     axes[0].set_ylabel(r"Cost Function [unitless]",fontsize=15)
+#     axes[0].grid(True)
+#     axes[0].tick_params(labelsize=15)
+
+#     axes[1].plot( cumulative_dx, ls=':', color='k',label=r"X")
+#     axes[1].plot(cumulative_dy, ls='--', color='k',label=r"Y")
+#     axes[1].set_ylabel("Phase mask motor\n"+r"relative offset [$\mu$m]",fontsize=15)
+#     axes[1].tick_params(labelsize=15)
+#     #axes[1].set_title("Cumulative X Position")
+#     axes[1].legend(fontsize=15)
+#     axes[1].grid(True)
+
+#     zoom_val = 1.8 
+
+#     # Image at the beginning: telem["i"][0]
+#     img0 = telem["i"][0]
+#     ab0 = AnnotationBbox(OffsetImage(img0, zoom=zoom_val),
+#                         (1, cost_fn[1]),
+#                         frameon=False)
+#     axes[0].add_artist(ab0)
+
+#     # Image at the end: telem["i"][-1]
+#     img_last = telem["i"][-1]
+#     ab_last = AnnotationBbox(OffsetImage(img_last, zoom=zoom_val),
+#                             (len(cost_fn)-2, cost_fn[1]),
+#                             frameon=False)
+#     axes[0].add_artist(ab_last)
+
+#     plt.xlabel("Iteration",fontsize=15)
+
+
+#     if args.fig_path is None:
+#         savepath="delme{beam_id}.png"
+#     else: # we save with default name at fig path 
+#         savepath=args.fig_path + f'phasemask_auto_center_beam{beam_id}'
+#     print(f"saving figure {savepath}")
+
+#     plt.savefig(savepath, bbox_inches='tight')
+
+
+#     # ### NOISE ANALYSIS 
+#     # Sx=[]
+#     # Sy=[]
+#     # for ss in telem["signal"]:
+#     #     Sx.append( ( ss[0] - ss[1] )  ) # ADU /s
+#     #     Sy.append( ( ss[2] - ss[3] ) ) # ADU /s
+
+
+#     #     dx = args.phasemask_gain * ( ss[0] - ss[1] )  # seems to work , may change with different cropping sizes, 
+#     #     dy = args.phasemask_gain * ( ss[2] - ss[3] )
+
+#     # # Convert to numpy arrays (optional, but useful for computing stats)
+#     # Sx = np.array(Sx)
+#     # Sy = np.array(Sy)
+
+#     # # Compute mean and standard deviation for each distribution
+#     # mean_Sx = np.mean(Sx)
+#     # std_Sx = np.std(Sx)
+#     # mean_Sy = np.mean(Sy)
+#     # std_Sy = np.std(Sy)
+#     # print( f"sx, mean = {mean_Sx}, std={std_Sx}")
+#     # print( f"sy, mean = {mean_Sy}, std={std_Sy}")
+#     # # sx, mean = 0.000560768241116661, std=0.0012595275496219676
+#     # # sy, mean = 0.0003143405690655363, std=0.00425961632425167
+
+#     # # real system was off +25 in x, +15 in y , so good gain per um
+#     # # gain_x = 25 / mean_Sx = 50000.0 (um / iter)
+
+#     # # issues is the noise on this is very large! 
+#     # # Create a figure with two rows (subplots)
+#     # fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(10, 5))
+
+#     # # Histogram for Sx
+#     # axes.hist(Sx, bins=np.linspace(-5*std_Sx, 5*std_Sx,20), alpha=0.5, label="X")
+#     # axes.hist(Sy, bins=np.linspace(-5*std_Sy, 5*std_Sy,20), alpha=0.5, label="Y")
+#     # axes.axvline(mean_Sx, color='red', linestyle='--', linewidth=2,
+#     #             label=f'X Mean={mean_Sx:.2e} ADU/s, X Std={std_Sx:.2e} ADU/s')
+#     # axes.axvline(mean_Sy, color='red', linestyle='--', linewidth=2,
+#     #             label=f'Y Mean={mean_Sy:.2e} ADU/s, Y Std={std_Sy:.2e} ADU/s')
+#     # axes.legend()
+#     # #axe].set_title("Histogram of Sx (ADU/s)")
+#     # axes.set_xlabel("Strehl pixel signal (ADU/s)",fontsize=15)
+#     # axes.set_ylabel("Frequency",fontsize=15)
+#     # axes.tick_params(labelsize=15)
+#     # plt.savefig("delme.jpeg",bbox_inches='tight')
+
+
+
+# except Exception as e:
+#     print(f"failed to make plots : {e}")
 
 
 
@@ -612,7 +724,7 @@ except Exception as e:
 #                 axis = 0) # ADU/s !   
 
 
-# #np.sum( I0_ref[exterior_filter])
+# #np.sum( I0_ref[exterior_filter[beam_id]])
 
 # pupil_edge_filter = util.filter_exterior_annulus(pupil_mask, inner_radius=7, outer_radius=100) # to limit pupil edge pixels
 # pupil_limit_filter = ~util.filter_exterior_annulus(pupil_mask, inner_radius=10, outer_radius=100) # to limit far out pixel

@@ -772,7 +772,7 @@ def calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debu
             savefig = fig_path + 'DM_registration_in_pixel_space.png'
             plt.savefig(savefig, dpi=300, bbox_inches = 'tight' )
         plt.show()
-
+        plt.close()
         
 
     ## write to file 

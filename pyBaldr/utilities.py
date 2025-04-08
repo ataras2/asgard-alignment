@@ -11,6 +11,7 @@ import math
 from astropy.io import fits 
 import pandas as pd
 from scipy.interpolate import interp1d
+import subprocess
 from scipy.integrate import quad
 from scipy import ndimage
 import scipy.ndimage as ndimage
@@ -22,6 +23,9 @@ from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter,  median_filter
+import glob
+import re
+from pathlib import Path
 
 import itertools
 import corner
@@ -41,8 +45,6 @@ import corner
 # import bmc
 # ============== UTILITY FUNCTIONS
 
-
-data_path = '/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
 def convert_to_serializable(obj):
@@ -78,6 +80,139 @@ def recursive_update(orig, new):
     return orig
 
     
+# Function to run script
+def run_script(command):
+    """
+    Run an external python script using subprocess.
+    """
+    try:
+
+        # Ensure stdout and stderr are properly closed
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                print(f"Script failed: {stderr}")
+                return False
+        return True  # Script succeeded
+    except Exception as e:
+        print(f"Error running script: {e}")
+        return False
+
+
+def run_script_with_output(command):
+    """
+    Run an external script using subprocess and capture its output 
+    """
+    try:
+
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            
+            output = []
+            for line in process.stdout:
+                print(line.strip())  # Stream output in real-time to UI
+                output.append(line.strip())
+
+            stderr_output = process.stderr.read().strip()
+            print(f'process return code {process.returncode}')
+            ### This always fails even when script runs fine.. even when using sys.exit(0) I dont understand
+            #if process.returncode != 0:
+            #    st.error(f"Script failed: {stderr_output}")
+            #    return False, output
+        return True, output  # Script succeeded
+
+    except Exception as e:
+        print(f"Error running script: {e}")
+        return False, []
+
+
+
+
+def find_calibration_files(mode, gain, target_fps, base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(1), fps_diff_thresh=100):
+    """
+    For finding claibration files in DCS (on mimir:/home/asg/Progs/repos/dcs/calibration_frames/products/)
+
+    Search through the calibration directories from base_dir (default= MASTER_DARK) to findfiles matching a given mode and gain,
+    and further filter by time difference (from current time) and fps difference constraints.
+    
+    Parameters:
+      mode (str): The calibration mode to match.
+      gain (int or str): The gain value to match.
+      target_fps (float): The target fps value.
+      time_diff_thresh (datetime.timedelta): (default 1 day) Maximum allowed age (difference between now and file timestamp).
+      fps_diff_thresh (float): Maximum allowed difference in fps from target_fps, .
+      
+    Returns:
+      list of Path: A list of file paths that pass the filters.
+    """
+    
+    try:
+        gain = int(gain)
+        target_fps = float(target_fps)
+    except:
+        raise UserWarning("input type for gain or fps is wrong.")
+    
+    # Define the base directory pattern.
+    base_pattern = f"/home/asg/Progs/repos/dcs/calibration_frames/products/*/{base_dir}/"
+    # Prepare the glob pattern: we'll insert the mode and gain in the filename. 
+    # For example, if mode='A' and gain=5, we want files like:
+    # master_darks_A_fps-<fps_value>_gain-5_<timestamp>.fits
+    file_pattern = f"*_{mode}_fps-*_gain-{gain}_*.fits"
+    
+    # Combine the base path and the file pattern using glob:
+    search_path = base_pattern + file_pattern
+    file_list = glob.glob(search_path)
+    
+    # Prepare the regular expression to parse the filename.
+    # Example filename:
+    # master_darks_A_fps-30_gain-5_2021-05-22T13-37-02.fits
+    regex = re.compile(
+        r".*_(?P<mode>\w+)_fps-(?P<fps>\d+(?:\.\d+)?)_gain-(?P<gain>\d+)_"
+        r"(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.fits"
+    )
+    
+    now = datetime.datetime.now()
+    accepted_files = []
+    
+    for file_path in file_list:
+        fname = Path(file_path).name
+        match = regex.fullmatch(fname)
+        if not match:
+            # Skip files that don't match the expected pattern
+            continue
+
+        # Extract the file parameters
+        file_mode = match.group("mode")
+        file_fps = float(match.group("fps"))
+        file_gain = match.group("gain")  # as string, or convert to int if needed
+        timestamp_str = match.group("timestamp")
+        
+        # Check that file_mode and file_gain match input parameters.
+        # Note: You may need to adjust comparisons (e.g., case insensitive, numeric conversion) as needed.
+        if file_mode != mode or str(file_gain) != str(gain):
+            continue
+        
+        # Parse the timestamp. The expected format is: YYYY-MM-DDTHH-MM-SS
+        try:
+            file_timestamp = datetime.datetime.strptime(timestamp_str, "%Y-%m-%dT%H-%M-%S")
+        except ValueError:
+            continue  # skip if the timestamp can't be parsed
+        
+        # Check time difference: we want files that are not older than the threshold.
+        time_diff = now - file_timestamp
+        if time_diff > time_diff_thresh:
+            continue
+        
+        # Check fps difference.
+        if abs(file_fps - target_fps) > fps_diff_thresh:
+            continue
+        
+        # If passed both filters, add to the list.
+        accepted_files.append(Path(file_path))
+    
+    return accepted_files
+
+
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
@@ -808,11 +943,55 @@ def get_secondary_mask(image, center):
     return mask
 
 
+
+def detect_circle(image, sigma=2, threshold=0.5, plot=False):
+    """
+    Detects a circular pupil in a given image using edge detection and circle fitting.
+
+    Returns:
+        (center_x, center_y, radius) of the detected pupil.
+    """
+    
+
+    # Normalize and smooth the image
+    image = image / np.max(image)
+    smoothed_image = gaussian_filter(image, sigma=sigma)
+
+    # Compute gradient-based edge detection
+    grad_x = np.gradient(smoothed_image, axis=1)
+    grad_y = np.gradient(smoothed_image, axis=0)
+    edges = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Threshold the edges
+    binary_edges = edges > (threshold * edges.max())
+
+    # Get edge coordinates
+    y, x = np.nonzero(binary_edges)
+
+    # Initial guess: Center is mean position of edge points
+    center_x, center_y = np.mean(x), np.mean(y)
+    radius = np.sqrt(((x - center_x) ** 2 + (y - center_y) ** 2).mean())
+
+    if plot:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.imshow(image, cmap="gray", origin="upper")
+        circle = plt.Circle((center_x, center_y), radius, color='red', fill=False)
+        ax.add_patch(circle)
+        ax.scatter(center_x, center_y, color='blue', marker='+')
+        plt.title("Detected Pupil")
+        plt.show()
+
+    return int(center_x), int(center_y), int(radius)
+
+
+
 def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
     """
     Detects an elliptical pupil (with possible rotation) in a cropped image using edge detection 
     and least-squares fitting. Returns both the ellipse parameters and a pupil mask.
 
+    This is a generalized version of detect circle function 
     The ellipse is modeled by:
 
         ((x - cx)*cos(theta) + (y - cy)*sin(theta))^2 / a^2 +

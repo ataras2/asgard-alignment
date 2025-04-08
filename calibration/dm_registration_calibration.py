@@ -129,7 +129,7 @@ parser.add_argument(
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default=None, 
+                    default='', 
                     help="path/to/output/image/ for where the saved figures are (DM_registration_in_pixel_space.png)")
 
 
@@ -153,24 +153,21 @@ assert len(args.beam_id) <= 4
 assert max(args.beam_id) <= 4
 assert min(args.beam_id) >= 1 
 
-#DM_flat_offset = {}
+pupil_mask = {}
 for beam_id in args.beam_id:
     with open(args.toml_file.replace('#',f'{beam_id}') ) as file:
-        pupildata = toml.load(file)
+        config_dict = toml.load(file)
 
         # Extract the "baldr_pupils" section
-        baldr_pupils = pupildata.get("baldr_pupils", {})
+        baldr_pupils = config_dict.get("baldr_pupils", {})
 
-        #DM_flat_offset[beam_id] = pupildata.get(f"beam{beam_id}", {}).get("DM_flat_offset", None)
-        # if pupil_masks[beam_id] is None:
-        #     raise UserWarning(f"pupil mask returned none in toml file. check for beam{beam_id}.pupil_mask.mask in the file:{args.toml_file}")
-
-
-# global camera image shm 
+        # get the pupil mask (we only consider pixels within here for the DM calibration)
+        pupil_mask[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+# global camera image shm - we do this to make it easier to run for multiple beams interms of changing settings etc
 c = FLI.fli(args.global_camera_shm) #shm(args.global_camera_shm)
 # Trial
-c.build_manual_bias(number_of_frames=200)
-c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+c.build_manual_bias(number_of_frames=500)
+c.build_manual_dark(no_frames = 500 , build_bad_pixel_mask=True, kwargs={'std_threshold':10, 'mean_threshold':6} )
 
 ####################################################################################
 ####################################################################################
@@ -316,10 +313,10 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
             # roll dm screen 
             print('to do for on sky test')
 
-    for ii, _ in enumerate( args.beam_id):
+    for ii, beam_id in enumerate( args.beam_id):
         delta_img = abs( np.mean(img_list_push[ii],axis=0) - np.mean(img_list_pull[ii],axis=0) )
         # the mean difference in images from push/pulls on the current actuator
-        img_4_corners[ii].append( delta_img ) # 
+        img_4_corners[ii].append( np.array( pupil_mask[beam_id] ).astype(float) * delta_img ) #  We multiply by the pupil mask to ignore all external pixels! These can be troublesome with hot pixels etc 
 
 
 
@@ -336,10 +333,14 @@ for beam_id in args.beam_id:
 
 
 ## lets see the registration 
-plt.figure()
-plt.imshow( np.sum(img_4_corners[0],axis=0))
-# should see four corner dm pokes in the image 
-plt.savefig('delme.png')
+# plt.figure()
+# plt.imshow( np.sum(img_4_corners[0],axis=0))
+# # should see four corner dm pokes in the image 
+# plt.savefig('delme.png')
+
+## we do beam specific directory from fig_path
+if not os.path.exists( args.fig_path + f"beam{beam_id}/"):
+    os.makedirs(  args.fig_path + f"beam{beam_id}/" )
 
 # Calibrating coordinate transforms 
 dict2write={}
@@ -349,9 +350,10 @@ for ii, beam_id in enumerate( args.beam_id ):
     if args.fig_path is not None:
         savefig = args.fig_path #+ 'DM_registration_in_pixel_space.png'
     else:
-        savefig = 'delme.png'
+        savefig = '~/Downloads/'
 
-    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = args.fig_path  ) )
+    transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = savefig + f"beam{beam_id}/"  ) )
+    plt.close() # close any open figiures
 
     # From affine transform construct bilinear interpolation matrix on registered DM actuator positions
     #(image -> actuator transform)
