@@ -13,16 +13,6 @@ from xaosim.shmlib import shm
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
 
-# try:
-#     from asgard_alignment import controllino as co
-#     myco = co.Controllino('172.16.8.200')
-#     controllino_available = True
-#     print('controllino connected')
-    
-# except:
-#     print('WARNING Controllino cannot connect. WILL NOT MOVE SOURCE OUT FOR DARK')
-#     controllino_available = False 
-
 
 def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
     """
@@ -546,6 +536,7 @@ if __name__ == "__main__":
     # plt.imshow(resid, cmap="gray")
     # plt.title("Residual (Frame 2 - Warped Frame 1)")
     # plt.show()
+
 
 
 

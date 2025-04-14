@@ -13,53 +13,21 @@ import argparse
 import common.DM_basis_functions as dmbases
 import pyBaldr.utilities as util 
 
-def truncated_pseudoinverse(U, s, Vt, k):
-    """
-    Compute the pseudoinverse of a matrix using a truncated SVD.
 
-    Parameters:
-        U (np.ndarray): Left singular vectors (m x m if full_matrices=True)
-        s (np.ndarray): Singular values (vector of length min(m,n))
-        Vt (np.ndarray): Right singular vectors (n x n if full_matrices=True)
-        k (int): Number of singular values/modes to keep.
+"""
+Here we put together the final control config to be read in by RTC
 
-    Returns:
-        np.ndarray: The truncated pseudoinverse of the original matrix.
-    """
-    # Keep only the first k modes
-    U_k = U[:, :k]      # shape: (m, k)
-    s_k = s[:k]         # shape: (k,)
-    Vt_k = Vt[:k, :]    # shape: (k, n)
+- invert the interaction matrix by chosen meethod
+- project to LO/HO matricies as desired
+- write to ctrl key currently calibrated I2A in toml file 
+- write to ctrl key currently calibrated strehl modes in toml file
+- write to ctrl key desired shapes and states of the control system (default values) 
 
-    # Build the inverse of the diagonal matrix with the truncated singular values
-    S_inv_k = np.diag(1.0 / s_k)  # shape: (k, k)
+this is a large non-=human readable toml, in the future could put large matricies to fits files
+and just keep the paths here. For now, for simplicity, I like EVERYTHING needed to configure
+the RTC in one spot. Right here. 
 
-    # Compute the truncated pseudoinverse
-    IM_trunc_inv = Vt_k.T @ S_inv_k @ U_k.T
-    return IM_trunc_inv
-
-
-def convert_12x12_to_140(arr):
-    # Convert input to a NumPy array (if it isn't already)
-    arr = np.asarray(arr)
-    
-    if arr.shape != (12, 12):
-        raise ValueError("Input must be a 12x12 array.")
-    
-    # Flatten the array (row-major order)
-    flat = arr.flatten()
-    
-    # The indices for the four corners in a 12x12 flattened array (row-major order):
-    # Top-left: index 0
-    # Top-right: index 11
-    # Bottom-left: index 11*12 = 132
-    # Bottom-right: index 143 (11*12 + 11)
-    corner_indices = [0, 11, 132, 143]
-    
-    # Delete the corner elements from the flattened array
-    vector = np.delete(flat, corner_indices)
-    
-    return vector
+"""
 
 
 default_toml = os.path.join("config_files", "baldr_config_#.toml") 
@@ -127,62 +95,83 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     # exter_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) ).astype(bool) # matrix bool
     # secon_mask = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) ).astype(bool) # matrix bool
 
-    #  
+    #  read in the current calibrated matricies 
     pupil_mask = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("pupil_mask", {}).get("mask", None) ).astype(bool)   # matrix bool
     I2A = np.array( config_dict[f'beam{args.beam_id}']['I2A'] )
     IM = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("IM", None) ).astype(float)
     M2C = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C", None) ).astype(float)
 
-    
+    # also the current calibrated strehl modes 
+    I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
+    I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
+
+
+#util.nice_heatmap_subplots( [ util.get_DM_command_in_2D(a) for a in [IM[65], IM[77] ]],savefig='delme.png')
 
 # define out Tip/Tilt or lower order modes on zernike DM basis
 LO = dmbases.zer_bank(2, args.LO +1 ) # 12x12 format
 
 if args.inverse_method.lower() == 'pinv':
     I2M = np.linalg.pinv( IM )
-    I2M_LO , I2M_HO = util.project_matrix( I2M , [convert_12x12_to_140(t) for t in LO] )
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif args.inverse_method.lower() == 'map': # minimum variance of maximum posterior estimator 
     phase_cov = np.eye( IM.shape[0] )
     noise_cov = np.eye( IM.shape[1] ) 
     I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
     #I2M = phase_cov @ IM.T @ np.linalg.inv(IM @ phase_cov @ IM.T + noise_cov)
-    I2M_LO , I2M_HO = util.project_matrix( I2M , [convert_12x12_to_140(t) for t in LO] )
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif args.inverse_method.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
     dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
     I2M = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
-    I2M_LO , I2M_HO = util.project_matrix( I2M , [convert_12x12_to_140(t) for t in LO] )
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif 'svd_truncation' in args.inverse_method.lower() :
     k = int( args.inverse_method.split('truncation-')[-1] ) 
     U,S,Vt = np.linalg.svd( IM, full_matrices=True)
 
-    I2M = truncated_pseudoinverse(U, S, Vt, k)
-    I2M_LO , I2M_HO = util.project_matrix( I2M , [convert_12x12_to_140(t) for t in LO] )
+    I2M = util.truncated_pseudoinverse(U, S, Vt, k)
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 else:
     raise UserWarning('no inverse method provided')
+
 
 
 # TO DO : FIX M2C PROJECTION ====================
 dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "inverse_method": args.inverse_method,
-                                               "I2M": I2M,
-                                               "I2M_LO": I2M_LO,
-                                               "I2M_HO": I2M_HO,
-                                               "M2C_LO" : M2C,
-                                               "M2C_HO" : M2C,
+                                               "controller_type":"PID",
+                                               "sza": np.array(M2C).shape[0],
+                                               "szm": np.array(M2C).shape[1],
+                                               "szp": np.array(I2M).shape[1],
+                                               "I2A": np.array(I2A).tolist(), 
+                                               "I2M": np.array(I2M).tolist(),
+                                               "I2M_LO": np.array(I2M_LO).tolist(),
+                                               "I2M_HO": np.array(I2M_HO).tolist(),
+                                               "M2C_LO" : np.array(M2C).tolist(),
+                                               "M2C_HO" : np.array(M2C).tolist(),
+                                               "I2rms_sec" : np.array(I2rms_sec).tolist(),
+                                               "I2rms_ext" : np.array(I2rms_ext).tolist(),
                                                "LO": args.LO,
-                                               "telemetry" : 0,  # do we record telem
-                                               "auto_close" : 0, # automatically close
-                                               "auto_open" : 1, # automatically open
-                                               "auto_tune" : 0, # automatically tune gains 
+                                               "telemetry" : 0,  # do we record telem  - need to add to C++ readin
+                                               "auto_close" : 0, # automatically close - need to add to C++ readin
+                                               "auto_open" : 1, # automatically open - need to add to C++ readin
+                                               "auto_tune" : 0, # automatically tune gains  - need to add to C++ readin
+                                               "close_on_strehl_limit": 10,
+                                               "open_on_strehl_limit": 0,
+                                               "open_on_flux_limit": 0,
+                                               "open_on_dm_limit"  : 0.5,
+                                               "LO_offload_limit"  : 1,
+
                                                }
                                             }
                                         }
                                     }
+
+
 
 
 # Check if file exists; if so, load and update.
@@ -207,25 +196,25 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
-I2M_1 = np.linalg.pinv( IM )
+# I2M_1 = np.linalg.pinv( IM )
 
-phase_cov = np.eye( IM.shape[0] )
-noise_cov = 10 * np.eye( IM.shape[1] )
-I2M_2 = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+# phase_cov = np.eye( IM.shape[0] )
+# noise_cov = 10 * np.eye( IM.shape[1] )
+# I2M_2 = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
 
-dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-I2M_3 = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
 
-U,S,Vt = np.linalg.svd( IM, full_matrices=True)
+# U,S,Vt = np.linalg.svd( IM, full_matrices=True)
 
-k= 20 # int( 5**2 * np.pi)
-I2M_4 = truncated_pseudoinverse(U, S, Vt, k=50)
+# k= 20 # int( 5**2 * np.pi)
+# I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-act = 65
-im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
-titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+# act = 65
+# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+# titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
-util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
+# util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
 
 
 # ## TT projection HO / TT 

@@ -199,17 +199,17 @@ parser.add_argument(
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
-# parser.add_argument(
-#     "--phasemask",
-#     type=str,
-#     default="H3",
-#     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
-# )
+parser.add_argument(
+    "--phasemask",
+    type=str,
+    default="H3",
+    help="phasemask to move to. Try use a reasonable size one like H3 (default)"
+)
 
 
 parser.add_argument("--lobe_threshold",
                     type=float, 
-                    default=0.1, 
+                    default=0.03, 
                     help="threshold for pupil side lobes to define a Strehl proxy pixels. \
                         These are generally where |I0 - N0| > lobe_threshold * <N0[pupil]>,\
                             in addition to some other radii criteria.  Default: Default: %(default)s")        
@@ -292,12 +292,13 @@ time.sleep(1)
 valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
 
 
-#
-if not valid_cal_files: # then we generate new ones 
+
+# if no valid ones than we make some
+if not valid_cal_files: 
     print( "no valid calibration files within the last few days. Taking new ones! ")
     script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
-    params = ["--gains", f"{hc_gain}", 
-              "--fps", f"{hc_fps}", 
+    params = ["--gains", f"{int(c.config['gain'])}", 
+              "--fps", f"{c.config['fps']}", 
               "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
               "--method", "linear_fit" ]
     try:
@@ -313,7 +314,6 @@ if not valid_cal_files: # then we generate new ones
 
     except Exception as e:
         print(f"Error running script: {e}")
-
 
 # get darks and bad pixels 
 bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
@@ -332,7 +332,7 @@ for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
 most_recent = max(raw_darks_files , key=os.path.getmtime) 
 with fits.open( most_recent ) as d:
 
-    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
+    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=3, mean_threshold=3)
     bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
     #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
     c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
@@ -378,6 +378,24 @@ for beam_id in args.beam_id:
     
 
 
+# # move to phasemask 
+# for beam_id in args.beam_id:
+#     message = f"fpm_movetomask phasemask{beam_id} {args.phasemask}"
+#     res = send_and_get_response(message)
+#     print(f"moved to phasemask {args.phasemask} on beam {beam_id} with response: {res}")
+
+
+# # optimize alignment 
+# for beam_id in args.beam_id:
+#     cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","gradient_descent"] # brute_scan
+
+#     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#         stdout, stderr = process.communicate()
+
+#     print("STDOUT:", stdout)
+#     print("STDERR:", stderr)
+
+
 ## Get ZWFS and CLEAR reference pupils 
 
 ########____ ASSUME THAT WE HAAVE THINGS ALIGNED WHEN CALLING THIS SCRIPT 
@@ -389,13 +407,18 @@ for beam_id in args.beam_id:
     #         apply_manual_reduction = True ),
     #         axis = 0) # ADU/s !    so we multiply by FPS
 
-    zwfs_pupils[beam_id] = float(c.config['fps']) * np.mean( 
+    img = float(c.config['fps']) * np.mean( 
         c.get_data( 
             apply_manual_reduction = True ),
             axis = 0)[r1:r2,c1:c2] # ADU/s !    so we multiply by FPS
 
+    # on top of the bad pixel mask 
+    img[img > 0.9e5] = 0
+    img[img < -1e2] = 0
+    zwfs_pupils[beam_id] = img
 
 
+util.nice_heatmap_subplots( [zz for zz in zwfs_pupils.values()], savefig='delme.png')
 
 # Get reference pupils (later this can just be a SHM address)
 clear_pupils = {}
@@ -425,7 +448,11 @@ for beam_id in args.beam_id:
 
     # Now procees/fit the pupil  (ADU/S)!!
     #clear_pupils[beam_id] = float(c_dict[beam_id].config['fps']) *  np.mean( N0s , axis=0)
-    clear_pupils[beam_id] = float(c.config['fps']) *  np.mean( N0s , axis=0)[r1:r2,c1:c2]
+    img = float(c.config['fps']) *  np.mean( N0s , axis=0)[r1:r2,c1:c2]
+
+    img[img > 0.9e5] = 0
+    img[img < -1e2] = 0
+    clear_pupils[beam_id] = img 
 
     ### DETECT A PUPIL MASK FROM CLEAR MASK 
     center_x, center_y, a, b, theta, pupil_mask = util.detect_pupil(clear_pupils[beam_id], sigma=2, threshold=0.5, plot=False, savepath=None)
@@ -459,6 +486,7 @@ for beam_id in args.beam_id:
     # write to toml 
     ## Eventually this exterior filter should be phasemask dependant (maybe).. lets see how operates! 
     # Note we also define this roughly in pupil_registration script 
+    # We do not make these pixels phasemask specific!!!
     new_data = {
             f"beam{beam_id}": {
                 "pupil_mask": {

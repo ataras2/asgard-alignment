@@ -16,6 +16,7 @@ import sys
 import argparse
 
 from asgard_alignment import FLI_Cameras as FLI
+
 #from common import phasemask_centering_tool as pct
 
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
@@ -43,7 +44,7 @@ def recursive_update(orig, new):
     return orig
 
 def percentile_based_detect_pupils(
-    image, percentile=80, min_group_size=50, buffer=20, plot=True
+    image, percentile=80, min_group_size=50, buffer=20, square_region=True, plot=True
 ):
     """
     Detects circular pupils by identifying regions with grouped pixels above a given percentile.
@@ -83,8 +84,13 @@ def percentile_based_detect_pupils(
             y_end = min(image.shape[0], y_slice.stop + buffer)
             x_start = max(0, x_slice.start - buffer)
             x_end = min(image.shape[1], x_slice.stop + buffer)
-            pupil_regions.append((x_start, x_end, y_start, y_end))
 
+            if square_region:
+                max_delta = np.max( [x_end - x_start,y_end - y_start] )                
+                pupil_regions.append((x_start, x_start+max_delta, y_start, y_start+max_delta))
+            else:
+                pupil_regions.append((x_start, x_end, y_start, y_end))
+            
     if plot:
         # Plot the original image with bounding boxes
         plt.figure(figsize=(10, 10))
@@ -375,7 +381,7 @@ apply_manual_reduction = True
 
 
 ### getting pupil regioons for Baldr 
-img = np.mean( c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
+img =  np.mean( c.get_data(),axis=0)  #c.get_some_frames( number_of_frames=100, apply_manual_reduction=True ) , axis = 0 ) 
 #plt.figure(); plt.imshow( np.log10( img ) ) ; plt.savefig('delme.png')
 
 ######## ISSUE WHEN WE HAD BAD READNOISE ON LINES 32n
@@ -397,11 +403,11 @@ for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
     if lab == 'baldr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99, min_group_size=100, buffer=20, plot=True
+            img * mask, percentile = 99, min_group_size=100, buffer=9, square_region=True, plot=True
         ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 90, min_group_size=50, buffer=20, plot=True
+            img * mask, percentile = 90, min_group_size=50, buffer=20,  square_region=True, plot=True
         ) )
     #cropped_pupils = crop_and_sort_pupils(img, crop_pupil_coords)
 
@@ -488,6 +494,31 @@ elif args.saveformat=='toml':
             toml.dump(current_data, toml_file)
 
         print(f'wrote {toml_file_path}')
+
+
+### WRITING TO THE CRED 1 SPLIT CONFIG FILE FOR THE SERVER
+cred_server_split_file = "/home/asg/.config/cred1_split.json"
+with open( cred_server_split_file ) as f:
+    split_dict = json.load(f)
+
+"/home/asg/.config/cred1_split.json"
+"/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
+
+
+for beam_id in dict2write["baldr_pupils"]:
+    r1,r2,c1,c2 = dict2write["baldr_pupils"][ beam_id ] 
+    split_dict[f"baldr{beam_id}"] = {}
+    split_dict[f"baldr{beam_id}"]['x0'] = c1
+    split_dict[f"baldr{beam_id}"]['y0'] = r1
+    split_dict[f"baldr{beam_id}"]['xsz'] = c2-c1
+    split_dict[f"baldr{beam_id}"]['ysz'] = r2-r1
+
+with open(cred_server_split_file, "w") as json_file:
+    json.dump(split_dict, json_file, indent=4)
+
+# img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
+# util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
+# convert_index_convention( corners ):
 
 
 ### Plot final results for check

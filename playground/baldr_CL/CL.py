@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=int,
-    default=2,
+    default=4,
     help="beam id (integrer)"
 )
 
@@ -74,7 +74,7 @@ parser.add_argument(
 parser.add_argument(
     '--ki',
     type=float,
-    default=0.2,
+    default=0.15,
     help="integral gain to use for each mode. Default: %(default)s"
 )
 
@@ -88,7 +88,7 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=100,
+    default=1000,
     help="frames per second on camera. Default: %(default)s"
 )
 
@@ -96,7 +96,7 @@ parser.add_argument(
 parser.add_argument(
     '--cam_gain',
     type=int,
-    default=1,
+    default=10,
     help="camera gain. Default: %(default)s"
 )
 
@@ -183,8 +183,8 @@ parser.add_argument(
 args=parser.parse_args()
 
 #####################################################
-########## JUST DO BEAM 2 FOR NOW
-beam_id = 2 
+########## JUST DO 1
+beam_id = args.beam_id
 
 
 
@@ -386,6 +386,19 @@ def run_script(command, stop_event, timeout=None):
         print(f"Error running script: {e}")
 
 
+
+import atexit
+def cleanup():
+    print("Running cleanup code...")
+    keep_going = False 
+    dm.zero_all()
+    dm.activate_calibrated_flat()
+
+    
+# Register the cleanup function to be called on normal program termination.
+atexit.register(cleanup)
+
+
 with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
 
     config_dict = toml.load(f)
@@ -429,27 +442,27 @@ with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
 
 #python common/turbulence.py --number_of_modes_removed 0 --r0 0.2 --V 0.4 --number_of_iterations 2000
 
-# --- Build the Command Argument List ---
-turb_args = [
-    "--number_of_iterations", f"{args.number_of_turb_iterations}",
-    "--record_telem", f"{args.record_turb_telem}",
-    "--wvl", f"{args.wvl}",
-    "--D_tel", f"{args.D_tel}",
-    "--r0", f"{args.r0}",
-    "--V", f"{args.V}",
-    "--number_of_modes_removed", f"{args.number_of_modes_removed}",
-    "--DM_chn", f"{args.DM_chn}",
-]
+# # --- Build the Command Argument List ---
+# turb_args = [
+#     "--number_of_iterations", f"{args.number_of_turb_iterations}",
+#     "--record_telem", f"{args.record_turb_telem}",
+#     "--wvl", f"{args.wvl}",
+#     "--D_tel", f"{args.D_tel}",
+#     "--r0", f"{args.r0}",
+#     "--V", f"{args.V}",
+#     "--number_of_modes_removed", f"{args.number_of_modes_removed}",
+#     "--DM_chn", f"{args.DM_chn}",
+# ]
 
 
-cmd = ["python", "common/turbulence.py"] + ["--beam_id", f"{beam_id}"] + turb_args
-# Create an Event to signal stopping the thread.
-stop_event = threading.Event()
+# cmd = ["python", "common/turbulence.py"] + ["--beam_id", f"{beam_id}"] + turb_args
+# # Create an Event to signal stopping the thread.
+# stop_event = threading.Event()
 
-print(f"putting turbulence on DM channel {args.DM_chn}")
-#run_script(cmd) #<- Use this in a thread! 
-thread = threading.Thread(target=run_script, args=(cmd, stop_event, 10))
-thread.start()
+# print(f"putting turbulence on DM channel {args.DM_chn}")
+# #run_script(cmd) #<- Use this in a thread! 
+# thread = threading.Thread(target=run_script, args=(cmd, stop_event, 10))
+# thread.start()
 
 # Let the thread run for some time, then signal it to stop.
 # time.sleep(5)  # Allow script to run for 5 seconds.
@@ -457,7 +470,7 @@ thread.start()
 
 # # Optionally, join the thread to wait for it to finish.
 # thread.join()
-print("Thread terminated safely.")
+#print("Thread terminated safely.")
 
 
 #bad_pixel_mask = bad_pixel_mask == "True"
@@ -481,7 +494,7 @@ I2M = gain / fps * I2M_raw
 I2M_LO = gain / fps * I2M_LO_raw
 I2M_HO = gain / fps * I2M_HO_raw 
 
-
+util.nice_heatmap_subplots( [util.get_DM_command_in_2D( I2M @ IM[65])] , savefig='delme.png')
 
 #plt.figure(); plt.imshow( util.get_DM_command_in_2D( dmtight_filt ) ) ;plt.savefig('delme.png')
 #np.sum(dmtight_filt)
@@ -500,7 +513,7 @@ elif dm_flat == 'factory':
 
 # project reference intensities to DM (quicker for division & subtraction)
 N0dm = gain / fps * (I2A @ N0i.reshape(-1)) # these are already reduced #- dark_dm - bias_dm
-I0dm = #gain / fps * (I2A @ I0.reshape(-1)) # these are already reduced  #- dark_dm - bias_dm
+I0dm = gain / fps * (I2A @ I0.reshape(-1)) # these are already reduced  #- dark_dm - bias_dm
 bias_dm = I2A @ bias.reshape(-1)
 dark_dm = I2A @ dark.reshape(-1)
 badpixmap = I2A @ bad_pixel_mask.astype(int).reshape(-1)
@@ -509,7 +522,7 @@ badpixmap = I2A @ bad_pixel_mask.astype(int).reshape(-1)
 bias_sec = bias[secon_mask.astype(bool).reshape(-1)][4]
 dark_sec = dark[secon_mask.astype(bool).reshape(-1)][4]
 
-#util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [N0dm, I0dm, bias_dm, dark_dm, badpixmap]] , savefig='delme.png') 
+util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [N0dm, I0dm, bias_dm, dark_dm, badpixmap]] , savefig='delme.png') 
 
 
 
@@ -557,19 +570,23 @@ close_after = 0
 # coe_1 = (gain / fps * strehl_coe_ext[1])
 
 #u = 0
+#bad_ones = [ 26,  37,  38,  53,  63,  65,  66,  75,  76,  78,  79,  87,  90, 98, 101, 102]
+telem = False
 naughty_list = {a:0 for a in range(140)}
-for it in range(args.number_of_iterations):
-    
+#for it in range(args.number_of_iterations):
+keep_going = True
+it = 0
+while keep_going:   
     # raw intensity 
     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
     t0 = time.time()
 
     # model of the turbulence (in DM units)
-    sss = (i[secon_mask.astype(bool)][4] - bias_sec - (1/ fps * dark_sec) )
-    dm_rms_est =  gain / fps * np.sum( strehl_coe_ext @ [sss, 1] )
-    Sest = np.exp( - (2 * np.pi * dm2opd * dm_rms_est / (1.65e-6) )**2)
+    #sss = (i[secon_mask.astype(bool)][4] - bias_sec - (1/ fps * dark_sec) )
+    #dm_rms_est =  gain / fps * np.sum( strehl_coe_ext @ [sss, 1] )
+    #Sest = np.exp( - (2 * np.pi * dm2opd * dm_rms_est / (1.65e-6) )**2)
 
-    print( Sest)
+    #print( Sest)
 
     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
     idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
@@ -587,21 +604,31 @@ for it in range(args.number_of_iterations):
     # else:
     #     u = 0 * e 
 
-    
+    #u[bad_ones] = 0
+
     # safety
-    if np.max( abs( u ) ) > 0.4:
+    if np.max( abs( u ) ) > 0.3:
         culprit = np.where( abs( u ) == np.max( abs( u ) )  )[0][0]
-        print(f"broke, reseting, reducing gain act {culprit} by half")
+        print(f"beam {args.beam_id} broke by act.{culprit} , reseting") # , reducing gain act {culprit} by half")
         #ctrl_HO.ki[culprit] *= 0.5 
         dm.set_data( dm.cmd_2_map2D( np.zeros( len(u)) ) )
         #dm.activate_calibrated_flat()
         ctrl_HO.reset( )
 
         #ctrl_HO.reset_single_mode(culprit )
-        #naughty_list[culprit] += 1
-        #if naughty_list[culprit] > 3:
-        #    print(f"turn off naughty atuator {culprit}")
-        #    ctrl_HO.ki[culprit] *= 0.0 # turn off gain for this actuator
+        naughty_list[culprit] += 1
+        #if naughty_list[culprit] > 5:
+        #    #keep_going = False
+        #    #print("ENDING")
+
+        if naughty_list[culprit] > 30:
+            keep_going = False
+            print("ENDING")
+
+        
+        if naughty_list[culprit] > 4:
+           print(f"turn off naughty atuator {culprit}")
+           ctrl_HO.ki[culprit] *= 0.0 # turn off gain for this actuator
         #break
         # ctrl_HO.reset_single_mode(
 
@@ -630,9 +657,12 @@ for it in range(args.number_of_iterations):
 
     t1 = time.time()
 
-    print(t1-t0, dm_rms_est , np.max(abs(e)), np.max(abs(u)))
+    print(it, t1-t0, np.max(abs(e)), np.max(abs(u))) #m_rms_est ,
     if 1/fps - (t1-t0) > 0 :
         time.sleep( 1/fps - (t1-t0) )
+    
+    it += 1
+
 
 dm.zero_all()
 dm.activate_calibrated_flat()
@@ -665,6 +695,9 @@ dm.activate_calibrated_flat()
 
 # telem["secondary_sig"]
 
+
+
+"""
 # save telemetry
 runn=f"kolmogorov_ki-{args.ki}_kd-{args.kd}_r0-{args.r0}_V-{args.V}_fps-{cam_config['fps']}_gain-fps-{cam_config['gain']}" 
 # Create a list of HDUs (Header Data Units)
@@ -738,7 +771,7 @@ print(f'wrote telemetry to \n{fits_file}')
 
 
 
-
+"""
 
 # ######################################
 # # ZONAL - 1 actuator 

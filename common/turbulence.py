@@ -179,6 +179,7 @@ for beam in args.beam_id:
 telem = {"t_dm":[], "dm_disturb":[]}
 cnt = 0 
 start_time = time.time()
+time_elapsed = 0
 while (not (cnt > args.number_of_iterations) ) and (not (time_elapsed > args.max_time)):
 
     t0 = time.time() #iteration start time

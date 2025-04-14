@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--sleeptime",
     type=float,
-    default=0.1,
+    default=200/500,
     help="sleeptime between phase mask movements. Default: %(defult)s"
 )
 
@@ -227,53 +227,92 @@ for beam_id in args.beam_id:
 
 
 
-import concurrent.futures
+# import concurrent.futures
 
-def brute_scan(beam_id):
+# def brute_scan(beam_id):
 
-    result1 = pct.spiral_square_search_and_save_images(
-        cam=c_dict[beam_id],
-        beam=beam_id,
-        phasemask=state_dict["socket"],
-        starting_point=initial_pos[beam_id],
-        step_size=5,
-        search_radius=40,
-        sleep_time=0.1,
-        use_multideviceserver=True,
-    )
+#     result1 = pct.spiral_square_search_and_save_images(
+#         cam=c_dict[beam_id],
+#         beam=beam_id,
+#         phasemask=state_dict["socket"],
+#         starting_point=initial_pos[beam_id],
+#         step_size=5,
+#         search_radius=40,
+#         sleep_time=0.1,
+#         use_multideviceserver=True,
+#     )
 
-    ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result1.items()])
+#     ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result1.items()])
 
-    Xb, Yb = list(  result1.keys() )[ib]
+#     Xb, Yb = list(  result1.keys() )[ib]
 
-    # go finer
-    result2 = pct.spiral_square_search_and_save_images(
+#     # go finer
+#     result2 = pct.spiral_square_search_and_save_images(
+#             cam=c_dict[beam_id],
+#             beam=beam_id,
+#             phasemask=state_dict["socket"],
+#             starting_point=[Xb, Yb],
+#             step_size=2,
+#             search_radius=5,
+#             sleep_time=0.1,
+#             use_multideviceserver=True,
+#         )
+
+#     ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result2.items()])
+
+#     Xb, Yb = list(  result2.keys() )[ib]
+
+#     print(f"moving to best position at {Xb, Yb} for beam {beam_id}")
+#     for m, p in zip(["BMX","BMY"], [Xb,Yb]):
+#         time.sleep(1)
+#         message = f"moveabs {m}{beam_id} {p}"
+#         res = send_and_get_response(message)
+#         print(res)
+
+if args.method.lower() == "brute_scan":
+    # Use ThreadPoolExecutor to run functions in parallel
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=len(args.beam_id)) as executor:
+    #     # Map each input to the function and execute in parallel
+    #     results = list(executor.map(brute_scan, args.beam_id))
+
+    for beam_id in args.beam_id:
+        result1 = pct.spiral_square_search_and_save_images(
             cam=c_dict[beam_id],
             beam=beam_id,
             phasemask=state_dict["socket"],
-            starting_point=[Xb, Yb],
-            step_size=2,
-            search_radius=5,
+            starting_point=initial_pos[beam_id],
+            step_size=5,
+            search_radius=40,
             sleep_time=0.1,
             use_multideviceserver=True,
         )
 
-    ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result2[beam_id].items()])
+        ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result1.items()])
 
-    Xb, Yb = list(  result2.keys() )[ib]
+        Xb, Yb = list(  result1.keys() )[ib]
 
-    print(f"moving to best position at {Xb, Yb} for beam {beam_id}")
-    for m, p in zip(["BMX","BMY"], [Xb,Yb]):
-        time.sleep(1)
-        message = f"moveabs {m}{beam_id} {p}"
-        res = send_and_get_response(message)
-        print(res)
+        # go finer
+        result2 = pct.spiral_square_search_and_save_images(
+                cam=c_dict[beam_id],
+                beam=beam_id,
+                phasemask=state_dict["socket"],
+                starting_point=[Xb, Yb],
+                step_size=2,
+                search_radius=5,
+                sleep_time=0.1,
+                use_multideviceserver=True,
+            )
 
-if args.method.lower() == "brute_scan":
-    # Use ThreadPoolExecutor to run functions in parallel
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(args.beam_id)) as executor:
-        # Map each input to the function and execute in parallel
-        results = list(executor.map(brute_scan, args.beam_id))
+        ib = np.argmax( [v[np.array(sec_filter[beam_id]).astype(bool)][4] for _,v in result2.items()])
+
+        Xb, Yb = list(  result2.keys() )[ib]
+
+        print(f"moving to best position at {Xb, Yb} for beam {beam_id}")
+        for m, p in zip(["BMX","BMY"], [Xb,Yb]):
+            time.sleep(1)
+            message = f"moveabs {m}{beam_id} {p}"
+            res = send_and_get_response(message)
+            print(res)
 
 ####################################################################
 ### FINE SPIRAL SEARCH 
@@ -362,11 +401,17 @@ elif args.method.lower() == "gradient_descent":
                     print(res)
                     time.sleep(args.sleeptime)
                     # ADU/s! 
-                    i = float( c_dict[beam_id].config["fps"]) * np.mean(  c_dict[beam_id].get_some_frames( 
-                                        number_of_frames = 100, 
+                    # i = float( c_dict[beam_id].config["fps"]) * np.mean(  c_dict[beam_id].get_some_frames( 
+                    #                     number_of_frames = 100, 
+                    #                     apply_manual_reduction = True ),
+                    #                     axis = 0)
+
+                    i = float( c_dict[beam_id].config["fps"]) * np.mean(  c_dict[beam_id].get_data( 
                                         apply_manual_reduction = True ),
                                         axis = 0)
 
+                    # i = float( c_dict[beam_id].config["fps"]) * c_dict[beam_id].get_image( 
+                    #                     apply_manual_reduction = True )
                     #signaltmp.append(  np.mean( i[ np.array(exterior_filter).astype(bool) ] ) / np.sum( i ) ) # [+x, -x, +y, -y] 
                     signaltmp.append(  i[ np.array(sec_filter[beam_id]).astype(bool) ][4] / np.sum( i ) ) # [+x, -x, +y, -y] 
 

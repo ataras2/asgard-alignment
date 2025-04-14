@@ -102,6 +102,22 @@ parser.add_argument(
     help="camera gain. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--max_time',
+    type=float,
+    default=10,
+    help="maximum time (seconds) that turbulence is applied for each r0. Limit is set by minimum condition of --max_time and --number_of_iterations. Default: %(default)s"
+)
+
+parser.add_argument(
+    '--number_of_iterations',
+    type=int,
+    default=1e6,
+    help="maximum number of iterations for rolling turbuelnce  applied for each r0. Limit is set by minimum condition of --max_time and --number_of_iterations. Default: %(default)s"
+)
+
+
+
 parser.add_argument("--fig_path", 
                     type=str, 
                     default=None, 
@@ -118,15 +134,15 @@ for beam_id in args.beam_id:
     print(f"moved to phasemask {args.phasemask} on beam {beam_id} with response: {res}")
 
 
-# optimize alignment 
-for beam_id in args.beam_id:
-    cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","gradient_descent"] # brute_scan
+# # optimize alignment 
+# for beam_id in args.beam_id:
+#     cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","gradient_descent"] # brute_scan
 
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-        stdout, stderr = process.communicate()
+#     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#         stdout, stderr = process.communicate()
 
-    print("STDOUT:", stdout)
-    print("STDERR:", stderr)
+#     print("STDOUT:", stdout)
+#     print("STDERR:", stderr)
 
 
 # Open Strehl proxy pixels 
@@ -140,7 +156,7 @@ for beam_id in args.beam_id:
         baldr_pupils = config_dict['baldr_pupils']
         #I2A[beam_id] = config_dict[f'beam{beam_id}']['I2A']
         
-        pupil_mask[beam_id]= np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None) ) 
+        pupil_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None) ) 
         exter_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) ) 
         secon_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) )
 
@@ -170,11 +186,12 @@ c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
 
 valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
 
+
 # if no valid ones than we make some
 if not valid_cal_files: 
     print( "no valid calibration files within the last few days. Taking new ones! ")
     script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
-    params = ["--gains", f"{c.config['gain']}", 
+    params = ["--gains", f"{int(c.config['gain'])}", 
               "--fps", f"{c.config['fps']}", 
               "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
               "--method", "linear_fit" ]
@@ -198,9 +215,14 @@ bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.
 dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
 raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
 
+filename_reduction_dict = {} # to hold the files used for reduction 
+
 for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
     # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
     most_recent = max(ff, key=os.path.getmtime) 
+
+    filename_reduction_dict[lab+'_file'] = most_recent
+
     with fits.open( most_recent ) as d:
         c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
         #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
@@ -208,6 +230,8 @@ for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
 
 # bad pixels 
 most_recent = max(raw_darks_files , key=os.path.getmtime) 
+filename_reduction_dict["raw_darks_file"] = most_recent
+
 with fits.open( most_recent ) as d:
 
     bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
@@ -217,6 +241,12 @@ with fits.open( most_recent ) as d:
 
 
 
+# pupil on the DM
+dm_pup = np.zeros( [12,12] ) # pupil on DM 
+X,Y = np.meshgrid( np.arange(0,12), np.arange(0,12))
+dm_pup[ (X-5.5)**2 + (Y-5.5)**2 <= 25] = 1
+# plot2d( dm_pup )
+
 imgs = {beam_id:{} for beam_id in args.beam_id} # keyed by r0 or rms however we want to do it 
 timestamps = {beam_id:{} for beam_id in args.beam_id}  # keyed by r0 or rms however we want to do it 
 secon_int = {beam_id:{} for beam_id in args.beam_id} 
@@ -224,20 +254,24 @@ exter_int = {beam_id:{} for beam_id in args.beam_id}
 dm_rms = {beam_id:{} for beam_id in args.beam_id} 
 dm_p2v = {beam_id:{} for beam_id in args.beam_id} 
 fname = {}
-# for r0 in ...
-#r0 = 1
 
-for r0 in [0.3, 0.5, 0.7, 1.0]:
-    imgs[r0] = []
-    timestamps[r0] = []
 
+r0_grid = [0.3, 0.5, 0.7, 1.0] # good linear range 
+
+for r0 in r0_grid:
+
+    # STARTING THE TURBULENCE ON EACH DM AND GET IMAGE BATCHES AT GIVEN TIME SAMPLES
     for beam_id in args.beam_id:
-        fname[beam_id] = f'/home/asg/Videos/test_beam_id{beam_id}.fits'
+
+        imgs[beam_id][r0] = []
+        timestamps[beam_id][r0] = []
+         # this is just temporary to track DM telemetry for the given r0 and beam_id , it gets read back in here, and overwritten each iteration
+        fname[beam_id] = f'/home/asg/Videos/test_beam_id{beam_id}.fits' # one file per beam_id for given r0. Must read in current r0 loop
         cmd = [
             'python', '/home/asg/Progs/repos/asgard-alignment/common/turbulence.py',
             '--beam_id', f'{beam_id}',
-            '--number_of_iterations', '10000',
-            '--max_time', '60',
+            '--number_of_iterations', f"{int(args.number_of_iterations)}",#'10000',
+            '--max_time',  f"{args.max_time}",#'10',
             '--wvl', '1.65',
             '--D_tel', '1.8',
             '--r0', f'{r0}',
@@ -248,7 +282,7 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
         ]
 
 
-
+        # Running script to put turbulence on DM 
         # Start the process non-blocking
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
@@ -263,19 +297,23 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
         else:
             process_running = False
 
-    time.sleep( 2 )
+    # GET BATCH OF IMAGES EVERY FEW SECONDS FOR EACH BEAM
     # Main loop to get images while process running. 
     # we skip frames intentionally rto minimize correlations 
     while process_running:
         print("turbulence.py is still running...getting frames")
         #imgs[r0].append(  c_dict[beam_id].get_some_frames(number_of_frames = 100, apply_manual_reduction=True) )
-        global_img = c.get_data( apply_manual_reduction=True )
+        global_img = np.mean( 
+            c.get_data( apply_manual_reduction=True ),axis=0
+        )
         for beam_id in args.beam_id:
             r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
             imgs[beam_id][r0].append( global_img[r1:r2,c1:c2] )
             timestamps[beam_id][r0].append( time.time() )
-        time.sleep(5)  # Wait 5 second between checks
+        time.sleep(2)  # Wait 5 second between checks
         check_process()
+
+    time.sleep( 10 ) # take 5, can be a second to write fits for the DM telemetry 
 
     # Once finished print output.
     stdout, stderr = proc.communicate()
@@ -288,19 +326,8 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
 
 
 
-    # # Run the command and capture the output.
-    # result = subprocess.run(cmd, capture_output=True, text=True)
-
-    # # Print the captured stdout and stderr.
-    # print("Output from turbulence.py:")
-    # print(result.stdout)
-    # if result.stderr:
-    #     print("Errors:")
-    #     print(result.stderr)
-
-
+    # PROCESS IMAGE SIGNALS FOR EACH r0 CATEGORY AND BEAM (must do within this r0 loop cause only one file per beam whichc is overwritten for each r0 in parent loop)
     for beam_id in args.beam_id:
-        # flatten the samples
         img_list = np.array( imgs[beam_id][r0] ).reshape(-1, np.array( imgs[beam_id][r0] ).shape[-2], np.array( imgs[beam_id][r0] ).shape[-1] )
 
         # get the intensity in the secondary pixel 
@@ -311,13 +338,6 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
         # look at mean signal (ADU/s/gain) in pupil exterior pixels 
         exter_int[beam_id][r0] = np.array( [args.cam_fps/args.cam_gain * np.mean( i[secon_mask[beam_id].astype(bool)] ) for i in img_list])
 
-        # pupil on the DM
-        dm_pup = np.zeros( [12,12] ) # pupil on DM 
-        X,Y = np.meshgrid( np.arange(0,12), np.arange(0,12))
-        dm_pup[ (X-5.5)**2 + (Y-5.5)**2 <= 25] = 1
-        # plot2d( dm_pup )
-
-
         # read in telemetry 
         rms = [] # rms DM cmd
         p2v = [] # peak-to-valley DM cmd 
@@ -327,72 +347,91 @@ for r0 in [0.3, 0.5, 0.7, 1.0]:
             dm_rms[beam_id][r0] = np.array( [np.std( c[dm_pup.astype(bool)] ) for c in d["DM_CMD"].data ] )
             dm_p2v[beam_id][r0] = np.array( [np.max(  c[dm_pup.astype(bool)] ) - np.min( c[dm_pup.astype(bool)] ) for c in d["DM_CMD"].data ] ) 
 
-        print( f"for r0 = {r0} , dm rms = {np.mean( dm_rms[beam_id][r0] )}")
-        print( f"for r0 = {r0} , dm p2v = {np.mean( dm_p2v[beam_id][r0] )}")
-
-        rms_mean = np.array( [np.mean( v ) for _,v in dm_rms[beam_id].items() ] ) # [2:]
-        sec_mean = np.array( [np.mean( v ) for _,v in secon_int[beam_id].items() ] )# [2:]
-        ext_mean = np.array( [np.mean( v ) for _,v in exter_int[beam_id].items() ] )# [2:] 
-
-        rms_std = np.array( [np.std( v ) for _,v in dm_rms[beam_id].items() ] ) #[2:] 
-        sec_std = np.array( [np.std( v ) for _,v in secon_int[beam_id].items() ] ) #[2:3]
-        ext_std = np.array( [np.std( v ) for _,v in exter_int[beam_id].items() ] ) # [2:]
-
-        # Fit a linear model for sec vs. rms.
-        coef_sec = np.polyfit( sec_mean,rms_mean, 1)  # [slope, intercept]
-
-        # Fit a linear model for ext vs. rms.
-        coef_ext = np.polyfit( ext_mean,rms_mean,  1)
-
-        print("") 
+        print( f"for beam {beam_id}, r0 = {r0} , dm rms = {np.mean( dm_rms[beam_id][r0] )}")
+        print( f"for beam {beam_id}, r0 = {r0} , dm p2v = {np.mean( dm_p2v[beam_id][r0] )}")
 
 
-        dict2write = {f"beam{beam_id}":{"strehl_model": {"secondary":np.diag( coef_sec ), "exterior": np.diag( coef_ext )}}}
+# FIT THE LINES!!!!!!!!!!!!!!!!!!! 
+for beam_id in args.beam_id:
+    rms_mean = np.array( [np.mean( v ) for _,v in dm_rms[beam_id].items() ] ) # [2:]
+    sec_mean = np.array( [np.mean( v ) for _,v in secon_int[beam_id].items() ] )# [2:]
+    ext_mean = np.array( [np.mean( v ) for _,v in exter_int[beam_id].items() ] )# [2:] 
 
-        # Check if file exists; if so, load and update.
-        if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
-            try:
-                current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
-            except Exception as e:
-                print(f"Error loading TOML file: {e}")
-                current_data = {}
-        else:
+    rms_std = np.array( [np.std( v ) for _,v in dm_rms[beam_id].items() ] ) #[2:] 
+    sec_std = np.array( [np.std( v ) for _,v in secon_int[beam_id].items() ] ) #[2:3]
+    ext_std = np.array( [np.std( v ) for _,v in exter_int[beam_id].items() ] ) # [2:]
+
+    # Fit a linear model for sec vs. rms.
+    coef_sec = np.polyfit( sec_mean,rms_mean, 1)  # [slope, intercept]
+
+    # Fit a linear model for ext vs. rms.
+    coef_ext = np.polyfit( ext_mean,rms_mean,  1)
+
+    print("") 
+
+    dict2write = {f"beam{beam_id}":
+                {"strehl_model": {
+                    f"{args.phasemask}":
+                                    {"secondary":np.diag( coef_sec ), 
+                                    "exterior": np.diag( coef_ext ),
+                                    "reduction_files":
+                                        {"dark_file":filename_reduction_dict["dark_file"],
+                                        "bias_file":filename_reduction_dict["bias_file"],
+                                        "raw_darks_file":filename_reduction_dict["raw_darks_file"]}
+                                        }
+                            }
+                        }
+                    }
+
+    # Check if file exists; if so, load and update.
+    if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+        try:
+            current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+        except Exception as e:
+            print(f"Error loading TOML file: {e}")
             current_data = {}
+    else:
+        current_data = {}
 
 
-        current_data = util.recursive_update(current_data, dict2write)
+    current_data = util.recursive_update(current_data, dict2write)
 
-        with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
-            toml.dump(current_data, f)
+    with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+        toml.dump(current_data, f)
 
-        print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
+    print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 
 
-        # Plot errorbars:
-        fs = 15
-        plt.figure(figsize=(8,5))
-        plt.errorbar(sec_mean, rms_mean, yerr=rms_std, xerr=sec_std, fmt='o', color='blue', label='Secondary pixel')
-        plt.errorbar(ext_mean, rms_mean,  yerr=rms_std, xerr=ext_std, fmt='s', color='red', label='Exterior pixels')
+    # Plot errorbars:
+    fs = 15
+    plt.figure(figsize=(8,5))
+    plt.errorbar(sec_mean, rms_mean, yerr=rms_std, xerr=sec_std, fmt='o', color='blue', label='Secondary pixel')
+    plt.errorbar(ext_mean, rms_mean,  yerr=rms_std, xerr=ext_std, fmt='s', color='red', label='Exterior pixels')
 
-        # use the models to plot lines
-        fit_ext = np.poly1d(coef_ext)
-        fit_sec = np.poly1d(coef_sec)
+    # use the models to plot lines
+    fit_ext = np.poly1d(coef_ext)
+    fit_sec = np.poly1d(coef_sec)
 
-        # Generate x-values for plotting the fitted lines.
+    # Generate x-values for plotting the fitted lines.
 
-        xsec = np.linspace(sec_mean.min(), sec_mean.max(), 100)
-        xext = np.linspace(ext_mean.min(), ext_mean.max(), 100)
-        plt.plot(xsec, fit_sec(xsec), 'b--', label=f'Secondary pixel Fit: y={coef_sec[0]:.2e}x+{coef_sec[1]:.2e}')
-        plt.plot(xext, fit_ext(xext), 'r--', label=f'Exterior pixels Fit: y={coef_ext[0]:.2e}x+{coef_ext[1]:.2e}')
-        plt.gca().tick_params(labelsize=fs)
-        plt.ylabel('DM RMS [DM units]',fontsize=fs)
-        plt.xlabel('signal [ADU/s/gain/pixel]',fontsize=fs)
-        plt.legend()
-        #plt.xscale('log')
-        #plt.savefig("delme.png", bbox_inches='tight',dpi=200)
-        if args.fig_path is not None:
-            plt.savefig(args.fig_path + f"strehl_model_beam{beam_id}.png", bbox_inches='tight',dpi=200)
-        plt.close()
+    xsec = np.linspace(sec_mean.min(), sec_mean.max(), 100)
+    xext = np.linspace(ext_mean.min(), ext_mean.max(), 100)
+    plt.plot(xsec, fit_sec(xsec), 'b--', label=f'Secondary pixel Fit: y={coef_sec[0]:.2e}x+{coef_sec[1]:.2e}')
+    plt.plot(xext, fit_ext(xext), 'r--', label=f'Exterior pixels Fit: y={coef_ext[0]:.2e}x+{coef_ext[1]:.2e}')
+    plt.gca().tick_params(labelsize=fs)
+    plt.ylabel('DM RMS [DM units]',fontsize=fs)
+    plt.xlabel('signal [ADU/s/gain/pixel]',fontsize=fs)
+    plt.legend()
+    #plt.xscale('log')
+    #plt.savefig("delme.png", bbox_inches='tight',dpi=200)
+    if args.fig_path is not None:
+
+        if not os.path.exists( args.fig_path ):
+            print(f"creating directory for figure in {args.fig_path}")
+            os.makedirs( args.fig_path  )
+
+        plt.savefig(args.fig_path + f"strehl_model_beam{beam_id}.png", bbox_inches='tight',dpi=200)
+    plt.close()
 
 
 

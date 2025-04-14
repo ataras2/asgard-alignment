@@ -11,6 +11,8 @@ import toml
 import datetime
 import json
 import argparse
+from astropy.io import fits
+import subprocess
 import matplotlib.pyplot as plt
 from scipy.ndimage import median_filter
 from xaosim.shmlib import shm
@@ -108,7 +110,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2],
+    default=[4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 parser.add_argument(
@@ -163,11 +165,96 @@ for beam_id in args.beam_id:
 
         # get the pupil mask (we only consider pixels within here for the DM calibration)
         pupil_mask[beam_id] = config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("mask", None)
+
 # global camera image shm - we do this to make it easier to run for multiple beams interms of changing settings etc
-c = FLI.fli(args.global_camera_shm) #shm(args.global_camera_shm)
-# Trial
-c.build_manual_bias(number_of_frames=500)
-c.build_manual_dark(no_frames = 500 , build_bad_pixel_mask=True, kwargs={'std_threshold':10, 'mean_threshold':6} )
+c = FLI.fli(args.global_camera_shm, roi=[None,None,None,None]) #shm(args.global_camera_shm)
+# We read them in now! 
+# c.build_manual_bias(number_of_frames=500)
+# c.build_manual_dark(no_frames = 500 , build_bad_pixel_mask=True, kwargs={'std_threshold':10, 'mean_threshold':6} )
+
+# we get the current settings to return to prior
+fps0 = FLI.extract_value( c.send_fli_cmd( "fps raw" ) ) 
+gain0 = FLI.extract_value( c.send_fli_cmd( "gain raw" ) ) 
+
+### HARD CODED GAIN AND FPS FOR THIS CALIBRATION 
+hc_fps = 200 # Hz 
+hc_gain = 1 # 
+
+c.send_fli_cmd(f"set fps {hc_fps}")
+time.sleep(1)
+c.send_fli_cmd(f"set gain {hc_gain}")
+time.sleep(1)
+
+# after changing ensure that everything is ok (updated fine in the camera local config)
+assert float( c.config['gain'] ) == float(hc_gain )
+assert float( c.config['fps']) == float( hc_fps )
+
+
+# r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# util.nice_heatmap_subplots( [c.reduction_dict['dark'][-1][r1:r2,c1:c2], c.reduction_dict['bias'][-1][r1:r2,c1:c2], c.reduction_dict['bad_pixel_mask'][-1][r1:r2,c1:c2]], savefig = 'delme.png')
+
+
+valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
+
+
+# if no valid ones than we make some
+if not valid_cal_files: 
+    print( "no valid calibration files within the last few days. Taking new ones! ")
+    script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
+    params = ["--gains", f"{int(c.config['gain'])}", 
+              "--fps", f"{c.config['fps']}", 
+              "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
+              "--method", "linear_fit" ]
+    try:
+        # Run the script and ensure it completes
+        with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            stdout, stderr = process.communicate()  # Wait for process to complete
+
+            if process.returncode == 0:
+                print("Script executed successfully!")
+                print(stdout)  # Print standard output (optional)
+            else:
+                print(f"Script failed with error:\n{stderr}")
+
+    except Exception as e:
+        print(f"Error running script: {e}")
+
+
+# get darks, bias and some raw darks to make bad pixels (we dont use the premade ones cause we adjust here the parameters)
+bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
+dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
+raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
+
+reduction_dict = {} # to hold the files used for reduction 
+
+for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
+    # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
+    most_recent = max(ff, key=os.path.getmtime) 
+    reduction_dict[lab] = most_recent
+    with fits.open( most_recent ) as d:
+        c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
+        #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+        #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
+
+# bad pixels 
+most_recent = max(raw_darks_files , key=os.path.getmtime) 
+reduction_dict["raw_darks"] = most_recent
+
+with fits.open( most_recent ) as d:
+
+    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
+    bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+    c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+
+# r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+# util.nice_heatmap_subplots( [c.reduction_dict['dark'][-1][r1:r2,c1:c2], c.reduction_dict['bias'][-1][r1:r2,c1:c2], c.reduction_dict['bad_pixel_mask'][-1][r1:r2,c1:c2]], savefig = 'delme.png')
+
+
+
+
+
+
 
 ####################################################################################
 ####################################################################################
@@ -218,7 +305,7 @@ for beam_id in args.beam_id:
 
 # setup
 #assert len( dm_shm_dict ) == len( camera_shm_list )
-disturbance = np.zeros(144) #[np.zeros(140) for _ in DM_list]
+#disturbance = np.zeros(144) #[np.zeros(140) for _ in DM_list]
 
 # incase we want to test this with dynamic dm cmds (e.g phasescreen)
 current_cmd_list = [ np.zeros(144)  for _ in args.beam_id]
@@ -287,7 +374,7 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         for ii, beam_id in enumerate( args.beam_id):
             dm_shm_dict[beam_id].set_data( dm_shm_dict[beam_id].cmd_2_map2D(poke_vector, fill=0) ) 
             ## Try without #DM_flat_offset[beam_id]  )
-        time.sleep(sleeptime)
+        time.sleep(1)
         # get the images 
         img = np.mean( c.get_data( apply_manual_reduction=True) , axis=0)
 
@@ -333,10 +420,16 @@ for beam_id in args.beam_id:
 
 
 ## lets see the registration 
-# plt.figure()
-# plt.imshow( np.sum(img_4_corners[0],axis=0))
+#plt.figure()
+
+#titles = ['pull','push','diff']
+#imgs = [np.mean(img_list_pull[ii],axis=0), np.mean(img_list_push[ii],axis=0),np.mean(img_list_push[ii],axis=0) - np.mean(img_list_pull[ii],axis=0)  ]
+# titles = [f'corner{i}' for i in [1,2,3,4]]
+# imgs = [ii for ii in img_4_corners[ii]]
+# util.nice_heatmap_subplots( im_list=imgs, title_list=titles,savefig='delme.png')
+# #plt.imshow( np.sum(img_4_corners[0],axis=0))
 # # should see four corner dm pokes in the image 
-# plt.savefig('delme.png')
+# #plt.savefig('delme.png')
 
 ## we do beam specific directory from fig_path
 if not os.path.exists( args.fig_path + f"beam{beam_id}/"):
@@ -350,8 +443,12 @@ for ii, beam_id in enumerate( args.beam_id ):
     if args.fig_path is not None:
         savefig = args.fig_path #+ 'DM_registration_in_pixel_space.png'
     else:
-        savefig = '~/Downloads/'
+        savefig = os.path.expanduser('~/Downloads')
 
+    if not os.path.exists( savefig + f"beam{beam_id}/"):
+        os.mkdir( savefig + f"beam{beam_id}/" )
+
+    plt.close() # close any open figiures
     transform_dicts.append( DM_registration.calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners[ii] , debug=True, fig_path = savefig + f"beam{beam_id}/"  ) )
     plt.close() # close any open figiures
 
@@ -410,6 +507,12 @@ for ii, beam_id in enumerate( args.beam_id ):
     print( f"saved dm registration json : {path_tmp + file_tmp}")
 
 
+
+print('returning to original camera gain and fps settings')
+c.send_fli_cmd(f"set fps {fps0}")
+time.sleep(1)
+c.send_fli_cmd(f"set gain {gain0}")
+time.sleep(1)
 
 # Close everything 
 c.close(erase_file=False)

@@ -1301,7 +1301,27 @@ def get_DM_command_in_2D(cmd,Nx_act=12):
         cmd_in_2D.insert(i,np.nan)
     return( np.array(cmd_in_2D).reshape(Nx_act,Nx_act) )
 
-
+def convert_12x12_to_140(arr):
+    # Convert input to a NumPy array (if it isn't already)
+    arr = np.asarray(arr)
+    
+    if arr.shape != (12, 12):
+        raise ValueError("Input must be a 12x12 array.")
+    
+    # Flatten the array (row-major order)
+    flat = arr.flatten()
+    
+    # The indices for the four corners in a 12x12 flattened array (row-major order):
+    # Top-left: index 0
+    # Top-right: index 11
+    # Bottom-left: index 11*12 = 132
+    # Bottom-right: index 143 (11*12 + 11)
+    corner_indices = [0, 11, 132, 143]
+    
+    # Delete the corner elements from the flattened array
+    vector = np.delete(flat, corner_indices)
+    
+    return vector
 
 def circle(radius, size, circle_centre=(0, 0), origin="middle"):
     
@@ -2090,6 +2110,35 @@ def nice_DM_plot( data, savefig=None , include_actuator_number = True): #for a 1
 
     if savefig!=None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
+
+
+
+
+def truncated_pseudoinverse(U, s, Vt, k):
+    """
+    Compute the pseudoinverse of a matrix using a truncated SVD.
+
+    Parameters:
+        U (np.ndarray): Left singular vectors (m x m if full_matrices=True)
+        s (np.ndarray): Singular values (vector of length min(m,n))
+        Vt (np.ndarray): Right singular vectors (n x n if full_matrices=True)
+        k (int): Number of singular values/modes to keep.
+
+    Returns:
+        np.ndarray: The truncated pseudoinverse of the original matrix.
+    """
+    # Keep only the first k modes
+    U_k = U[:, :k]      # shape: (m, k)
+    s_k = s[:k]         # shape: (k,)
+    Vt_k = Vt[:k, :]    # shape: (k, n)
+
+    # Build the inverse of the diagonal matrix with the truncated singular values
+    S_inv_k = np.diag(1.0 / s_k)  # shape: (k, k)
+
+    # Compute the truncated pseudoinverse
+    IM_trunc_inv = Vt_k.T @ S_inv_k @ U_k.T
+    return IM_trunc_inv
+
 
 
 

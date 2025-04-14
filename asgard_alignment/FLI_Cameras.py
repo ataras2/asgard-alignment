@@ -74,7 +74,7 @@ mds_socket.connect( f"tcp://{mds_host}:{mds_port}")
 cam_port = 6667
 context = zmq.Context()
 cam_socket = context.socket(zmq.REQ)
-cam_socket.connect(f"tcp://localhost:{cam_port}")
+cam_socket.connect(f"tcp://172.16.8.6:{cam_port}") #cam_socket.connect(f"tcp://localhost:{cam_port}")
 
 cmd_sz = 10 # finite size command with blanks filled
 
@@ -753,6 +753,7 @@ class fli( ):
         apply_manual_reduction=True reduces image using self.reduction_dict
         which_index indicates which index in reduction_dict lists to use. Default (-1) is the most recent
         """
+        #self.mySHM.catch_up_with_sem(self.semid)
         img = self.mySHM.get_latest_data(self.semid)
 
         if not apply_manual_reduction:

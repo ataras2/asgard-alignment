@@ -1787,17 +1787,18 @@ with col_main:
             cam_fps_input = st.number_input("Camera frames per seconds", min_value=100, max_value=1000, value=100, step=1)
             cam_gain_input = st.number_input("Camera gain", min_value=1, max_value=10, value=1, step=1)
 
+            # "--max_time",f"{120}","--number_of_iterations",f"{10000}"
             STREHL_SCRIPTS = {
-            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input, "--max_time",f"{120}","--number_of_iterations",f"{10000}","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
             }     
 
 
             btn_key = f"build_Strehl_model_ALL_BEAMS"
             if st.button(f"{btn_key}"):
-                success = run_script(["python", "calibration/build_strehl_model.py", "--beam_id", "1,2,3,4", "--phasemask", phasemask_input, "--max_time","120","--number_of_iterations","10000","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ] )
+                success = run_script(["python", "calibration/build_strehl_model.py", "--beam_id", "1,2,3,4", "--phasemask", phasemask_input, "--max_time","10.0","--number_of_iterations","10000","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ] )
             
                 if success:
                     cols = st.columns(4)
