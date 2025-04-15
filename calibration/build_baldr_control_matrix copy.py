@@ -58,20 +58,18 @@ parser.add_argument(
     help="what phasemask was used for building the IM. THis is to search the right entry in the configuration file. Default: %(default)s"
 )
 
-
 parser.add_argument(
-    "--inverse_method_LO",
-    type=str,
-    default="pinv",
-    help="Method used for inverting interaction matrix for LO to build control (intensity-mode) matrix I2M"
+    "--LO",
+    type=int,
+    default=2,
+    help="Up to what zernike order do we consider Low Order (LO). 2 is for tip/tilt, 3 would be tip,tilt,focus etc). Default: %(default)s"
 )
 
-
 parser.add_argument(
-    "--inverse_method_HO",
+    "--inverse_method",
     type=str,
     default="zonal",
-    help="Method used for inverting interaction matrix for HO to build control (intensity-mode) matrix I2M"
+    help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
 )
 
 parser.add_argument("--fig_path", 
@@ -106,53 +104,37 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     # also the current calibrated strehl modes 
     I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
     I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
-    # # define our Tip/Tilt or lower order mode index on zernike DM basis 
-    LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)
+
 
 #util.nice_heatmap_subplots( [ util.get_DM_command_in_2D(a) for a in [IM[65], IM[77] ]],savefig='delme.png')
 
 # define out Tip/Tilt or lower order modes on zernike DM basis
-#LO = dmbases.zer_bank(2, LO +1 ) # 12x12 format
-
-IM_LO = IM[:LO]
-IM_HO = IM[LO:]
+LO = dmbases.zer_bank(2, args.LO +1 ) # 12x12 format
 
 if args.inverse_method.lower() == 'pinv':
-    #I2M = np.linalg.pinv( IM )
-    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
-    I2M_LO = np.linalg.pinv( IM_LO ) 
-    I2M_HO = np.linalg.pinv( IM_HO )
+    I2M = np.linalg.pinv( IM )
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif args.inverse_method.lower() == 'map': # minimum variance of maximum posterior estimator 
-    #phase_cov = np.eye( IM.shape[0] )
-    #noise_cov = np.eye( IM.shape[1] ) 
-    #I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+    phase_cov = np.eye( IM.shape[0] )
+    noise_cov = np.eye( IM.shape[1] ) 
+    I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
     #I2M = phase_cov @ IM.T @ np.linalg.inv(IM @ phase_cov @ IM.T + noise_cov)
-    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
-    phase_cov_LO = np.eye( IM_LO.shape[0] )
-    noise_cov_LO = np.eye( IM_LO.shape[1] ) 
-    phase_cov_HO = np.eye( IM_HO.shape[0] )
-    noise_cov_HO = np.eye( IM_HO.shape[1] ) 
-
-    I2M_LO = phase_cov_LO @ IM_LO.T @ np.linalg.inv(IM_LO @ phase_cov_LO @ IM_LO.T + noise_cov_LO)
-    I2M_HO = phase_cov_HO @ IM_HO.T @ np.linalg.inv(IM_HO @ phase_cov_HO @ IM_HO.T + noise_cov_HO)
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif args.inverse_method.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
     dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
-    I2M_HO = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
-    # should check this 
-    I2M_LO = np.linalg.pinv( IM_LO ) 
+    I2M = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 
 elif 'svd_truncation' in args.inverse_method.lower() :
     k = int( args.inverse_method.split('truncation-')[-1] ) 
-    U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
+    U,S,Vt = np.linalg.svd( IM, full_matrices=True)
 
-    I2M_HO = util.truncated_pseudoinverse(U, S, Vt, k)
-
-    I2M_LO =
-    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
+    I2M = util.truncated_pseudoinverse(U, S, Vt, k)
+    I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 else:
     raise UserWarning('no inverse method provided')
 
@@ -173,6 +155,7 @@ dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "M2C_HO" : np.array(M2C).tolist(),
                                                "I2rms_sec" : np.array(I2rms_sec).tolist(),
                                                "I2rms_ext" : np.array(I2rms_ext).tolist(),
+                                               "LO": args.LO,
                                                "telemetry" : 0,  # do we record telem  - need to add to C++ readin
                                                "auto_close" : 0, # automatically close - need to add to C++ readin
                                                "auto_open" : 1, # automatically open - need to add to C++ readin

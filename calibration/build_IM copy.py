@@ -63,10 +63,9 @@ def plot2d( thing ):
     plt.savefig('/home/asg/Progs/repos/asgard-alignment/delme.png')
     plt.close()
 
-
-
-
-
+# split_mode 1 
+#aa = shm("/dev/shm/baldr1.im.shm")
+#util.nice_heatmap_subplots( [ aa.get_data() ],savefig='delme.png')
 
 parser = argparse.ArgumentParser(description="Interaction and control matricies.")
 
@@ -92,7 +91,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1,2], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -141,7 +140,7 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=100,
+    default=500,
     help="frames per second on camera. Default: %(default)s"
 )
 
@@ -149,16 +148,14 @@ parser.add_argument(
 parser.add_argument(
     '--cam_gain',
     type=int,
-    default=1,
+    default=10,
     help="camera gain. Default: %(default)s"
 )
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='~/Downloads/', 
+                    default='/home/asg/Progs/repos/asgard-alignment/calibration/reports/test/', 
                     help="path/to/output/image/ for the saved figures")
-
-
 
 
 
@@ -189,6 +186,82 @@ for beam_id in args.beam_id:
         secondary_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("secondary", None) )
 
         exterior_mask[beam_id] = np.array(config_dict.get(f"beam{beam_id}", {}).get("pupil_mask", {}).get("exterior", None) )
+
+
+
+
+
+
+
+c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+
+# change to append master dark , bias , bad pixel mask 
+c.send_fli_cmd(f"set gain {args.cam_gain}") 
+time.sleep(1)
+c.send_fli_cmd(f"set fps {args.cam_fps}")
+time.sleep(1)
+
+# make sure the camera cofig internal state is correct 
+assert float(c.config['fps']) == float(args.cam_fps)
+assert float(c.config['gain']) == float(args.cam_gain)
+
+# check for recent calibration files in the current setting 
+valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
+
+# if no valid ones than we make some
+if not valid_cal_files: 
+    print( "no valid calibration files within the last few days. Taking new ones! ")
+    script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
+    params = ["--gains", f"{int(c.config['gain'])}", 
+              "--fps", f"{c.config['fps']}", 
+              "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
+              "--method", "linear_fit" ]
+    try:
+        # Run the script and ensure it completes
+        with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            stdout, stderr = process.communicate()  # Wait for process to complete
+
+            if process.returncode == 0:
+                print("Script executed successfully!")
+                print(stdout)  # Print standard output (optional)
+            else:
+                print(f"Script failed with error:\n{stderr}")
+
+    except Exception as e:
+        print(f"Error running script: {e}")
+
+
+# get darks, bias and some raw darks to make bad pixels (we dont use the premade ones cause we adjust here the parameters)
+bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
+dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
+raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
+
+filename_reduction_dict = {} # to hold the files used for reduction 
+
+for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
+    # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
+    most_recent = max(ff, key=os.path.getmtime) 
+
+    filename_reduction_dict[lab+'_file'] = most_recent
+
+    with fits.open( most_recent ) as d:
+        c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
+        #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+        #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
+
+# bad pixels 
+most_recent = max(raw_darks_files , key=os.path.getmtime) 
+filename_reduction_dict["raw_darks_file"] = most_recent
+
+with fits.open( most_recent ) as d:
+
+    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
+    bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+    c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+
+
+
 
 # Set up global camera frame SHM 
 #print('Setting up camera. You should manually set up camera settings before hand')
@@ -248,32 +321,35 @@ for beam_id in args.beam_id:
 # bad_ron[:, 3::32 ] = False
 ####################################################################################
 ####################################################################################
-c_dict = {}
-for beam_id in args.beam_id:
-    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-    c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
-    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
-    #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
+# c_dict = {}
+# for beam_id in args.beam_id:
+#     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+#     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])
+#     #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append( (~bad_pixel_mask).astype(int)[r1:r2, c1:c2] )
+#     #c_dict[beam_id].reduction_dict['dark'].append(  dark_fits["MASTER DARK"].data.astype(int)[r1:r2, c1:c2] )
 
-    # change to append master dark , bias , bad pixel mask 
-    c_dict[beam_id].send_fli_cmd(f"set gain {args.cam_gain}") 
-    time.sleep(1)
-    c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_fps}")
-    time.sleep(1)
+#     # change to append master dark , bias , bad pixel mask 
+#     c_dict[beam_id].send_fli_cmd(f"set gain {args.cam_gain}") 
+#     time.sleep(1)
+#     c_dict[beam_id].send_fli_cmd(f"set fps {args.cam_fps}")
+#     time.sleep(1)
 
-    c_dict[beam_id].build_manual_bias(number_of_frames=500) # sets to fastest fps (keeping current gain) to calculate bias 
+#     c_dict[beam_id].build_manual_bias(number_of_frames=500) # sets to fastest fps (keeping current gain) to calculate bias 
 
-    c_dict[beam_id].build_manual_dark(number_of_frames=500, 
-                                      apply_manual_reduction=True,
-                                      build_bad_pixel_mask=True, 
-                                      kwargs={'std_threshold':10, 'mean_threshold':10} )
+#     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+#                                       apply_manual_reduction=True,
+#                                       build_bad_pixel_mask=True, 
+#                                       kwargs={'std_threshold':10, 'mean_threshold':10} )
 
-    ####################################################################################
-    ####################################################################################
-    #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
-    # c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] *= bad_ron[r1:r2,c1:c2]
-    ####################################################################################
-    ####################################################################################
+#     ####################################################################################
+#     ####################################################################################
+#     #### DELETE THIS LATER (30/3/25 - only due to ron on chns 32)
+#     # c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] *= bad_ron[r1:r2,c1:c2]
+#     ####################################################################################
+#     ####################################################################################
+
+
+
 
 
 #c_dict[beam_id].build_dark( no_frames = 100)
@@ -332,19 +408,17 @@ for beam_id in args.beam_id:
 ############## HERE  
 
 #Clear Pupil
+print( 'gettin clear pupils')
+N0s = c.get_data( apply_manual_reduction=True  ) #get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
 inner_pupil_filt = {} # strictly inside (not on boundary)
+
 for beam_id in args.beam_id:
+    
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    
+    clear_pupils[beam_id] = N0s[:,r1:r2,c1:c2]
 
-    print( 'gettin clear pupils')
-    #N0s = []
-    #for _ in range(NNN):
-    #    N0s.append(  c_dict[beam_id].get_data(apply_manual_reduction=True) )
-    #N0s = np.array(  N0s ).reshape(-1,  N0s[0].shape[1],  N0s[0].shape[2])
-    N0s = c_dict[beam_id].get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
-
-    #r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-    #cropped_imgs = [nn[r1:r2,c1:c2] for nn in N0s]
-    clear_pupils[beam_id] = N0s
+    bad_pix_mask_tmp = np.array( c.reduction_dict["bad_pixel_mask"][-1][r1:r2,c1:c2] ).astype(bool)
 
     # move back 
     print( 'Moving FPM back in beam.')
@@ -362,7 +436,7 @@ for beam_id in args.beam_id:
     # set as clear pupils where we set exterior and bad pixels to mean interior clear pup signal
 
     # filter exterior pixels (that risk 1/0 error)
-    pixel_filter = secondary_mask[beam_id].astype(bool)  | (~inner_pupil_filt[beam_id].astype(bool) ) | (~c_dict[beam_id].reduction_dict["bad_pixel_mask"][-1].astype(bool) )
+    pixel_filter = secondary_mask[beam_id].astype(bool)  | (~inner_pupil_filt[beam_id].astype(bool) ) | (~bad_pix_mask_tmp )
     
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
@@ -374,7 +448,7 @@ for beam_id in args.beam_id:
 # tbbb = util.remove_boundary(pupil_mask[beam_id])
 # pupil_norm = np.mean( N0s ,axis=0)
 # pupil_norm[~tbbb ] = np.mean( pupil_norm[tbbb] )
-# plt.figure(); plt.imshow( pupil_norm );plt.savefig('delme.png')
+# plt.figure(); plt.imshow( normalized_pupils[beam_id] );plt.savefig('delme.png')
 
 # check 
 #util.nice_heatmap_subplots( [ np.mean( N0s,axis=0),  ~pixel_filter , pixel_filter, normalized_pupils[beam_id]], savefig='delme.png')
@@ -384,15 +458,15 @@ for beam_id in args.beam_id:
 
 # check the alignment is still ok 
 #input('ensure mask is realigned')
-print("running fine mask alignment")
-for beam_id in args.beam_id:
-    cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","brute_scan"]
+# print("running fine mask alignment")
+# for beam_id in args.beam_id:
+#     cmd = ["python", "calibration/fine_phasemask_alignment.py","--beam_id",f"{beam_id}","--method","brute_scan"]
 
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-        stdout, stderr = process.communicate()
+#     with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#         stdout, stderr = process.communicate()
 
-    print("STDOUT:", stdout)
-    print("STDERR:", stderr)
+#     print("STDOUT:", stdout)
+#     print("STDERR:", stderr)
 
 
 # beam = int( input( "\ndo you want to check the phasemasks for a beam. Enter beam number (1,2,3,4) or 0 to continue\n") )
@@ -406,19 +480,22 @@ for beam_id in args.beam_id:
 
 
 # ZWFS Pupil
+input("aligned????? try to")
+
+print( 'Getting ZWFS pupils')
+I0s = c.get_data( apply_manual_reduction=True ) #get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
+
 for beam_id in args.beam_id:
 
-    print( 'Getting ZWFS pupils')
     #I0s = []
     #for _ in range(NNN):
     #    I0s.append(  c_dict[beam_id].get_data( apply_manual_reduction=True ) )
     #I0s = np.array(  I0s ).reshape(-1,  I0s[0].shape[1],  I0s[0].shape[2])
-    I0s = c_dict[beam_id].get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
 
-    #r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
+    r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
     #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
-    zwfs_pupils[beam_id] = I0s #cropped_img
+    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] #cropped_img
 
 
 # #dark = np.mean( darks_dict[beam_id],axis=0)
@@ -468,11 +545,14 @@ if basis_name == "zernike":
     modal_basis = dmbases.zer_bank(2, Nmodes+2 )
 elif basis_name == "zonal":
     Nmodes = 140
+    print(f"zonal basis means Nmodes=140 - ignoring args.Nmodes = {args.Nmodes}")
     modal_basis = np.array([dm_shm_dict[beam_id].cmd_2_map2D(ii) for ii in np.eye(Nmodes)]) 
 else:
     raise UserWarning("invalid basis name.")
 
-M2C = modal_basis.copy() # mode 2 command matrix 
+# should be 144 x 140 (we deal with errors in 140 actuator space (columns), but SHM takes 144 vector as input (rows)) 
+# this is why we do transpose 
+M2C = modal_basis.copy().reshape(modal_basis.shape[0],-1).T # mode 2 command matrix 
 
 phase_cov = np.eye( 140 ) #np.array(IM).shape[0] )
 noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
@@ -481,7 +561,7 @@ noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
 
 ### Just doing 1 for now
 #############
-beam_id = args.beam_id[0]
+#beam_id = args.beam_id[0]
 ############
 
 
@@ -512,57 +592,69 @@ beam_id = args.beam_id[0]
 if args.signal_space.lower() not in ["dm", "pixel"] :
     raise UserWarning("signal space must either be 'dm' or 'pixel'")
 
-cam_config = c_dict[beam_id].get_camera_config()
+#cam_config = c.config
 
-IM = []
-Iplus_all = []
-Iminus_all = []
-imgs_to_mean = 20 # for each poke we average this number of frames
-
+IM = {beam_id:[] for beam_id in args.beam_id}
+Iplus_all = {beam_id:[] for beam_id in args.beam_id}
+Iminus_all = {beam_id:[] for beam_id in args.beam_id}
+#imgs_to_mean = 20 # for each poke we average this number of frames
+# for now we use standard get_data mehtod which is 200 frames (april 2025)
 for i,m in enumerate(modal_basis):
     print(f'executing cmd {i}/{len(modal_basis)}')
-    I_plus_list = []
-    I_minus_list = []
+    I_plus_list = {beam_id:[] for beam_id in args.beam_id}
+    I_minus_list = {beam_id:[] for beam_id in args.beam_id}
     for sign in [(-1)**n for n in range(10)]: #[-1,1]:
-
-        dm_shm_dict[beam_id].set_data(  sign * args.poke_amp/2 * m ) 
         
-        time.sleep(2/float(cam_config["fps"]))
+        for beam_id in args.beam_id:
+            dm_shm_dict[beam_id].set_data(  sign * args.poke_amp/2 * m ) 
+        
+        time.sleep(200/float(c.config["fps"])) # 200 because get data takes 200 frames
 
-        if sign > 0:
-            I_plus_list.append( list( np.mean( c_dict[beam_id].get_some_frames( number_of_frames = imgs_to_mean, apply_manual_reduction = True ),axis = 0)  ) )
-            #I_plus *= 1/np.mean( I_plus )
-        if sign < 0:
-            I_minus_list.append( list( np.mean( c_dict[beam_id].get_some_frames( number_of_frames = imgs_to_mean, apply_manual_reduction = True ),axis = 0)  ) )
-            #I_minus *= 1/np.mean( I_minus )
+        imgtmp_global = c.get_data(apply_manual_reduction = True )
+        # quick version below just for testing . Use full ^ grab above for proper cal.
+        #imgtmp_global = np.array([c.get_image(apply_manual_reduction = True ) ,c.get_image(apply_manual_reduction = True )] )#get_data(apply_manual_reduction = True ) # get_some_frames( number_of_frames = imgs_to_mean, apply_manual_reduction = True )
 
-    I_plus = np.mean( I_plus_list, axis = 0).reshape(-1) / normalized_pupils[beam_id].reshape(-1)
-    I_minus = np.mean( I_minus_list, axis = 0).reshape(-1) /  normalized_pupils[beam_id].reshape(-1)
+        for beam_id in args.beam_id:
+            r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+            if sign > 0:
+                
+                I_plus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
+                #I_plus *= 1/np.mean( I_plus )
 
-    #errsig = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
-    #errsig = #( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
-    
-    # Try minimize dependancies, if I2A not calibrated or DM mask then the above fails.. keep simple. We can deal with this in post processing
-    
-    #############
-    #############
-    
-    # removing seoconary pixels 
-    #(~secondary_mask[beam_id].astype(bool)).reshape(-1) 
+            if sign < 0:
+                
+                I_minus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
+                #I_minus *= 1/np.mean( I_minus )
 
-    if args.signal_space.lower() == 'dm':
-        errsig = I2A_dict[beam_id] @ ( float( cam_config["gain"] ) / float( cam_config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
-    elif args.signal_space.lower() == 'pixel':
-        errsig = ( float( cam_config["gain"] ) / float( cam_config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
-    
-    #############
-    #############
 
-    # reenter pokeamp norm
-    Iplus_all.append( I_plus_list )
-    Iminus_all.append( I_minus_list )
+    for beam_id in args.beam_id:
+        I_plus = np.mean( I_plus_list[beam_id], axis = 0).reshape(-1) / normalized_pupils[beam_id].reshape(-1)
+        I_minus = np.mean( I_minus_list[beam_id], axis = 0).reshape(-1) /  normalized_pupils[beam_id].reshape(-1)
 
-    IM.append( list(  errsig.reshape(-1) ) ) 
+        #errsig = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
+        #errsig = #( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
+        
+        # Try minimize dependancies, if I2A not calibrated or DM mask then the above fails.. keep simple. We can deal with this in post processing
+        
+        #############
+        #############
+        
+        # removing seoconary pixels 
+        #(~secondary_mask[beam_id].astype(bool)).reshape(-1) 
+
+        if args.signal_space.lower() == 'dm':
+            errsig = I2A_dict[beam_id] @ ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
+        elif args.signal_space.lower() == 'pixel':
+            errsig = ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
+        
+        #############
+        #############
+
+        # reenter pokeamp norm <- this is used for detailed analysis sometimes
+        #Iplus_all[beam_id].append( I_plus_list )
+        #Iminus_all[beam_id].append( I_minus_list )
+
+        IM[beam_id].append( list(  errsig.reshape(-1) ) ) 
 
 # # intensity to mode matrix 
 # if args.inverse_method == 'pinv':
@@ -590,24 +682,29 @@ for i,m in enumerate(modal_basis):
 #     b = []
 #     for i in range(140):
 #         # we have to square fps/gain to cancel gain/fps in IM and then make units 1/(dmunit * s * gain)
-#         b.append( ( float( cam_config["fps"] / float( cam_config["gain"] )  ) )**2 * ( I2A_dict[beam_id] @ IM[i] ) [i] ) # get the slope at each actuator 
+#         b.append( ( float( c.config["fps"] / float( c.config["gain"] )  ) )**2 * ( I2A_dict[beam_id] @ IM[i] ) [i] ) # get the slope at each actuator 
 
 #     cbar_list = ["ADU/s/gain/DM command"]
 #     util.nice_heatmap_subplots( [util.get_DM_command_in_2D(b)] , cbar_label_list=cbar_list ) ; plt.show() 
 
 
 
+for beam_id in args.beam_id:
+    U,S,Vt = np.linalg.svd( IM[beam_id], full_matrices=True)
+    #singular values
+    plt.figure()
+    plt.semilogy(S) #/np.max(S))
+    #plt.axvline( np.pi * (10/2)**2, color='k', ls=':', label='number of actuators in pupil')
+    plt.legend()
+    plt.xlabel('mode index')
+    plt.ylabel('singular values')
 
-U,S,Vt = np.linalg.svd( IM, full_matrices=True)
-#singular values
-plt.figure()
-plt.semilogy(S) #/np.max(S))
-#plt.axvline( np.pi * (10/2)**2, color='k', ls=':', label='number of actuators in pupil')
-plt.legend()
-plt.xlabel('mode index')
-plt.ylabel('singular values')
-plt.savefig(f'{args.fig_path}' + f'IM_singularvalues_beam{beam_id}.png', bbox_inches='tight', dpi=200)
-plt.close()
+    if not os.path.exists(args.fig_path):
+        print(f"making directory {args.fig_path} for plotting some results.")
+        os.makedirs( args.fig_path )
+    
+    plt.savefig(f'{args.fig_path}' + f'IM_singularvalues_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    plt.close()
 
 
 # n_row = round( np.sqrt( M2C.shape[0]) ) - 1
@@ -650,62 +747,71 @@ dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 
-
+#dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model":  {"camera_config" : {k:str(v) for k,v in c.config.items()}}}}}
 
 ######## WRITE TO TOML 
 #  # we store all reference images as flattened array , boolean masks as ints
-dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
-                                                "build_method":"double-sided-poke",
-                                                "DM_flat":args.DM_flat.lower(),
-                                                "signal_space":args.signal_space.lower(),
-                                               "crop_pixels":baldr_pupils[f"{beam_id}"], # global corners (r1,r2,c1,c2) of sub pupil cropping region  (local frame)
-                                               "pupil_pixels" : np.where(  np.array( pupil_mask[beam_id] ).reshape(-1) ),  # pupil pixels in local frame 
-                                               "interior_pixels" : np.where( np.array( inner_pupil_filt[beam_id].reshape(-1) )   ), # strictly interior pupil pixels in local frame
-                                               "secondary_pixels" : np.where( np.array( secondary_mask[beam_id].reshape(-1) )  ),   # pixels in secondary obstruction in local frame
-                                               "exterior_pixels" : np.where(  np.array( exterior_mask[beam_id].reshape(-1) )   ),  # exterior pixels that maximise diffracted light from mask in local frame 
-                                               "bad_pixels" : np.where( np.array( c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1] ).reshape(-1)   ),
-                                               "IM":IM,
-                                               "poke_amp":args.poke_amp,
-                                               "M2C":M2C,  
-                                               "I0": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1),  # ADU / s / gain (flattened)
-                                               "N0": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1), # ADU / s / gain (flattened)
-                                               "norm_pupil": float( c_dict[beam_id].config["fps"] ) / float( c_dict[beam_id].config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1),
-                                               "camera_config":c_dict[beam_id].config,
-                                               "bias": np.array( c_dict[beam_id].reduction_dict["bias"][-1]).reshape(-1),
-                                               "dark": np.array( c_dict[beam_id].reduction_dict["dark"][-1] ).reshape(-1),
-                                               "bad_pixel_mask": np.array(c_dict[beam_id].reduction_dict['bad_pixel_mask'][-1]).astype(int).reshape(-1),
-                                               "pupil": np.array(pupil_mask[beam_id]).astype(int).reshape(-1),
-                                               "secondary": np.array(secondary_mask[beam_id]).astype(int).reshape(-1),
-                                               "exterior" : np.array(exterior_mask[beam_id]).astype(int).reshape(-1),
-                                               "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1),
+for beam_id in args.beam_id:
+    r1,r2,c1,c2 = baldr_pupils[f'{beam_id}'] 
 
-                                               }
+    dict2write = {f"beam{beam_id}":{f"{args.phasemask}":{"ctrl_model": {
+                                                    "build_method":"double-sided-poke",
+                                                    "DM_flat":args.DM_flat.lower(),
+                                                    "signal_space":args.signal_space.lower(),
+                                                    "crop_pixels": np.array( baldr_pupils[f"{beam_id}"] ).tolist(), # global corners (r1,r2,c1,c2) of sub pupil cropping region  (local frame)
+                                                    "pupil_pixels" : np.where(  np.array( pupil_mask[beam_id] ).reshape(-1) )[0].tolist(),  # pupil pixels in local frame 
+                                                    "interior_pixels" : np.where( np.array( inner_pupil_filt[beam_id].reshape(-1) )   )[0].tolist(), # strictly interior pupil pixels in local frame
+                                                    "secondary_pixels" : np.where( np.array( secondary_mask[beam_id].reshape(-1) )  )[0].tolist(),   # pixels in secondary obstruction in local frame
+                                                    "exterior_pixels" : np.where(  np.array( exterior_mask[beam_id].reshape(-1) )   )[0].tolist(),  # exterior pixels that maximise diffracted light from mask in local frame 
+                                                    "bad_pixels" : np.where( np.array( c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].reshape(-1)   )[0].tolist(),
+                                                    "IM": np.array( IM[beam_id] ).tolist(),
+                                                    "poke_amp":args.poke_amp,
+                                                    "M2C": np.nan_to_num( np.array(M2C), 0 ).tolist(),   # 
+                                                    "I0":  (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
+                                                    "N0": (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
+                                                    "norm_pupil": ( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
+                                                    "camera_config" : {k:str(v) for k,v in c.config.items()},
+                                                    "bias": np.array(c.reduction_dict["bias"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
+                                                    "dark": np.array(c.reduction_dict["dark"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
+                                                    "bad_pixel_mask": np.array(c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].astype(int).reshape(-1).tolist(),
+                                                    "pupil": np.array(pupil_mask[beam_id]).astype(int).reshape(-1).tolist(),
+                                                    "secondary": np.array(secondary_mask[beam_id]).astype(int).reshape(-1).tolist(),
+                                                    "exterior" : np.array(exterior_mask[beam_id]).astype(int).reshape(-1).tolist(),
+                                                    "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1).tolist(),
+
+                                                }
+                                                }
                                             }
                                         }
-                                    }
 
-# Check if file exists; if so, load and update.
-if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
-    try:
-        current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
-    except Exception as e:
-        print(f"Error loading TOML file: {e}")
+    # Check if file exists; if so, load and update.
+    if os.path.exists(args.toml_file.replace('#',f'{beam_id}')):
+        try:
+            current_data = toml.load(args.toml_file.replace('#',f'{beam_id}'))
+        except Exception as e:
+            print(f"Error loading TOML file: {e}")
+            current_data = {}
+    else:
         current_data = {}
-else:
-    current_data = {}
 
 
-current_data = util.recursive_update(current_data, dict2write)
+    current_data = util.recursive_update(current_data, dict2write)
 
-with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
-    toml.dump(current_data, f)
+    with open(args.toml_file.replace('#',f'{beam_id}'), "w") as f:
+        toml.dump(current_data, f)
 
-print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
-
+    print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 
 
 
-
+#closing stuff 
+c.close(erase_file=False)
+for beam_id in args.beam_id:
+    dm_shm_dict[beam_id].zero_all()
+    time.sleep(0.1)
+    dm_shm_dict[beam_id].activate_calibrated_flat()
+    time.sleep(0.1)
+    dm_shm_dict[beam_id].close(erase_file=False)
 
 
 
@@ -715,87 +821,96 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 # dms[beam_id].activate_flat()
 
 
-# save the IM to fits for later analysis 
-
-hdul = fits.HDUList()
-
-hdu = fits.ImageHDU(IM)
-hdu.header['EXTNAME'] = 'IM'
-hdu.header['units'] = "sec.gain/DMunit"
-hdu.header['phasemask'] = args.phasemask
-hdu.header['beam'] = beam_id
-hdu.header['poke_amp'] = args.poke_amp
-for k,v in cam_config.items():
-    hdu.header[k] = v 
-
-for ii , ll in zip([r1,r2,c1,c2],["r1","r2","c1","c2"]) :
-    hdu.header[ll] = ii
-hdu.header["frame_shape"] = f"{r2-r1}x{c2-c1}"
-
-hdul.append(hdu)
+# ######################################
+# # save the IM to fits for later analysis 
 
 
-# hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
-# hdu.header['EXTNAME'] = 'DARKS'
 
-hdu = fits.ImageHDU(Iplus_all)
-hdu.header['EXTNAME'] = 'I+'
-hdul.append(hdu)
+# hdul = fits.HDUList()
 
+# hdu = fits.ImageHDU(IM)
+# hdu.header['EXTNAME'] = 'IM'
+# hdu.header['units'] = "sec.gain/DMunit"
+# hdu.header['phasemask'] = args.phasemask
+# hdu.header['beam'] = beam_id
+# hdu.header['poke_amp'] = args.poke_amp
+# for k,v in c.config.items():
+#     hdu.header[k] = v 
 
-hdu = fits.ImageHDU(clear_pupils[beam_id])
-hdu.header['EXTNAME'] = 'N0'
-hdul.append(hdu)
+# for ii , ll in zip([r1,r2,c1,c2],["r1","r2","c1","c2"]) :
+#     hdu.header[ll] = ii
+# hdu.header["frame_shape"] = f"{r2-r1}x{c2-c1}"
 
-hdu = fits.ImageHDU(zwfs_pupils[beam_id])
-hdu.header['EXTNAME'] = 'I0'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(normalized_pupils[beam_id])
-hdu.header['EXTNAME'] = 'normalized_pupil'
-hdul.append(hdu)
-
-
-hdu = fits.ImageHDU(Iplus_all)
-hdu.header['EXTNAME'] = 'I+'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(Iminus_all)
-hdu.header['EXTNAME'] = 'I-'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU( np.array(pupil_mask[beam_id]).astype(int)) 
-hdu.header['EXTNAME'] = 'PUPIL_MASK'
-hdul.append(hdu)
-
-# hdu = fits.ImageHDU( dm_mask[beam_id] )
-# hdu.header['EXTNAME'] = 'PUPIL_MASK_DM'
 # hdul.append(hdu)
 
-hdu = fits.ImageHDU(modal_basis)
-hdu.header['EXTNAME'] = 'M2C'
-hdul.append(hdu)
 
-# hdu = fits.ImageHDU(I2M)
-# hdu.header['EXTNAME'] = 'I2M'
+# # hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
+# # hdu.header['EXTNAME'] = 'DARKS'
+
+# hdu = fits.ImageHDU(Iplus_all)
+# hdu.header['EXTNAME'] = 'I+'
 # hdul.append(hdu)
 
-hdu = fits.ImageHDU(I2A_dict[beam_id])
-hdu.header['EXTNAME'] = 'interpMatrix'
-hdul.append(hdu)
-
-# hdu = fits.ImageHDU(zwfs_pupils[beam_id])
-# hdu.header['EXTNAME'] = 'I0'
-# hdul.append(hdu)
 
 # hdu = fits.ImageHDU(clear_pupils[beam_id])
 # hdu.header['EXTNAME'] = 'N0'
 # hdul.append(hdu)
 
-fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_name}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}_fps-{cam_config["fps"]}_gain-{cam_config["gain"]}.fits' #_{args.phasemask}.fits'
-#f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
-hdul.writeto(fits_file, overwrite=True)
-print(f'wrote telemetry to \n{fits_file}')
+# hdu = fits.ImageHDU(zwfs_pupils[beam_id])
+# hdu.header['EXTNAME'] = 'I0'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(normalized_pupils[beam_id])
+# hdu.header['EXTNAME'] = 'normalized_pupil'
+# hdul.append(hdu)
+
+
+# hdu = fits.ImageHDU(Iplus_all)
+# hdu.header['EXTNAME'] = 'I+'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU(Iminus_all)
+# hdu.header['EXTNAME'] = 'I-'
+# hdul.append(hdu)
+
+# hdu = fits.ImageHDU( np.array(pupil_mask[beam_id]).astype(int)) 
+# hdu.header['EXTNAME'] = 'PUPIL_MASK'
+# hdul.append(hdu)
+
+# # hdu = fits.ImageHDU( dm_mask[beam_id] )
+# # hdu.header['EXTNAME'] = 'PUPIL_MASK_DM'
+# # hdul.append(hdu)
+
+# hdu = fits.ImageHDU(modal_basis)
+# hdu.header['EXTNAME'] = 'M2C'
+# hdul.append(hdu)
+
+# # hdu = fits.ImageHDU(I2M)
+# # hdu.header['EXTNAME'] = 'I2M'
+# # hdul.append(hdu)
+
+# hdu = fits.ImageHDU(I2A_dict[beam_id])
+# hdu.header['EXTNAME'] = 'interpMatrix'
+# hdul.append(hdu)
+
+# # hdu = fits.ImageHDU(zwfs_pupils[beam_id])
+# # hdu.header['EXTNAME'] = 'I0'
+# # hdul.append(hdu)
+
+# # hdu = fits.ImageHDU(clear_pupils[beam_id])
+# # hdu.header['EXTNAME'] = 'N0'
+# # hdul.append(hdu)
+
+# fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_name}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}_fps-{c.config["fps"]}_gain-{c.config["gain"]}.fits' #_{args.phasemask}.fits'
+# #f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
+# hdul.writeto(fits_file, overwrite=True)
+# print(f'wrote telemetry to \n{fits_file}')
+
+
+
+
+
+
 
 
 #SCP AUTOMATICALLY TO MY MACHINE 
