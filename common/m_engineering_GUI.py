@@ -100,7 +100,7 @@ if "message_history" not in st.session_state:
 
 if "socket" not in st.session_state:
     parser = argparse.ArgumentParser(description="ZeroMQ Client")
-    parser.add_argument("--host", type=str, default="localhost", help="Server host")
+    parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
     parser.add_argument("--port", type=int, default=5555, help="Server port")
     parser.add_argument(
         "--timeout", type=int, default=5000, help="Response timeout in milliseconds"

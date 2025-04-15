@@ -55,8 +55,8 @@ class MultiDeviceServer:
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
 
-        self.client_socket = self.context.socket(zmq.PUSH)
-        self.client_socket.connect("tcp://localhost:5556")
+        self.db_update_socket = self.context.socket(zmq.PUSH)
+        self.db_update_socket.connect("tcp://wag:5561")
 
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
@@ -103,8 +103,9 @@ class MultiDeviceServer:
 
     @staticmethod
     def get_time_stamp():
-        time_now = datetime.datetime.now()
-        return time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        # time_now = datetime.datetime.now()
+        time_now = time.gmtime()
+        return time.strftime("%Y-%m-%dT%H:%M:%S", time_now)
 
     def handle_message(self, message):
         """
@@ -122,7 +123,7 @@ class MultiDeviceServer:
 
         try:
             message = message.rstrip(message[-1])
-            print(message)
+            print(f"ESO msg recv: {message}")
             json_data = json.loads(message)
         except:
             print("Error: Invalid JSON message")
@@ -167,7 +168,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = self.get_time_stamp()
             output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(output_msg)
+            self.db_update_socket.send_string(output_msg)
             print(output_msg)
 
             reply = "OK"
@@ -204,7 +205,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = time_stamp
             output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(output_msg)
+            self.db_update_socket.send_string(output_msg)
             print(output_msg)
 
             reply = "OK"
@@ -279,7 +280,7 @@ class MultiDeviceServer:
                     self.database_message["command"]["time"] = self.get_time_stamp()
                     output_msg = json.dumps(self.database_message) + "\0"
 
-                    self.client_socket.send_string(output_msg)
+                    self.db_update_socket.send_string(output_msg)
                     print(output_msg)
 
                     # TODO
@@ -360,7 +361,7 @@ class MultiDeviceServer:
                         self.database_message["command"]["time"] = self.get_time_stamp()
                         output_msg = json.dumps(self.database_message) + "\0"
 
-                        self.client_socket.send_string(output_msg)
+                        self.db_update_socket.send_string(output_msg)
                         print(output_msg)
 
                         self.database_message["command"]["parameters"].clear()
@@ -551,7 +552,6 @@ class MultiDeviceServer:
             print(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
-
         def fpm_get_savepath_msg(axis):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -564,14 +564,13 @@ class MultiDeviceServer:
             else:
                 return self.instr.devices[axis].mask_positions
 
-
-        def fpm_update_position_file_msg(axis , filename):
+        def fpm_update_position_file_msg(axis, filename):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
             else:
                 self.instr.devices[axis].update_position_file(filename)
                 return "ACK"
-            
+
         def fpm_move_to_phasemask_msg(axis, maskname):
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
@@ -610,7 +609,9 @@ class MultiDeviceServer:
             if axis not in self.instr.devices:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].offset_all_mask_positions(rel_offset_x, rel_offset_y)
+                self.instr.devices[axis].offset_all_mask_positions(
+                    rel_offset_x, rel_offset_y
+                )
                 return "ACK"
 
         def fpm_write_mask_positions_msg(axis):
@@ -672,7 +673,7 @@ class MultiDeviceServer:
             "fpm_moverel": fpm_move_relative_msg,
             "fpm_moveabs": fpm_move_absolute_msg,
             "fpm_readpos": fpm_read_position_msg,
-            "fpm_update_position_file":fpm_update_position_file_msg,
+            "fpm_update_position_file": fpm_update_position_file_msg,
             "fpm_updatemaskpos": fpm_update_mask_position_msg,
             "fpm_offsetallmaskpositions": fpm_offset_all_mask_positions_msg,
             "fpm_writemaskpos": fpm_write_mask_positions_msg,
@@ -705,7 +706,7 @@ class MultiDeviceServer:
             "fpm_moverel": "fpm_moverel {} {}",
             "fpm_moveabs": "fpm_moveabs {} {}",
             "fpm_readpos": "fpm_readpos {}",
-            "fpm_update_position_file":"fpm_update_position_file {} {}",
+            "fpm_update_position_file": "fpm_update_position_file {} {}",
             "fpm_updatemaskpos": "fpm_updatemaskpos {} {}",
             "fpm_offsetallmaskpositions": "fpm_offsetallmaskpositions {} {} {}",
             "fpm_writemaskpos": "fpm_writemaskpos {}",
@@ -718,7 +719,7 @@ class MultiDeviceServer:
             "reset": "reset {}",
             "mv_img": "mv_img {} {} {:f} {:f}",  # mv_img {config} {beam_number} {x} {y}
             "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
-            "asg_setup": "asg_setup {} {}", # 2nd input is either a named position or a float
+            "asg_setup": "asg_setup {} {}",  # 2nd input is either a named position or a float
         }
 
         try:
@@ -744,7 +745,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, required=True, help="Path to the configuration file"
     )
-    parser.add_argument("--host", type=str, default="localhost", help="Host address")
+    parser.add_argument("--host", type=str, default="172.16.8.6", help="Host address")
     parser.add_argument("-p", "--port", type=int, default=5555, help="Port number")
 
     args = parser.parse_args()

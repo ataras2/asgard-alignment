@@ -91,7 +91,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1,2], # 1, 2, 3, 4],
+    default=[1,2,3,4], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -148,7 +148,7 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=500,
+    default=1000,
     help="frames per second on camera. Default: %(default)s"
 )
 
@@ -562,15 +562,25 @@ M2C = modal_basis.copy().reshape(modal_basis.shape[0],-1).T # mode 2 command mat
 # noise_cov = np.eye( Nmodes ) #np.array(IM).shape[1] )
 
 
+
+
 # im_list = [m.reshape(12,12) for m in M2C.T[:4]]
 
 # util.nice_heatmap_subplots( im_list = im_list, savefig='delme.png')
 
-# m = np.zeros( M2C.shape[1])
-# m[0] = 1 
-# M2C @ m
 
-# util.nice_heatmap_subplots( im_list = [(M2C @ m).reshape(12,12)], savefig='delme.png')
+# we only need HO and require len 144x 140 (SHM input x number of actuatorss) which projects out the TT 
+# _ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,args.LO:], 0),  np.nan_to_num(M2C.T[:args.LO],0).reshape(-1,144) )
+
+# m = np.zeros( M2C.shape[1])
+# m[0] = 0.05
+# m[65] = 0.2 
+# M2C_HO @ m
+
+# im_list = [(M2C @ m).reshape(12,12) , (M2C_LO @ m).reshape(12,12),(M2C_HO @ m).reshape(12,12)]
+# title_list = ["M2C . m", "M2C_LO . m", "M2C_HO . m"]
+# cbar_title_list = ["DM UNITS", "DM UNITS", "DM UNITS"]
+# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, cbar_label_list=  cbar_title_list, savefig='delme.png')
 
 
 
