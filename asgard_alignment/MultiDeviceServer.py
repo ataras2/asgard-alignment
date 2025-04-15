@@ -552,85 +552,153 @@ class MultiDeviceServer:
             print(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
+
         def fpm_get_savepath_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].savepath
+                return device.savepath
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].savepath
 
         def fpm_mask_positions_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].mask_positions
+                return device.mask_positions
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].mask_positions
 
         def fpm_update_position_file_msg(axis, filename):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].update_position_file(filename)
+                device.update_position_file(filename)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].update_position_file(filename)
+            #     return "ACK"
 
         def fpm_move_to_phasemask_msg(axis, maskname):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_to_mask(maskname)
+                device.move_to_mask(maskname)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_to_mask(maskname)
+            #     return "ACK"
 
         def fpm_move_relative_msg(axis, new_pos):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_relative(new_pos)
+                device.move_relative(new_pos)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_relative(new_pos)
+            #     return "ACK"
 
         def fpm_move_absolute_msg(axis, new_pos):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_absolute(new_pos)
+                device.move_absolute(new_pos)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_absolute(new_pos)
+            #     return "ACK"
 
         def fpm_read_position_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].read_position()
+                return device.read_position()
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].read_position()
 
         def fpm_update_mask_position_msg(axis, mask_name):
-            if axis not in self.instr.devices:
-                return f"NACK: Mask {mask_name} not found"
+            device = self.instr.all_devices[axis]
+            if device is None:
+                return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].update_mask_position(mask_name)
-                return "ACK"
+                device.update_mask_position(mask_name)
+                return "ACK"                
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Mask {mask_name} not found"
+            # else:
+            #     self.instr.devices[axis].update_mask_position(mask_name)
+            #     return "ACK"
 
         def fpm_offset_all_mask_positions_msg(axis, rel_offset_x, rel_offset_y):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].offset_all_mask_positions(
+                device.offset_all_mask_positions(
                     rel_offset_x, rel_offset_y
                 )
-                return "ACK"
+                return "ACK"                
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].offset_all_mask_positions(
+            #         rel_offset_x, rel_offset_y
+            #     )
+            #     return "ACK"
 
         def fpm_write_mask_positions_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].write_current_mask_positions()
+                device.write_current_mask_positions()
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].write_current_mask_positions()
+            #     return "ACK"
 
         def fpm_update_all_mask_positions_relative_to_current_msg(
             axis, current_mask_name, reference_mask_position_file
         ):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].update_all_mask_positions_relative_to_current(
+                device.update_all_mask_positions_relative_to_current(
                     current_mask_name, reference_mask_position_file, write_file=False
                 )
-                return "ACK"
+                return "ACK"                
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].update_all_mask_positions_relative_to_current(
+            #         current_mask_name, reference_mask_position_file, write_file=False
+            #     )
+            #     return "ACK"
 
         # patterns = {
         #     "read {}": read_msg,

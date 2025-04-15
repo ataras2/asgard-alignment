@@ -87,6 +87,8 @@ class Instrument:
 
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
+        # bcb
+        self.compound_devices = {}  # new dictionary for combined devices (e.g. phasemask)
 
         self._prev_port_mapping = None
         self._prev_zaber_port = None
@@ -108,6 +110,17 @@ class Instrument:
         A dictionary of devices with the device name as the key
         """
         return self._devices
+
+    #bcb
+    @property
+    def all_devices(self):
+        """
+        Return a merged dictionary of all devices,
+        giving access to the entries in compound_devices.
+        """
+        merged = dict(self._devices)  # copy the standard devices
+        merged.update(self.compound_devices)  # phasemask devices override if keys overlap
+        return merged
 
     def health(self):
         """
@@ -417,7 +430,8 @@ class Instrument:
                 # otherwise raise error - we do not want to deal with case where we don't have on
 
                 # do I need to update the self._config dictionaries?
-                self.devices[f"phasemask{beam}"] = (
+                # bcb #self.devices[f"phasemask{beam}"] 
+                self.compound_devices[f"phasemask{beam}"] = (
                     asgard_alignment.Baldr_phasemask.BaldrPhaseMask(
                         beam=beam,
                         x_axis_motor=self.devices[f"BMX{beam}"],
@@ -425,7 +439,10 @@ class Instrument:
                         phase_positions_json=phase_positions_json,
                     )
                 )
-
+    # BCB to do , make new variable dictionary (not device) 
+    # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions 
+    # update Mutil device server 
+    #  
     def _open_controllino(self):
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino"]["ip_address"]
