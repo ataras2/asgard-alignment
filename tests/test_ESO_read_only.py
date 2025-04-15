@@ -2,6 +2,7 @@ import argparse
 import zmq
 import time
 
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="ZeroMQ Client")
@@ -31,16 +32,15 @@ def main():
     print(time_now)
     # test 1: report the encoder position of some motors
     msg = {
-        "command":
-        {
-            "name" : "write",
-            "time" : time_now,
-            "Paramters" : [
+        "command": {
+            "name": "write",
+            "time": time_now,
+            "Paramters": [
                 {
-                    "attribute" : "",
-                    "value" : "",
+                    "attribute": "",
+                    "value": "",
                 }
-            ]
+            ],
         }
     }
 

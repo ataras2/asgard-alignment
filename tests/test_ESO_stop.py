@@ -3,6 +3,7 @@ import zmq
 import time
 import json
 
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="ZeroMQ Client")
@@ -32,15 +33,14 @@ def main():
     print(time_now)
     # test 1: stop a motor
     msg = {
-        "command":
-        {
-            "name" : "stop",
-            "time" : time_now,
-            "Paramters" : [
+        "command": {
+            "name": "stop",
+            "time": time_now,
+            "Paramters": [
                 {
-                    "device" : "HFO1",
+                    "device": "HFO1",
                 }
-            ]
+            ],
         }
     }
 
@@ -49,7 +49,6 @@ def main():
     print(f"Sending message to server: {message}")
     socket.send_string(message)
 
-    
     try:
         # Wait for a response from the server
         response = socket.recv_string()
