@@ -25,9 +25,9 @@ class ESOdevice(abc.ABC):
 
 
 class SetupCommand:
-    def __init__(self, device_name, m_type, value) -> None:
+    def __init__(self, device_name, motion_type, value) -> None:
         self.device_name = device_name
-        self.m_type = m_type
+        self.motion_type = motion_type
         self.value = value
 
 

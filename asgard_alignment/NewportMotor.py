@@ -288,9 +288,11 @@ class M100DAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str(f"1ST{self.axis}")
 
-    def setup(self, value):
-        # option 1: blind absolute move
-        self.move_abs(value)
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(value * 1e-3)
+        elif motion_type == "ENCREL":
+            self.move_relative(value * 1e-3)
 
         # option 2: relative move using internal state (assuming encoder drifts and not motor)
         # self.move_relative(value - self.internal_position)
@@ -419,8 +421,9 @@ class LS16PAxis(ESOdevice.Motor):
             return False
 
     def is_moving(self):
-        _, state_str = self.read_state()
-        return state_str in ["MOVING OPEN LOOP (OL)", "MOVING CLOSED LOOP (CL)"]
+        state_str = self.read_state()
+        print("is_moving fn", state_str)
+        return state_str.startswith("MOVING")
 
     def is_reset_success(self):
         _, state_str = self.read_state()
@@ -447,8 +450,11 @@ class LS16PAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str("1ST")
 
-    def setup(self, value):
-        self.move_abs(value)
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(value * 1e-3)
+        elif motion_type == "ENCREL":
+            self.move_relative(value * 1e-3)
 
     def disable(self):
         pass

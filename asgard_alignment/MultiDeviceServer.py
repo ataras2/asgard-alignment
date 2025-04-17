@@ -246,7 +246,7 @@ class MultiDeviceServer:
             setup_cmds = [[], []]
             for i in range(n_devs_to_setup):
                 kwd = json_data["command"]["parameters"][i]["name"]
-                val = json_data["command"]["parameters"][i]["value"]
+                val = float(json_data["command"]["parameters"][i]["value"])
                 print(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
@@ -294,11 +294,11 @@ class MultiDeviceServer:
                     self.database_message["command"]["parameters"].clear()
                     for s in setup_cmds[batch]:
                         print(
-                            f"Moving: {s.device_name} to: {s.val} ( setting {s.motion_type} )"
+                            f"Moving: {s.device_name} to: {s.value} ( setting {s.motion_type} )"
                         )
 
                         # do the actual move...
-                        self.instr.devices[s.device_name].setup(s.motion_type, s.val)
+                        self.instr.devices[s.device_name].setup(s.motion_type, s.value)
 
                         # Inform wag ICS that the device is moving
                         attribute = f"<alias>{s.device_name}:DATA.status0"
@@ -329,7 +329,7 @@ class MultiDeviceServer:
                         still_moving_prev = setup_cmds[batch]
 
                         for s in still_moving_prev:
-                            dev = s.dev
+                            dev = s.device_name
                             pos = self.instr.devices[dev].read_position()
 
                             self.database_message["command"]["parameters"].append(
@@ -348,7 +348,7 @@ class MultiDeviceServer:
                                     ].append(
                                         {
                                             "attribute": f"<alias>{dev}:DATA.status0",
-                                            "value": s.val,
+                                            "value": s.value,
                                         }
                                     )
                                 elif s.motion_type == "ST":
@@ -395,6 +395,8 @@ class MultiDeviceServer:
                         print(output_msg)
 
                         self.database_message["command"]["parameters"].clear()
+            
+            reply = "OK"
 
         # Case of "stop" (sent by wag to immediately stop the devices)
 
