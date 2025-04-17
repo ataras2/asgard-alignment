@@ -277,7 +277,7 @@
     {
         "name": "BFO",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 1,
         "semaphore_id": 22
@@ -285,7 +285,7 @@
     {
         "name": "SDLA",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 4,
         "semaphore_id": 23
@@ -293,7 +293,7 @@
     {
         "name": "SDL12",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 3,
         "semaphore_id": 24
@@ -301,7 +301,7 @@
     {
         "name": "SDL34",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 2,
         "semaphore_id": 25
@@ -309,7 +309,7 @@
     {
         "name": "BMX1",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 1,
         "semaphore_id": 26
@@ -317,7 +317,7 @@
     {
         "name": "BMX2",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 2,
         "semaphore_id": 27
@@ -325,7 +325,7 @@
     {
         "name": "BMX3",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 3,
         "semaphore_id": 28
@@ -333,7 +333,7 @@
     {
         "name": "BMX4",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 4,
         "semaphore_id": 29
@@ -341,7 +341,7 @@
     {
         "name": "BMY1",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 1,
         "semaphore_id": 26
@@ -349,7 +349,7 @@
     {
         "name": "BMY2",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 2,
         "semaphore_id": 27
@@ -357,7 +357,7 @@
     {
         "name": "BMY3",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 3,
         "semaphore_id": 28
@@ -365,7 +365,7 @@
     {
         "name": "BMY4",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 4,
         "semaphore_id": 29
