@@ -107,8 +107,14 @@ class MultiDeviceServer:
     @staticmethod
     def get_time_stamp():
         # time_now = datetime.datetime.now()
-        time_now = time.gmtime()
-        return time.strftime("%Y-%m-%dT%H:%M:%S", time_now)
+        # time_now = time.gmtime()
+        # return time.strftime("%Y-%m-%dT%H:%M:%S", time_now)
+
+        # Get the current UTC time
+        current_utc_time = datetime.datetime.utcnow()
+
+        # Format the UTC time
+        return current_utc_time.strftime("%Y-%m-%dT%H:%M:%S")
 
     def handle_message(self, message):
         """
