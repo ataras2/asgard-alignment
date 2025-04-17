@@ -74,6 +74,13 @@ parser.add_argument(
     help="Method used for inverting interaction matrix for HO to build control (intensity-mode) matrix I2M"
 )
 
+
+parser.add_argument("--dont_project_TT_out_HO",
+                    dest="project_TT_out_HO",
+                    action="store_false",
+                    help="Disable projecting TT out of HO (default: enabled)")
+
+
 parser.add_argument("--fig_path", 
                     type=str, 
                     default='~/Downloads/', 
@@ -109,6 +116,9 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     # # define our Tip/Tilt or lower order mode index on zernike DM basis 
     LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)
 
+    # these are just for testing things 
+    poke_amp = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("poke_amp", None)
+    camera_config = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("camera_config", None)
 #util.nice_heatmap_subplots( [ util.get_DM_command_in_2D(a) for a in [IM[65], IM[77] ]],savefig='delme.png')
 
 # define out Tip/Tilt or lower order modes on zernike DM basis
@@ -117,13 +127,16 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
 IM_LO = IM[:LO]
 IM_HO = IM[LO:]
 
-if args.inverse_method.lower() == 'pinv':
+
+########################################
+## LO MODES 
+########################################
+if args.inverse_method_LO.lower() == 'pinv':
     #I2M = np.linalg.pinv( IM )
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
     I2M_LO = np.linalg.pinv( IM_LO ) 
-    I2M_HO = np.linalg.pinv( IM_HO )
 
-elif args.inverse_method.lower() == 'map': # minimum variance of maximum posterior estimator 
+elif args.inverse_method_LO.lower() == 'map': # minimum variance of maximum posterior estimator 
     #phase_cov = np.eye( IM.shape[0] )
     #noise_cov = np.eye( IM.shape[1] ) 
     #I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
@@ -131,46 +144,90 @@ elif args.inverse_method.lower() == 'map': # minimum variance of maximum posteri
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
     phase_cov_LO = np.eye( IM_LO.shape[0] )
     noise_cov_LO = np.eye( IM_LO.shape[1] ) 
+
+    I2M_LO = phase_cov_LO @ IM_LO.T @ np.linalg.inv(IM_LO @ phase_cov_LO @ IM_LO.T + noise_cov_LO)
+
+
+
+elif 'svd_truncation' in args.inverse_method_LO.lower() :
+    k = int( args.inverse_method.split('truncation-')[-1] ) 
+
+    U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
+
+    I2M_LO = util.truncated_pseudoinverse(U, S, Vt, k)
+    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
+else:
+    raise UserWarning('no inverse method provided for LO')
+
+########################################
+## HO MODES 
+########################################
+if args.inverse_method_HO.lower() == 'pinv':
+    #I2M = np.linalg.pinv( IM )
+    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
+    I2M_HO = np.linalg.pinv( IM_HO )
+    
+
+elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum posterior estimator 
+    #phase_cov = np.eye( IM.shape[0] )
+    #noise_cov = np.eye( IM.shape[1] ) 
+    #I2M = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+    #I2M = phase_cov @ IM.T @ np.linalg.inv(IM @ phase_cov @ IM.T + noise_cov)
+    #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
     phase_cov_HO = np.eye( IM_HO.shape[0] )
     noise_cov_HO = np.eye( IM_HO.shape[1] ) 
 
-    I2M_LO = phase_cov_LO @ IM_LO.T @ np.linalg.inv(IM_LO @ phase_cov_LO @ IM_LO.T + noise_cov_LO)
     I2M_HO = phase_cov_HO @ IM_HO.T @ np.linalg.inv(IM_HO @ phase_cov_HO @ IM_HO.T + noise_cov_HO)
 
-elif args.inverse_method.lower() == 'zonal':
+elif args.inverse_method_HO.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
     dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
+    # util.nice_heatmap_subplots(  im_list = [util.get_DM_command_in_2D(dm_mask)], savefig='delme.png' )
     I2M_HO = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
-    # should check this 
-    I2M_LO = np.linalg.pinv( IM_LO ) 
 
-elif 'svd_truncation' in args.inverse_method.lower() :
+
+elif 'svd_truncation' in args.inverse_method_HO.lower() :
     k = int( args.inverse_method.split('truncation-')[-1] ) 
     U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
     I2M_HO = util.truncated_pseudoinverse(U, S, Vt, k)
 
-    I2M_LO =
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
 else:
-    raise UserWarning('no inverse method provided')
+    raise UserWarning('no inverse method provided for HO')
 
+
+
+dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
+
+
+# project out in command / mode space 
+if args.project_TT_out_HO:
+    print("projecting TT out of HO")
+    #we only need HO and require len 144x 140 (SHM input x number of actuatorss) which projects out the TT 
+    _ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  (dm_mask_144 * np.nan_to_num(M2C.T[:LO],0) ).reshape(-1,144) )
+    #_ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  np.nan_to_num(M2C[:,:LO],0).reshape(-1,144) )
+    M2C_LO , _ = util.project_matrix( np.nan_to_num( M2C[:,:LO], 0),  np.nan_to_num(M2C.T[LO:],0).reshape(-1,144) )
+else:
+    M2C_LO = M2C[:,:LO]
+    M2C_HO = M2C[:,LO:]
 
 
 # TO DO : FIX M2C PROJECTION ====================
 dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
-                                               "inverse_method": args.inverse_method,
+                                               "inverse_method_LO": args.inverse_method_LO,
+                                               "inverse_method_HO": args.inverse_method_HO,
                                                "controller_type":"PID",
                                                "sza": np.array(M2C).shape[0],
                                                "szm": np.array(M2C).shape[1],
-                                               "szp": np.array(I2M).shape[1],
+                                               "szp": np.array(I2M_HO).shape[1],
                                                "I2A": np.array(I2A).tolist(), 
-                                               "I2M": np.array(I2M).tolist(),
-                                               "I2M_LO": np.array(I2M_LO).tolist(),
-                                               "I2M_HO": np.array(I2M_HO).tolist(),
-                                               "M2C_LO" : np.array(M2C).tolist(),
-                                               "M2C_HO" : np.array(M2C).tolist(),
+                                               #"I2M": np.array(I2M).tolist(),
+                                               "I2M_LO": np.array(I2M_LO.T).tolist(),
+                                               "I2M_HO": np.array(I2M_HO.T).tolist(),
+                                               "M2C_LO" : np.array(M2C_LO).tolist(),
+                                               "M2C_HO" : np.array(M2C_HO).tolist(),
                                                "I2rms_sec" : np.array(I2rms_sec).tolist(),
                                                "I2rms_ext" : np.array(I2rms_ext).tolist(),
                                                "telemetry" : 0,  # do we record telem  - need to add to C++ readin
@@ -187,7 +244,6 @@ dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                             }
                                         }
                                     }
-
 
 
 
@@ -258,3 +314,58 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 # util.nice_heatmap_subplots(  im_TT_list , title_list=["TT reco "+t for t in titles], savefig='delme.png' ) 
 
 # util.nice_heatmap_subplots(  im_HO_list , title_list=["HO reco "+t for t in titles], savefig='delme.png' ) 
+
+
+
+#### ADDITIONAL PROJECTION TESTS
+
+#### TEST 
+# c0 = 0*M2C.T[0]
+# i = 0*IM[0]
+# act_list = [0, 65, 43]
+# for a in act_list:
+#     c0 += poke_amp/2 * M2C.T[a] # original command
+
+#     i +=  IM[a] #+ IM[65] # simulating intensity repsonse
+
+# e_LO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_LO.T @ i
+# e_HO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_HO.T @ i
+
+# # without projection just using HO (which has full rank)
+# c_HO = (M2C[:,LO:] @ e_HO).reshape(12,12)
+# res = c_HO - c0.reshape(12,12,)
+# im_list = [  c0.reshape(12,12), c_HO, dm_mask_144.reshape(12,12) * res]
+# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+# title_list = [ "disturb",  "c_HO'", "res."]
+# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS"]
+# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims = vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+
+# # proper projection 
+# c_LOg = (M2C_LO @ e_LO).reshape(12,12)
+# c_HOg = (M2C_HO @ e_HO).reshape(12,12)
+
+# dcmdg = c_LOg + c_HOg
+
+# resg = dcmdg - c0.reshape(12,12)
+
+# im_list = [  c0.reshape(12,12), c_LOg, c_HOg, dcmdg, dm_mask_144.reshape(12,12) * resg]
+# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+# title_list = [ "disturb", "c_LO", "c_HO'","c_LO + c_HO","res."]
+# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS","DM UNITS","DM UNITS"]
+# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims=vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+
+# print( np.std( dm_mask_144.reshape(12,12) * res ), np.std( dm_mask_144.reshape(12,12) * resg ))
+
+
+
+# In [8]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_HO']).shape
+# Out[8]: (144, 142)
+
+# In [9]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_LO']).shape
+# Out[9]: (144, 142)
+
+# In [10]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_LO']).shape
+# Out[10]: (2, 140)
+
+# In [11]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_HO']).shape
+# Out[11]: (140, 140)

@@ -24,6 +24,13 @@ import datetime
 from xaosim.shmlib import shm
 from asgard_alignment import FLI_Cameras as FLI
 
+
+# By default HO in this construction of the IM will always contain zonal actuation of each DM actuator.
+# Using LO we can also define our Lower order modes on a Zernike basis where LO 
+# is the Noll index up to which modes to consider. These LO modes are probed first
+# in the IM and then the HO (zonal) modes are probed  
+
+
 MDS_port = 5555
 MDS_host = 'localhost'
 context = zmq.Context()
