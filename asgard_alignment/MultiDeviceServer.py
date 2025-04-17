@@ -430,8 +430,7 @@ class MultiDeviceServer:
 
         # Send back reply to ic0fb process
 
-        time_now = datetime.datetime.now()
-        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        time_now = MultiDeviceServer.get_time_stamp()
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
