@@ -273,14 +273,18 @@ class MultiDeviceServer:
                     # Semaphore is free =>
                     # Device can be moved now
                     setup_cmds[0].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
+                        asgard_alignment.ESOdevice.SetupCommand(
+                            dev_name, motion_type, val
+                        )
                     )
                     semaphore_array[semaphore_id] = 1
                 else:
                     # Semaphore is already taken =>
                     # Device will be moved in a second batch
                     setup_cmds[1].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
+                        asgard_alignment.ESOdevice.SetupCommand(
+                            dev_name, motion_type, val
+                        )
                     )
 
             # Move devices (two batches if needed)
@@ -290,14 +294,14 @@ class MultiDeviceServer:
                     self.database_message["command"]["parameters"].clear()
                     for s in setup_cmds[batch]:
                         print(
-                            f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )"
+                            f"Moving: {s.device_name} to: {s.val} ( setting {s.motion_type} )"
                         )
 
                         # do the actual move...
-                        self.instr.devices[s.dev].setup(s.motion_type, s.val)
+                        self.instr.devices[s.device_name].setup(s.motion_type, s.val)
 
                         # Inform wag ICS that the device is moving
-                        attribute = f"<alias>{s.dev}:DATA.status0"
+                        attribute = f"<alias>{s.device_name}:DATA.status0"
                         self.database_message["command"]["parameters"].append(
                             {"attribute": attribute, "value": "MOVING"}
                         )
@@ -430,7 +434,7 @@ class MultiDeviceServer:
 
         # Send back reply to ic0fb process
 
-        time_now = MultiDeviceServer.get_time_stamp()
+        time_stamp = MultiDeviceServer.get_time_stamp()
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
