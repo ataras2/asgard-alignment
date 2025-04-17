@@ -65,6 +65,8 @@ class MultiDeviceServer:
         else:
             self.instr = asgard_alignment.Instrument.Instrument(self.config_file)
 
+        print("Instrument all set up, ready to accept messages")
+
     def socket_funct(self, s):
         try:
             message = s.recv_string()
@@ -181,23 +183,40 @@ class MultiDeviceServer:
             # If needed, call controller-specific functions to bring some
             # devices to a "parking" position and to power them off
             # .............................................................
-            n_devs_commanded = len(json_data["command"]["parameters"])
-            for i in range(n_devs_commanded):
-                dev = json_data["command"]["parameters"][i]["device"]
-                print(f"Standby device: {dev}")
+            # can have no parameters (standby all) or a subset indicated by parameters
 
-                self.instr.devices[dev].standby()
+            if "parameters" not in json_data["command"]:
+                print("No parameters in standby command, going to standby all")
 
-            # Update the wagics database to show all the devices in STANDBY
-            # state (value of "state" attrivute has to be set to 2)
+                for key in self.instr.devices:
+                    self.instr.devices[key].standby()
 
-            self.database_message["command"]["parameters"].clear()
-            for i in range(n_devs_commanded):
-                dev = json_data["command"]["parameters"][i]["device"]
-                attribute = f"<alias>{dev}.state"
-                self.database_message["command"]["parameters"].append(
-                    {"attribute": attribute, "value": 2}
-                )
+                # Update the wagics database to show all the devices in STANDBY
+                # state (value of "state" attrivute has to be set to 2)
+                for key in self.instr.devices:
+                    attribute = f"<alias>{key}.state"
+                    self.database_message["command"]["parameters"].append(
+                        {"attribute": attribute, "value": 2}
+                    )
+
+            else:
+                n_devs_commanded = len(json_data["command"]["parameters"])
+                for i in range(n_devs_commanded):
+                    dev = json_data["command"]["parameters"][i]["device"]
+                    print(f"Standby device: {dev}")
+
+                    self.instr.devices[dev].standby()
+
+                # Update the wagics database to show all the devices in STANDBY
+                # state (value of "state" attrivute has to be set to 2)
+
+                self.database_message["command"]["parameters"].clear()
+                for i in range(n_devs_commanded):
+                    dev = json_data["command"]["parameters"][i]["device"]
+                    attribute = f"<alias>{dev}.state"
+                    self.database_message["command"]["parameters"].append(
+                        {"attribute": attribute, "value": 2}
+                    )
 
             # Send message to wag to update the database
             time_now = datetime.datetime.now()
@@ -552,7 +571,6 @@ class MultiDeviceServer:
             print(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
-
         def fpm_get_savepath_msg(axis):
             device = self.instr.all_devices[axis]
             if device is None:
@@ -644,7 +662,7 @@ class MultiDeviceServer:
                 return f"NACK: Axis {axis} not found"
             else:
                 device.update_mask_position(mask_name)
-                return "ACK"                
+                return "ACK"
             # if axis not in self.instr.devices:
             #     return f"NACK: Mask {mask_name} not found"
             # else:
@@ -656,10 +674,8 @@ class MultiDeviceServer:
             if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                device.offset_all_mask_positions(
-                    rel_offset_x, rel_offset_y
-                )
-                return "ACK"                
+                device.offset_all_mask_positions(rel_offset_x, rel_offset_y)
+                return "ACK"
             # if axis not in self.instr.devices:
             #     return f"NACK: Axis {axis} not found"
             # else:
@@ -691,7 +707,7 @@ class MultiDeviceServer:
                 device.update_all_mask_positions_relative_to_current(
                     current_mask_name, reference_mask_position_file, write_file=False
                 )
-                return "ACK"                
+                return "ACK"
             # if axis not in self.instr.devices:
             #     return f"NACK: Axis {axis} not found"
             # else:
