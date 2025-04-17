@@ -91,7 +91,7 @@ class MultiDeviceServer:
                     running = False
                 elif data != 0:
                     print(f"Received message: {data}")
-                    response = self.handle_message(data)
+                    is_custom_msg, response = self.handle_message(data)
                     if response == -1:
                         running = False
                         if s == sys.stdin:
@@ -101,7 +101,8 @@ class MultiDeviceServer:
                     else:
                         if response is None:
                             response = ""
-                        s.send_string(response + "\n")
+                        if is_custom_msg:
+                            s.send_string(response + "\n")
 
     @staticmethod
     def get_time_stamp():
@@ -117,11 +118,11 @@ class MultiDeviceServer:
         # if "!" in message:
         if message[0].islower():
             print(f"Custom command: {message}")
-            return self._handle_custom_command(message)
+            return True, self._handle_custom_command(message)
 
         if message[0] == "!":
             print("Old custom command")
-            return "NACK: Are you using old custom commands?"
+            return True, "NACK: Are you using old custom commands?"
 
         try:
             message = message.rstrip(message[-1])
@@ -129,7 +130,7 @@ class MultiDeviceServer:
             json_data = json.loads(message)
         except:
             print("Error: Invalid JSON message")
-            return "NACK: Invalid JSON message"
+            return False, "NACK: Invalid JSON message"
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
 
@@ -428,6 +429,8 @@ class MultiDeviceServer:
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
+
+        return False, None
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol
