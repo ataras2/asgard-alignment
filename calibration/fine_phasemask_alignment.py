@@ -121,7 +121,7 @@ parser.add_argument(
 #     help="Method used for inverting interaction matrix to build control (intensity-mode) matrix I2M"
 # )
 
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")#"localhost"
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"

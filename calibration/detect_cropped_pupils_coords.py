@@ -498,8 +498,11 @@ elif args.saveformat=='toml':
 
 ### WRITING TO THE CRED 1 SPLIT CONFIG FILE FOR THE SERVER
 cred_server_split_file = "/home/asg/.config/cred1_split.json"
+# read 
 with open( cred_server_split_file ) as f:
     split_dict = json.load(f)
+    
+
 
 "/home/asg/.config/cred1_split.json"
 "/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
@@ -515,7 +518,7 @@ for beam_id in dict2write["baldr_pupils"]:
 
 with open(cred_server_split_file, "w") as json_file:
     json.dump(split_dict, json_file, indent=4)
-
+    print(f"wrote split pupil coords to {cred_server_split_file}")
 # img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
 # util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
 # convert_index_convention( corners ):

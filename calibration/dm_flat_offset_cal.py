@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2],
+    default=[4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -99,8 +99,8 @@ parser.add_argument(
 
 parser.add_argument(
     "--start_with_current_baldr_flat", 
-    action="store_true",
-    default=False,
+    action="store_false",
+    default=True,
     help="calibrate the Baldr flat starting with the current baldr flat. If False we beging with the BMC factory flat"
 )
 #--start_with_current_baldr_flat
@@ -113,7 +113,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 beam_id = args.beam_id[0]
 
 
-host = "localhost"
+host = "172.16.8.6"#"localhost"
 port = 5555
 timeout = 60000
 context = zmq.Context()
@@ -489,7 +489,7 @@ plt.plot( amps , rmse )
 plt.ylabel('RMSE',fontsize=15)
 plt.xlabel(r'a.$\Delta$',fontsize=15)
 plt.gca().tick_params(labelsize=15)
-plt.savefig(fig_path + 'dm_flat_cal_beam{beam_id}_RMSE.png')
+plt.savefig(fig_path + f'dm_flat_cal_beam{beam_id}_RMSE.png')
 
 # seems to work best using experior 
 ib = np.argmax( exterior_sig ) #np.argmin( rmse )
@@ -548,5 +548,7 @@ print(f"Saved FITS file as {fits_filename}")
 
 
 ### Save as txt file the flat 
-fig_path = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
-np.savetxt(fig_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt", best_baldr_flat_offset, fmt="%.7f")
+dmshape_save_path = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+flat_fname = dmshape_save_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt"
+np.savetxt(flat_fname, best_baldr_flat_offset, fmt="%.7f")
+print(f"saved the new flat {flat_fname}")

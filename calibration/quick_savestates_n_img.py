@@ -139,7 +139,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"

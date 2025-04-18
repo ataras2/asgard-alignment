@@ -247,9 +247,23 @@ with open( "config_files/file_paths.json") as f:
 # positions to put thermal source on and take it out to empty position to get dark
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
+
+default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+
+
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+
+# TOML file path; default is relative to the current file's directory.
+parser.add_argument(
+    "--toml_file",
+    type=str,
+    default=default_toml,
+    help="TOML file pattern (replace # with beam_id) to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+)
+
+
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host") # localhost
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -380,20 +394,27 @@ initial_Xpos = float(send_and_get_response(message))
 # print(res)
 
 
-baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+# baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 
-# with open(baldr_pupils_path, "r") as json_file:
-#     baldr_pupils = json.load(json_file)
+# # with open(baldr_pupils_path, "r") as json_file:
+# #     baldr_pupils = json.load(json_file)
 
 
-# Load the TOML file
-with open(baldr_pupils_path) as file:
-    pupildata = toml.load(file)
+# # Load the TOML file
+# with open(baldr_pupils_path) as file:
+#     pupildata = toml.load(file)
 
-# Extract the "baldr_pupils" section
-baldr_pupils = pupildata.get("baldr_pupils", {})
+# # Extract the "baldr_pupils" section
+# baldr_pupils = pupildata.get("baldr_pupils", {})
 
+
+with open(args.toml_file.replace('#',f'{args.beam}'), "r") as f:
+
+    config_dict = toml.load(f)
+    
+    # Baldr pupils from global frame 
+    baldr_pupils = config_dict['baldr_pupils']
 
 # init camera 
 roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
@@ -465,8 +486,8 @@ else:
     try: 
         tmp_pos = args.initial_pos.split( ',')
 
-        Xpos = int( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
-        Ypos = int( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
+        Xpos = float( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
+        Ypos = float( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
         print(f'using user input initial position x,y ={Xpos}, {Ypos}')
     except: 
         print( 'invalid user input {args.initial_pos} for initial position x,y. Try (for example) --initial_pos 5000,5000  (i.e they are comma-separated)' )

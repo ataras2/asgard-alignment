@@ -75,7 +75,7 @@ parser.add_argument("--number_of_frames",
                     help="number of frames to take for flats")
 
 
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=2000, help="Response timeout in milliseconds"

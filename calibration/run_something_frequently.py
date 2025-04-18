@@ -15,7 +15,7 @@ def run_scripts():
             check=True
         )
         print("Flat map script completed successfully.")
-
+l
         time.sleep( 5 )
 
         # Run the second script with "cross" DM map

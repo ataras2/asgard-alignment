@@ -157,11 +157,11 @@ fps = float( cam_config["fps"] )
 aduoffset = int( cam_config["aduoffset"] ) 
 
 c.send_fli_cmd(f"set mode {mode}")
-time.sleep(1)
+time.sleep(2)
 c.send_fli_cmd(f"set fps {fps}")
-time.sleep(1)
+time.sleep(2)
 c.send_fli_cmd(f"set gain {gain}")
-time.sleep(1)
+time.sleep(2)
 c.send_fli_cmd(f"set aduoffset {aduoffset}")
 
 # ===================================
@@ -280,7 +280,7 @@ dm.activate_calibrated_flat()
 # ===================================
 
 #worrying_actuators = {} 
-residual_threshold = 0.1 # dm units 
+residual_threshold = 0.003 # dm units 
 
 for abmode, probe_descr in enumerate( descr ) :
 
@@ -362,6 +362,7 @@ for abmode, probe_descr in enumerate( descr ) :
     if abmode==0: # just look at noaberration case 
         worrying_actuators = np.where( abs( util.convert_12x12_to_140( res_HO_mean ) ) > residual_threshold )[0]
 
+    print(f"saveing results here : {results_path}")
         
 
 
@@ -378,7 +379,7 @@ plt.yscale('log')
 plt.gca().tick_params(labelsize=fs)
 plt.xlabel('HO residual [DM Units]',fontsize=fs)
 plt.ylabel("occurrence percentage",fontsize=fs)
-plt.savefig(savefig=results_path + f'HO_cmd_residual_cumulative_prob_{descr[abmode]}.jpeg', bbox_inches ='tight')
+plt.savefig(results_path + f'HO_cmd_residual_cumulative_prob_{descr[abmode]}.jpeg', bbox_inches ='tight')
 
 
 # ===================================
@@ -410,6 +411,7 @@ util.nice_heatmap_subplots( [util.get_DM_command_in_2D( worry_map )], title_list
 M2C_HO_filtered = np.array( M2C_HO ).copy()
 M2C_HO_filtered[:,worrying_actuators]  = 0
 
+util.nice_heatmap_subplots( [M2C_HO_filtered ], title_list=["M2C_HO"], savefig='delme.png')
 
 
 # ===================================

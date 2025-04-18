@@ -13,7 +13,7 @@ import pyBaldr.utilities as util
 
 
 MDS_port = 5555
-MDS_host = 'localhost'
+MDS_host = "172.16.8.6" #'localhost'
 context = zmq.Context()
 context.socket(zmq.REQ)
 socket = context.socket(zmq.REQ)

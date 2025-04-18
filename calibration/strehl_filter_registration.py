@@ -219,7 +219,7 @@ parser.add_argument("--fig_path",
                     default=None, 
                     help="path/to/output/image/ for the saved figures")
 
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -413,8 +413,8 @@ for beam_id in args.beam_id:
             axis = 0)[r1:r2,c1:c2] # ADU/s !    so we multiply by FPS
 
     # on top of the bad pixel mask 
-    img[img > 0.9e5] = 0
-    img[img < -1e2] = 0
+    #img[img > 0.9e5] = 0
+    #img[img < -1e2] = 0
     zwfs_pupils[beam_id] = img
 
 
@@ -450,8 +450,8 @@ for beam_id in args.beam_id:
     #clear_pupils[beam_id] = float(c_dict[beam_id].config['fps']) *  np.mean( N0s , axis=0)
     img = float(c.config['fps']) *  np.mean( N0s , axis=0)[r1:r2,c1:c2]
 
-    img[img > 0.9e5] = 0
-    img[img < -1e2] = 0
+    #img[img > 0.9e5] = 0
+    #img[img < -1e2] = 0
     clear_pupils[beam_id] = img 
 
     ### DETECT A PUPIL MASK FROM CLEAR MASK 
