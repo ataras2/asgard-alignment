@@ -103,7 +103,7 @@ if "socket" not in st.session_state:
     parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
     parser.add_argument("--port", type=int, default=5555, help="Server port")
     parser.add_argument(
-        "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
+        "--timeout", type=int, default=10000, help="Response timeout in milliseconds"
     )
     st.session_state["args"] = parser.parse_args()
 
@@ -143,10 +143,10 @@ beam_specific_devices = [
     "HTXI",
     "BTX",
     "BDS",
-    "phasemask",
+    #"phasemask", # this is in routines
     "SSF",
     "BOTX",
-    "DM",
+    # "DM", # this is based on the old Sardine shared memory, won't work anymore. Could be updated with Frantz's 
     "BMX",
     "BMY",
     "BLF",
@@ -1150,7 +1150,7 @@ def handle_linear_actuator():
         min_value=bounds[0],
         max_value=bounds[1],
         step=inc,
-        value=cur_pos,
+        value=min(max(cur_pos,bounds[0]),bounds[1]), #cur_pos,
         key="lin_position",
         on_change=get_onchange_fn("lin_position", target),
     )
@@ -1300,6 +1300,10 @@ with col_main:
                 # replace the X in target with P
                 target = f"{component}{beam_number}"
                 targets = [target.replace("X", "P"), target.replace("X", "T")]
+        
+        elif component == "BLF":
+            targets = [f"BLF{ii}" for ii in [1,2,3,4]]
+        # HERE     
         else:
             beam_number = None
             targets = [component]
@@ -1329,6 +1333,9 @@ with col_main:
 
                     if submit:
                         for target in targets:
+                            # debug here
+                            if "BLF" in target:
+                                st.write(target)
                             message = f"connect {target}"
                             send_and_get_response(message)
 

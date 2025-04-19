@@ -23,6 +23,7 @@ from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
 from scipy.optimize import leastsq
 from scipy.ndimage import gaussian_filter,  median_filter
+from scipy.ndimage import label, find_objects
 import glob
 import re
 from pathlib import Path
@@ -985,6 +986,76 @@ def detect_circle(image, sigma=2, threshold=0.5, plot=False):
     return int(center_x), int(center_y), int(radius)
 
 
+
+
+def percentile_based_detect_pupils(
+    image, percentile=80, min_group_size=50, buffer=20, square_region=True, plot=True
+):
+    """
+    Detects circular pupils by identifying regions with grouped pixels above a given percentile.
+
+    Parameters:
+        image (2D array): Full grayscale image containing multiple pupils.
+        percentile (float): Percentile of pixel intensities to set the threshold (default 80th).
+        min_group_size (int): Minimum number of adjacent pixels required to consider a region.
+        buffer (int): Extra pixels to add around the detected region for cropping.
+        plot (bool): If True, displays the detected regions and coordinates.
+
+    Returns:
+        list of tuples: Cropping coordinates [(x_start, x_end, y_start, y_end), ...].
+    """
+    # Normalize the image
+    image = image / image.max()
+
+    # Calculate the intensity threshold as the 80th percentile
+    threshold = np.percentile(image, percentile)
+
+    # Create a binary mask where pixels are above the threshold
+    binary_image = image > threshold
+
+    # Label connected regions in the binary mask
+    labeled_image, num_features = label(binary_image)
+
+    # Extract regions and filter by size
+    regions = find_objects(labeled_image)
+    pupil_regions = []
+    for region in regions:
+        y_slice, x_slice = region
+        # Count the number of pixels in the region
+        num_pixels = np.sum(labeled_image[y_slice, x_slice] > 0)
+        if num_pixels >= min_group_size:
+            # Add a buffer around the region for cropping
+            y_start = max(0, y_slice.start - buffer)
+            y_end = min(image.shape[0], y_slice.stop + buffer)
+            x_start = max(0, x_slice.start - buffer)
+            x_end = min(image.shape[1], x_slice.stop + buffer)
+
+            if square_region:
+                max_delta = np.max( [x_end - x_start,y_end - y_start] )                
+                pupil_regions.append((x_start, x_start+max_delta, y_start, y_start+max_delta))
+            else:
+                pupil_regions.append((x_start, x_end, y_start, y_end))
+            
+    if plot:
+        # Plot the original image with bounding boxes
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image, cmap="gray", origin="upper")
+        for x_start, x_end, y_start, y_end in pupil_regions:
+            rect = plt.Rectangle(
+                (x_start, y_start),
+                x_end - x_start,
+                y_end - y_start,
+                edgecolor="red",
+                facecolor="none",
+                linewidth=2,
+            )
+            plt.gca().add_patch(rect)
+        plt.title(f"Detected Pupils: {len(pupil_regions)}")
+        plt.savefig('delme.png')
+        plt.show()
+        
+
+    return pupil_regions
 
 def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
     """

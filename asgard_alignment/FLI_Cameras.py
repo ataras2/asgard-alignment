@@ -56,7 +56,7 @@ camera.save_fits("output.fits", number_of_frames=10)
 
 
 ### MDS
-mds_host = "localhost"
+mds_host = "172.16.8.6"
 mds_port = 5555 
 timeout = 5000
 context = zmq.Context()

@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[4],
+    default=[1],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -112,6 +112,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 beam_id = args.beam_id[0]
 
+input(f"start_with_current_baldr_flat = {args.start_with_current_baldr_flat}. continue?")
 
 host = "172.16.8.6"#"localhost"
 port = 5555

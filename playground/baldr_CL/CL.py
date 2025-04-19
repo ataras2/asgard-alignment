@@ -537,6 +537,7 @@ dmtight_mask = I2A @ np.array([int(a) for a in inside_edge_filt])
 
 # doing a tight filter (~44 modes)
 I2M = dmtight_mask[:,np.newaxis] * I2M
+I2M_HO = dmtight_mask[:,np.newaxis] * I2M_HO
 ###########################################
 
 
@@ -553,7 +554,7 @@ dm2opd = 7000 # nm / DM cmd
 telem = init_telem_dict() #)
 
 # PID Controller (this can be another toml)
-N = np.array(IM).shape[0]
+N = np.array(I2M_HO).shape[0]
 kp = args.kp * np.ones( N)
 ki = args.ki * np.ones( N )
 kd = args.kd * np.ones( N )
@@ -595,10 +596,10 @@ while keep_going:
     s =  ( idm - I0dm ) / (N0dm)   # 
 
     # error
-    e = I2M @ s 
+    e_HO = I2M_HO @ s 
 
     # ctrl 
-    u = ctrl_HO.process( e )
+    u_HO = ctrl_HO.process( e_HO )
     # if it > close_after:
     #     u = ctrl_HO.process( e )
     # else:
@@ -607,11 +608,11 @@ while keep_going:
     #u[bad_ones] = 0
 
     # safety
-    if np.max( abs( u ) ) > 0.3:
-        culprit = np.where( abs( u ) == np.max( abs( u ) )  )[0][0]
+    if np.max( abs( u_HO ) ) > 0.3:
+        culprit = np.where( abs( u_HO ) == np.max( abs( u_HO ) )  )[0][0]
         print(f"beam {args.beam_id} broke by act.{culprit} , reseting") # , reducing gain act {culprit} by half")
         #ctrl_HO.ki[culprit] *= 0.5 
-        dm.set_data( dm.cmd_2_map2D( np.zeros( len(u)) ) )
+        dm.set_data( dm.cmd_2_map2D( np.zeros( len(u_HO)) ) )
         #dm.activate_calibrated_flat()
         ctrl_HO.reset( )
 
@@ -635,18 +636,18 @@ while keep_going:
     
     #u -= np.mean( u ) # Forcefully remove piston! 
     # reconstruction
-    dcmd = -1 *  dm.cmd_2_map2D( u ) 
+    dcmd = -1 *  dm.cmd_2_map2D( u_HO ) 
     t1 = time.time()
 
     dm.set_data( dcmd )
 
 
-    if telem:
+    if 0: #telem:
         telem["time_cam"].append( t0 )
         telem["time_dm"].append( t1 )
         telem["i"].append( i.copy() )
-        telem["e_HO"].append( e.copy() )
-        telem["u_HO"].append( u.copy() )
+        telem["e_HO"].append( e_HO.copy() )
+        telem["u_HO"].append( u_HO.copy() )
         
         #telem["current_dm_ch0"].append( dm.shms[0].get_data() ) 
         telem["current_dm_ch1"].append( dm.shms[1].get_data().copy() ) 
@@ -657,7 +658,7 @@ while keep_going:
 
     t1 = time.time()
 
-    print(it, t1-t0, np.max(abs(e)), np.max(abs(u))) #m_rms_est ,
+    #print(it, t1-t0, np.max(abs(e_HO)), np.max(abs(u_HO))) #m_rms_est ,
     if 1/fps - (t1-t0) > 0 :
         time.sleep( 1/fps - (t1-t0) )
     
