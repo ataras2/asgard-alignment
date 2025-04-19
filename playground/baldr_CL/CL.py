@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=int,
-    default=4,
+    default=1,
     help="beam id (integrer)"
 )
 
@@ -109,74 +109,74 @@ parser.add_argument("--fig_path",
 
 #### TURBULENCE
 
-parser.add_argument(
-    '--number_of_turb_iterations',
-    type=int,
-    default=200,
-    help="how many iterations do we run? %(default)s"
-)
+# parser.add_argument(
+#     '--number_of_turb_iterations',
+#     type=int,
+#     default=200,
+#     help="how many iterations do we run? %(default)s"
+# )
 
-parser.add_argument(
-    '--wvl',
-    type=float,
-    default=1.65,
-    help="simulation wavelength (um). Default: %(default)s"
-)
+# parser.add_argument(
+#     '--wvl',
+#     type=float,
+#     default=1.65,
+#     help="simulation wavelength (um). Default: %(default)s"
+# )
 
-parser.add_argument(
-    '--D_tel',
-    type=float,
-    default=1.8,
-    help="telescope diameter for simulation. Default: %(default)s"
-)
+# parser.add_argument(
+#     '--D_tel',
+#     type=float,
+#     default=1.8,
+#     help="telescope diameter for simulation. Default: %(default)s"
+# )
 
-parser.add_argument(
-    '--r0',
-    type=float,
-    default=0.2,
-    help="Fried paraameter (coherence length) of turbulence (in meters) at 500nm. This gets scaled by the simulation wavelength r0~(wvl/0.5)**(6/5). Default: %(default)s"
-)
-
-
-parser.add_argument(
-    '--V',
-    type=float,
-    default=0.20,
-    help="equivilant turbulence velocity (m/s) assuming pupil on DM has a 10 acturator diameter, and the input telescope diameter (D_tel). Default: %(default)s"
-)
+# parser.add_argument(
+#     '--r0',
+#     type=float,
+#     default=0.2,
+#     help="Fried paraameter (coherence length) of turbulence (in meters) at 500nm. This gets scaled by the simulation wavelength r0~(wvl/0.5)**(6/5). Default: %(default)s"
+# )
 
 
-parser.add_argument(
-    '--number_of_modes_removed',
-    type=int,
-    default=0,
-    help="number of Zernike modes removed from Kolmogorov phasescreen to simulate first stage AO. This can slow it down for large number of modes. For reference Naomi is typically 7-14. Default: %(default)s"
-)
-
-parser.add_argument(
-    '--DM_chn',
-    type=int,
-    default=3,
-    help="what channel on DM shared memory (0,1,2,3) to apply the turbulence?. Default: %(default)s"
-)
+# parser.add_argument(
+#     '--V',
+#     type=float,
+#     default=0.20,
+#     help="equivilant turbulence velocity (m/s) assuming pupil on DM has a 10 acturator diameter, and the input telescope diameter (D_tel). Default: %(default)s"
+# )
 
 
-parser.add_argument(
-    '--record_turb_telem',
-    type=str,
-    default=None,
-    help="record telemetry? input directory/name.fits to save the fits file if you want,\
-          Otherwise None to not record. if number of iterations is > 1e5 than we stop recording! \
-          (this is around 200 MB) Default: %(default)s"
-)
+# parser.add_argument(
+#     '--number_of_modes_removed',
+#     type=int,
+#     default=0,
+#     help="number of Zernike modes removed from Kolmogorov phasescreen to simulate first stage AO. This can slow it down for large number of modes. For reference Naomi is typically 7-14. Default: %(default)s"
+# )
+
+# parser.add_argument(
+#     '--DM_chn',
+#     type=int,
+#     default=3,
+#     help="what channel on DM shared memory (0,1,2,3) to apply the turbulence?. Default: %(default)s"
+# )
 
 
-parser.add_argument(
-    '--folder_pth',
-    type=str,
-    default=f'/home/asg/Videos/test/',
-    help="folder to save telemetry in. Default: %(default)s"
-)
+# parser.add_argument(
+#     '--record_turb_telem',
+#     type=str,
+#     default=None,
+#     help="record telemetry? input directory/name.fits to save the fits file if you want,\
+#           Otherwise None to not record. if number of iterations is > 1e5 than we stop recording! \
+#           (this is around 200 MB) Default: %(default)s"
+# )
+
+
+# parser.add_argument(
+#     '--folder_pth',
+#     type=str,
+#     default=f'/home/asg/Videos/test/',
+#     help="folder to save telemetry in. Default: %(default)s"
+# )
 
 
 
@@ -479,9 +479,9 @@ c = FLI.fli(args.global_camera_shm, roi = baldr_pupils[f'{beam_id}'])
 
 cam_config = c.get_camera_config()
 
-gain = float( cam_config["gain"] ) 
-fps = float( cam_config["fps"] ) 
-
+gain = float( c.config["gain"] ) 
+fps = float( c.config["fps"] ) 
+print(f"gain = {gain}, fps = {fps}")
 
 # settings when building IM (these were the ones used to normalize frames such as I0,)
 # gain0 = float( IM_cam_config["gain"] ) 
@@ -494,7 +494,7 @@ I2M = gain / fps * I2M_raw
 I2M_LO = gain / fps * I2M_LO_raw
 I2M_HO = gain / fps * I2M_HO_raw 
 
-util.nice_heatmap_subplots( [util.get_DM_command_in_2D( I2M @ IM[65])] , savefig='delme.png')
+#util.nice_heatmap_subplots( [util.get_DM_command_in_2D( I2M @ IM[65])] , savefig='delme.png')
 
 #plt.figure(); plt.imshow( util.get_DM_command_in_2D( dmtight_filt ) ) ;plt.savefig('delme.png')
 #np.sum(dmtight_filt)
@@ -572,12 +572,13 @@ close_after = 0
 
 #u = 0
 #bad_ones = [ 26,  37,  38,  53,  63,  65,  66,  75,  76,  78,  79,  87,  90, 98, 101, 102]
-telem = False
+telem = False #init_telem_dict() 
 naughty_list = {a:0 for a in range(140)}
 #for it in range(args.number_of_iterations):
 keep_going = True
 it = 0
 while keep_going:   
+    #for it in range(args.number_of_iterations):
     # raw intensity 
     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
     t0 = time.time()
@@ -642,7 +643,7 @@ while keep_going:
     dm.set_data( dcmd )
 
 
-    if 0: #telem:
+    if telem:
         telem["time_cam"].append( t0 )
         telem["time_dm"].append( t1 )
         telem["i"].append( i.copy() )
@@ -698,81 +699,83 @@ dm.activate_calibrated_flat()
 
 
 
-"""
-# save telemetry
-runn=f"kolmogorov_ki-{args.ki}_kd-{args.kd}_r0-{args.r0}_V-{args.V}_fps-{cam_config['fps']}_gain-fps-{cam_config['gain']}" 
-# Create a list of HDUs (Header Data Units)
-hdul = fits.HDUList()
+if telem:
+    # save telemetry
+    runn=f"kolmogorov_ki-{args.ki}_kd-{args.kd}_r0-{args.r0}_V-{args.V}_fps-{c.config['fps']}_gain-fps-{c.config['gain']}" 
+    # Create a list of HDUs (Header Data Units)
+    hdul = fits.HDUList()
 
-hdu = fits.ImageHDU(IM)
-hdu.header['EXTNAME'] = 'IM'
-hdul.append(hdu)
+    hdu = fits.ImageHDU(IM)
+    hdu.header['EXTNAME'] = 'IM'
+    hdul.append(hdu)
 
-# hdu = fits.ImageHDU(M2C)
-# hdu.header['EXTNAME'] = 'M2C'
-# hdul.append(hdu)
-
-
-hdu = fits.ImageHDU(I2M)
-hdu.header['EXTNAME'] = 'I2M'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(I2A)
-hdu.header['EXTNAME'] = 'interpMatrix'
-hdul.append(hdu)
+    # hdu = fits.ImageHDU(M2C)
+    # hdu.header['EXTNAME'] = 'M2C'
+    # hdul.append(hdu)
 
 
-hdu = fits.ImageHDU(dm.shms[0].get_data())
-hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
-hdul.append(hdu)
+    hdu = fits.ImageHDU(I2M)
+    hdu.header['EXTNAME'] = 'I2M'
+    hdul.append(hdu)
 
-hdu = fits.ImageHDU(ctrl_HO.kp)
-hdu.header['EXTNAME'] = 'Kp'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(ctrl_HO.ki)
-hdu.header['EXTNAME'] = 'Ki'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(ctrl_HO.kd)
-hdu.header['EXTNAME'] = 'Kd'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(ctrl_HO.kd)
-hdu.header['EXTNAME'] = 'Kd'
-hdul.append(hdu)
-
-hdu = fits.ImageHDU(pupil_mask.astype(int))
-hdu.header['EXTNAME'] = 'ext'
-hdul.append(hdu)
-# Add each list to the HDU list as a new extension
-for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
-    # Convert list to numpy array for FITS compatibility
-    data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
-
-    # Create a new ImageHDU with the data
-    hdu = fits.ImageHDU(data_array)
-
-    # Set the EXTNAME header to the variable name
-    hdu.header['EXTNAME'] = list_name
-
-    # Append the HDU to the HDU list
+    hdu = fits.ImageHDU(I2A)
+    hdu.header['EXTNAME'] = 'interpMatrix'
     hdul.append(hdu)
 
 
-# Write the HDU list to a FITS file
+    hdu = fits.ImageHDU(dm.shms[0].get_data())
+    hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
+    hdul.append(hdu)
 
-tele_pth = args.folder_pth 
-if not os.path.exists( tele_pth ):
-    os.makedirs( tele_pth )
+    hdu = fits.ImageHDU(ctrl_HO.kp)
+    hdu.header['EXTNAME'] = 'Kp'
+    hdul.append(hdu)
 
-fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
-hdul.writeto(fits_file, overwrite=True)
-print(f'wrote telemetry to \n{fits_file}')
+    hdu = fits.ImageHDU(ctrl_HO.ki)
+    hdu.header['EXTNAME'] = 'Ki'
+    hdul.append(hdu)
+
+    hdu = fits.ImageHDU(ctrl_HO.kd)
+    hdu.header['EXTNAME'] = 'Kd'
+    hdul.append(hdu)
+
+    hdu = fits.ImageHDU(ctrl_HO.kd)
+    hdu.header['EXTNAME'] = 'Kd'
+    hdul.append(hdu)
+
+    hdu = fits.ImageHDU(pupil_mask.astype(int))
+    hdu.header['EXTNAME'] = 'ext'
+    hdul.append(hdu)
+    # Add each list to the HDU list as a new extension
+    for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
+        # Convert list to numpy array for FITS compatibility
+        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+
+        # Create a new ImageHDU with the data
+        hdu = fits.ImageHDU(data_array)
+
+        # Set the EXTNAME header to the variable name
+        hdu.header['EXTNAME'] = list_name
+
+        # Append the HDU to the HDU list
+        hdul.append(hdu)
+
+
+    # Write the HDU list to a FITS file
+
+    tele_pth = args.folder_pth 
+    if not os.path.exists( tele_pth ):
+        os.makedirs( tele_pth )
+
+    fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
+    hdul.writeto(fits_file, overwrite=True)
+    print(f'wrote telemetry to \n{fits_file}')
 
 
 
-"""
+
+
+
 
 # ######################################
 # # ZONAL - 1 actuator 

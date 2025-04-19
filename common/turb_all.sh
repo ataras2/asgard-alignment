@@ -1,27 +1,3 @@
-# #!/bin/bash
-# # Run the CL.py script for beam_id 1, 2, 3, and 4 concurrently
-
-# # for beam in 1 2 3 4; do
-# #     #python /home/asg/Progs/repos/asgard-alignment/playground/baldr_CL/CL.py --number_of_iterations 1000 --beam_id "$beam" &
-# #     python playground/baldr_CL/CL.py  --cam_gain 10 --cam_fps 1000 --phasemask "H3" --number_of_iterations 3001 --beam_id "&beam" &
-# # done
-
-# for beam in 1 2 3 4; do
-#     python playground/baldr_CL/CL.py \
-#         --cam_gain 10 \
-#         --cam_fps 1000 \
-#         --phasemask "H3" \
-#         --number_of_iterations 3001 \
-#         --beam_id "$beam" &        # note: "$beam", not "&beam"
-# done
-
-# # Wait for all background processes to complete
-# wait
-
-# echo "All beam processes have finished."
-
-
-
 #!/usr/bin/env bash
 set -m   # enable job control
 
@@ -31,10 +7,10 @@ declare -A PIDS  # associative array: beam → PID
 trap 'echo; echo "Shutting down all beams…"; kill "${PIDS[@]}" &>/dev/null; exit' SIGINT
 
 # Launch the four beams
+# --record_telem None <- this is default
 for beam in 1 2 3 4; do
-    python playground/baldr_CL/CL.py \
-      --cam_gain 10 --cam_fps 1000 --phasemask "H3" \
-      --number_of_iterations 3001 --beam_id "$beam" &
+    python common/turbulence.py --V 3 --r0 0.3 --number_of_iterations 100000 \
+    --number_of_modes_removed 0 --DM_chn 3 --max_time 360 --beam_id "$beam" &
     PIDS[$beam]=$!
     echo "Started beam $beam as PID ${PIDS[$beam]}"
 done

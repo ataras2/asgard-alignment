@@ -228,7 +228,7 @@ while (not (cnt > args.number_of_iterations) ) and (not (time_elapsed > args.max
 
 print("DONE - returning DM to flat and closing DM SHM")
 for beam in args.beam_id:
-    dms[beam] = dmclass( beam_id=beam )
+
     # # zero all channels
     dms[beam].zero_all()
     # # activate flat (does this on channel 1)
@@ -237,7 +237,7 @@ for beam in args.beam_id:
     dms[beam].close(erase_file=False)
 
 
-if args.record_telem is not None : 
+if args.record_telem  : 
     print("now saving the telemetry file..")
     # Create the TIME extension as a binary table.
     #time_col = fits.Column(name='TIME', array=np.array(telem["t_dm"]), format='E')
