@@ -78,7 +78,12 @@ parser.add_argument(
 parser.add_argument("--dont_project_TT_out_HO",
                     dest="project_TT_out_HO",
                     action="store_false",
-                    help="Disable projecting TT out of HO (default: enabled)")
+                    help="Disable projecting TT (or what ever lower order LO is defined as) out of HO (default: enabled)")
+
+parser.add_argument("--filter_edge_actuators",
+                    dest="filter_edge_actuators",
+                    action="store_false",
+                    help="Filter actuators that interpolate from edge pixels (default: enabled)")
 
 
 parser.add_argument("--fig_path", 
@@ -116,6 +121,9 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     # # define our Tip/Tilt or lower order mode index on zernike DM basis 
     LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)
 
+    # tight (non-edge) pupil filter
+    inside_edge_filt = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("inner_pupil_filt", None) )#.astype(bool)
+    
     # these are just for testing things 
     poke_amp = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("poke_amp", None)
     camera_config = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("camera_config", None)
@@ -198,9 +206,16 @@ else:
     raise UserWarning('no inverse method provided for HO')
 
 
+if args.filter_edge_actuators:
+    # tight mask to restrict edge actuators 
+    dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array([int(a) for a in inside_edge_filt]) ) ).reshape(-1)
+    # typically 44 actuators 
+else:
+    # puypil mask
+    dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
+    # typically 71 actuators 
 
-dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
-
+#util.nice_heatmap_subplots( [dm_mask_144.reshape(12,12),dm_tight_mask_144.reshape(12,12)], savefig='delme.png')
 
 # project out in command / mode space 
 if args.project_TT_out_HO:

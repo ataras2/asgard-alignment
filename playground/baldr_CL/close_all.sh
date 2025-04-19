@@ -31,7 +31,7 @@ declare -A PIDS  # associative array: beam → PID
 trap 'echo; echo "Shutting down all beams…"; kill "${PIDS[@]}" &>/dev/null; exit' SIGINT
 
 # Launch the four beams
-for beam in 1 2 3 4; do
+for beam in 1 2 3 4; do #3
     python playground/baldr_CL/CL.py \
       --cam_gain 10 --cam_fps 1000 --phasemask "H3" \
       --number_of_iterations 3001 --beam_id "$beam" &

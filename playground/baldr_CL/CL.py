@@ -63,23 +63,45 @@ parser.add_argument(
 )
 
 
-
 parser.add_argument(
-    '--kp',
+    '--kp_LO',
     type=float,
     default=0,
     help="proportional gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
-    '--ki',
+    '--ki_LO',
     type=float,
     default=0.15,
     help="integral gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
-    '--kd',
+    '--kd_LO',
+    type=float,
+    default=0,
+    help="differential gain to use for each mode. Default: %(default)s"
+)
+
+
+
+parser.add_argument(
+    '--kp_HO',
+    type=float,
+    default=0,
+    help="proportional gain to use for each mode. Default: %(default)s"
+)
+
+parser.add_argument(
+    '--ki_HO',
+    type=float,
+    default=0.15,
+    help="integral gain to use for each mode. Default: %(default)s"
+)
+
+parser.add_argument(
+    '--kd_HO',
     type=float,
     default=0,
     help="differential gain to use for each mode. Default: %(default)s"
@@ -418,6 +440,8 @@ with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
     I2M_LO_raw = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M_LO", None) ).astype(float)
     I2M_HO_raw = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I2M_HO", None) ).astype(float)
     M2C = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C", None) ).astype(float)
+    M2C_LO = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C_LO", None) ).astype(float)
+    M2C_HO = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C_HO", None) ).astype(float)
     I0 = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I0", None) ).astype(float)
     N0 = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("N0", None) ).astype(float)
     N0i = np.array(config_dict.get(f"beam{beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("norm_pupil", None) ).astype(float)
@@ -488,11 +512,6 @@ print(f"gain = {gain}, fps = {fps}")
 # fps0 = float( IM_cam_config["fps"] ) 
 
 
-# Normalize control matricies by current gain and fps 
-
-I2M = gain / fps * I2M_raw 
-I2M_LO = gain / fps * I2M_LO_raw
-I2M_HO = gain / fps * I2M_HO_raw 
 
 #util.nice_heatmap_subplots( [util.get_DM_command_in_2D( I2M @ IM[65])] , savefig='delme.png')
 
@@ -510,6 +529,14 @@ elif dm_flat == 'factory':
     dm.activate_flat()
 #else:
 #    raise UserWarning("dm_flat must be baldr or factory")
+
+
+# def init_pyRTC():
+
+# Normalize control matricies by current gain and fps 
+I2M = gain / fps * I2M_raw 
+I2M_LO = gain / fps * I2M_LO_raw
+I2M_HO = gain / fps * I2M_HO_raw 
 
 # project reference intensities to DM (quicker for division & subtraction)
 N0dm = gain / fps * (I2A @ N0i.reshape(-1)) # these are already reduced #- dark_dm - bias_dm
@@ -554,15 +581,25 @@ dm2opd = 7000 # nm / DM cmd
 telem = init_telem_dict() #)
 
 # PID Controller (this can be another toml)
-N = np.array(I2M_HO).shape[0]
-kp = args.kp * np.ones( N)
-ki = args.ki * np.ones( N )
-kd = args.kd * np.ones( N )
-setpoint = np.zeros( N )
-lower_limit_pid = -100 * np.ones( N )
-upper_limit_pid = 100 * np.ones( N )
+N_HO = np.array(I2M_HO).shape[0]
+kp = args.kp_HO * np.ones( N_HO)
+ki = args.ki_HO * np.ones( N_HO )
+kd = args.kd_HO * np.ones( N_HO )
+setpoint = np.zeros( N_HO )
+lower_limit_pid = -100 * np.ones( N_HO )
+upper_limit_pid = 100 * np.ones( N_HO )
 
 ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
+
+N_LO = np.array(I2M_LO).shape[0]
+kp = args.kp_LO * np.ones( N_LO)
+ki =  args.ki_LO * np.ones( N_LO )
+kd = args.kd_LO * np.ones( N_LO )
+setpoint = np.zeros( N_LO )
+lower_limit_pid = -100 * np.ones( N_LO )
+upper_limit_pid = 100 * np.ones( N_LO )
+
+ctrl_LO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
 close_after = 0
 
@@ -574,10 +611,25 @@ close_after = 0
 #bad_ones = [ 26,  37,  38,  53,  63,  65,  66,  75,  76,  78,  79,  87,  90, 98, 101, 102]
 telem = False #init_telem_dict() 
 naughty_list = {a:0 for a in range(140)}
-#for it in range(args.number_of_iterations):
+
 keep_going = True
 it = 0
+
+#         return {
+#         'N0dm': N0dm,
+#         'I0dm': I0dm,
+#         'bias_dm': bias_dm,
+#         'dark_dm': dark_dm,
+#         'ctrl_HO': ctrl_HO,
+#         'ctrl_LO': ctrl_LO,
+#     }
+
+
+# init_pyRTC() 
+
+
 while keep_going:   
+    #for it in range(args.number_of_iterations):
     #for it in range(args.number_of_iterations):
     # raw intensity 
     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
@@ -597,9 +649,11 @@ while keep_going:
     s =  ( idm - I0dm ) / (N0dm)   # 
 
     # error
+    e_LO = I2M_LO @ s 
     e_HO = I2M_HO @ s 
 
     # ctrl 
+    u_LO = ctrl_LO.process( e_LO )
     u_HO = ctrl_HO.process( e_HO )
     # if it > close_after:
     #     u = ctrl_HO.process( e )
@@ -607,6 +661,12 @@ while keep_going:
     #     u = 0 * e 
 
     #u[bad_ones] = 0
+
+    if np.max( abs( e_LO ) ) > 1:
+        print("LO going bad - flatten")
+        dm.set_data( dm.cmd_2_map2D( np.zeros( len(u_HO)) ) )
+        #dm.activate_calibrated_flat()
+        ctrl_LO.reset( )
 
     # safety
     if np.max( abs( u_HO ) ) > 0.3:
@@ -634,10 +694,14 @@ while keep_going:
         #break
         # ctrl_HO.reset_single_mode(
 
-    
+    c_LO = -1* M2C_LO @ u_LO
+    c_HO = -1*M2C_HO @ u_HO
+
     #u -= np.mean( u ) # Forcefully remove piston! 
     # reconstruction
-    dcmd = -1 *  dm.cmd_2_map2D( u_HO ) 
+
+    dcmd = c_HO + c_LO
+    #dcmd = -1 *  dm.cmd_2_map2D( u_HO ) 
     t1 = time.time()
 
     dm.set_data( dcmd )
