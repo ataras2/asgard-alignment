@@ -116,6 +116,9 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         if position == 1:
             self._flip_up()
 
+    def move_relative(self, position: float):
+        print(f"Move_rel not implemented for {self.name}")
+
     def read_position(self):
         return self._state
 
