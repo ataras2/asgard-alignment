@@ -449,6 +449,8 @@ class Instrument:
         )
 
     def standby(self, device):
+        # TODO: work on a list of devices instead? so that we aren't turning things off
+        # and getting many warnings!
         """
         Put the device in standby mode
 
@@ -486,7 +488,7 @@ class Instrument:
                 )
                 controller_connctions = [
                     self._motor_config["BFO"]["x_mcc_ip_address"],
-                    self._prev_zaber_port, # the usb connections for the BDS
+                    self._prev_zaber_port,  # the usb connections for the BDS
                 ]
 
             # park all axes
