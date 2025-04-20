@@ -40,11 +40,13 @@ class Motor(ESOdevice):
     This class covers both continuous and discrete motors.
     """
 
-    def __init__(self, name, semaphore_id, named_positions={}) -> None:
+    def __init__(self, name, semaphore_id, named_positions=None) -> None:
         super().__init__(
             name,
         )
-        self._named_positions = named_positions
+        if named_positions is None:
+            named_positions = {}
+        self.named_positions = named_positions
         self.semaphore_id = semaphore_id
 
     #######################################################
@@ -82,9 +84,24 @@ class Motor(ESOdevice):
     # functions for compatibility with the ESO command set
     #######################################################
     @abc.abstractmethod
-    def setup(self, value: Union[str, float]):
+    def ESO_read_position(self):
+        """
+        This command is used to update the ESO database back end.
+        Hence, it always must return an int.
+        """
+        pass
+
+    @abc.abstractmethod
+    def setup(self, motion_type: str, value: Union[str, float]):
         """
         Command to move a device to a given position. The position is given in the value field.
+
+        The motion_type field indicates the type of motion to be performed. It can take the following
+        values:
+        - "ENC": The value field is an absolute position in encoder counts.
+        - "ENCREL": The value field is a relative position in encoder counts.
+        - "NAME": The value field is a named position, in which case the value field is a string
+        - "ST": state, equal to either "T" or "F" as a string
         """
         pass
 

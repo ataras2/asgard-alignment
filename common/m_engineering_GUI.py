@@ -1245,7 +1245,7 @@ def handle_lens_flipper():
                 res = send_and_get_response(message)
                 st.write(res)
 
-            positions = ["30mm", "15mm"]
+            positions = ["STANDARD", "FAINT"]
             for pos in positions:
                 if st.button(pos, key=f"move_{pos}_{beam_num}"):
                     message = f"asg_setup {target} {pos}"

@@ -220,24 +220,44 @@
         "name": "BDS1",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121405,
+        "named_pos" : {
+            "H": 133.07,
+            "J": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 13
     },
     {
         "name": "BDS2",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121406,
+        "named_pos" : {
+            "H": 133.07,
+            "J": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 14
     },
     {
         "name": "BDS3",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121408,
+        "named_pos" : {
+            "H": 133.07,
+            "J": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 15
     },
     {
         "name": "BDS4",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121407,
+        "named_pos" : {
+            "H": 133.07,
+            "J": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 16
     },
     {
@@ -469,8 +489,8 @@
         "motor_type": "MFF101M",
         "serial_number": "",
         "named_pos" : {
-            "30mm" : 1.0,
-            "15mm" : 0.0
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
         },
         "semaphore_id": 37
     },
@@ -479,8 +499,8 @@
         "motor_type": "MFF101M",
         "serial_number": "",
         "named_pos" : {
-            "30mm" : 1.0,
-            "15mm" : 0.0
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
         },
         "semaphore_id": 38
     },
@@ -489,8 +509,8 @@
         "motor_type": "MFF101M",
         "serial_number": "",
         "named_pos" : {
-            "15mm" : 1.0,
-            "30mm" : 0.0 
+            "FAINT" : 1.0,
+            "STANDARD" : 0.0 
         },
         "semaphore_id": 39
     },
@@ -499,8 +519,8 @@
         "motor_type": "MFF101M",
         "serial_number": "",
         "named_pos" : {
-            "30mm" : 1.0,
-            "15mm" : 0.0
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
         },
         "semaphore_id": 40
     }

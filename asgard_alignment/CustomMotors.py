@@ -45,13 +45,19 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
     def read_state(self):
-        return str(self._controller.get_status(self.name)) 
+        return str(self._controller.get_status(self.name))
 
-    def setup(self, value):
-        if isinstance(value, str):
-            value = self._named_positions[value]
-        
-        self.move_abs(value)
+    def setup(self, motion_type, value):
+
+        if motion_type == "ENC":
+            self.move_abs(value)
+        elif motion_type == "ENCREL":
+            print(f"ERROR: ENCREL not implemented for {self.name}")
+        elif motion_type == "NAME":
+            self.move_abs(self.named_positions[value])
+
+    def ESO_read_position(self):
+        return int(self.read_position())
 
     def disable(self):
         pass
@@ -78,7 +84,7 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         modulation_value,
         delay_time,
     ) -> None:
-        named_pos = {"down": 0, "up": 1}
+        named_pos = {"OUT": 0, "IN": 1}
         super().__init__(
             name,
             semaphore_id,
@@ -102,7 +108,7 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
     def move_abs(self, position):
         print(f"Moving {self.name} to {position}")
         if isinstance(position, str):
-            position = self._named_positions[position]
+            position = self.named_positions[position]
         position = int(position)
 
         if position == 0:
@@ -110,17 +116,24 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         if position == 1:
             self._flip_up()
 
-    def move_relative(self, position: float):
-        pass
-
     def read_position(self):
         return self._state
+
+    def ESO_read_position(self):
+        return int(self.read_position())
 
     def read_state(self):
         return f"READY ({self._state})"
 
-    def setup(self, value):
-        pass
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(value)
+        elif motion_type == "ENCREL":
+            print(f"ERROR: ENCREL not implemented for {self.name}")
+        elif motion_type == "NAME":
+            self.move_abs(self.named_positions[value])
+        else:
+            print(f"ERROR: Unknown motion type {motion_type} for {self.name}")
 
     def disable(self):
         pass

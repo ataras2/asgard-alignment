@@ -30,8 +30,8 @@ class ZaberLinearActuator(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, semaphore_id, axis) -> None:
-        super().__init__(name, semaphore_id)
+    def __init__(self, name, semaphore_id, axis, named_positions=None) -> None:
+        super().__init__(name, semaphore_id, named_positions)
         self.axis = axis
 
         if not self.axis.is_homed():
@@ -202,8 +202,34 @@ class ZaberLinearActuator(ESOdevice.Motor):
     def stop(self):
         self.axis.stop()
 
-    def setup(self, value):
-        self.axis.move_absolute(value)
+    @staticmethod
+    def zaber_to_ESO(value):
+        """
+        Device moves in um, ESO moves in um (discrete)
+        """
+        return int(value)
+
+    @staticmethod
+    def ESO_to_zaber(value):
+        """
+        Device moves in um, ESO moves in um (discrete)
+        """
+        return float(value)
+
+    def setup(self, motion_type, value):
+        if motion_type == "NAME":
+            try:
+                self.move_absolute(self.named_positions[value])
+            except KeyError:
+                print(f"{self.name} does not have a named position {value}")
+
+            return
+
+        value = self.ESO_to_zaber(value)
+        if motion_type == "ENC":
+            self.move_absolute(value)
+        elif motion_type == "ENCREL":
+            self.move_relative(value)
 
     def disable(self):
         pass
@@ -226,8 +252,8 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, semaphore_id, device):
-        super().__init__(name, semaphore_id)
+    def __init__(self, name, semaphore_id, device, named_positions=None):
+        super().__init__(name, semaphore_id, named_positions)
         self.device = device
         self.axis = device.get_axis(1)
 
@@ -291,7 +317,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         try:
             self.axis.is_busy()
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def read_state(self):
@@ -310,6 +336,11 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         return self.axis.get_position(unit=units)
+
+    def ESO_read_position(self):
+        return self.internal_to_ESO(
+            self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        )
 
     def is_at_limit(self):
         """
@@ -407,8 +438,34 @@ class ZaberLinearStage(ESOdevice.Motor):
     def stop(self):
         pass
 
-    def setup(self, value):
-        pass
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        Device moves in mm, ESO moves in um (discrete)
+        """
+        return int(value * 1_000)
+
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        Device moves in um, ESO moves in mm (discrete)
+        """
+        return float(value) / 1_000
+
+    def setup(self, motion_type, value):
+        if motion_type == "NAME":
+            try:
+                self.move_absolute(self.named_positions[value])
+            except KeyError:
+                print(f"{self.name} does not have a named position {value}")
+
+            return
+
+        value = self.ESO_to_internal(value)
+        if motion_type == "ENC":
+            self.move_absolute(value)
+        elif motion_type == "ENCREL":
+            self.move_relative(value)
 
     def disable(self):
         pass

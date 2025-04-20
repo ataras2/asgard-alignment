@@ -288,11 +288,33 @@ class M100DAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str(f"1ST{self.axis}")
 
+    def ESO_read_position(self):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return self.internal_to_ESO(self.read_position())
+
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        Internal positions in mm, ESO in um (discrete)
+        """
+        return int(value * 1e3)  # ESO in um
+
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return value * 1e-3
+
     def setup(self, motion_type, value):
         if motion_type == "ENC":
-            self.move_abs(value * 1e-3)
+            self.move_abs(self.ESO_to_internal(value))
         elif motion_type == "ENCREL":
-            self.move_relative(value * 1e-3)
+            self.move_relative(self.ESO_to_internal(value))
+        elif motion_type == "NAME":
+            pass
 
         # option 2: relative move using internal state (assuming encoder drifts and not motor)
         # self.move_relative(value - self.internal_position)
@@ -450,11 +472,31 @@ class LS16PAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str("1ST")
 
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return value * 1e-3
+    
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return int(value * 1e3)  # ESO in um
+
+    def ESO_read_position(self):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return self.internal_to_ESO(self.read_position())
+
     def setup(self, motion_type, value):
         if motion_type == "ENC":
-            self.move_abs(value * 1e-3)
+            self.move_abs(self.ESO_to_internal(value))
         elif motion_type == "ENCREL":
-            self.move_relative(value * 1e-3)
+            self.move_relative(self.ESO_to_internal(value))
 
     def disable(self):
         pass

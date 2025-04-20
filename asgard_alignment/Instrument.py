@@ -617,6 +617,7 @@ class Instrument:
                         name,
                         self._motor_config[name]["semaphore_id"],
                         dev,
+                        named_positions=self._motor_config[name]["named_pos"],
                     )
                     return True
         elif self._motor_config[name]["motor_type"] in ["8893KM"]:
