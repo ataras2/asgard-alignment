@@ -19,9 +19,9 @@ CONNEXIONS = {
     "DM4": 45,
     "X-MCC (BMX,BMY)": 46,
     "X-MCC (BFO,SDL,BDS)": 47,
-    "MFF101 (BLF)": 49,
-    "USB hubs": 48,
-    "LS16P (HFO)": 77,
+    "MFF101 (BLF)": 48,
+    "USB hubs": 77,
+    "LS16P (HFO)": 49,
     "Lower Kickstart": 78,
     "Upper Kickstart": 79,
     "Piezo/Laser": 80,
@@ -75,13 +75,14 @@ class Controllino:
         self.turn_on("X-MCC (BMX,BMY)")
         self.turn_on("X-MCC (BFO,SDL,BDS)")
         self.turn_on("USB hubs")
+        self.turn_on("Upper Kickstart")
+        time.sleep(0.1)
+        self.turn_on("Lower Kickstart") 
+
         self.turn_on("DM1")
         self.turn_on("DM2")
         self.turn_on("DM3")
         self.turn_on("DM4")
-        self.turn_on("Upper Kickstart")
-        time.sleep(0.1)
-        self.turn_on("Lower Kickstart")
         
         #Wait for the piezo to settle and fans to start up, then we will 
         #set piezos and fans to mid range.

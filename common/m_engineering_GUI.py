@@ -103,7 +103,7 @@ if "socket" not in st.session_state:
     parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
     parser.add_argument("--port", type=int, default=5555, help="Server port")
     parser.add_argument(
-        "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
+        "--timeout", type=int, default=10000, help="Response timeout in milliseconds"
     )
     st.session_state["args"] = parser.parse_args()
 
@@ -143,10 +143,10 @@ beam_specific_devices = [
     "HTXI",
     "BTX",
     "BDS",
-    "phasemask",
+    #"phasemask", # this is in routines
     "SSF",
     "BOTX",
-    "DM",
+    # "DM", # this is based on the old Sardine shared memory, won't work anymore. Could be updated with Frantz's 
     "BMX",
     "BMY",
     "BLF",
@@ -1150,7 +1150,7 @@ def handle_linear_actuator():
         min_value=bounds[0],
         max_value=bounds[1],
         step=inc,
-        value=cur_pos,
+        value=min(max(cur_pos,bounds[0]),bounds[1]), #cur_pos,
         key="lin_position",
         on_change=get_onchange_fn("lin_position", target),
     )
@@ -1300,6 +1300,10 @@ with col_main:
                 # replace the X in target with P
                 target = f"{component}{beam_number}"
                 targets = [target.replace("X", "P"), target.replace("X", "T")]
+        
+        elif component == "BLF":
+            targets = [f"BLF{ii}" for ii in [1,2,3,4]]
+        # HERE     
         else:
             beam_number = None
             targets = [component]
@@ -1329,6 +1333,9 @@ with col_main:
 
                     if submit:
                         for target in targets:
+                            # debug here
+                            if "BLF" in target:
+                                st.write(target)
                             message = f"connect {target}"
                             send_and_get_response(message)
 
@@ -1778,202 +1785,204 @@ with col_main:
                             else:
                                 st.warning(f"Cannot find {fig_path}")
                     
+            ##########################################
+            # COMMENT THINGS OUT THAT WE DONT WANT TO SHOW IN DEMO 
+            ##########################################
+            # st.subheader("Build Strehl Models") 
+            # st.write("have the phasemask's well aligned prior to starting.")
+            # st.write("We are going to apply varying degrees of turbulence and analyse the signals")
 
-            st.subheader("Build Strehl Models") 
-            st.write("have the phasemask's well aligned prior to starting.")
-            st.write("We are going to apply varying degrees of turbulence and analyse the signals")
+            # phasemask_input = st.text_input("phasemask", "H3")
+            # cam_fps_input = st.number_input("Camera frames per seconds", min_value=100, max_value=1000, value=100, step=1)
+            # cam_gain_input = st.number_input("Camera gain", min_value=1, max_value=10, value=1, step=1)
 
-            phasemask_input = st.text_input("phasemask", "H3")
-            cam_fps_input = st.number_input("Camera frames per seconds", min_value=100, max_value=1000, value=100, step=1)
-            cam_gain_input = st.number_input("Camera gain", min_value=1, max_value=10, value=1, step=1)
-
-            # "--max_time",f"{120}","--number_of_iterations",f"{10000}"
-            STREHL_SCRIPTS = {
-            "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
-            }     
+            # # "--max_time",f"{120}","--number_of_iterations",f"{10000}"
+            # STREHL_SCRIPTS = {
+            # "build_Strehl_model_beam_1": ["python", "calibration/build_strehl_model.py", "--beam_id", "1", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            # "build_Strehl_model_beam_2": ["python", "calibration/build_strehl_model.py", "--beam_id", "2", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            # "build_Strehl_model_beam_3": ["python", "calibration/build_strehl_model.py", "--beam_id", "3", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            # "build_Strehl_model_beam_4": ["python", "calibration/build_strehl_model.py", "--beam_id", "4", "--phasemask", phasemask_input,"--max_time",f"{10}","--number_of_iterations",f"{10000}", "--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ],
+            # }     
 
 
-            btn_key = f"build_Strehl_model_ALL_BEAMS"
-            if st.button(f"{btn_key}"):
-                success = run_script(["python", "calibration/build_strehl_model.py", "--beam_id", "1,2,3,4", "--phasemask", phasemask_input, "--max_time","10.0","--number_of_iterations","10000","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ] )
+            # btn_key = f"build_Strehl_model_ALL_BEAMS"
+            # if st.button(f"{btn_key}"):
+            #     success = run_script(["python", "calibration/build_strehl_model.py", "--beam_id", "1,2,3,4", "--phasemask", phasemask_input, "--max_time","10.0","--number_of_iterations","10000","--cam_fps", f"{cam_fps_input}", "--cam_gain", f"{cam_gain_input}", "--fig_path", quick_data_path ] )
             
-                if success:
-                    cols = st.columns(4)
-                    for i, col in enumerate(cols):
-                        with col:
-                            fig_path = os.path.join(quick_data_path,  f'strehl_model_beam{i+1}.png')
-                            if os.path.exists(fig_path):
-                                st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
-                            else:
-                                st.warning(f"Cannot find {fig_path}")
+            #     if success:
+            #         cols = st.columns(4)
+            #         for i, col in enumerate(cols):
+            #             with col:
+            #                 fig_path = os.path.join(quick_data_path,  f'strehl_model_beam{i+1}.png')
+            #                 if os.path.exists(fig_path):
+            #                     st.image(Image.open(fig_path), caption=f"Beam {i+1} Output", use_column_width=True)
+            #                 else:
+            #                     st.warning(f"Cannot find {fig_path}")
             
 
-            cols = st.columns(4)
-            for i, col in enumerate(cols):
-                with col:
-                    btn_key = f"build_Strehl_model_beam_{i+1}"
-                    if st.button(f"Run {btn_key}"):
-                        success = run_script(STREHL_SCRIPTS[btn_key])
+            # cols = st.columns(4)
+            # for i, col in enumerate(cols):
+            #     with col:
+            #         btn_key = f"build_Strehl_model_beam_{i+1}"
+            #         if st.button(f"Run {btn_key}"):
+            #             success = run_script(STREHL_SCRIPTS[btn_key])
 
-                        if success:
-                            # Note 'DM_registration_in_pixel_space.png' is generated in 
-                            # calibrate_transform_between_DM_and_image from DM_registration which
-                            # doesn't have knowlodge of the beam number - so just overwrites the same
-                            # image each time.. so looking at the most recent - fine if done immediately after running script
-                            fig_path = os.path.join(STREHL_SCRIPTS[btn_key][-1], f"strehl_model_beam{i+1}.png")
-                            if os.path.exists(fig_path):
-                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
-                            else:
-                                st.warning(f"Cannot find {fig_path}")
+            #             if success:
+            #                 # Note 'DM_registration_in_pixel_space.png' is generated in 
+            #                 # calibrate_transform_between_DM_and_image from DM_registration which
+            #                 # doesn't have knowlodge of the beam number - so just overwrites the same
+            #                 # image each time.. so looking at the most recent - fine if done immediately after running script
+            #                 fig_path = os.path.join(STREHL_SCRIPTS[btn_key][-1], f"strehl_model_beam{i+1}.png")
+            #                 if os.path.exists(fig_path):
+            #                     st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+            #                 else:
+            #                     st.warning(f"Cannot find {fig_path}")
 
             
-            st.subheader("Build Interaction Matrix") 
-            st.write("have the phasemask's well aligned prior to starting.")
+            # st.subheader("Build Interaction Matrix") 
+            # st.write("have the phasemask's well aligned prior to starting.")
             
-            cam_fps = st.number_input("Frames per sec", min_value=100, max_value=1500, value=100, step=50)
-            cam_gain = st.number_input("Gain", min_value=1, max_value=20, value=1, step=1)
-            signal_space =  st.selectbox('signal space for IM',('dm','pixel'))
-            DM_flat = st.selectbox('DM flat',('baldr','factory'))
-            basis_name = st.selectbox("Basis Name",('zonal','zernike')) #st.text_input("Basis Name", "zonal")
-            poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.05, step=0.01)
-            Nmodes = st.number_input("Number of Modes to Probe (zonal does 140 automatically)", min_value=1, max_value=140, value=140, step=1)
-            phasemask = st.text_input("Phasemask", "H3")
+            # cam_fps = st.number_input("Frames per sec", min_value=100, max_value=1500, value=100, step=50)
+            # cam_gain = st.number_input("Gain", min_value=1, max_value=20, value=1, step=1)
+            # signal_space =  st.selectbox('signal space for IM',('dm','pixel'))
+            # DM_flat = st.selectbox('DM flat',('baldr','factory'))
+            # basis_name = st.selectbox("Basis Name",('zonal','zernike')) #st.text_input("Basis Name", "zonal")
+            # poke_amp = st.number_input("Poke Amplitude", min_value=0.0, max_value=0.1, value=0.05, step=0.01)
+            # Nmodes = st.number_input("Number of Modes to Probe (zonal does 140 automatically)", min_value=1, max_value=140, value=140, step=1)
+            # phasemask = st.text_input("Phasemask", "H3")
 
-            IM_SCRIPTS = {
-            "build_IM_beam_1": ["python", "calibration/build_IM.py", "--beam_id", "1","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_2": ["python", "calibration/build_IM.py", "--beam_id", "2","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_3": ["python", "calibration/build_IM.py", "--beam_id", "3","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "build_IM_beam_4": ["python", "calibration/build_IM.py", "--beam_id", "4","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            }     
+            # IM_SCRIPTS = {
+            # "build_IM_beam_1": ["python", "calibration/build_IM.py", "--beam_id", "1","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "build_IM_beam_2": ["python", "calibration/build_IM.py", "--beam_id", "2","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "build_IM_beam_3": ["python", "calibration/build_IM.py", "--beam_id", "3","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "build_IM_beam_4": ["python", "calibration/build_IM.py", "--beam_id", "4","--cam_fps",f"{cam_fps}","--cam_gain",f"{cam_gain}","--basis_name", f"{basis_name}","--DM_flat",f"{DM_flat}","--signal_space",f"{signal_space}","--Nmodes",f"{Nmodes}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # }     
 
 
-            cols = st.columns(4)
-            for i, col in enumerate(cols):
-                with col:
+            # cols = st.columns(4)
+            # for i, col in enumerate(cols):
+            #     with col:
 
-                    btn_key = f"build_IM_beam_{i+1}"
+            #         btn_key = f"build_IM_beam_{i+1}"
 
-                    # Run the script when button is clicked
-                    if st.button(f"Run {btn_key}"):
-                        success = run_script(IM_SCRIPTS[btn_key])
+            #         # Run the script when button is clicked
+            #         if st.button(f"Run {btn_key}"):
+            #             success = run_script(IM_SCRIPTS[btn_key])
 
-                        if success:
-                            fig_path = os.path.join(IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
-                            if os.path.exists(fig_path):
-                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
-                            else:
-                                st.warning(f"Cannot find {fig_path}")
+            #             if success:
+            #                 fig_path = os.path.join(IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
+            #                 if os.path.exists(fig_path):
+            #                     st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+            #                 else:
+            #                     st.warning(f"Cannot find {fig_path}")
                     
 
-            st.subheader("Process Interaction Matrix (Build Control Matrix)") 
-            st.write("have the phasemask's well aligned prior to starting.")
+            # st.subheader("Process Interaction Matrix (Build Control Matrix)") 
+            # st.write("have the phasemask's well aligned prior to starting.")
             
-            LO = st.number_input("Max Zernike Index considered for low order modes (2 = tip/tilt)", min_value=2, max_value=10, value=2, step=1)
-            inverse_method = st.selectbox("IM matrix inverse method",["zonal","map","pinv"]+[f"svd_truncation-{x}" for x in [2,5,10,15,20,30,40,50,60,70,80,90]]) 
-            phasemask = st.text_input("Phasemask", "H3", key="phasemask_ctrl_matrix")
+            # LO = st.number_input("Max Zernike Index considered for low order modes (2 = tip/tilt)", min_value=2, max_value=10, value=2, step=1)
+            # inverse_method = st.selectbox("IM matrix inverse method",["zonal","map","pinv"]+[f"svd_truncation-{x}" for x in [2,5,10,15,20,30,40,50,60,70,80,90]]) 
+            # phasemask = st.text_input("Phasemask", "H3", key="phasemask_ctrl_matrix")
 
 
-            PROCESS_IM_SCRIPTS = {
-            "proc_IM_beam_1": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "1","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "proc_IM_beam_2": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "2","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "proc_IM_beam_3": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "3","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            "proc_IM_beam_4": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "4","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
-            }     
+            # PROCESS_IM_SCRIPTS = {
+            # "proc_IM_beam_1": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "1","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "proc_IM_beam_2": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "2","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "proc_IM_beam_3": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "3","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # "proc_IM_beam_4": ["python", "calibration/build_baldr_control_matrix.py", "--beam_id", "4","--LO",f"{LO}","--inverse_method",f"{inverse_method}", "--phasemask", f"{phasemask}","--fig_path", quick_data_path ],
+            # }     
 
 
-            cols = st.columns(4)
-            for i, col in enumerate(cols):
-                with col:
+            # cols = st.columns(4)
+            # for i, col in enumerate(cols):
+            #     with col:
 
-                    btn_key = f"proc_IM_beam_{i+1}"
+            #         btn_key = f"proc_IM_beam_{i+1}"
 
-                    # Run the script when button is clicked
-                    if st.button(f"Run {btn_key}"):
-                        success = run_script(PROCESS_IM_SCRIPTS[btn_key])
+            #         # Run the script when button is clicked
+            #         if st.button(f"Run {btn_key}"):
+            #             success = run_script(PROCESS_IM_SCRIPTS[btn_key])
 
-                        if success:
-                            fig_path = os.path.join(PROCESS_IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
-                            if os.path.exists(fig_path):
-                                st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
-                            else:
-                                st.warning(f"Cannot find {fig_path}")
-
-
-
-            st.subheader("Apply Turbulence") 
-            # Number of iterations
-            number_of_iterations_input = st.text_input("Number of Iterations", value="10")
-
-            # Simulation wavelength (um)
-            wvl_input = st.text_input("Simulation wavelength (um)", value="1.65")
-
-            # Telescope diameter (m)
-            D_tel_input = st.text_input("Telescope Diameter (m)", value="1.8")
-
-            # Fried parameter (r0) at 500nm (m)
-            r0_input = st.text_input("Fried Parameter r0 (m)", value="0.15")
-
-            # Equivalent turbulence velocity (m/s)
-            V_input = st.text_input("Equivalent Turbulence Velocity (m/s)", value="0.50")
-
-            # Number of Zernike modes removed
-            number_of_modes_removed_input = st.text_input("Number of Zernike Modes Removed", value="0")
-
-            # DM channel on shared memory
-            DM_chn_input = st.text_input("DM Channel (0,1,2,3)", value="3")
-
-            # Record telemetry: directory/name.fits or "None"
-            record_telem_input = st.text_input("Record Telemetry (directory/name.fits or None)", value="None")
-
-            # For record_telem, treat "None" (case insensitive) as an omitted argument.
-            if record_telem_input.strip().lower() == "none":
-                record_telem_parsed = None
-            else:
-                record_telem_parsed = record_telem_input.strip()
-
-            # --- Build the Command Argument List ---
-            args = [
-                "--number_of_iterations", number_of_iterations_input,
-                "--wvl", wvl_input,
-                "--D_tel", D_tel_input,
-                "--r0", r0_input,
-                "--V", V_input,
-                "--number_of_modes_removed", number_of_modes_removed_input,
-                "--DM_chn", DM_chn_input,
-            ]
-
-            TURB_SCRIPTS = {
-            "turb_beam_1": ["python", "common/turbulence.py"] + ["--beam_id", "1"] + args,
-            "turb_beam_2": ["python", "common/turbulence.py"] + ["--beam_id", "2"] + args,
-            "turb_beam_3": ["python", "common/turbulence.py"] + ["--beam_id", "3"] + args,
-            "turb_beam_4": ["python", "common/turbulence.py"] + ["--beam_id", "4"] + args,
-            }     
+            #             if success:
+            #                 fig_path = os.path.join(PROCESS_IM_SCRIPTS[btn_key][-1], f'IM_singularvalues_beam{i+1}.png')
+            #                 if os.path.exists(fig_path):
+            #                     st.image(Image.open(fig_path), caption=f"{btn_key} Output", use_column_width=True)
+            #                 else:
+            #                     st.warning(f"Cannot find {fig_path}")
 
 
-            cols = st.columns(4)
-            for i, col in enumerate(cols):
-                with col:
 
-                    btn_key = f"turb_beam_{i+1}"
+            # st.subheader("Apply Turbulence") 
+            # # Number of iterations
+            # number_of_iterations_input = st.text_input("Number of Iterations", value="10")
 
-                    # Run the script when button is clicked
-                    if st.button(f"Run {btn_key}"):
-                        success = run_script(TURB_SCRIPTS[btn_key])
+            # # Simulation wavelength (um)
+            # wvl_input = st.text_input("Simulation wavelength (um)", value="1.65")
 
-                        if success:
-                            st.write("DONE")
+            # # Telescope diameter (m)
+            # D_tel_input = st.text_input("Telescope Diameter (m)", value="1.8")
+
+            # # Fried parameter (r0) at 500nm (m)
+            # r0_input = st.text_input("Fried Parameter r0 (m)", value="0.15")
+
+            # # Equivalent turbulence velocity (m/s)
+            # V_input = st.text_input("Equivalent Turbulence Velocity (m/s)", value="0.50")
+
+            # # Number of Zernike modes removed
+            # number_of_modes_removed_input = st.text_input("Number of Zernike Modes Removed", value="0")
+
+            # # DM channel on shared memory
+            # DM_chn_input = st.text_input("DM Channel (0,1,2,3)", value="3")
+
+            # # Record telemetry: directory/name.fits or "None"
+            # record_telem_input = st.text_input("Record Telemetry (directory/name.fits or None)", value="None")
+
+            # # For record_telem, treat "None" (case insensitive) as an omitted argument.
+            # if record_telem_input.strip().lower() == "none":
+            #     record_telem_parsed = None
+            # else:
+            #     record_telem_parsed = record_telem_input.strip()
+
+            # # --- Build the Command Argument List ---
+            # args = [
+            #     "--number_of_iterations", number_of_iterations_input,
+            #     "--wvl", wvl_input,
+            #     "--D_tel", D_tel_input,
+            #     "--r0", r0_input,
+            #     "--V", V_input,
+            #     "--number_of_modes_removed", number_of_modes_removed_input,
+            #     "--DM_chn", DM_chn_input,
+            # ]
+
+            # TURB_SCRIPTS = {
+            # "turb_beam_1": ["python", "common/turbulence.py"] + ["--beam_id", "1"] + args,
+            # "turb_beam_2": ["python", "common/turbulence.py"] + ["--beam_id", "2"] + args,
+            # "turb_beam_3": ["python", "common/turbulence.py"] + ["--beam_id", "3"] + args,
+            # "turb_beam_4": ["python", "common/turbulence.py"] + ["--beam_id", "4"] + args,
+            # }     
+
+
+            # cols = st.columns(4)
+            # for i, col in enumerate(cols):
+            #     with col:
+
+            #         btn_key = f"turb_beam_{i+1}"
+
+            #         # Run the script when button is clicked
+            #         if st.button(f"Run {btn_key}"):
+            #             success = run_script(TURB_SCRIPTS[btn_key])
+
+            #             if success:
+            #                 st.write("DONE")
 
             
-            st.subheader("Close Loop")
+            # st.subheader("Close Loop")
 
 
-            CLOSE_LOOP_SCRIPT = {"close_beam_2" :  ["python", "playground/baldr_CL/CL.py", "--number_of_iterations","1000"]}
-            btn_key = f"close_beam_2"
-            if st.button(f"Run {btn_key}"):
-                success = run_script(CLOSE_LOOP_SCRIPT[btn_key])
+            # CLOSE_LOOP_SCRIPT = {"close_beam_2" :  ["python", "playground/baldr_CL/CL.py", "--number_of_iterations","1000"]}
+            # btn_key = f"close_beam_2"
+            # if st.button(f"Run {btn_key}"):
+            #     success = run_script(CLOSE_LOOP_SCRIPT[btn_key])
             
 
         if routine_options == "Camera & DMs":
