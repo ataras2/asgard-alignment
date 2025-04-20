@@ -26,9 +26,7 @@ import asgard_alignment.controllino
 # import bmc
 
 
-phasemask_position_directory = Path.cwd().joinpath(
-    "config_files/phasemask_positions"
-)
+phasemask_position_directory = Path.cwd().joinpath("config_files/phasemask_positions")
 
 
 class Instrument:
@@ -88,7 +86,9 @@ class Instrument:
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
         # bcb
-        self.compound_devices = {}  # new dictionary for combined devices (e.g. phasemask)
+        self.compound_devices = (
+            {}
+        )  # new dictionary for combined devices (e.g. phasemask)
 
         self._prev_port_mapping = None
         self._prev_zaber_port = None
@@ -111,7 +111,7 @@ class Instrument:
         """
         return self._devices
 
-    #bcb
+    # bcb
     @property
     def all_devices(self):
         """
@@ -119,7 +119,9 @@ class Instrument:
         giving access to the entries in compound_devices.
         """
         merged = dict(self._devices)  # copy the standard devices
-        merged.update(self.compound_devices)  # phasemask devices override if keys overlap
+        merged.update(
+            self.compound_devices
+        )  # phasemask devices override if keys overlap
         return merged
 
     def health(self):
@@ -155,11 +157,10 @@ class Instrument:
         # input validation
         if beam_number not in [1, 2, 3, 4]:
             raise ValueError("beam_number must be in the range [1, 4]")
-        if config not in ["c_red_one_focus", "intermediate_focus","baldr"]:
-            raise ValueError("config must be 'c_red_one_focus' or 'intermediate_focus' or 'baldr'")
-
-
-
+        if config not in ["c_red_one_focus", "intermediate_focus", "baldr"]:
+            raise ValueError(
+                "config must be 'c_red_one_focus' or 'intermediate_focus' or 'baldr'"
+            )
 
     def move_image(self, config, beam_number, x, y):
         """
@@ -213,7 +214,7 @@ class Instrument:
         if config == "baldr":
             pupil_motor = RH_motor
             image_motor = LH_motor
-        else:    
+        else:
             pupil_motor = np.linalg.inv(ke_matrix[beam_number])
             image_motor = np.linalg.inv(so_matrix[beam_number])
 
@@ -229,13 +230,13 @@ class Instrument:
         print(f"beam deviations: {beam_deviations}")
 
         uv_commands = deviations_to_uv @ beam_deviations
-        
+
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
         else:
             axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
-        #axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        # axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
         axes = [axis + str(beam_number) for axis in axis_list]
 
@@ -256,8 +257,6 @@ class Instrument:
         time.sleep(0.5)
 
         return True
-
-
 
     def move_pupil(self, config, beam_number, x, y):
         """
@@ -311,7 +310,7 @@ class Instrument:
         uv_commands = deviations_to_uv @ beam_deviations
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
-            print( uv_commands ) # bug shooting 
+            print(uv_commands)  # bug shooting
         else:
             axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
 
@@ -430,7 +429,7 @@ class Instrument:
                 # otherwise raise error - we do not want to deal with case where we don't have on
 
                 # do I need to update the self._config dictionaries?
-                # bcb #self.devices[f"phasemask{beam}"] 
+                # bcb #self.devices[f"phasemask{beam}"]
                 self.compound_devices[f"phasemask{beam}"] = (
                     asgard_alignment.Baldr_phasemask.BaldrPhaseMask(
                         beam=beam,
@@ -439,14 +438,79 @@ class Instrument:
                         phase_positions_json=phase_positions_json,
                     )
                 )
-    # BCB to do , make new variable dictionary (not device) 
-    # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions 
-    # update Mutil device server 
-    #  
+
+    # BCB to do , make new variable dictionary (not device)
+    # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions
+    # update Mutil device server
+    #
     def _open_controllino(self):
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino"]["ip_address"]
         )
+
+    def standby(self, device):
+        """
+        Put the device in standby mode
+
+        This has to be done in the instrument class to correctly encode the electrical connections
+        and the motors that are connected to the controllino.
+
+        For any of the X-MCC common connections, the controllino will standby all axes connected after parking them.
+
+        """
+
+        if device not in self.devices:
+            print(f"WARN: {device} not in devices dictionary")
+
+        if isinstance(
+            self.devices[device], asgard_alignment.ZaberMotor.ZaberLinearActuator
+        ):
+            # id the wire that powers the controller(s)
+            if "BM" in device:
+                wire_name = "X-MCC (BMX,BMY)"
+                all_devs = [f"BMX{i}" for i in range(1, 5)] + [
+                    f"BMY{i}" for i in range(1, 5)
+                ]
+                controller_connctions = [
+                    self._motor_config["BMX1"]["x_mcc_ip_address"],
+                    self._motor_config["BMY1"]["x_mcc_ip_address"],
+                ]
+
+            elif "BFO" in device or "BDS" in device or "SDL" in device:
+                wire_name = "X-MCC (BFO,SDL,BDS)"
+                all_devs = (
+                    ["BFO"]
+                    + ["SDLA", "SDL12", "SDL34"]
+                    + [f"BDS{i}" for i in range(1, 5)]
+                    + ["SSS"]
+                )
+                controller_connctions = [
+                    self._motor_config["BFO"]["x_mcc_ip_address"],
+                    self._prev_zaber_port, # the usb connections for the BDS
+                ]
+
+            # park all axes
+            for dev in all_devs:
+                if dev in self.devices:
+                    # park the axis
+                    self.devices[dev].axis.park()
+                else:
+                    print(f"WARN: {dev} not in devices dictionary")
+
+            # turn off the relevant power
+            self._controllers["controllino"].turn_off(wire_name)
+
+            # and also delete all device instances
+            for dev in all_devs:
+                if dev in self.devices:
+                    del self.devices[dev]
+
+            # manage instrument internals to no longer show these connections
+            for controller in controller_connctions:
+                if controller in self._controllers:
+                    del self._controllers[controller]
+                else:
+                    print(f"WARN: {controller} not in controllers dictionary")
 
     def _create_controllers_and_motors(self):
         """
@@ -465,7 +529,7 @@ class Instrument:
             if res:
                 print(f"Successfully connected to {name}")
             else:
-                print(f"Could not connect to {name}")
+                print(f"WARN: Could not connect to {name}")
 
     def _create_lamps(self):
         """
@@ -651,14 +715,14 @@ class Instrument:
         ports = serial.tools.list_ports.comports()
         possible_ports = []
 
-        #First, we need the list of cusbi ports. If we don't do this, the next time we query, 
-        #we get an error. I've put this as a fake list for now.
-        #Command to find is cusbi (in ~/bin). Syntax
-        #./cusbi /Q:ttyUSB0
-        #If we query all ports, then some Newport M100D ports get confused.
-        #See:
-        #https://sgcdn.startech.com/005329/media/sets/USB_Admin_Software_Manual/USB_Hub_Admin_Software_Manual.pdf
-        #If we try to open a Zaber connection to this port, then it seems stuck in an error state.
+        # First, we need the list of cusbi ports. If we don't do this, the next time we query,
+        # we get an error. I've put this as a fake list for now.
+        # Command to find is cusbi (in ~/bin). Syntax
+        # ./cusbi /Q:ttyUSB0
+        # If we query all ports, then some Newport M100D ports get confused.
+        # See:
+        # https://sgcdn.startech.com/005329/media/sets/USB_Admin_Software_Manual/USB_Hub_Admin_Software_Manual.pdf
+        # If we try to open a Zaber connection to this port, then it seems stuck in an error state.
         cusb_ports = ["/dev/ttyUSBX"]
 
         for port, _, hwid in sorted(ports):
@@ -666,7 +730,7 @@ class Instrument:
                 if port in cusb_ports:
                     print("Found a Managed USB hub.")
                     continue
-                #Try to open it - if we can, it is a Zaber port!
+                # Try to open it - if we can, it is a Zaber port!
                 test_connection = Connection.open_serial_port(port)
                 try:
                     devices = test_connection.detect_devices()
@@ -674,8 +738,8 @@ class Instrument:
                     print(f"Found a Zaber USB port {port}")
                     return port
                 except:
-                    #This next line is essential, or the port remains open and no other process
-                    #can use it (including MDS later in the code)
+                    # This next line is essential, or the port remains open and no other process
+                    # can use it (including MDS later in the code)
                     test_connection.close()
                     print(f"A non-zaber motor using the same USB ID. Port {port}")
         return None
