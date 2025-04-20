@@ -330,7 +330,7 @@ class MultiDeviceServer:
 
                         for s in still_moving_prev:
                             dev = s.device_name
-                            pos = self.instr.devices[dev].read_position()
+                            pos = self.instr.devices[dev].ESO_read_position()
 
                             self.database_message["command"]["parameters"].append(
                                 {
