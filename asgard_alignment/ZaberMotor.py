@@ -203,18 +203,23 @@ class ZaberLinearActuator(ESOdevice.Motor):
         self.axis.stop()
 
     @staticmethod
-    def zaber_to_ESO(value):
+    def internal_to_ESO(value):
         """
         Device moves in um, ESO moves in um (discrete)
         """
         return int(value)
 
     @staticmethod
-    def ESO_to_zaber(value):
+    def ESO_to_internal(value):
         """
         Device moves in um, ESO moves in um (discrete)
         """
         return float(value)
+
+    def ESO_read_position(self):
+        return self.internal_to_ESO(
+            self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
+        )
 
     def setup(self, motion_type, value):
         if motion_type == "NAME":
@@ -225,7 +230,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
 
             return
 
-        value = self.ESO_to_zaber(value)
+        value = self.ESO_to_internal(value)
         if motion_type == "ENC":
             self.move_absolute(value)
         elif motion_type == "ENCREL":
