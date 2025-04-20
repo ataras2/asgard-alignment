@@ -384,6 +384,15 @@ class MultiDeviceServer:
                             # not considered yet
                             # The simplest would be to read the encoder position
                             # and to update the database as for the previous case
+                                elif s.motion_type == "ENCREL":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": "",
+                                        }
+                                    )
 
                         still_moving_prev = deepcopy(still_moving)
 
