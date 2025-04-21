@@ -449,6 +449,12 @@ class Instrument:
             self._other_config["controllino"]["ip_address"]
         )
 
+    def _remove_devices(self, dev_list):
+        pass
+
+    def _remove_controllers(self, controller_list):
+        pass
+
     def standby(self, device):
         # TODO: work on a list of devices instead? so that we aren't turning things off
         # and getting many warnings! Or could ESO just send a standby for a single dev knowing this?
@@ -493,7 +499,7 @@ class Instrument:
                 )
                 controller_connctions = [
                     self._motor_config["BFO"]["x_mcc_ip_address"],
-                    self._prev_zaber_port,  # the usb connections for the BDS
+                    self.find_zaber_usb_port(),  # the usb connections for the BDS
                 ]
             else:
                 print(f"WARN: {device} not in devices dictionary")
@@ -511,10 +517,11 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # and also delete all device instances
-            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
 
             # close all zaber connections
             for controller in controller_connctions:
+                print(f"Closing connection to {controller}")
                 self._controllers[controller].close()
 
             # manage instrument internals to no longer show these connections
@@ -537,7 +544,7 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # remove the devices
-            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
 
             # and the controllers:
             self._controllers = {
@@ -550,7 +557,7 @@ class Instrument:
             # in this case, we will need to switch off all grouped motors
             if "BT" in device:
                 # this is like the BTX + HFO row
-                wire_names = ["USB hubs"]
+                wire_names = []
                 all_devs = (
                     [f"BTP{i}" for i in range(1, 5)]
                     + [f"BTT{i}" for i in range(1, 5)]
@@ -558,19 +565,20 @@ class Instrument:
                 )
                 usb_command = "cusbi /S:ttyUSB0 0:3"  # 0 means off
             elif "HT" in device:
-                wire_names = ["USB hubs"]
+                wire_names = []
                 prefixes = ["HTTP", "HTPI", "HTPP", "HTTI"]
                 all_devs = []
                 for prefix in prefixes:
                     for i in range(1, 5):
                         all_devs.append(f"{prefix}{i}")
-                usb_command = "cusbi /S:ttyUSB1 0:1"  # 0 means off
+                usb_command = "cusbi /S:ttyUSB0 0:1"  # 0 means off
             elif "BOT" in device:
-                wire_names = ["USB hubs", "LS16P (HFO)"]
-                all_devs = [f"BOTP{i}" for i in range(1, 5)] + [
-                    f"BOTT{i}" for i in range(1, 5)
+                wire_names = ["LS16P (HFO)"]
+                all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
+                    f"BOTT{i}"
+                    for i in range(2, 5)  # noting that BOTX is only beams 2-4
                 ]
-                usb_command = "cusbi /S:ttyUSB2 0:2"
+                usb_command = "cusbi /S:ttyUSB0 0:2"
 
             controller_connctions = []
             for dev in all_devs:
@@ -578,15 +586,24 @@ class Instrument:
                 port = self._prev_port_mapping[sn]
                 controller_connctions.append(port)
 
+            wire_names = set(wire_names)
+            usb_commands = set(usb_command)
+
+            print(f"Turning off wires: {wire_names}")
+            print(f"Sending USB command: {usb_command}")
+
             # turn off the USB
             os.system(usb_command)
+
+            print("USB command sent")
 
             # turn off the power
             for wire_name in wire_names:
                 self._controllers["controllino"].turn_off(wire_name)
+            print("Power turned off")
 
             # remove the devices
-            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
 
             # and the controllers:
             self._controllers = {
@@ -595,22 +612,30 @@ class Instrument:
                 if k not in controller_connctions
             }
 
+            print("Devices and controllers removed")
+
         else:
             # just remove the device from the list
-            if device in self.devices:
-                del self.devices[device]
+            self._devices = {k: v for k, v in self.devices.items() if k != device}
 
         print(f"{device} is now in standby mode.")
 
     def online(self, dev_list):
-        for dev in dev_list:
-            if dev in self.devices:
-                print(f"{dev} is already online")
-                continue
 
+        devs = []
+        for dev in dev_list:
             if dev not in self._motor_config:
                 print(f"WARN: {dev} not in motor config")
                 continue
+            if dev in self.devices:
+                print(f"{dev} is already online")
+                continue
+            devs.append(dev)
+
+        dev_list = devs
+        if len(dev_list) == 0:
+            print("No devices to turn on")
+            return
 
         # turn on any nessecary power supplies
         wire_list = []
@@ -631,16 +656,23 @@ class Instrument:
             elif "HT" in dev:
                 wire_name = "USB hubs"
                 wire_list.append(wire_name)
-                usb_commands.append("cusbi /S:ttyUSB1 1:1")  # 1 means on, 1 means HT
+                usb_commands.append("cusbi /S:ttyUSB0 1:1")  # 1 means on, 1 means HT
             elif "BOT" in dev:
                 wire_name = "USB hubs"
                 wire_list.append(wire_name)
                 wire_name = "LS16P (HFO)"
                 wire_list.append(wire_name)
-                usb_commands.append("cusbi /S:ttyUSB2 1:2")  # 1 means on, 2 means BOT
+                usb_commands.append("cusbi /S:ttyUSB0 1:2")  # 1 means on, 2 means BOT
+
+        wire_list = set(wire_list)
+        usb_commands = set(usb_commands)
+
+        print(f"Turning on wires: {wire_list}")
 
         for wire in set(wire_list):
             self._controllers["controllino"].turn_on(wire)
+
+        print(f"Sending USB commands: {usb_commands}")
 
         for usb_command in usb_commands:
             os.system(usb_command)
@@ -797,35 +829,40 @@ class Instrument:
             if "FZ" in axis.warnings.get_flags():
                 return False
 
-
-            
             if ("BMX" in name) or ("BMY" in name):
                 if "BMX" in name:
                     beam_id_tmp = name.split("BMX")[-1]
                 if "BMY" in name:
-                    beam_id_tmp = name.split("BMX")[-1]
+                    beam_id_tmp = name.split("BMY")[-1]
                 phasemask_folder_path = f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam_id_tmp}/"
-                phasemask_files = glob.glob(os.path.join(phasemask_folder_path, "*.json")) 
-                recent_phasemask_file = max(phasemask_files, key=os.path.getmtime) # most recently created
+                phasemask_files = glob.glob(
+                    os.path.join(phasemask_folder_path, "*.json")
+                )
+                recent_phasemask_file = max(
+                    phasemask_files, key=os.path.getmtime
+                )  # most recently created
                 with open(recent_phasemask_file, "r", encoding="utf-8") as pfile:
                     positions_tmp = json.load(pfile)
-                if "BMX" in name: 
-                    oneAxis_dict = {key: value[0] for key, value in positions_tmp.items()}
+                if "BMX" in name:
+                    oneAxis_dict = {
+                        key: value[0] for key, value in positions_tmp.items()
+                    }
                 elif "BMY" in name:
-                    oneAxis_dict = {key: value[1] for key, value in positions_tmp.items()}
+                    oneAxis_dict = {
+                        key: value[1] for key, value in positions_tmp.items()
+                    }
 
-                    
                 self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                     name,
                     cfg["semaphore_id"],
                     axis,
-                    named_positions = oneAxis_dict,
+                    named_positions=oneAxis_dict,
                 )
             else:
                 if "named_pos" in self._motor_config[name]:
                     named_positions = self._motor_config[name]["named_pos"]
                 else:
-                    named_positions = None                        
+                    named_positions = None
 
                 self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                     name,
@@ -852,7 +889,8 @@ class Instrument:
                     self._prev_zaber_port
                 )
 
-            for dev in self._controllers[self._prev_zaber_port].detect_devices():
+            detected_devs = self._controllers[self._prev_zaber_port].detect_devices()
+            for dev in detected_devs:
                 if dev.serial_number == self._motor_config[name]["serial_number"]:
                     dev.settings.set("system.led.enable", 0)
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
@@ -911,18 +949,18 @@ class Instrument:
             if "SER=AB0NSCTM" in hwid:
                 return port
 
-            # # Try to open it - if we can, it is a Zaber port!
-            test_connection = Connection.open_serial_port(port)
-            try:
-                devices = test_connection.detect_devices()
-                test_connection.close()
-                print(f"Found a Zaber USB port {port}")
-                return port
-            except:
-                # This next line is essential, or the port remains open and no other process
-                # can use it (including MDS later in the code)
-                test_connection.close()
-                print(f"A non-zaber motor using the same USB ID. Port {port}")
+            # # # Try to open it - if we can, it is a Zaber port!
+            # test_connection = Connection.open_serial_port(port)
+            # try:
+            #     devices = test_connection.detect_devices()
+            #     test_connection.close()
+            #     print(f"Found a Zaber USB port {port}")
+            #     return port
+            # except:
+            #     # This next line is essential, or the port remains open and no other process
+            #     # can use it (including MDS later in the code)
+            #     test_connection.close()
+            #     print(f"A non-zaber motor using the same USB ID. Port {port}")
         return None
 
     @staticmethod

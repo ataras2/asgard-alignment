@@ -40,6 +40,12 @@ class NewportConnection:
         self._connection.write_termination = self.SERIAL_TERMIN
         self._connection.read_termination = self.SERIAL_TERMIN
 
+        # check valid connection:
+        try:
+            self._connection.query("1ID?")
+        except pyvisa.VisaIOError as e:
+            print(f"Error opening connection to Newport motor: {e}")
+
     def close_connection(self):
         """
         Close the connection to the motor
@@ -478,7 +484,7 @@ class LS16PAxis(ESOdevice.Motor):
         ESO positions in um, internal in mm (discrete)
         """
         return value * 1e-3
-    
+
     @staticmethod
     def internal_to_ESO(value):
         """

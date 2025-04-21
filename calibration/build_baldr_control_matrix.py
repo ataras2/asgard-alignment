@@ -297,33 +297,99 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
-I2M_1 = np.linalg.pinv( IM_HO )
 
-phase_cov = np.eye( IM_HO.shape[0] )
-noise_cov = 10 * np.eye( IM_HO.shape[1] )
-I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+# # Perform SVD
+# U, S, Vt = np.linalg.svd(IM_HO, full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
 
-dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+# # (a) Plot singular values
+# plt.figure(figsize=(6, 4))
+# plt.semilogy(S, 'o-')
+# plt.title("Singular Values of IM_HO")
+# plt.xlabel("Index")
+# plt.ylabel("Singular value (log scale)")
+# plt.grid(True)
+# plt.tight_layout()
+# plt.savefig('delme.png')
 
-U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
+# # (b) Intensity eigenmodes (Vt)
+# plt.figure(figsize=(15, 3))
+# for i in range(min(5, Vt.shape[0])):
+#     ax = plt.subplot(1, 5, i+1)
+#     im = ax.imshow(util.get_DM_command_in_2D(Vt[i]), cmap='viridis')
+#     ax.set_title(f"Vt[{i}]")
+#     plt.colorbar(im, ax=ax)
+# plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
+# plt.tight_layout()
+# plt.savefig('delme.png')
 
-k= 20 # int( 5**2 * np.pi)
-I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-act = 1
-im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
-titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+# # (c) System eigenmodes (U)
+# plt.figure(figsize=(15, 3))
+# for i in range(min(5, U.shape[1])):
+#     ax = plt.subplot(1, 5, i+1)
+#     im = ax.imshow(util.get_DM_command_in_2D(U[:, i]), cmap='plasma')
+#     ax.set_title(f"U[:, {i}]")
+#     plt.colorbar(im, ax=ax)
+# plt.suptitle("First 5 system eigenmodes (U) mapped to 2D")
+# plt.tight_layout()
+# plt.savefig('delme.png')
 
-util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
+# plt.close()
+
+# # look at reconstructors HO 
+# I2M_1 = np.linalg.pinv( IM_HO )
+
+# phase_cov = np.eye( IM_HO.shape[0] )
+# noise_cov = 10 * np.eye( IM_HO.shape[1] )
+# I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+
+# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+
+# U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
+
+# k= 20 # int( 5**2 * np.pi)
+# I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
+
+# act = 65
+# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+# titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+
+# util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
 
 
-# ## TT projection HO / TT 
+
+# ## LO 
+# # look at reconstructors HO 
+# I2M_1 = np.linalg.pinv( IM_LO )
+
+# phase_cov = np.eye( IM_LO.shape[0] )
+# noise_cov = 10 * np.eye( IM_LO.shape[1] )
+# I2M_2 = (phase_cov @ IM_LO @ np.linalg.inv(IM_LO.T @ phase_cov @ IM_LO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+
+# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_LO[i][i] if np.isfinite(1/IM_LO[i][i]) else 0 for i in range(len(IM_LO))]) )
+
+# U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
+
+# k= 20 # int( 5**2 * np.pi)
+# I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
+
+# act = 0
+# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+# titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+
+# util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
+
+
+
+
+# # ## TT projection HO / TT 
 
 # TT = dmbases.zer_bank(2, 3)
 # util.nice_heatmap_subplots( im_list= [TT[0],TT[1]], savefig='delme.png' ) 
 
-# sig = dm_mask * ( IM[act] - 0.3*convert_12x12_to_140(TT[0]) - 0.1*convert_12x12_to_140(TT[1]))
+# sig = dm_mask * ( IM[act] - 0.3*util.convert_12x12_to_140(TT[0]) - 0.1*util.convert_12x12_to_140(TT[1]))
 
 # im_list =  [util.get_DM_command_in_2D( sig )]
 # im_TT_list = [util.get_DM_command_in_2D( sig )]
@@ -331,7 +397,7 @@ util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' )
 
 # for I2M in [I2M_1,I2M_2,I2M_3,I2M_4]:
 
-#     I2M_TT , I2M_HO = util.project_matrix( I2M , [convert_12x12_to_140(t) for t in TT] )
+#     I2M_TT , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in TT] )
 
 #     im_list.append( util.get_DM_command_in_2D(  I2M  @ sig ) )
 #     im_TT_list.append( util.get_DM_command_in_2D(  I2M_TT @ sig ) )
@@ -339,61 +405,61 @@ util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' )
 
 # util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
 
-# util.nice_heatmap_subplots(  im_TT_list , title_list=["TT reco "+t for t in titles], savefig='delme.png' ) 
+# # util.nice_heatmap_subplots(  im_TT_list , title_list=["TT reco "+t for t in titles], savefig='delme.png' ) 
 
-# util.nice_heatmap_subplots(  im_HO_list , title_list=["HO reco "+t for t in titles], savefig='delme.png' ) 
-
-
-
-#### ADDITIONAL PROJECTION TESTS
-
-### TEST 
-c0 = 0*M2C.T[0]
-i = 0*IM[0]
-act_list = [0, 65, 43]
-for a in act_list:
-    c0 += poke_amp/2 * M2C.T[a] # original command
-
-    i +=  IM[a] #+ IM[65] # simulating intensity repsonse
-
-e_LO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_LO.T @ i
-e_HO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_HO.T @ i
-
-# without projection just using HO (which has full rank)
-c_HO = (M2C[:,LO:] @ e_HO).reshape(12,12)
-res = c_HO - c0.reshape(12,12,)
-im_list = [  c0.reshape(12,12), c_HO, dm_mask_144.reshape(12,12) * res]
-vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
-title_list = [ "disturb",  "c_HO'", "res."]
-cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS"]
-util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims = vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
-
-# proper projection 
-c_LOg = (M2C_LO @ e_LO).reshape(12,12)
-c_HOg = (M2C_HO @ e_HO).reshape(12,12)
-
-dcmdg = c_LOg + c_HOg
-
-resg = dcmdg - c0.reshape(12,12)
-
-im_list = [  c0.reshape(12,12), c_LOg, c_HOg, dcmdg, dm_mask_144.reshape(12,12) * resg]
-vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
-title_list = [ "disturb", "c_LO", "c_HO'","c_LO + c_HO","res."]
-cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS","DM UNITS","DM UNITS"]
-util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims=vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
-
-print( np.std( dm_mask_144.reshape(12,12) * res ), np.std( dm_mask_144.reshape(12,12) * resg ))
+# # util.nice_heatmap_subplots(  im_HO_list , title_list=["HO reco "+t for t in titles], savefig='delme.png' ) 
 
 
 
-# In [8]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_HO']).shape
-# Out[8]: (144, 142)
+# #### ADDITIONAL PROJECTION TESTS
 
-# In [9]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_LO']).shape
-# Out[9]: (144, 142)
+# ### TEST 
+# c0 = 0*M2C.T[0]
+# i = 0*IM[0]
+# act_list = [0, 65, 43]
+# for a in act_list:
+#     c0 += poke_amp/2 * M2C.T[a] # original command
 
-# In [10]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_LO']).shape
-# Out[10]: (2, 140)
+#     i +=  IM[a] #+ IM[65] # simulating intensity repsonse
 
-# In [11]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_HO']).shape
-# Out[11]: (140, 140)
+# e_LO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_LO.T @ i
+# e_HO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_HO.T @ i
+
+# # without projection just using HO (which has full rank)
+# c_HO = (M2C[:,LO:] @ e_HO).reshape(12,12)
+# res = c_HO - c0.reshape(12,12,)
+# im_list = [  c0.reshape(12,12), c_HO, dm_mask_144.reshape(12,12) * res]
+# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+# title_list = [ "disturb",  "c_HO'", "res."]
+# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS"]
+# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims = vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+
+# # proper projection 
+# c_LOg = (M2C_LO @ e_LO).reshape(12,12)
+# c_HOg = (M2C_HO @ e_HO).reshape(12,12)
+
+# dcmdg = c_LOg + c_HOg
+
+# resg = dcmdg - c0.reshape(12,12)
+
+# im_list = [  c0.reshape(12,12), c_LOg, c_HOg, dcmdg, dm_mask_144.reshape(12,12) * resg]
+# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+# title_list = [ "disturb", "c_LO", "c_HO'","c_LO + c_HO","res."]
+# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS","DM UNITS","DM UNITS"]
+# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims=vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+
+# print( np.std( dm_mask_144.reshape(12,12) * res ), np.std( dm_mask_144.reshape(12,12) * resg ))
+
+
+
+# # In [8]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_HO']).shape
+# # Out[8]: (144, 142)
+
+# # In [9]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['M2C_LO']).shape
+# # Out[9]: (144, 142)
+
+# # In [10]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_LO']).shape
+# # Out[10]: (2, 140)
+
+# # In [11]: np.array(config_dict ["beam2"]["H3"]['ctrl_model']['I2M_HO']).shape
+# # Out[11]: (140, 140)
