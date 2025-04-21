@@ -297,25 +297,25 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
-# I2M_1 = np.linalg.pinv( IM_HO )
+I2M_1 = np.linalg.pinv( IM_HO )
 
-# phase_cov = np.eye( IM_HO.shape[0] )
-# noise_cov = 10 * np.eye( IM_HO.shape[1] )
-# I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+phase_cov = np.eye( IM_HO.shape[0] )
+noise_cov = 10 * np.eye( IM_HO.shape[1] )
+I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
 
-# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
 
-# U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
+U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
-# k= 20 # int( 5**2 * np.pi)
-# I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
+k= 20 # int( 5**2 * np.pi)
+I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 1
-# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
-# titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
+act = 1
+im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
-# util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
+util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 
 
 
 # ## TT projection HO / TT 
