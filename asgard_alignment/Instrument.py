@@ -450,7 +450,7 @@ class Instrument:
 
     def standby(self, device):
         # TODO: work on a list of devices instead? so that we aren't turning things off
-        # and getting many warnings!
+        # and getting many warnings! Or could ESO just send a standby for a single dev knowing this?
         """
         Put the device in standby mode
 
@@ -460,13 +460,17 @@ class Instrument:
         For any of the X-MCC common connections, the controllino will standby all axes connected after parking them.
 
         """
+        print(f"Attempting to place {device} in standby mode...")
 
         if device not in self.devices:
             print(f"WARN: {device} not in devices dictionary")
 
-        if isinstance(
-            self.devices[device], asgard_alignment.ZaberMotor.ZaberLinearActuator
-        ):
+        zabers = [
+            asgard_alignment.ZaberMotor.ZaberLinearActuator,
+            asgard_alignment.ZaberMotor.ZaberLinearStage,
+        ]
+
+        if isinstance(self.devices[device], zabers):  # Zaber
             # id the wire that powers the controller(s)
             if "BM" in device:
                 wire_name = "X-MCC (BMX,BMY)"
@@ -490,6 +494,9 @@ class Instrument:
                     self._motor_config["BFO"]["x_mcc_ip_address"],
                     self._prev_zaber_port,  # the usb connections for the BDS
                 ]
+            else:
+                print(f"WARN: {device} not in devices dictionary")
+                return
 
             # park all axes
             for dev in all_devs:
@@ -513,6 +520,34 @@ class Instrument:
                     del self._controllers[controller]
                 else:
                     print(f"WARN: {controller} not in controllers dictionary")
+        elif isinstance(self.devices[device], asgard_alignment.NewportMotor.LS16PAxis):
+            wire_name = "LS16P (HFO)"
+            all_devs = [f"HFO{i}" for i in range(1, 5)]
+
+            controller_connctions = []
+            for dev in all_devs:
+                sn = self._motor_config[dev]["serial_number"]
+                port = self._prev_port_mapping[sn]
+                controller_connctions.append(port)
+
+            # turn off the power
+            self._controllers["controllino"].turn_off(wire_name)
+
+            # remove the devices
+            for dev in all_devs:
+                if dev in self.devices:
+                    del self.devices[dev]
+                else:
+                    print(f"WARN: {dev} not in devices dictionary")
+
+            # and the controllers:
+            for controller in controller_connctions:
+                if controller in self._controllers:
+                    del self._controllers[controller]
+                else:
+                    print(f"WARN: {controller} not in controllers dictionary")
+
+        print(f"{device} is now in standby mode.")
 
     def _create_controllers_and_motors(self):
         """
