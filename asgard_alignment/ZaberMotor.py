@@ -35,7 +35,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         self.axis = axis
 
         if self.axis.is_parked():
-            self.axis.unpark(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
+            self.axis.unpark()
 
         if not self.axis.is_homed():
             self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
@@ -266,7 +266,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         self.axis = device.get_axis(1)
 
         if self.axis.is_parked():
-            self.axis.unpark(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
+            self.axis.unpark()
 
         # get the device type and the bounds from it
         if self.device.name == "X-LHM100A-SE03":

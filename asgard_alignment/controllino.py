@@ -32,10 +32,10 @@ CONNEXIONS = {
     "SBB": 22,
     "SRL": 30,
     "SGL": 31,
-    "Lower T": 54, 
-    "Upper T": 56, 
-    "Bench T": 55, 
-    "Floor T": 58, 
+    "Lower T": 54,
+    "Upper T": 56,
+    "Bench T": 55,
+    "Floor T": 58,
 }
 
 
@@ -68,7 +68,7 @@ class Controllino:
         self._maintain_connection = True
         self.client = None
 
-	    #The turn-on command needs a string, not a number! 
+        # The turn-on command needs a string, not a number!
         self.turn_on("Piezo/Laser")
         self.turn_on("MFF101 (BLF)")
         self.turn_on("LS16P (HFO)")
@@ -77,26 +77,25 @@ class Controllino:
         self.turn_on("USB hubs")
         self.turn_on("Upper Kickstart")
         time.sleep(0.1)
-        self.turn_on("Lower Kickstart") 
+        self.turn_on("Lower Kickstart")
 
         self.turn_on("DM1")
         self.turn_on("DM2")
         self.turn_on("DM3")
         self.turn_on("DM4")
-        
-        #Wait for the piezo to settle and fans to start up, then we will 
-        #set piezos and fans to mid range.
+
+        # Wait for the piezo to settle and fans to start up, then we will
+        # set piezos and fans to mid range.
         time.sleep(1)
         self.turn_off("Upper Kickstart")
         self.modulate("Upper Fan", 128)
         time.sleep(0.1)
         self.turn_off("Lower Kickstart")
         self.modulate("Lower Fan", 128)
-        self.set_piezo_dac(0,2048)
-        self.set_piezo_dac(1,2048)
-        self.set_piezo_dac(2,2048)
-        self.set_piezo_dac(3,2048)
-        
+        self.set_piezo_dac(0, 2048)
+        self.set_piezo_dac(1, 2048)
+        self.set_piezo_dac(2, 2048)
+        self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """

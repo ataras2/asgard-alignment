@@ -160,12 +160,12 @@ class MultiDeviceServer:
             # If needed, call controller-specific functions to power up
             # the devices and have them ready for operations
             # .............................................................
-            for key in self.instr.devices:
-                self.instr.devices[key].online()
+            # for key in self.instr.devices:
+            #     self.instr.devices[key].online()
 
             # new version:
-            # all_motor_names = self.instr._motor_config.keys()
-            # self.instr.online(all_motor_names)
+            all_motor_names = self.instr._motor_config.keys()
+            self.instr.online(all_motor_names)
 
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
@@ -199,12 +199,18 @@ class MultiDeviceServer:
             if "parameters" not in json_data["command"]:
                 print("No parameters in standby command, going to standby all")
 
-                for key in self.instr.devices:
-                    self.instr.devices[key].standby()
+                # for key in self.instr.devices:
+                #     self.instr.devices[key].standby()
 
                 # new version:
                 # for key in self.instr.devices:
                 #     self.instr.standby(key)
+                devices_to_standby = list(self.instr.devices.keys())
+                while len(devices_to_standby) > 0:
+                    print(f"Working to standby device: {devices_to_standby[0]}")
+                    self.instr.standby(devices_to_standby[0])
+
+                    devices_to_standby = list(self.instr.devices.keys())
 
                 # Update the wagics database to show all the devices in STANDBY
                 # state (value of "state" attrivute has to be set to 2)
@@ -277,22 +283,31 @@ class MultiDeviceServer:
 
                 # Look if device exists in list
                 # (something should be done if device does not exist) TODO
-                device = self.instr.devices[dev_name]
 
-                semaphore_id = device.semaphore_id
-                if semaphore_array[semaphore_id] == 0:
-                    # Semaphore is free =>
-                    # Device can be moved now
-                    setup_cmds[0].append(
-                        asgard_alignment.ESOdevice.SetupCommand(
-                            dev_name, motion_type, val
+                if motion_type != "ST":
+                    device = self.instr.devices[dev_name]
+
+                    semaphore_id = device.semaphore_id
+                    if semaphore_array[semaphore_id] == 0:
+                        # Semaphore is free =>
+                        # Device can be moved now
+                        setup_cmds[0].append(
+                            asgard_alignment.ESOdevice.SetupCommand(
+                                dev_name, motion_type, val
+                            )
                         )
-                    )
-                    semaphore_array[semaphore_id] = 1
+                        semaphore_array[semaphore_id] = 1
+                    else:
+                        # Semaphore is already taken =>
+                        # Device will be moved in a second batch
+                        setup_cmds[1].append(
+                            asgard_alignment.ESOdevice.SetupCommand(
+                                dev_name, motion_type, val
+                            )
+                        )
                 else:
-                    # Semaphore is already taken =>
-                    # Device will be moved in a second batch
-                    setup_cmds[1].append(
+                    # ST commands are only for lamps, so do them in batch 1
+                    setup_cmds[0].append(
                         asgard_alignment.ESOdevice.SetupCommand(
                             dev_name, motion_type, val
                         )
@@ -365,7 +380,7 @@ class MultiDeviceServer:
                                     )
                                 elif s.motion_type == "ST":
                                     # TODO: change this to a mapping T -> OPEN, F -> CLOSED, and lamp case...
-                                    if s.val == "T":
+                                    if s.value == "T":
                                         self.database_message["command"][
                                             "parameters"
                                         ].append(

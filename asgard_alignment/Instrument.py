@@ -8,6 +8,7 @@ import sys
 import pandas as pd
 from zaber_motion.ascii import Connection
 import numpy as np
+import os
 
 import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
@@ -465,10 +466,10 @@ class Instrument:
         if device not in self.devices:
             print(f"WARN: {device} not in devices dictionary")
 
-        zabers = [
+        zabers = (
             asgard_alignment.ZaberMotor.ZaberLinearActuator,
             asgard_alignment.ZaberMotor.ZaberLinearStage,
-        ]
+        )
 
         if isinstance(self.devices[device], zabers):  # Zaber
             # id the wire that powers the controller(s)
@@ -510,16 +511,18 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # and also delete all device instances
-            for dev in all_devs:
-                if dev in self.devices:
-                    del self.devices[dev]
+            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+
+            # close all zaber connections
+            for controller in controller_connctions:
+                self._controllers[controller].close()
 
             # manage instrument internals to no longer show these connections
-            for controller in controller_connctions:
-                if controller in self._controllers:
-                    del self._controllers[controller]
-                else:
-                    print(f"WARN: {controller} not in controllers dictionary")
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.LS16PAxis):
             wire_name = "LS16P (HFO)"
             all_devs = [f"HFO{i}" for i in range(1, 5)]
@@ -534,18 +537,68 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # remove the devices
-            for dev in all_devs:
-                if dev in self.devices:
-                    del self.devices[dev]
-                else:
-                    print(f"WARN: {dev} not in devices dictionary")
+            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
 
             # and the controllers:
-            for controller in controller_connctions:
-                if controller in self._controllers:
-                    del self._controllers[controller]
-                else:
-                    print(f"WARN: {controller} not in controllers dictionary")
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
+
+        elif isinstance(self.devices[device], asgard_alignment.NewportMotor.M100DAxis):
+            # in this case, we will need to switch off all grouped motors
+            if "BT" in device:
+                # this is like the BTX + HFO row
+                wire_names = ["USB hubs"]
+                all_devs = (
+                    [f"BTP{i}" for i in range(1, 5)]
+                    + [f"BTT{i}" for i in range(1, 5)]
+                    + [f"HFO{i}" for i in range(1, 5)]
+                )
+                usb_command = "cusbi /S:ttyUSB0 0:3"  # 0 means off
+            elif "HT" in device:
+                wire_names = ["USB hubs"]
+                prefixes = ["HTTP", "HTPI", "HTPP", "HTTI"]
+                all_devs = []
+                for prefix in prefixes:
+                    for i in range(1, 5):
+                        all_devs.append(f"{prefix}{i}")
+                usb_command = "cusbi /S:ttyUSB1 0:1"  # 0 means off
+            elif "BOT" in device:
+                wire_names = ["USB hubs", "LS16P (HFO)"]
+                all_devs = [f"BOTP{i}" for i in range(1, 5)] + [
+                    f"BOTT{i}" for i in range(1, 5)
+                ]
+                usb_command = "cusbi /S:ttyUSB2 0:2"
+
+            controller_connctions = []
+            for dev in all_devs:
+                sn = self._motor_config[dev]["serial_number"]
+                port = self._prev_port_mapping[sn]
+                controller_connctions.append(port)
+
+            # turn off the USB
+            os.system(usb_command)
+
+            # turn off the power
+            for wire_name in wire_names:
+                self._controllers["controllino"].turn_off(wire_name)
+
+            # remove the devices
+            self.devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+
+            # and the controllers:
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
+
+        else:
+            # just remove the device from the list
+            if device in self.devices:
+                del self.devices[device]
 
         print(f"{device} is now in standby mode.")
 
@@ -553,12 +606,15 @@ class Instrument:
         for dev in dev_list:
             if dev in self.devices:
                 print(f"{dev} is already online")
+                continue
 
             if dev not in self._motor_config:
                 print(f"WARN: {dev} not in motor config")
+                continue
 
         # turn on any nessecary power supplies
         wire_list = []
+        usb_commands = []
         for dev in dev_list:
             if "BM" in dev:
                 wire_name = "X-MCC (BMX,BMY)"
@@ -566,12 +622,31 @@ class Instrument:
             elif "BFO" in dev or "BDS" in dev or "SDL" in dev:
                 wire_name = "X-MCC (BFO,SDL,BDS)"
                 wire_list.append(wire_name)
-            elif "HFO" in dev:
+            elif "HFO" in dev or "BT" in dev:
                 wire_name = "LS16P (HFO)"
                 wire_list.append(wire_name)
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                usb_commands.append("cusbi /S:ttyUSB0 1:3")  # 1 means on, 3 means HFO
+            elif "HT" in dev:
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                usb_commands.append("cusbi /S:ttyUSB1 1:1")  # 1 means on, 1 means HT
+            elif "BOT" in dev:
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                wire_name = "LS16P (HFO)"
+                wire_list.append(wire_name)
+                usb_commands.append("cusbi /S:ttyUSB2 1:2")  # 1 means on, 2 means BOT
 
         for wire in set(wire_list):
             self._controllers["controllino"].turn_on(wire)
+
+        for usb_command in usb_commands:
+            os.system(usb_command)
+            time.sleep(0.1)
+
+        time.sleep(0.5)
 
         # reconnect all
         self._prev_port_mapping = self.compute_serial_to_port_map()
@@ -797,22 +872,25 @@ class Instrument:
         cusb_ports = ["/dev/ttyUSBX"]
 
         for port, _, hwid in sorted(ports):
-            if "VID:PID=0403:6001" in hwid:
+            if "SER=B001DGUX" in hwid:  # the serial for managed hub
                 if port in cusb_ports:
                     print("Found a Managed USB hub.")
                     continue
-                # Try to open it - if we can, it is a Zaber port!
-                test_connection = Connection.open_serial_port(port)
-                try:
-                    devices = test_connection.detect_devices()
-                    test_connection.close()
-                    print(f"Found a Zaber USB port {port}")
-                    return port
-                except:
-                    # This next line is essential, or the port remains open and no other process
-                    # can use it (including MDS later in the code)
-                    test_connection.close()
-                    print(f"A non-zaber motor using the same USB ID. Port {port}")
+            if "SER=AB0NSCTM" in hwid:
+                return port
+
+            # # Try to open it - if we can, it is a Zaber port!
+            test_connection = Connection.open_serial_port(port)
+            try:
+                devices = test_connection.detect_devices()
+                test_connection.close()
+                print(f"Found a Zaber USB port {port}")
+                return port
+            except:
+                # This next line is essential, or the port remains open and no other process
+                # can use it (including MDS later in the code)
+                test_connection.close()
+                print(f"A non-zaber motor using the same USB ID. Port {port}")
         return None
 
     @staticmethod
