@@ -9,7 +9,7 @@ import pandas as pd
 from zaber_motion.ascii import Connection
 import numpy as np
 import os
-
+import glob
 import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
 import asgard_alignment.Engineering
@@ -796,11 +796,40 @@ class Instrument:
 
             if "FZ" in axis.warnings.get_flags():
                 return False
-            self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
-                name,
-                cfg["semaphore_id"],
-                axis,
-            )
+
+
+            
+            if ("BMX" in name) or ("BMY" in name):
+                if "BMX" in name:
+                    beam_id_tmp = name.split("BMX")[-1]
+                if "BMY" in name:
+                    beam_id_tmp = name.split("BMX")[-1]
+                phasemask_folder_path = f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam_id_tmp}/"
+                phasemask_files = glob.glob(os.path.join(phasemask_folder_path, "*.json")) 
+                recent_phasemask_file = max(phasemask_files, key=os.path.getmtime) # most recently created
+                with open(recent_phasemask_file, "r", encoding="utf-8") as pfile:
+                    positions_tmp = json.load(pfile)
+                if "BMX" in name: 
+                    oneAxis_dict = {key: value[0] for key, value in positions_tmp.items()}
+                elif "BMY" in name:
+                    oneAxis_dict = {key: value[1] for key, value in positions_tmp.items()}
+
+                    
+                self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
+                    name,
+                    cfg["semaphore_id"],
+                    axis,
+                    named_positions = oneAxis_dict,
+
+                )
+            else:
+                self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
+                    name,
+                    cfg["semaphore_id"],
+                    axis,
+                    named_positions = oneAxis_dict,
+
+                )
             return True
 
         elif self._motor_config[name]["motor_type"] in [
