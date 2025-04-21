@@ -820,15 +820,18 @@ class Instrument:
                     cfg["semaphore_id"],
                     axis,
                     named_positions = oneAxis_dict,
-
                 )
             else:
+                if "named_pos" in self._motor_config[name]:
+                    named_positions = self._motor_config[name]["named_pos"]
+                else:
+                    named_positions = None                        
+
                 self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
                     name,
                     cfg["semaphore_id"],
                     axis,
-                    named_positions = oneAxis_dict,
-
+                    named_positions=named_positions,
                 )
             return True
 

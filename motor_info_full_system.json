@@ -304,6 +304,10 @@
         "name": "BFO",
         "motor_type": "LAC10A-T4A",
         "serial_number": "Zaber-120408",
+        "named_pos" : {
+            "J" : 2800.0, // not sure about this one
+            "H" : 2800.0, 
+        },
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 1,
         "semaphore_id": 22
