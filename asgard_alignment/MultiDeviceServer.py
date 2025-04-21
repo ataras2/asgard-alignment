@@ -577,14 +577,14 @@ class MultiDeviceServer:
             except Exception as e:
                 return f"NACK: {e}"
 
-        def asg_setup_msg(axis, value):
+        def asg_setup_msg(axis, mtype, value):
             try:
                 # if it is a float, convert it to a python float
                 try:
                     value = float(value)
                 except ValueError:
                     pass
-                self.instr.devices[axis].setup(value)
+                self.instr.devices[axis].setup(mtype, value)
                 return "ACK"
             except Exception as e:
                 return f"NACK: {e}"
@@ -853,7 +853,7 @@ class MultiDeviceServer:
             "reset": "reset {}",
             "mv_img": "mv_img {} {} {:f} {:f}",  # mv_img {config} {beam_number} {x} {y}
             "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
-            "asg_setup": "asg_setup {} {}",  # 2nd input is either a named position or a float
+            "asg_setup": "asg_setup {} {} {}",  # 2nd input is either a named position or a float
         }
 
         try:

@@ -42,7 +42,7 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
     def ping(self):
-        pass
+        return True
 
     def is_moving(self):
         return False

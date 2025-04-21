@@ -1248,7 +1248,7 @@ def handle_lens_flipper():
             positions = ["STANDARD", "FAINT"]
             for pos in positions:
                 if st.button(pos, key=f"move_{pos}_{beam_num}"):
-                    message = f"asg_setup {target} {pos}"
+                    message = f"asg_setup {target} NAME {pos}"
                     res = send_and_get_response(message)
 
 
@@ -2197,10 +2197,10 @@ with col_main:
 
                     cur_state = send_and_get_response(f"state {flipper}")
                     # st.write(f"Current state: {cur_state}")
-                    if "up" in cur_state:
-                        st.success("Up")
-                    elif "down" in cur_state:
-                        st.error("Down")
+                    if "IN" in cur_state:
+                        st.success("IN")
+                    elif "OUT" in cur_state:
+                        st.error("OUT")
                     else:
                         st.warning("Unknown")
 
