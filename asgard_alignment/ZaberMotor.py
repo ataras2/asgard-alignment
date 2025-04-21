@@ -191,7 +191,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         """
         return not self.axis.is_busy()
 
-    def is_motion_done(self):
+    def is_moving(self):
         """
         Check if the motion is done
 
@@ -200,7 +200,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         bool
             True if the motion is done, False otherwise
         """
-        return not self.axis.is_busy()
+        return self.axis.is_busy()
 
     def stop(self):
         self.axis.stop()
@@ -349,9 +349,16 @@ class ZaberLinearStage(ESOdevice.Motor):
         return self.axis.get_position(unit=units)
 
     def ESO_read_position(self):
-        return self.internal_to_ESO(
-            self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
-        )
+        # return self.internal_to_ESO(
+        #     self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        # )
+
+        # check if near a named position
+        cur_pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        for name, position in self.named_positions.items():
+            if np.isclose(cur_pos, position):
+                return name
+        return self.internal_to_ESO(cur_pos)
 
     def is_at_limit(self):
         """
@@ -435,7 +442,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         """
         return not self.axis.is_busy()
 
-    def is_motion_done(self):
+    def is_moving(self):
         """
         Check if the motion is done
 
@@ -444,7 +451,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         bool
             True if the motion is done, False otherwise
         """
-        return not self.axis.is_busy()
+        return self.axis.is_busy()
 
     def stop(self):
         pass
