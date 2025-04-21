@@ -44,6 +44,9 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
     def ping(self):
         pass
 
+    def is_moving(self):
+        return False
+
     def read_state(self):
         return str(self._controller.get_status(self.name))
 
@@ -57,7 +60,7 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
             self.move_abs(self.named_positions[value])
 
     def ESO_read_position(self):
-        return int(self.read_position())
+        return int(float(self.read_position()))
 
     def disable(self):
         pass
@@ -99,11 +102,11 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
 
     def _flip_up(self):
         self._controller.flip_up(self.name, self._modulation_value, self._delay_time)
-        self._state = "up"
+        self._state = "IN"
 
     def _flip_down(self):
         self._controller.flip_down(self.name, self._modulation_value, self._delay_time)
-        self._state = "down"
+        self._state = "OUT"
 
     def move_abs(self, position):
         print(f"Moving {self.name} to {position}")
@@ -122,8 +125,11 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
     def read_position(self):
         return self._state
 
+    def is_moving(self):
+        return False
+
     def ESO_read_position(self):
-        return int(self.read_position())
+        return self.read_position()
 
     def read_state(self):
         return f"READY ({self._state})"
