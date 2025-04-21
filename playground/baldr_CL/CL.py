@@ -66,21 +66,21 @@ parser.add_argument(
 parser.add_argument(
     '--kp_LO',
     type=float,
-    default=0,
+    default=0.0,
     help="proportional gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
     '--ki_LO',
     type=float,
-    default=0.15,
+    default=0.0,
     help="integral gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
     '--kd_LO',
     type=float,
-    default=0,
+    default=0.0,
     help="differential gain to use for each mode. Default: %(default)s"
 )
 
@@ -89,21 +89,21 @@ parser.add_argument(
 parser.add_argument(
     '--kp_HO',
     type=float,
-    default=0,
+    default=0.0,
     help="proportional gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
     '--ki_HO',
     type=float,
-    default=0.15,
+    default=0.0,
     help="integral gain to use for each mode. Default: %(default)s"
 )
 
 parser.add_argument(
     '--kd_HO',
     type=float,
-    default=0,
+    default=0.0,
     help="differential gain to use for each mode. Default: %(default)s"
 )
 
@@ -193,12 +193,12 @@ parser.add_argument("--fig_path",
 # )
 
 
-# parser.add_argument(
-#     '--folder_pth',
-#     type=str,
-#     default=f'/home/asg/Videos/test/',
-#     help="folder to save telemetry in. Default: %(default)s"
-# )
+parser.add_argument(
+    '--folder_pth',
+    type=str,
+    default=f'/home/asg/Videos/test/',
+    help="folder to save telemetry in. Default: %(default)s"
+)
 
 
 
@@ -501,7 +501,7 @@ with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
 # Camera 
 c = FLI.fli(args.global_camera_shm, roi = baldr_pupils[f'{beam_id}'])
 
-cam_config = c.get_camera_config()
+#cam_config = c.get_camera_config()
 
 gain = float( c.config["gain"] ) 
 fps = float( c.config["fps"] ) 
@@ -549,9 +549,11 @@ badpixmap = I2A @ bad_pixel_mask.astype(int).reshape(-1)
 bias_sec = bias[secon_mask.astype(bool).reshape(-1)][4]
 dark_sec = dark[secon_mask.astype(bool).reshape(-1)][4]
 
-util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [N0dm, I0dm, bias_dm, dark_dm, badpixmap]] , savefig='delme.png') 
+#util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [N0dm, I0dm, bias_dm, dark_dm, badpixmap]] , savefig='delme.png') 
 
+#util.nice_heatmap_subplots( im_list = [M2C_LO.T[0].reshape(12,12), M2C_LO.T[1].reshape(12,12), M2C_HO.T[65].reshape(12,12)] , savefig='delme.png') 
 
+#util.nice_heatmap_subplots( im_list = [util.get_DM_command_in_2D(a) for a in [I2M_LO[0],I2M_LO[1],I2M_HO[65]]] , savefig='delme.png') 
 
 
 ######################################
@@ -563,8 +565,9 @@ dmtight_mask = I2A @ np.array([int(a) for a in inside_edge_filt])
 #dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
 # doing a tight filter (~44 modes)
-I2M = dmtight_mask[:,np.newaxis] * I2M
-I2M_HO = dmtight_mask[:,np.newaxis] * I2M_HO
+# testing doing this in build_baldr_control_matrix.py
+#I2M = dmtight_mask[:,np.newaxis] * I2M
+#I2M_HO = dmtight_mask[:,np.newaxis] * I2M_HO
 ###########################################
 
 
@@ -586,8 +589,8 @@ kp = args.kp_HO * np.ones( N_HO)
 ki = args.ki_HO * np.ones( N_HO )
 kd = args.kd_HO * np.ones( N_HO )
 setpoint = np.zeros( N_HO )
-lower_limit_pid = -100 * np.ones( N_HO )
-upper_limit_pid = 100 * np.ones( N_HO )
+lower_limit_pid = -1 * np.ones( N_HO )
+upper_limit_pid = 1 * np.ones( N_HO )
 
 ctrl_HO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
@@ -596,8 +599,8 @@ kp = args.kp_LO * np.ones( N_LO)
 ki =  args.ki_LO * np.ones( N_LO )
 kd = args.kd_LO * np.ones( N_LO )
 setpoint = np.zeros( N_LO )
-lower_limit_pid = -100 * np.ones( N_LO )
-upper_limit_pid = 100 * np.ones( N_LO )
+lower_limit_pid = -0.4 * np.ones( N_LO )
+upper_limit_pid = 0.4 * np.ones( N_LO )
 
 ctrl_LO = PIDController(kp, ki, kd, upper_limit_pid, lower_limit_pid, setpoint)
 
@@ -609,7 +612,7 @@ close_after = 0
 
 #u = 0
 #bad_ones = [ 26,  37,  38,  53,  63,  65,  66,  75,  76,  78,  79,  87,  90, 98, 101, 102]
-telem = False #init_telem_dict() 
+telem = False #init_telem_dict() #False
 naughty_list = {a:0 for a in range(140)}
 
 keep_going = True
@@ -628,10 +631,18 @@ it = 0
 # init_pyRTC() 
 
 
+loop_speed = 0.004 # s (250 Hz)
+c.mySHM.catch_up_with_sem(c.semid)
+dm.shm0.catch_up_with_sem(-1)
+#for it in range(args.number_of_iterations):
 while keep_going:   
-    #for it in range(args.number_of_iterations):
+    #time.sleep(0.005) # with 1kHz
+
+
     #for it in range(args.number_of_iterations):
     # raw intensity 
+    #time.sleep(0.1)
+    
     i = c.get_image(apply_manual_reduction=False) # we don't reduce in pixel space, but rather DM space to reduce number of operations 
     t0 = time.time()
 
@@ -643,7 +654,7 @@ while keep_going:
     #print( Sest)
 
     # go to dm space subtracting dark (ADU/s) and bias (ADU) there
-    idm = (I2A @ i.reshape(-1))  - 1/fps * dark_dm - bias_dm
+    idm = (I2A @ i.reshape(-1))  - gain / float(IM_cam_config["gain"]) * 1/fps * dark_dm - bias_dm
 
     # adu normalized pupil signal 
     s =  ( idm - I0dm ) / (N0dm)   # 
@@ -695,8 +706,9 @@ while keep_going:
         # ctrl_HO.reset_single_mode(
 
     c_LO = -1* M2C_LO @ u_LO
-    c_HO = -1*M2C_HO @ u_HO
+    c_HO = -1 * M2C_HO @ u_HO
 
+    #util.nice_heatmap_subplots( im_list=[( M2C_LO.T[0] *0.01).reshape(12,12), c_LO.reshape(12,12) ], savefig='delme.png')
     #u -= np.mean( u ) # Forcefully remove piston! 
     # reconstruction
 
@@ -711,9 +723,13 @@ while keep_going:
         telem["time_cam"].append( t0 )
         telem["time_dm"].append( t1 )
         telem["i"].append( i.copy() )
+        telem["e_TT"].append( e_LO.copy() )
+        telem["u_TT"].append( u_LO.copy() )
+        telem["c_TT"].append( c_LO.copy() )
         telem["e_HO"].append( e_HO.copy() )
         telem["u_HO"].append( u_HO.copy() )
-        
+        telem["c_HO"].append( c_HO.copy() )
+
         #telem["current_dm_ch0"].append( dm.shms[0].get_data() ) 
         telem["current_dm_ch1"].append( dm.shms[1].get_data().copy() ) 
         telem["current_dm_ch2"].append( dm.shms[2].get_data().copy() ) 
@@ -724,12 +740,18 @@ while keep_going:
     t1 = time.time()
 
     #print(it, t1-t0, np.max(abs(e_HO)), np.max(abs(u_HO))) #m_rms_est ,
-    if 1/fps - (t1-t0) > 0 :
-        time.sleep( 1/fps - (t1-t0) )
     
+    #if 1/fps - (t1-t0) > 0 : # 1kHz
+    #    time.sleep( 1/fps - (t1-t0) )
+    if loop_speed - (t1-t0) > 0 :
+        time.sleep( loop_speed - (t1-t0) )
+    
+    #print(it,u_LO.max(),u_HO.max())
     it += 1
 
 
+ctrl_LO.reset( )
+ctrl_HO.reset( )
 dm.zero_all()
 dm.activate_calibrated_flat()
 
@@ -763,77 +785,77 @@ dm.activate_calibrated_flat()
 
 
 
-if telem:
-    # save telemetry
-    runn=f"kolmogorov_ki-{args.ki}_kd-{args.kd}_r0-{args.r0}_V-{args.V}_fps-{c.config['fps']}_gain-fps-{c.config['gain']}" 
-    # Create a list of HDUs (Header Data Units)
-    hdul = fits.HDUList()
+# if telem:
+#     # save telemetry
+#     runn=f"static_fps-{c.config['fps']}_gain-fps-{c.config['gain']}" 
+#     # Create a list of HDUs (Header Data Units)
+#     hdul = fits.HDUList()
 
-    hdu = fits.ImageHDU(IM)
-    hdu.header['EXTNAME'] = 'IM'
-    hdul.append(hdu)
+#     hdu = fits.ImageHDU(IM)
+#     hdu.header['EXTNAME'] = 'IM'
+#     hdul.append(hdu)
 
-    # hdu = fits.ImageHDU(M2C)
-    # hdu.header['EXTNAME'] = 'M2C'
-    # hdul.append(hdu)
-
-
-    hdu = fits.ImageHDU(I2M)
-    hdu.header['EXTNAME'] = 'I2M'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(I2A)
-    hdu.header['EXTNAME'] = 'interpMatrix'
-    hdul.append(hdu)
+#     # hdu = fits.ImageHDU(M2C)
+#     # hdu.header['EXTNAME'] = 'M2C'
+#     # hdul.append(hdu)
 
 
-    hdu = fits.ImageHDU(dm.shms[0].get_data())
-    hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
-    hdul.append(hdu)
+#     hdu = fits.ImageHDU(I2M)
+#     hdu.header['EXTNAME'] = 'I2M'
+#     hdul.append(hdu)
 
-    hdu = fits.ImageHDU(ctrl_HO.kp)
-    hdu.header['EXTNAME'] = 'Kp'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.ki)
-    hdu.header['EXTNAME'] = 'Ki'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.kd)
-    hdu.header['EXTNAME'] = 'Kd'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(ctrl_HO.kd)
-    hdu.header['EXTNAME'] = 'Kd'
-    hdul.append(hdu)
-
-    hdu = fits.ImageHDU(pupil_mask.astype(int))
-    hdu.header['EXTNAME'] = 'ext'
-    hdul.append(hdu)
-    # Add each list to the HDU list as a new extension
-    for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
-        # Convert list to numpy array for FITS compatibility
-        data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
-
-        # Create a new ImageHDU with the data
-        hdu = fits.ImageHDU(data_array)
-
-        # Set the EXTNAME header to the variable name
-        hdu.header['EXTNAME'] = list_name
-
-        # Append the HDU to the HDU list
-        hdul.append(hdu)
+#     hdu = fits.ImageHDU(I2A)
+#     hdu.header['EXTNAME'] = 'interpMatrix'
+#     hdul.append(hdu)
 
 
-    # Write the HDU list to a FITS file
+#     hdu = fits.ImageHDU(dm.shms[0].get_data())
+#     hdu.header['EXTNAME'] = 'DM_FLAT_OFFSET'
+#     hdul.append(hdu)
 
-    tele_pth = args.folder_pth 
-    if not os.path.exists( tele_pth ):
-        os.makedirs( tele_pth )
+#     hdu = fits.ImageHDU(ctrl_HO.kp)
+#     hdu.header['EXTNAME'] = 'Kp'
+#     hdul.append(hdu)
 
-    fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
-    hdul.writeto(fits_file, overwrite=True)
-    print(f'wrote telemetry to \n{fits_file}')
+#     hdu = fits.ImageHDU(ctrl_HO.ki)
+#     hdu.header['EXTNAME'] = 'Ki'
+#     hdul.append(hdu)
+
+#     hdu = fits.ImageHDU(ctrl_HO.kd)
+#     hdu.header['EXTNAME'] = 'Kd'
+#     hdul.append(hdu)
+
+#     hdu = fits.ImageHDU(ctrl_HO.kd)
+#     hdu.header['EXTNAME'] = 'Kd'
+#     hdul.append(hdu)
+
+#     hdu = fits.ImageHDU(pupil_mask.astype(int))
+#     hdu.header['EXTNAME'] = 'ext'
+#     hdul.append(hdu)
+#     # Add each list to the HDU list as a new extension
+#     for list_name, data_list in telem.items() :##zip(["time","i","err", "reco", "disturb", "secondary_sig"] ,[   telem["time"], telem["i"],telem["e_HO"], telem["current_dm_ch2"],telem["current_dm_ch3"], telem["secondary_sig"]] ) : # telem.items():
+#         # Convert list to numpy array for FITS compatibility
+#         data_array = np.array(data_list, dtype=float)  # Ensure it is a float array or any appropriate type
+
+#         # Create a new ImageHDU with the data
+#         hdu = fits.ImageHDU(data_array)
+
+#         # Set the EXTNAME header to the variable name
+#         hdu.header['EXTNAME'] = list_name
+
+#         # Append the HDU to the HDU list
+#         hdul.append(hdu)
+
+
+#     # Write the HDU list to a FITS file
+
+#     tele_pth = args.folder_pth 
+#     if not os.path.exists( tele_pth ):
+#         os.makedirs( tele_pth )
+
+#     fits_file = tele_pth + f'CL_beam{beam_id}_mask{args.phasemask}_{runn}.fits' #_{args.phasemask}.fits'
+#     hdul.writeto(fits_file, overwrite=True)
+#     print(f'wrote telemetry to \n{fits_file}')
 
 
 

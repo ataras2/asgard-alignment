@@ -205,6 +205,9 @@ while (not (cnt > args.number_of_iterations) ) and (not (time_elapsed > args.max
     # forcefully remove piston  
     cmd -= np.mean( cmd )
 
+    ## only apply aberrations on set (centered!) DM pupil
+    cmd *= dm_pup
+
     #send command on specified DM channel 
     for beam in args.beam_id:
         if np.std( cmd ) < 0.5:

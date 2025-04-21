@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python
 import zmq
 import numpy as np
 import toml  # Make sure to install via `pip install toml` if needed

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np 
 import zmq
 import time
@@ -221,7 +222,8 @@ assert float(c.config['fps']) == float(args.cam_fps)
 assert float(c.config['gain']) == float(args.cam_gain)
 
 # check for recent calibration files in the current setting 
-valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
+##CHANGED TO MAKE VALID TIME DIFFERENCE 0.1 DAYS (a few hours)
+valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(0.1), fps_diff_thresh=10)
 
 # if no valid ones than we make some
 if not valid_cal_files: 

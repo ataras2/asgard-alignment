@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np 
 import zmq
 import time
@@ -80,6 +81,7 @@ parser.add_argument("--dont_project_TT_out_HO",
                     action="store_false",
                     help="Disable projecting TT (or what ever lower order LO is defined as) out of HO (default: enabled)")
 
+## NEED TO CHECK THIS AGAIN - BUG
 parser.add_argument("--filter_edge_actuators",
                     dest="filter_edge_actuators",
                     action="store_false",
@@ -95,6 +97,8 @@ parser.add_argument("--fig_path",
 
 
 args=parser.parse_args()
+
+print( "filter_edge_actuators = ",args.filter_edge_actuators)
 
 with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
 
@@ -189,7 +193,10 @@ elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum post
 
 elif args.inverse_method_HO.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
-    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+    if args.filter_edge_actuators: # do this in the mode space! 
+        dm_mask =I2A @ np.array( inside_edge_filt ).reshape(-1) # I2A @ inside_edge_filt )
+    else:
+        dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
     # util.nice_heatmap_subplots(  im_list = [util.get_DM_command_in_2D(dm_mask)], savefig='delme.png' )
     I2M_HO = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
@@ -206,14 +213,20 @@ else:
     raise UserWarning('no inverse method provided for HO')
 
 
-if args.filter_edge_actuators:
-    # tight mask to restrict edge actuators 
-    dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array([int(a) for a in inside_edge_filt]) ) ).reshape(-1)
-    # typically 44 actuators 
-else:
-    # puypil mask
-    dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
-    # typically 71 actuators 
+
+
+## NED TO CHECK THIS AGAIN - BUG, do this in the ZONAL scope of building I2M_HO
+# if args.filter_edge_actuators:
+#     # tight mask to restrict edge actuators 
+#     dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array([int(a) for a in inside_edge_filt]) ) ).reshape(-1)
+#     # typically 44 actuators 
+# else:
+#     # puypil mask
+#     dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
+#     # typically 71 actuators 
+
+# filter out exterior actuators in command space (from pupol) - redudant if (args.filter_edge_actuators: # do this in the mode space!)
+dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
 
 #util.nice_heatmap_subplots( [dm_mask_144.reshape(12,12),dm_tight_mask_144.reshape(12,12)], savefig='delme.png')
 
@@ -284,21 +297,21 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
-# I2M_1 = np.linalg.pinv( IM )
+# I2M_1 = np.linalg.pinv( IM_HO )
 
-# phase_cov = np.eye( IM.shape[0] )
-# noise_cov = 10 * np.eye( IM.shape[1] )
-# I2M_2 = (phase_cov @ IM @ np.linalg.inv(IM.T @ phase_cov @ IM + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
+# phase_cov = np.eye( IM_HO.shape[0] )
+# noise_cov = 10 * np.eye( IM_HO.shape[1] )
+# I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
 
 # dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM[i][i] if np.isfinite(1/IM[i][i]) else 0 for i in range(len(IM))]) )
+# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
 
-# U,S,Vt = np.linalg.svd( IM, full_matrices=True)
+# U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
 # k= 20 # int( 5**2 * np.pi)
 # I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 65
+# act = 1
 # im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
 # titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
@@ -334,42 +347,42 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 #### ADDITIONAL PROJECTION TESTS
 
-#### TEST 
-# c0 = 0*M2C.T[0]
-# i = 0*IM[0]
-# act_list = [0, 65, 43]
-# for a in act_list:
-#     c0 += poke_amp/2 * M2C.T[a] # original command
+### TEST 
+c0 = 0*M2C.T[0]
+i = 0*IM[0]
+act_list = [0, 65, 43]
+for a in act_list:
+    c0 += poke_amp/2 * M2C.T[a] # original command
 
-#     i +=  IM[a] #+ IM[65] # simulating intensity repsonse
+    i +=  IM[a] #+ IM[65] # simulating intensity repsonse
 
-# e_LO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_LO.T @ i
-# e_HO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_HO.T @ i
+e_LO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_LO.T @ i
+e_HO = 2 * float(camera_config['gain']) / float(camera_config['fps']) * I2M_HO.T @ i
 
-# # without projection just using HO (which has full rank)
-# c_HO = (M2C[:,LO:] @ e_HO).reshape(12,12)
-# res = c_HO - c0.reshape(12,12,)
-# im_list = [  c0.reshape(12,12), c_HO, dm_mask_144.reshape(12,12) * res]
-# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
-# title_list = [ "disturb",  "c_HO'", "res."]
-# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS"]
-# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims = vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+# without projection just using HO (which has full rank)
+c_HO = (M2C[:,LO:] @ e_HO).reshape(12,12)
+res = c_HO - c0.reshape(12,12,)
+im_list = [  c0.reshape(12,12), c_HO, dm_mask_144.reshape(12,12) * res]
+vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+title_list = [ "disturb",  "c_HO'", "res."]
+cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS"]
+util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims = vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
 
-# # proper projection 
-# c_LOg = (M2C_LO @ e_LO).reshape(12,12)
-# c_HOg = (M2C_HO @ e_HO).reshape(12,12)
+# proper projection 
+c_LOg = (M2C_LO @ e_LO).reshape(12,12)
+c_HOg = (M2C_HO @ e_HO).reshape(12,12)
 
-# dcmdg = c_LOg + c_HOg
+dcmdg = c_LOg + c_HOg
 
-# resg = dcmdg - c0.reshape(12,12)
+resg = dcmdg - c0.reshape(12,12)
 
-# im_list = [  c0.reshape(12,12), c_LOg, c_HOg, dcmdg, dm_mask_144.reshape(12,12) * resg]
-# vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
-# title_list = [ "disturb", "c_LO", "c_HO'","c_LO + c_HO","res."]
-# cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS","DM UNITS","DM UNITS"]
-# util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims=vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
+im_list = [  c0.reshape(12,12), c_LOg, c_HOg, dcmdg, dm_mask_144.reshape(12,12) * resg]
+vlims = [[np.min(c0), np.max(c0)] for _ in im_list]
+title_list = [ "disturb", "c_LO", "c_HO'","c_LO + c_HO","res."]
+cbar_title_list = ["DM UNITS","DM UNITS", "DM UNITS","DM UNITS","DM UNITS"]
+util.nice_heatmap_subplots( im_list = im_list ,title_list=title_list, vlims=vlims, cbar_label_list=  cbar_title_list, savefig='delme.png')
 
-# print( np.std( dm_mask_144.reshape(12,12) * res ), np.std( dm_mask_144.reshape(12,12) * resg ))
+print( np.std( dm_mask_144.reshape(12,12) * res ), np.std( dm_mask_144.reshape(12,12) * resg ))
 
 
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import subprocess
 from astropy.io import fits 
 import toml

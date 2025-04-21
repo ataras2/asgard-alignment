@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python
 import numpy as np 
 import zmq
 import time
@@ -414,40 +414,40 @@ M2C_HO_filtered[:,worrying_actuators]  = 0
 util.nice_heatmap_subplots( [M2C_HO_filtered ], title_list=["M2C_HO"], savefig='delme.png')
 
 
-# ===================================
-# =========== UPDATE CONFIG FILE 
-# ===================================
-input("about to update toml.. press enter to continue")
+# # ===================================
+# # =========== UPDATE CONFIG FILE 
+# # ===================================
+# input("about to update toml.. press enter to continue")
 
-# Update the toml file 
-dict2write = {f"beam{args.beam_id}":{
-    f"{args.phasemask}":{
-        "ctrl_model": {
-            "M2C_HO": M2C_HO_filtered
-            }
-        }
-    }
-}
-
-
-
-# Check if file exists; if so, load and update.
-if os.path.exists(args.toml_file.replace('#',f'{args.beam_id}')):
-    try:
-        current_data = toml.load(args.toml_file.replace('#',f'{args.beam_id}'))
-    except Exception as e:
-        print(f"Error loading TOML file: {e}")
-        current_data = {}
-else:
-    current_data = {}
+# # Update the toml file 
+# dict2write = {f"beam{args.beam_id}":{
+#     f"{args.phasemask}":{
+#         "ctrl_model": {
+#             "M2C_HO": M2C_HO_filtered
+#             }
+#         }
+#     }
+# }
 
 
-current_data = util.recursive_update(current_data, dict2write)
 
-with open(args.toml_file.replace('#',f'{args.beam_id}'), "w") as f:
-    toml.dump(current_data, f)
+# # Check if file exists; if so, load and update.
+# if os.path.exists(args.toml_file.replace('#',f'{args.beam_id}')):
+#     try:
+#         current_data = toml.load(args.toml_file.replace('#',f'{args.beam_id}'))
+#     except Exception as e:
+#         print(f"Error loading TOML file: {e}")
+#         current_data = {}
+# else:
+#     current_data = {}
 
-print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}')}")
+
+# current_data = util.recursive_update(current_data, dict2write)
+
+# with open(args.toml_file.replace('#',f'{args.beam_id}'), "w") as f:
+#     toml.dump(current_data, f)
+
+# print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}')}")
 
 
 
