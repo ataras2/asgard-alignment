@@ -498,7 +498,7 @@ class Instrument:
                 print(f"WARN: {device} not in devices dictionary")
                 return
 
-            # park all axes
+            # park all axes - note unpark is done in zaber ctor
             for dev in all_devs:
                 if dev in self.devices:
                     # park the axis
@@ -548,6 +548,40 @@ class Instrument:
                     print(f"WARN: {controller} not in controllers dictionary")
 
         print(f"{device} is now in standby mode.")
+
+    def online(self, dev_list):
+        for dev in dev_list:
+            if dev in self.devices:
+                print(f"{dev} is already online")
+
+            if dev not in self._motor_config:
+                print(f"WARN: {dev} not in motor config")
+
+        # turn on any nessecary power supplies
+        wire_list = []
+        for dev in dev_list:
+            if "BM" in dev:
+                wire_name = "X-MCC (BMX,BMY)"
+                wire_list.append(wire_name)
+            elif "BFO" in dev or "BDS" in dev or "SDL" in dev:
+                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_list.append(wire_name)
+            elif "HFO" in dev:
+                wire_name = "LS16P (HFO)"
+                wire_list.append(wire_name)
+
+        for wire in set(wire_list):
+            self._controllers["controllino"].turn_on(wire)
+
+        # reconnect all
+        self._prev_port_mapping = self.compute_serial_to_port_map()
+        self._prev_zaber_port = self.find_zaber_usb_port()
+        for name in dev_list:
+            res = self._attempt_to_open(name, recheck_ports=False)
+            if res:
+                print(f"Successfully connected to {name}")
+            else:
+                print(f"WARN: Could not connect to {name}")
 
     def _create_controllers_and_motors(self):
         """

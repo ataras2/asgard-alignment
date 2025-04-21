@@ -163,6 +163,10 @@ class MultiDeviceServer:
             for key in self.instr.devices:
                 self.instr.devices[key].online()
 
+            # new version:
+            # all_motor_names = self.instr._motor_config.keys()
+            # self.instr.online(all_motor_names)
+
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
 
@@ -197,6 +201,10 @@ class MultiDeviceServer:
 
                 for key in self.instr.devices:
                     self.instr.devices[key].standby()
+
+                # new version:
+                # for key in self.instr.devices:
+                #     self.instr.standby(key)
 
                 # Update the wagics database to show all the devices in STANDBY
                 # state (value of "state" attrivute has to be set to 2)
@@ -380,10 +388,10 @@ class MultiDeviceServer:
                                             "value": "",
                                         }
                                     )
-                            # Case of motor with relative encoder position
-                            # not considered yet
-                            # The simplest would be to read the encoder position
-                            # and to update the database as for the previous case
+                                # Case of motor with relative encoder position
+                                # not considered yet
+                                # The simplest would be to read the encoder position
+                                # and to update the database as for the previous case
                                 elif s.motion_type == "ENCREL":
                                     self.database_message["command"][
                                         "parameters"
@@ -404,7 +412,7 @@ class MultiDeviceServer:
                         print(output_msg)
 
                         self.database_message["command"]["parameters"].clear()
-            
+
             reply = "OK"
 
         # Case of "stop" (sent by wag to immediately stop the devices)
