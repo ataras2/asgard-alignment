@@ -92,6 +92,14 @@ class Motor(ESOdevice):
         pass
 
     @abc.abstractmethod
+    def is_moving(self):
+        """
+        This command is used to check if the device is moving.
+        Hence, it always must return a boolean.
+        """
+        pass
+
+    @abc.abstractmethod
     def setup(self, motion_type: str, value: Union[str, float]):
         """
         Command to move a device to a given position. The position is given in the value field.

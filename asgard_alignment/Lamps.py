@@ -36,6 +36,9 @@ class LightSource(ESOdevice.Lamp):
         Initialise the laser
         """
 
+    def is_moving(self):
+        return False
+
     def is_on(self):
         """
         Check if the light source is on

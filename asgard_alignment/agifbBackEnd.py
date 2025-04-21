@@ -318,7 +318,7 @@ while running == 1:
                             # Here the device can be either a lamp or a shutter
                             # Add here code to find out the type of s.dev
                             # If it is a shutter do:
-                            if s.val == "T":
+                            if s.value == "T":
                                 dbMsg["command"]["parameters"].append(
                                     {"attribute": attribute, "value": "OPEN"}
                                 )
