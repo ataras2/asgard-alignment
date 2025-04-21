@@ -221,8 +221,8 @@
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121405,
         "named_pos" : {
-            "H": 133.07,
-            "J": 63.07,
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
             "CLEAR": 0.0
         },
         "semaphore_id": 13
@@ -232,8 +232,8 @@
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121406,
         "named_pos" : {
-            "H": 133.07,
-            "J": 63.07,
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
             "CLEAR": 0.0
         },
         "semaphore_id": 14
@@ -243,8 +243,8 @@
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121408,
         "named_pos" : {
-            "H": 133.07,
-            "J": 63.07,
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
             "CLEAR": 0.0
         },
         "semaphore_id": 15
@@ -254,8 +254,8 @@
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121407,
         "named_pos" : {
-            "H": 133.07,
-            "J": 63.07,
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
             "CLEAR": 0.0
         },
         "semaphore_id": 16
@@ -264,6 +264,12 @@
         "name": "SSS",
         "motor_type": "X-LHM100A-SE03",
         "serial_number": 121474,
+        "named_pos":{
+            "SRL" : 11.5,
+            "SGL" : 38.5,
+            "SBB" : 65.5,
+            "SLD" : 0.0
+        },
         "semaphore_id": 17
     },
     {

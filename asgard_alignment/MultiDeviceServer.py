@@ -254,7 +254,10 @@ class MultiDeviceServer:
             setup_cmds = [[], []]
             for i in range(n_devs_to_setup):
                 kwd = json_data["command"]["parameters"][i]["name"]
-                val = float(json_data["command"]["parameters"][i]["value"])
+                try:
+                    val = float(json_data["command"]["parameters"][i]["value"])
+                except ValueError:
+                    val = json_data["command"]["parameters"][i]["value"]
                 print(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
@@ -331,6 +334,7 @@ class MultiDeviceServer:
                     still_moving_prev = setup_cmds[batch]
                     still_moving = setup_cmds[batch]
                     while len(still_moving) > 0:
+                        print(f"Still moving: {still_moving}")
                         time.sleep(1.0)
 
                         still_moving = []
