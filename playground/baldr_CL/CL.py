@@ -19,7 +19,7 @@ from asgard_alignment import FLI_Cameras as FLI
 from asgard_alignment.DM_shm_ctrl import dmclass
 import pyBaldr.utilities as util 
 
-default_toml = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml"
+default_toml = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml"#"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#_stable.toml"
 
 parser = argparse.ArgumentParser(description="closed")
 
@@ -422,7 +422,7 @@ atexit.register(cleanup)
 
 
 with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
-
+    print(f"using {f}")
     config_dict = toml.load(f)
     
     # Baldr pupils from global frame 
@@ -499,7 +499,7 @@ with open(args.toml_file.replace('#',f'{beam_id}'), "r") as f:
 
 #bad_pixel_mask = bad_pixel_mask == "True"
 # Camera 
-c = FLI.fli(args.global_camera_shm, roi = baldr_pupils[f'{beam_id}'])
+c = FLI.fli(args.global_camera_shm, roi = baldr_pupils[f'{beam_id}'], quick_startup=True)
 
 #cam_config = c.get_camera_config()
 
@@ -682,7 +682,7 @@ while keep_going:
     # safety
     if np.max( abs( u_HO ) ) > 0.3:
         culprit = np.where( abs( u_HO ) == np.max( abs( u_HO ) )  )[0][0]
-        print(f"beam {args.beam_id} broke by act.{culprit} , reseting") # , reducing gain act {culprit} by half")
+        #print(f"beam {args.beam_id} broke by act.{culprit} , reseting") # , reducing gain act {culprit} by half")
         #ctrl_HO.ki[culprit] *= 0.5 
         dm.set_data( dm.cmd_2_map2D( np.zeros( len(u_HO)) ) )
         #dm.activate_calibrated_flat()

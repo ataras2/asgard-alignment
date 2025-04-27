@@ -7,7 +7,7 @@ set -euo pipefail
 
 SRC_DIR="/home/asg/Progs/repos/asgard-alignment/config_files"
 DEST_DIR="/home/asg/Progs/repos/dcs/baldr"
-
+#1 2 3 4
 for beam_id in 1 2 3 4; do
     SRC_FILE="${SRC_DIR}/baldr_config_${beam_id}.toml"
     if [[ -f "$SRC_FILE" ]]; then

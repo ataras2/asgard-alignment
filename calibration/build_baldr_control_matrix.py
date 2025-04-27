@@ -351,7 +351,7 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 # k= 20 # int( 5**2 * np.pi)
 # I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 65
+# act = 0
 # im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
 # titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 

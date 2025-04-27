@@ -43,8 +43,15 @@ def recursive_update(orig, new):
             orig[key] = value
     return orig
 
+
 def percentile_based_detect_pupils(
-    image, percentile=80, min_group_size=50, buffer=20, square_region=True, plot=True
+    image,
+    percentile=80,
+    min_group_size=50,
+    buffer=20,
+    square_region=True,
+    fixed_square_size=32,
+    plot=True,
 ):
     """
     Detects circular pupils by identifying regions with grouped pixels above a given percentile.
@@ -54,6 +61,9 @@ def percentile_based_detect_pupils(
         percentile (float): Percentile of pixel intensities to set the threshold (default 80th).
         min_group_size (int): Minimum number of adjacent pixels required to consider a region.
         buffer (int): Extra pixels to add around the detected region for cropping.
+        square_region (bool): If True, return square bounding boxes.
+        fixed_square_size (int or None): If not None and square_region is True,
+                                         crops fixed-size square regions centered on each pupil.
         plot (bool): If True, displays the detected regions and coordinates.
 
     Returns:
@@ -62,7 +72,7 @@ def percentile_based_detect_pupils(
     # Normalize the image
     image = image / image.max()
 
-    # Calculate the intensity threshold as the 80th percentile
+    # Calculate the intensity threshold as the Nth percentile
     threshold = np.percentile(image, percentile)
 
     # Create a binary mask where pixels are above the threshold
@@ -76,23 +86,36 @@ def percentile_based_detect_pupils(
     pupil_regions = []
     for region in regions:
         y_slice, x_slice = region
-        # Count the number of pixels in the region
         num_pixels = np.sum(labeled_image[y_slice, x_slice] > 0)
         if num_pixels >= min_group_size:
-            # Add a buffer around the region for cropping
             y_start = max(0, y_slice.start - buffer)
             y_end = min(image.shape[0], y_slice.stop + buffer)
             x_start = max(0, x_slice.start - buffer)
             x_end = min(image.shape[1], x_slice.stop + buffer)
 
             if square_region:
-                max_delta = np.max( [x_end - x_start,y_end - y_start] )                
-                pupil_regions.append((x_start, x_start+max_delta, y_start, y_start+max_delta))
+                if fixed_square_size is not None:
+                    # Center the fixed square on the pupil center
+                    x_center = (x_start + x_end) // 2
+                    y_center = (y_start + y_end) // 2
+                    half = fixed_square_size // 2
+
+                    x_start_sq = max(0, x_center - half)
+                    x_end_sq = min(image.shape[1], x_center + half)
+                    y_start_sq = max(0, y_center - half)
+                    y_end_sq = min(image.shape[0], y_center + half)
+
+                    pupil_regions.append((x_start_sq, x_end_sq, y_start_sq, y_end_sq))
+                else:
+                    # Auto-size square region based on bounding box
+                    max_delta = np.max([x_end - x_start, y_end - y_start])
+                    pupil_regions.append(
+                        (x_start, x_start + max_delta, y_start, y_start + max_delta)
+                    )
             else:
                 pupil_regions.append((x_start, x_end, y_start, y_end))
-            
+
     if plot:
-        # Plot the original image with bounding boxes
         plt.figure(figsize=(10, 10))
         plt.imshow(image, cmap="gray", origin="upper")
         for x_start, x_end, y_start, y_end in pupil_regions:
@@ -106,11 +129,79 @@ def percentile_based_detect_pupils(
             )
             plt.gca().add_patch(rect)
         plt.title(f"Detected Pupils: {len(pupil_regions)}")
-        plt.savefig('delme.png')
+        plt.savefig("delme.png")
         plt.show()
-        
 
     return pupil_regions
+
+# def percentile_based_detect_pupils(
+#     image, percentile=80, min_group_size=50, buffer=20, square_region=True, plot=True
+# ):
+#     """
+#     Detects circular pupils by identifying regions with grouped pixels above a given percentile.
+
+#     Parameters:
+#         image (2D array): Full grayscale image containing multiple pupils.
+#         percentile (float): Percentile of pixel intensities to set the threshold (default 80th).
+#         min_group_size (int): Minimum number of adjacent pixels required to consider a region.
+#         buffer (int): Extra pixels to add around the detected region for cropping.
+#         plot (bool): If True, displays the detected regions and coordinates.
+
+#     Returns:
+#         list of tuples: Cropping coordinates [(x_start, x_end, y_start, y_end), ...].
+#     """
+#     # Normalize the image
+#     image = image / image.max()
+
+#     # Calculate the intensity threshold as the 80th percentile
+#     threshold = np.percentile(image, percentile)
+
+#     # Create a binary mask where pixels are above the threshold
+#     binary_image = image > threshold
+
+#     # Label connected regions in the binary mask
+#     labeled_image, num_features = label(binary_image)
+
+#     # Extract regions and filter by size
+#     regions = find_objects(labeled_image)
+#     pupil_regions = []
+#     for region in regions:
+#         y_slice, x_slice = region
+#         # Count the number of pixels in the region
+#         num_pixels = np.sum(labeled_image[y_slice, x_slice] > 0)
+#         if num_pixels >= min_group_size:
+#             # Add a buffer around the region for cropping
+#             y_start = max(0, y_slice.start - buffer)
+#             y_end = min(image.shape[0], y_slice.stop + buffer)
+#             x_start = max(0, x_slice.start - buffer)
+#             x_end = min(image.shape[1], x_slice.stop + buffer)
+
+#             if square_region:
+#                 max_delta = np.max( [x_end - x_start,y_end - y_start] )                
+#                 pupil_regions.append((x_start, x_start+max_delta, y_start, y_start+max_delta))
+#             else:
+#                 pupil_regions.append((x_start, x_end, y_start, y_end))
+            
+#     if plot:
+#         # Plot the original image with bounding boxes
+#         plt.figure(figsize=(10, 10))
+#         plt.imshow(image, cmap="gray", origin="upper")
+#         for x_start, x_end, y_start, y_end in pupil_regions:
+#             rect = plt.Rectangle(
+#                 (x_start, y_start),
+#                 x_end - x_start,
+#                 y_end - y_start,
+#                 edgecolor="red",
+#                 facecolor="none",
+#                 linewidth=2,
+#             )
+#             plt.gca().add_patch(rect)
+#         plt.title(f"Detected Pupils: {len(pupil_regions)}")
+#         plt.savefig('delme.png')
+#         plt.show()
+        
+
+#     return pupil_regions
 
 
 def crop_and_sort_pupils(image, pupil_regions):
@@ -402,8 +493,9 @@ mask_list = [baldr_mask, heim_mask]
 for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
     if lab == 'baldr':
+
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99, min_group_size=100, buffer=9, square_region=True, plot=True
+            img * mask, percentile = 99, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
         ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(

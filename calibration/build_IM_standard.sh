@@ -12,11 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY_SCRIPT="$SCRIPT_DIR/build_IM.py"
 
 # Fixed parameters
-CAM_FPS=200 
+CAM_FPS=1730
 #1000
-CAM_GAIN=1 
-#10
+#200 
+#1000
+CAM_GAIN=10 
+#1
 BEAM_ID="1,2,3,4"
+#"1,2,3,4"
 POKE_AMP=0.05
 LO=2
 PHASEMASK="H3"

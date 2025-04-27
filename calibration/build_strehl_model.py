@@ -77,7 +77,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], # 1, 2, 3, 4],
+    default=[1,2,3,4], # 1, 2, 3, 4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -134,6 +134,8 @@ for beam_id in args.beam_id:
     res = send_and_get_response(message)
     print(f"moved to phasemask {args.phasemask} on beam {beam_id} with response: {res}")
 
+
+input("check alignment on phasemask. Press enter when ok")
 
 # # optimize alignment 
 # for beam_id in args.beam_id:
@@ -258,7 +260,7 @@ fname = {}
 
 
 r0_grid = [0.3, 0.5, 0.7, 1.0] # good linear range 
-
+# x = [0.3, 0.5, 0.7, 1.0]; y = [0.023,0.015,0.01,0.07] # x=r0, y=dm_rms (measured)
 for r0 in r0_grid:
 
     # STARTING THE TURBULENCE ON EACH DM AND GET IMAGE BATCHES AT GIVEN TIME SAMPLES
@@ -268,8 +270,16 @@ for r0 in r0_grid:
         timestamps[beam_id][r0] = []
          # this is just temporary to track DM telemetry for the given r0 and beam_id , it gets read back in here, and overwritten each iteration
         fname[beam_id] = f'/home/asg/Videos/test_beam_id{beam_id}.fits' # one file per beam_id for given r0. Must read in current r0 loop
+        
+        # Find the real python interpreter being used
+        import sys
+        python_executable = sys.executable
+
+        # Full path to the turbulence script
+        turbulence_script = "/home/asg/Progs/repos/asgard-alignment/common/turbulence.py"
+
         cmd = [
-            'python', '/home/asg/Progs/repos/asgard-alignment/common/turbulence.py',
+            python_executable, turbulence_script,
             '--beam_id', f'{beam_id}',
             '--number_of_iterations', f"{int(args.number_of_iterations)}",#'10000',
             '--max_time',  f"{args.max_time}",#'10',
@@ -285,23 +295,23 @@ for r0 in r0_grid:
 
         # Running script to put turbulence on DM 
         # Start the process non-blocking
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,cwd="/home/asg/Progs/repos/asgard-alignment")
 
         # Flag to indicate if process is running
         process_running = True
 
-    def check_process():
-        global process_running
-        # poll() returns None if process is still running
-        if proc.poll() is None:
-            process_running = True
-        else:
-            process_running = False
+    # def check_process():
+    #     global process_running
+    #     # poll() returns None if process is still running
+    #     if proc.poll() is None:
+    #         process_running = True
+    #     else:
+    #         process_running = False
 
     # GET BATCH OF IMAGES EVERY FEW SECONDS FOR EACH BEAM
     # Main loop to get images while process running. 
     # we skip frames intentionally rto minimize correlations 
-    while process_running:
+    while proc.poll() is None: #process_running:
         print("turbulence.py is still running...getting frames")
         #imgs[r0].append(  c_dict[beam_id].get_some_frames(number_of_frames = 100, apply_manual_reduction=True) )
         global_img = np.mean( 
@@ -312,7 +322,7 @@ for r0 in r0_grid:
             imgs[beam_id][r0].append( global_img[r1:r2,c1:c2] )
             timestamps[beam_id][r0].append( time.time() )
         time.sleep(2)  # Wait 5 second between checks
-        check_process()
+        #check_process()
 
     time.sleep( 10 ) # take 5, can be a second to write fits for the DM telemetry 
 
@@ -320,7 +330,7 @@ for r0 in r0_grid:
     stdout, stderr = proc.communicate()
     print("turbulence.py finished.")
     print("Output:")
-    print(stdout)
+    #print(stdout)
     if stderr:
         print("Errors:")
         print(stderr)

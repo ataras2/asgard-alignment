@@ -361,7 +361,7 @@ x_points, y_points = zip(*scan_pattern)
 
 img_dict = {}
 
-sleep_time = 1
+sleep_time = 0.4
 
 
 # we should have predifed json file for these..

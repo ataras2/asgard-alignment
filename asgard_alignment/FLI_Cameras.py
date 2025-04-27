@@ -321,7 +321,7 @@ def get_bad_pixels( dark_frames, std_threshold = 20, mean_threshold=6):
 
 class fli( ):
 
-    def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None):
+    def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None, quick_startup=False):
         #self.camera = FliSdk_V2.Init() # init camera object
         self.shm_loc = shm_target
         self.mySHM = shm(self.shm_loc, nosem=False)
@@ -341,7 +341,21 @@ class fli( ):
             self.config_file_path = config_file_path 
 
         print("Reading in current camera configuration\m")
-        self.config = self.get_camera_config()
+        if quick_startup:
+            # this was implemented just for ESO demo to make things faster - should not generally be used
+            with open(os.path.join( self.config_file_path , "default_cred1_config.json"), "r") as file:
+                default_cred1_config = json.load(file)  # Parses the JSON content into a Python dictionary
+            config_dict = {} #to populate
+            for k, v in default_cred1_config.items():
+                if "fps" in k:
+                    config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
+                elif "gain" in k:
+                    config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
+                else:
+                    config_dict[k] = "place_holder" # watch out! 
+            self.config = config_dict
+        else:
+            self.config = self.get_camera_config()
         
         #self.dark = [] 
         #self.bias = []

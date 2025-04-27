@@ -201,6 +201,7 @@ while (not (cnt > args.number_of_iterations) ) and (not (time_elapsed > args.max
     for beam in args.beam_id:
         if np.std( cmd ) < 0.5:
             dms[beam].shms[args.DM_chn].set_data( cmd ) 
+            dms[beam].shms[args.DM_chn].post_sems(1) # post it for the channel (this is important if we are recording telemetry on this channel in a sperate process)
             dms[beam].shm0.post_sems(1) # tell DM to update
         else: 
             raise UserWarning("DM is being driven pretty hard.. are you sure you got the amplitudes right? ")
