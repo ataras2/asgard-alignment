@@ -58,7 +58,7 @@ def save_telemetry(telemetry, static_data, save_dir):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--beam_id", type=int, default=1)
-    parser.add_argument("--toml_file", type=str, default="/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml")
+    parser.add_argument("--toml_file", type=str, default=os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml"))
     parser.add_argument("--global_camera_shm", type=str, default="/dev/shm/cred1.im.shm")
     args = parser.parse_args()
 

@@ -338,7 +338,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 # # Extract the "baldr_pupils" section
 # baldr_pupils = pupildata.get("baldr_pupils", {})
 
-# default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+# default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
 # # just open 2 - they should be all the same
 # with open(default_toml.replace('#','2'), "r") as f:
@@ -519,7 +519,7 @@ if not os.path.exists(args.data_path):
 
 
 # read in TOML as dictionary for config 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 with open(default_toml.replace('#',f'{args.beam_id}'), "r") as f:
     config_dict = toml.load(f)
     # Baldr pupils from global frame 

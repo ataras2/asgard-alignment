@@ -19,7 +19,7 @@ from asgard_alignment import FLI_Cameras as FLI
 from asgard_alignment.DM_shm_ctrl import dmclass
 import pyBaldr.utilities as util 
 
-default_toml = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml"#"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#_stable.toml"
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml")#"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#_stable.toml"
 
 parser = argparse.ArgumentParser(description="closed")
 

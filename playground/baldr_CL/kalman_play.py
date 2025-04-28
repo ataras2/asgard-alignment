@@ -240,7 +240,7 @@ def init_telem_dict():
     return telemetry_dict
 
 
-default_toml = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml"
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml")
 
 parser = argparse.ArgumentParser(description="kalman filter for Baldr")
 

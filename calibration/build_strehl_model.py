@@ -52,7 +52,7 @@ def plot2d( thing ):
 
 
 
-default_toml = "/home/asg/Progs/repos/asgard-alignment/config_files/baldr_config_#.toml"
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml")
 #os.path.join("config_files", "baldr_config_#.toml") 
 
 parser = argparse.ArgumentParser(description="Building an intensity to Strehl model for Baldr ZWFS ")
@@ -121,7 +121,7 @@ parser.add_argument(
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default=None, 
+                    default="/home/asg/Music/",#None, 
                     help="path/to/output/image/ for the saved figures")
 
 args=parser.parse_args()

@@ -17,7 +17,7 @@ from asgard_alignment.DM_shm_ctrl import dmclass
 import pyBaldr.utilities as util 
 
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 tstamp_rough = datetime.datetime.now().strftime("%d-%m-%Y")
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")

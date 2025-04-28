@@ -39,7 +39,7 @@ parser = argparse.ArgumentParser(description="Controller for fine phasemask alig
 ######## HARD CODED 
 hc_fps = 500
 hc_gain = 15
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 # Camera shared memory path
 parser.add_argument(

@@ -77,7 +77,7 @@ def plot2d( thing ):
 
 parser = argparse.ArgumentParser(description="Interaction and control matricies.")
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 # Camera shared memory path
 parser.add_argument(
@@ -380,7 +380,7 @@ with fits.open( most_recent ) as d:
 print( 'setting up DMs')
 dm_shm_dict = {}
 for beam_id in args.beam_id:
-    dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
+    dm_shm_dict[beam_id] = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
     # zero all channels
     dm_shm_dict[beam_id].zero_all()
     
@@ -497,7 +497,7 @@ for beam_id in args.beam_id:
 
 
 # ZWFS Pupil
-input("aligned????? try to")
+input("phasemasks aligned? ensure alignment then press enter")
 
 print( 'Getting ZWFS pupils')
 I0s = c.get_data( apply_manual_reduction=True ) #get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
@@ -635,6 +635,8 @@ Iminus_all = {beam_id:[] for beam_id in args.beam_id}
 # for now we use standard get_data mehtod which is 200 frames (april 2025)
 for i,m in enumerate(modal_basis):
     print(f'executing cmd {i}/{len(modal_basis)}')
+    #if i == args.LO:
+    #    input("close Baldr TT and ensure stable. Then press enter.")
     I_plus_list = {beam_id:[] for beam_id in args.beam_id}
     I_minus_list = {beam_id:[] for beam_id in args.beam_id}
     for sign in [(-1)**n for n in range(10)]: #[-1,1]:

@@ -23,7 +23,7 @@ from asgard_alignment import FLI_Cameras as FLI
 
 parser = argparse.ArgumentParser(description="Interaction and control matricies.")
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 # Camera shared memory path
 parser.add_argument(

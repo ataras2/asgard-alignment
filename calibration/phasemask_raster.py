@@ -248,7 +248,7 @@ with open( "config_files/file_paths.json") as f:
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 
 # setting up socket to ZMQ communication to multi device server

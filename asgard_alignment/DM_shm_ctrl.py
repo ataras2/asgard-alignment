@@ -7,7 +7,7 @@ from xaosim.shmlib import shm
 
 class dmclass():
     """wrapper of Frantz shm specifically for control of Asgard's DM's"""
-    def __init__(self, beam_id, shape_wdir=''):
+    def __init__(self, beam_id, shape_wdir='',main_chn = 2):
         
         beam_id = int(beam_id)
 
@@ -22,6 +22,8 @@ class dmclass():
         self.shmf0 = f"/dev/shm/dm{beam_id}.im.shm"
         # number of sub channels
         self.nch = len(self.shmfs)
+        # main channel to apply DM commands to
+        self.main_chn = main_chn
         # actual shared memory objects 
         self.shms = []
         for ii in range(self.nch):
@@ -141,7 +143,7 @@ class dmclass():
         applies the amplitude weighted sum of modes to DM on shm channel 2 
         """        
         cmd = np.sum( [ aa * MM for aa, MM in zip(amplitude_list, basis_list)])
-        self.shms[2].set_data(cmd)
+        self.shms[self.main_chn].set_data(cmd)
         ##
         self.shm0.post_sems(1)
 
@@ -150,7 +152,7 @@ class dmclass():
         """
         convention to apply any user specific commands on channel 2!
         """
-        self.shms[2].set_data(cmd)
+        self.shms[self.main_chn].set_data(cmd)
         ##
         self.shm0.post_sems(1)
 

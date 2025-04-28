@@ -317,7 +317,7 @@ parser.add_argument(
 )
 
 # TOML file path; default is relative to the current file's directory.
-default_toml = os.path.join("config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 parser.add_argument(
     "--toml_file",
     type=str,

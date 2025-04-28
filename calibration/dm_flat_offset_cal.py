@@ -19,7 +19,7 @@ from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
 parser = argparse.ArgumentParser(description="interpolate theoretical intensity onto measured pupil")
 
-default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
 # this is in phasemask centering tools.py just need to update it with SHM .. to do
 def move_relative_and_get_image(cam, beam, baldr_pupils, phasemask, savefigName=None, use_multideviceserver=True):

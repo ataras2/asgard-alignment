@@ -31,7 +31,7 @@ the RTC in one spot. Right here.
 """
 
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 
 parser = argparse.ArgumentParser(description="build control model")

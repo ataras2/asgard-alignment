@@ -206,7 +206,7 @@ def send_and_get_response(message):
 
 parser = argparse.ArgumentParser(description="Baldr Pupil Fit Configuration.")
 
-default_toml = os.path.join("config_files", "baldr_config_#.toml") 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
 
 # setting up socket to ZMQ communication to multi device server
 parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host") #"localhost"

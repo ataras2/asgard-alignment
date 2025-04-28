@@ -259,7 +259,7 @@ def parse_arguments():
 #     baldr_pupil_regions = json.load(json_file)
 
 
-default_toml = os.path.join( "config_files", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
 
 plt.ion() 
