@@ -199,6 +199,7 @@ parser.add_argument(
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
+
 parser.add_argument(
     "--phasemask",
     type=str,
@@ -206,6 +207,13 @@ parser.add_argument(
     help="phasemask to move to. Try use a reasonable size one like H3 (default)"
 )
 
+
+parser.add_argument(
+    "--mode",
+    type=str,
+    default='bright',
+    help="which baldr mode, bright (12x12 pixels) or faint (6x6 pixels). Default: %(default)s"
+)
 
 parser.add_argument("--lobe_threshold",
                     type=float, 
@@ -472,9 +480,14 @@ for beam_id in args.beam_id:
     secondary_filter = util.get_secondary_mask(pupil_mask, (center_x, center_y))
 
     # filter edge of pupil and out radii limit for the strehl mask 
-    pupil_edge_filter = util.filter_exterior_annulus(pupil_mask, inner_radius=7, outer_radius=100) # to limit pupil edge pixels
-    pupil_limit_filter = ~util.filter_exterior_annulus(pupil_mask, inner_radius=11, outer_radius=100) # to limit far out pixel
-
+    if args.mode == 'bright':
+        pupil_edge_filter = util.filter_exterior_annulus(pupil_mask, inner_radius=7, outer_radius=100) # to limit pupil edge pixels
+        pupil_limit_filter = ~util.filter_exterior_annulus(pupil_mask, inner_radius=11, outer_radius=100) # to limit far out pixel
+    elif args.mode == 'faint':
+        pupil_edge_filter = util.filter_exterior_annulus(pupil_mask, inner_radius=4, outer_radius=100) # to limit pupil edge pixels
+        pupil_limit_filter = ~util.filter_exterior_annulus(pupil_mask, inner_radius=8, outer_radius=100) # to limit far out pixel
+    else:
+        raise UserWarning("invalid mode. Must be either 'bright' or 'faint'")
     #lobe_threshold = 0.1 # percentage of mean clear pupil interior. Absolute values above this in the exterior pixels are candidates for Strehl pixels 
     #exterior_filter =  ( abs( I0  - N0 )  > lobe_threshold * np.mean( N0[pupil_mask] )  ) * (~pupil_mask) * pupil_edge_filter 
     

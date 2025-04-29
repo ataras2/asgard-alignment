@@ -1751,11 +1751,15 @@ with col_main:
             st.subheader("Register Strehl Proxy Pixels") 
             st.write("This requires alignment on a phasemask (try H3)! This can take a minute.")
 
+            faint_mode = st.checkbox('faint mode (6x6 pixels)', value=False, key='faint_mode')
 
             btn_key = f"register_strehl_pixels_ALL_BEAMS"
             if st.button(f"{btn_key}"):
-                success = run_script(["python", "calibration/strehl_filter_registration.py",  "--beam_id", "1,2,3,4", "--fig_path", quick_data_path ])
-            
+                if faint_mode:
+                    success = run_script(["python", "calibration/strehl_filter_registration.py",  "--beam_id", "1,2,3,4", "--mode",'faint' , "--fig_path", quick_data_path ])
+                else:
+                    success = run_script(["python", "calibration/strehl_filter_registration.py",  "--beam_id", "1,2,3,4", "--mode",'bright' , "--fig_path", quick_data_path ])
+                
                 if success:
                     cols = st.columns(4)
                     for i, col in enumerate(cols):
@@ -1772,7 +1776,10 @@ with col_main:
                 with col:
                     btn_key = f"register_strehl_pixels_beam_{i+1}"
                     if st.button(f"Run {btn_key}"):
-                        success = run_script(QUICK_SCRIPTS[btn_key])
+                        if faint_mode:
+                            success = run_script(QUICK_SCRIPTS[btn_key]+["--mode","faint"])
+                        else:
+                            success = run_script(QUICK_SCRIPTS[btn_key])
 
                         if success:
                             # Note 'DM_registration_in_pixel_space.png' is generated in 
