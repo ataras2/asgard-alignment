@@ -33,7 +33,7 @@ disable_cmd = """
          "parameters" :
          [
              {
-                 "device" : "http1"
+                 "device" : "HTTP1"
              }
          ]
      }
@@ -49,7 +49,7 @@ enable_cmd = """
          "parameters" :
          [
              {
-                 "device" : "http1"
+                 "device" : "HTTP1"
              }
          ]
      }
@@ -66,7 +66,7 @@ def setup_socket(host, port):
     socket = context.socket(zmq.REQ)
 
     # Set the receive timeout
-    socket.setsockopt(zmq.RCVTIMEO, 20000)
+    socket.setsockopt(zmq.RCVTIMEO, 40000)
 
     # Connect to the server
     server_address = f"tcp://{host}:{port}"
@@ -99,9 +99,9 @@ def main():
 
     # Send commands
     cmds = [
-        online_cmd,
         # standby_cmd,
-        # disable_cmd,
+        # online_cmd,
+        disable_cmd,
         # enable_cmd,
     ]
     for cmd in cmds:

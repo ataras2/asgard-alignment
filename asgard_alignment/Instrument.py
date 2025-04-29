@@ -93,6 +93,7 @@ class Instrument:
 
         self._prev_port_mapping = None
         self._prev_zaber_port = None
+        self._zaber_detected_devs = None
 
         self._rm = pyvisa.ResourceManager()
 
@@ -888,9 +889,13 @@ class Instrument:
                 self._controllers[self._prev_zaber_port] = Connection.open_serial_port(
                     self._prev_zaber_port
                 )
+                self._zaber_detected_devs = None
 
-            detected_devs = self._controllers[self._prev_zaber_port].detect_devices()
-            for dev in detected_devs:
+            if self._zaber_detected_devs is None or recheck_ports:
+                self._zaber_detected_devs = self._controllers[self._prev_zaber_port].detect_devices()
+
+            
+            for dev in self._zaber_detected_devs:
                 if dev.serial_number == self._motor_config[name]["serial_number"]:
                     dev.settings.set("system.led.enable", 0)
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
