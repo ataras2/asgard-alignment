@@ -24,37 +24,76 @@ online_cmd = """
 }
 """
 
-disable_cmd = """
+
+standby_subset_cmd = """
 {
      "command" :
      {
-         "name" : "disable",
-         "time" : "2025-04-21T09:46:39",
+         "name" : "standby",
+         "time" : "2025-04-21T09:42:46",
          "parameters" :
          [
              {
                  "device" : "HTTP1"
+             },
+             {
+                 "device" : "HFO1"
              }
          ]
      }
 }
 """
 
-enable_cmd = """  
+online_subset_cmd = """
 {
      "command" :
      {
-         "name" : "enable",
-         "time" : "2025-04-21T09:47:39",
+         "name" : "online",
+         "time" : "2025-04-21T09:43:39",
          "parameters" :
          [
              {
                  "device" : "HTTP1"
+             },
+             {
+                 "device" : "HFO1"
              }
          ]
      }
 }
 """
+
+# disable_cmd = """
+# {
+#      "command" :
+#      {
+#          "name" : "disable",
+#          "time" : "2025-04-21T09:46:39",
+#          "parameters" :
+#          [
+#              {
+#                  "device" : "HTTP1"
+#              }
+#          ]
+#      }
+# }
+# """
+
+# enable_cmd = """
+# {
+#      "command" :
+#      {
+#          "name" : "enable",
+#          "time" : "2025-04-21T09:47:39",
+#          "parameters" :
+#          [
+#              {
+#                  "device" : "HTTP1"
+#              }
+#          ]
+#      }
+# }
+# """
 
 
 # setup socket
@@ -101,7 +140,9 @@ def main():
     cmds = [
         # standby_cmd,
         # online_cmd,
-        disable_cmd,
+        # disable_cmd,
+        standby_subset_cmd,
+        online_subset_cmd,
         # enable_cmd,
     ]
     for cmd in cmds:

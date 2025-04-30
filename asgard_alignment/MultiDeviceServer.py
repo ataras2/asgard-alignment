@@ -164,8 +164,18 @@ class MultiDeviceServer:
             #     self.instr.devices[key].online()
 
             # new version:
-            all_motor_names = self.instr._motor_config.keys()
-            self.instr.online(all_motor_names)
+            if "parameters" not in json_data["command"]:
+                all_motor_names = self.instr._motor_config.keys()
+                self.instr.online(all_motor_names)
+            else:
+                # only online a subset
+                n_devs_commanded = len(json_data["command"]["parameters"])
+                devs_to_online = [
+                    json_data["command"]["parameters"][i]["device"]
+                    for i in range(n_devs_commanded)
+                ]
+                self.instr.online(devs_to_online)
+
 
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
@@ -222,15 +232,20 @@ class MultiDeviceServer:
 
             else:
                 n_devs_commanded = len(json_data["command"]["parameters"])
-                for i in range(n_devs_commanded):
-                    dev = json_data["command"]["parameters"][i]["device"]
-                    print(f"Standby device: {dev}")
 
-                    self.instr.devices[dev].standby()
+                devs_to_standby = [
+                    json_data["command"]["parameters"][i]["device"]
+                    for i in range(n_devs_commanded)
+                ]
+                while len(devs_to_standby) > 0:
+                    print(f"Working to standby device: {devs_to_standby[0]}")
+                    self.instr.standby(devs_to_standby[0])
 
-                # Update the wagics database to show all the devices in STANDBY
-                # state (value of "state" attrivute has to be set to 2)
+                    devs_to_standby = list(
+                        set(self.instr.devices.keys()).intersection(devs_to_standby)
+                    )
 
+                # update the database message
                 self.database_message["command"]["parameters"].clear()
                 for i in range(n_devs_commanded):
                     dev = json_data["command"]["parameters"][i]["device"]
