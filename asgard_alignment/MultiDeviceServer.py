@@ -176,7 +176,6 @@ class MultiDeviceServer:
                 ]
                 self.instr.online(devs_to_online)
 
-
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
 
@@ -511,7 +510,9 @@ class MultiDeviceServer:
 
         def connect_msg(axis):
             # this is a connection open request
-            self.instr._attempt_to_open(axis, recheck_ports=True)
+            print("attempting open connection to ", axis)
+            res = self.instr._attempt_to_open(axis, recheck_ports=True)
+            print("attempted to open", axis, "with result", res)
 
             return "connected" if axis in self.instr.devices else "not connected"
 

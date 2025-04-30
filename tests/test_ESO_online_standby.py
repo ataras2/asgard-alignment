@@ -143,6 +143,7 @@ def main():
         # disable_cmd,
         standby_subset_cmd,
         online_subset_cmd,
+        online_cmd,
         # enable_cmd,
     ]
     for cmd in cmds:

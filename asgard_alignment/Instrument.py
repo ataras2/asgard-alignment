@@ -95,6 +95,14 @@ class Instrument:
         self._prev_zaber_port = None
         self._zaber_detected_devs = None
 
+        self._managed_usb_hub_port = self.find_managed_USB_hub_port()
+        print("managed port:", self._managed_usb_hub_port)
+        if self._managed_usb_hub_port is None:
+            print("WARN: Could not find managed USB hub port")
+        else:
+            self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
+            print("managed port short:", self.managed_usb_port_short)
+
         self._rm = pyvisa.ResourceManager()
 
         # Create the connections to the controllers
@@ -378,6 +386,7 @@ class Instrument:
             # TODO: include check if it is just the axis or the controller that is down,
             # and remove as needed
             del self.devices[axis]
+            return res
 
         print("success")
         return res
@@ -472,6 +481,7 @@ class Instrument:
 
         if device not in self.devices:
             print(f"WARN: {device} not in devices dictionary")
+            return
 
         zabers = (
             asgard_alignment.ZaberMotor.ZaberLinearActuator,
@@ -564,7 +574,9 @@ class Instrument:
                     + [f"BTT{i}" for i in range(1, 5)]
                     + [f"HFO{i}" for i in range(1, 5)]
                 )
-                usb_command = "cusbi /S:ttyUSB0 0:3"  # 0 means off
+                usb_command = (
+                    f"cusbi /S:{self.managed_usb_port_short} 0:3"  # 0 means off
+                )
             elif "HT" in device:
                 wire_names = []
                 prefixes = ["HTTP", "HTPI", "HTPP", "HTTI"]
@@ -572,14 +584,16 @@ class Instrument:
                 for prefix in prefixes:
                     for i in range(1, 5):
                         all_devs.append(f"{prefix}{i}")
-                usb_command = "cusbi /S:ttyUSB0 0:1"  # 0 means off
+                usb_command = (
+                    f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
+                )
             elif "BOT" in device:
                 wire_names = ["LS16P (HFO)"]
                 all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
                     f"BOTT{i}"
                     for i in range(2, 5)  # noting that BOTX is only beams 2-4
                 ]
-                usb_command = "cusbi /S:ttyUSB0 0:2"
+                usb_command = f"cusbi /S:{self.managed_usb_port_short} 0:2"
 
             controller_connctions = []
             for dev in all_devs:
@@ -653,17 +667,23 @@ class Instrument:
                 wire_list.append(wire_name)
                 wire_name = "USB hubs"
                 wire_list.append(wire_name)
-                usb_commands.append("cusbi /S:ttyUSB0 1:3")  # 1 means on, 3 means HFO
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:3"
+                )  # 1 means on, 3 means HFO
             elif "HT" in dev:
                 wire_name = "USB hubs"
                 wire_list.append(wire_name)
-                usb_commands.append("cusbi /S:ttyUSB0 1:1")  # 1 means on, 1 means HT
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:1"
+                )  # 1 means on, 1 means HT
             elif "BOT" in dev:
                 wire_name = "USB hubs"
                 wire_list.append(wire_name)
                 wire_name = "LS16P (HFO)"
                 wire_list.append(wire_name)
-                usb_commands.append("cusbi /S:ttyUSB0 1:2")  # 1 means on, 2 means BOT
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:2"
+                )  # 1 means on, 2 means BOT
 
         wire_list = set(wire_list)
         usb_commands = set(usb_commands)
@@ -774,8 +794,10 @@ class Instrument:
 
             if recheck_ports:
                 self._prev_port_mapping = self.compute_serial_to_port_map()
+                print(f"New port mapping: {self._prev_port_mapping}")
 
             if cfg["serial_number"] not in self._prev_port_mapping:
+                print("WARN: Could not find serial number in port mapping")
                 return False
 
             port = self._prev_port_mapping[cfg["serial_number"]]
@@ -881,6 +903,7 @@ class Instrument:
             # check what the zaber com port is
             if recheck_ports:
                 self._prev_zaber_port = self.find_zaber_usb_port()
+                print(f"Zaber port found at: {self._prev_zaber_port}")
 
             if self._prev_zaber_port is None:
                 return False
@@ -892,9 +915,10 @@ class Instrument:
                 self._zaber_detected_devs = None
 
             if self._zaber_detected_devs is None or recheck_ports:
-                self._zaber_detected_devs = self._controllers[self._prev_zaber_port].detect_devices()
+                self._zaber_detected_devs = self._controllers[
+                    self._prev_zaber_port
+                ].detect_devices()
 
-            
             for dev in self._zaber_detected_devs:
                 if dev.serial_number == self._motor_config[name]["serial_number"]:
                     dev.settings.set("system.led.enable", 0)
@@ -924,6 +948,15 @@ class Instrument:
             return True
 
     @staticmethod
+    def find_managed_USB_hub_port():
+        ports = serial.tools.list_ports.comports()
+
+        for port, _, hwid in sorted(ports):
+            if "SER=B001DGUX" in hwid:  # the serial for managed hub
+                return port
+        return None
+
+    @staticmethod
     def find_zaber_usb_port():
         """
         Find the COM port for the Zaber motor
@@ -934,7 +967,6 @@ class Instrument:
             The COM port for the Zaber motor
         """
         ports = serial.tools.list_ports.comports()
-        possible_ports = []
 
         # First, we need the list of cusbi ports. If we don't do this, the next time we query,
         # we get an error. I've put this as a fake list for now.

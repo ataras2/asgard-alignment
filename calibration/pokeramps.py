@@ -429,7 +429,7 @@ parser.add_argument(
 
 parser.add_argument(
     '--amp_max',
-    type=int,
+    type=float,
     default=0.15,
     help="maximum DM amplitude to apply. Units are normalized between 0-1. We ramp between +/- of this value. Default: %(default)s."
 )

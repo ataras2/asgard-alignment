@@ -408,6 +408,16 @@ parser.add_argument(
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
+
+# TOML file path; default is relative to the current file's directory.
+parser.add_argument(
+    "--toml_file",
+    type=str,
+    default=default_toml,
+    help="TOML file to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+)
+
 
 parser.add_argument(
     '--cam_fps',
@@ -562,7 +572,8 @@ if args.saveformat=='json':
 elif args.saveformat=='toml':
 
     for beam_id in [1,2,3,4]: 
-        toml_file_path = os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
+        
+        toml_file_path = args.toml_file.replace('#',f'{beam_id}') #os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
 
         # Check if file exists; if so, load and update.
         if os.path.exists(toml_file_path):
