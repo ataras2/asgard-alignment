@@ -5,7 +5,7 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from collections import deque
-
+import os 
 from asgard_alignment import FLI_Cameras as FLI
 
 def load_config(toml_path, beam_id):
