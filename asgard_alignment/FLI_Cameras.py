@@ -319,6 +319,81 @@ def get_bad_pixels( dark_frames, std_threshold = 20, mean_threshold=6):
     return bad_pixels, bad_pixel_mask 
 
 
+
+
+def detect_resets(data, threshold=None, axis=(1, 2), min_gap=10, k=15.0):
+    """
+    Detect reset points in burst-mode NDRO data.
+
+    Parameters
+    ----------
+    data : ndarray
+        3D array of shape (T, H, W), full NDRO sequence.
+    threshold : float or None
+        If specified, uses this absolute threshold for frame-to-frame mean jumps.
+        If None, sets threshold = k * MAD of diff(mean_intensity).
+    axis : tuple of int
+        Axes to average over (typically spatial axes).
+    min_gap : int
+        Minimum number of frames between resets.
+    k : float
+        If threshold is None, use k × MAD as automatic threshold.
+
+    Returns
+    -------
+    reset_indices : list of int
+        Frame indices immediately before each reset (i.e., index of last frame before jump).
+    """
+    # 1. Mean intensity over spatial dimensions
+    y = np.mean(data, axis=axis)  # shape (T,)
+    dy = np.abs(np.diff(y))       # shape (T-1,)
+
+    if threshold is None:
+        # Use median absolute deviation (MAD) for robust threshold
+        mad = np.median(np.abs(dy - np.median(dy)))
+        threshold = k * mad
+        print(f"[INFO] Auto-calculated threshold = {threshold:.3f} (k={k}, MAD={mad:.3f})")
+
+    # 2. Initial reset candidates
+    idx_raw = np.where(dy > threshold)[0]
+
+    # 3. Enforce minimum spacing between resets
+    idx_clean = []
+    for i in idx_raw:
+        if not idx_clean or (i - idx_clean[-1] >= min_gap):
+            idx_clean.append(i)
+
+    return idx_clean
+
+
+
+def segment_ndro_stream(data, threshold=15.0):
+    """
+    Segment NDRO burst-mode stream into individual burst cubes.
+
+    Parameters
+    ----------
+    data : ndarray
+        3D array of shape (T, H, W).
+    threshold : float
+        Threshold for reset detection.
+
+    Returns
+    -------
+    burst_list : list of ndarray
+        Each item is an ndarray of shape (N_burst, H, W).
+    """
+    reset_idx = detect_resets(data, threshold=threshold)
+    if not reset_idx:
+        return [data]  # no reset detected
+
+    starts = [0] + [i + 1 for i in reset_idx]
+    stops = reset_idx + [data.shape[0]]
+
+    burst_list = [data[start:stop] for start, stop in zip(starts, stops)]
+    return burst_list
+
+
 class fli( ):
 
     def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None, quick_startup=False):
@@ -350,6 +425,8 @@ class fli( ):
                 if "fps" in k:
                     config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
                 elif "gain" in k:
+                    config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
+                elif "mode" in k:
                     config_dict[k] = extract_value( self.send_fli_cmd( f"{k} raw" ) ) # reads the state
                 else:
                     config_dict[k] = "place_holder" # watch out! 
@@ -536,13 +613,17 @@ class fli( ):
 
     # some custom functions
     def build_manual_bias( self , no_frames = 100 , sleeptime = 2, save_file_name = None, **kwargs):
-        maxfps = 1739 #Hz
 
-        priorfps = self.config["fps"] # this config should update everytime set fps cmd is sent 
+        if "cds" in self.config["mode"]:
+            maxfps = float( extract_value( c.send_fli_cmd("maxfps raw") ) ) #1739 #Hz
 
-        res = self.send_fli_cmd(f"set fps {maxfps}")
+            priorfps = self.config["fps"] # this config should update everytime set fps cmd is sent 
 
-        print(f"response for setting fps = {maxfps}:{res}")
+            res = self.send_fli_cmd(f"set fps {maxfps}")
+
+            print(f"response for setting fps = {maxfps}:{res}")
+
+        
 
         message = "off SBB"
         mds_socket.send_string(message)
@@ -551,11 +632,54 @@ class fli( ):
         
         time.sleep(sleeptime)
         
-        print('...getting frames')
-        bias_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
-        print('...aggregating frames')
-        bias = np.mean(bias_list ,axis = 0).astype(int)
-        self.reduction_dict['bias'].append( bias ) #ADU
+        if "cds" in self.config["mode"]:
+            print('...getting frames')
+            bias_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
+            print('...aggregating frames')
+            bias = np.mean(bias_list ,axis = 0).astype(int)
+            self.reduction_dict['bias'].append( np.array( bias)  ) #ADU
+
+        elif "bursts" in self.config["mode"]:
+
+
+            print('...getting frames')
+            bias_list = self.get_some_frames(number_of_frames = no_frames, apply_manual_reduction=False, timeout_limit = 20000 )
+            print('...aggregating frames')
+            # Segment data into burst blocks
+            bursts = segment_ndro_stream(np.array(bias_list), threshold=15)  # auto threshold
+            # For each burst, fit a line y = Bt + C; take slope as dark (ADU/s)
+            fps = float(self.config["fps"])
+            t_unit = 1.0 / fps
+            slopes = []
+            intercepts = []
+            assert len( bursts ) > 1
+
+            for burst in bursts[1:]: # we ignore the first index because we need to always fit where we have a fresh reset! 
+                
+                t = np.arange(len(burst)) * t_unit
+                #y = np.mean(burst, axis=(1,2))
+                #slopes_frame = np.zeros_like( burst[0] )
+                intercept_frame = np.zeros_like( burst[0] )
+                for i in range(burst.shape[1]):
+                    for j in range(burst.shape[2]):
+
+                        # if len(t) < 4:
+                        #     continue  # too short to reliably fit
+                        slope, intercept  = np.polyfit(t, burst[:,i,j], deg=1)
+                        #slopes_frame[i,j] = slope.copy()    
+                        intercept_frame[i,j] = intercept.copy()
+
+                #slopes.append(slopes_frame)  # [ADU/s] for each pixel 
+                intercepts.append(intercept_frame )
+            
+            #self.reduction_dict['dark'].append( np.median(slopes, axis=0) / self.config["gain"] )  # [ADU/s/gain] f
+            # we get bias for free here! 
+            self.reduction_dict['bias'].append( np.median(intercepts, axis=0)  )  # [ADU] 
+
+            if len(slopes) == 0:
+                raise RuntimeError("No valid bursts found for NDRO dark estimation.")
+
+
 
         self.send_fli_cmd(f"set fps {priorfps}")
 
@@ -614,15 +738,59 @@ class fli( ):
             print('removing frame tags from dark')
             dark[0, 0:5] = np.mean(  np.array(dark)[1:,1:] )
             #print(dark[0, 0:5])
-        if len( self.reduction_dict['bias'] ) > 0:
-            print('...applying bias')
-            dark -= self.reduction_dict['bias'][0]
 
-        #if len( self.reduction_dict['bias_fullframe']) > 0 :
-        #    dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
-        print(f'...appending dark in units ADU/s calculated with current fps = {self.config["fps"]}')
-        self.reduction_dict['dark'].append( dark * np.float( self.config["fps"] ) ) # ADU / s
-        #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
+
+        if "cds" in self.config["mode"]:
+            if len( self.reduction_dict['bias'] ) > 0:
+                print('...applying bias')
+                dark -= self.reduction_dict['bias'][0]
+
+            #if len( self.reduction_dict['bias_fullframe']) > 0 :
+            #    dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
+            print(f'...appending dark in units ADU/s calculated with current fps = {self.config["fps"]}')
+            self.reduction_dict['dark'].append( dark * float( self.config["fps"] ) / float( self.config["gain"] )  ) # ADU / s / gain
+            #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
+
+        elif "bursts" in self.config["mode"]:
+
+            # Segment data into burst blocks
+            bursts = segment_ndro_stream(np.array(dark_list), threshold=15)  #  15 works well , if None auto threshold
+
+            # For each burst, fit a line y = Bt + C; take slope as dark (ADU/s)
+            fps = float(self.config["fps"])
+            t_unit = 1.0 / fps
+            slopes = []
+            intercepts = []
+            assert len( bursts ) > 1
+
+            for burst in bursts[1:]: # we ignore the first index because we need to always fit where we have a fresh reset! 
+                
+                t = np.arange(len(burst)) * t_unit
+                #y = np.mean(burst, axis=(1,2))
+                slopes_frame = np.zeros_like( burst[0] )
+                intercept_frame = np.zeros_like( burst[0] )
+                for i in range(burst.shape[1]):
+                    for j in range(burst.shape[2]):
+
+                        # if len(t) < 4:
+                        #     continue  # too short to reliably fit
+                        slope, intercept  = np.polyfit(t, burst[:,i,j], deg=1)
+                        slopes_frame[i,j] = slope.copy()    
+                        intercept_frame[i,j] = intercept.copy()
+
+                slopes.append(slopes_frame)  # [ADU/s] for each pixel 
+                intercepts.append(intercept_frame )
+            
+            self.reduction_dict['dark'].append( np.median(slopes, axis=0) / self.config["gain"] )  # [ADU/s/gain] f
+            # we get bias for free here! 
+            self.reduction_dict['bias'].append( np.median(intercepts, axis=0)  )  # [ADU] 
+
+            if len(slopes) == 0:
+                raise RuntimeError("No valid bursts found for NDRO dark estimation.")
+
+        else:
+            raise UserWarning("invalid mode. needs to be globalresetcds or globalresetbursts. check self.config")
+        
         time.sleep(2)
         # try turn source back on 
         #my_controllino.turn_on("SBB")
@@ -785,7 +953,7 @@ class fli( ):
 
             if len( self.reduction_dict['dark'] ) > 0:
                 # Darks are now adu/s so divide by fps
-                cropped_img = cropped_img - np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0][0]) ) # take the most recent dark. Dark must be set in same cr
+                cropped_img = cropped_img - np.array( float(self.config["gain"]) / float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0][0]) ) # take the most recent dark. Dark must be set in same cr
 
             if len( self.reduction_dict['flat'] ) > 0:
                 # build this with pupil filter and set outside to mean pupil (ADU/s)
@@ -829,11 +997,11 @@ class fli( ):
 
             if len( self.reduction_dict['dark'] ) > 0:
                 # darks are ADU / s so adjust 
-                cropped_img -= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
+                cropped_img -= np.array( float(self.config["gain"]) / float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
             if len( self.reduction_dict['flat'] ) > 0:
                 # flat are ADU / s. build to set outside pupil to mean interior 
-                cropped_img /= np.array( 1/ float(self.config["fps"]) *  self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                cropped_img /= np.array( float(self.config["gain"]) / float(self.config["fps"]) *  self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
             if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                 # enforce the same type for mask
@@ -892,11 +1060,11 @@ class fli( ):
 
                 if len( self.reduction_dict['dark'] ) > 0:
                     # darks are in ADU/s 
-                    cropped_img -= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
+                    cropped_img -= np.array( float(self.config["gain"]) / float(self.config["fps"]) * self.reduction_dict['dark'][which_index], dtype = type( cropped_img[0][0]) ) # take the most recent dark. Dark must be set in same cropping state 
 
                 if len( self.reduction_dict['flat'] ) > 0:
                     # darks are in ADU/s 
-                    cropped_img /= np.array( 1/ float(self.config["fps"]) * self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
+                    cropped_img /= np.array( float(self.config["gain"]) / float(self.config["fps"]) * self.reduction_dict['flat'][which_index] , dtype = type( cropped_img[0][0]) ) # take the most recent flat. flat must be set in same cropping state 
 
                 if len( self.reduction_dict['bad_pixel_mask'] ) > 0:
                     # enforce the same type for mask
