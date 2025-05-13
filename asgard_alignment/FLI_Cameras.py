@@ -615,7 +615,7 @@ class fli( ):
     def build_manual_bias( self , no_frames = 100 , sleeptime = 2, save_file_name = None, **kwargs):
 
         if "cds" in self.config["mode"]:
-            maxfps = float( extract_value( c.send_fli_cmd("maxfps raw") ) ) #1739 #Hz
+            maxfps = float( extract_value( self.send_fli_cmd("maxfps raw") ) ) #1739 #Hz
 
             priorfps = self.config["fps"] # this config should update everytime set fps cmd is sent 
 
@@ -624,11 +624,11 @@ class fli( ):
             print(f"response for setting fps = {maxfps}:{res}")
 
         
-
-        message = "off SBB"
-        mds_socket.send_string(message)
-        response = mds_socket.recv_string()#.decode("ascii")
-        print( response )
+        ### here 
+        # message = "off SBB"
+        # mds_socket.send_string(message)
+        # response = mds_socket.recv_string()#.decode("ascii")
+        # print( response )
         
         time.sleep(sleeptime)
         
@@ -674,20 +674,21 @@ class fli( ):
             
             #self.reduction_dict['dark'].append( np.median(slopes, axis=0) / self.config["gain"] )  # [ADU/s/gain] f
             # we get bias for free here! 
-            self.reduction_dict['bias'].append( np.median(intercepts, axis=0)  )  # [ADU] 
+            self.reduction_dict['bias'].append( np.median(intercepts, axis=0).astype(int)  )  # [ADU] 
 
             if len(slopes) == 0:
                 raise RuntimeError("No valid bursts found for NDRO dark estimation.")
 
 
-
+        print("returning to previous fps")
         self.send_fli_cmd(f"set fps {priorfps}")
 
         print("turning BB source back on")
-        message = "on SBB"
-        mds_socket.send_string(message)
-        response = mds_socket.recv_string()#.decode("ascii")
-        print( response )
+        ### here 
+        # message = "on SBB"
+        # mds_socket.send_string(message)
+        # response = mds_socket.recv_string()#.decode("ascii")
+        # print( response )
         time.sleep(2)
 
         print("Done.")
@@ -699,10 +700,11 @@ class fli( ):
         """
         # try turn off source 
         #my_controllino.turn_off("SBB")
-        message = "off SBB"
-        mds_socket.send_string(message)
-        response = mds_socket.recv_string()#.decode("ascii")
-        print( response )
+        ### here 
+        # message = "off SBB"
+        # mds_socket.send_string(message)
+        # response = mds_socket.recv_string()#.decode("ascii")
+        # print( response )
         
         print(f'turning off source and waiting {sleeptime}s')
         time.sleep(sleeptime) # wait a bit to settle
@@ -743,12 +745,12 @@ class fli( ):
         if "cds" in self.config["mode"]:
             if len( self.reduction_dict['bias'] ) > 0:
                 print('...applying bias')
-                dark -= self.reduction_dict['bias'][0]
+                dark -= self.reduction_dict['bias'][-1]
 
             #if len( self.reduction_dict['bias_fullframe']) > 0 :
             #    dark_fullframe -= self.reduction_dict['bias_fullframe'][0]
             print(f'...appending dark in units ADU/s calculated with current fps = {self.config["fps"]}')
-            self.reduction_dict['dark'].append( dark * float( self.config["fps"] ) / float( self.config["gain"] )  ) # ADU / s / gain
+            self.reduction_dict['dark'].append( (dark * float( self.config["fps"] ) / float( self.config["gain"] )).astype(int)  ) # ADU / s / gain
             #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
 
         elif "bursts" in self.config["mode"]:
@@ -781,9 +783,9 @@ class fli( ):
                 slopes.append(slopes_frame)  # [ADU/s] for each pixel 
                 intercepts.append(intercept_frame )
             
-            self.reduction_dict['dark'].append( np.median(slopes, axis=0) / self.config["gain"] )  # [ADU/s/gain] f
+            self.reduction_dict['dark'].append( (np.median(slopes, axis=0) / float( self.config["gain"] )).astype(int) )  # [ADU/s/gain] f
             # we get bias for free here! 
-            self.reduction_dict['bias'].append( np.median(intercepts, axis=0)  )  # [ADU] 
+            self.reduction_dict['bias'].append( np.median(intercepts, axis=0).astype(int)  )  # [ADU] 
 
             if len(slopes) == 0:
                 raise RuntimeError("No valid bursts found for NDRO dark estimation.")
@@ -795,10 +797,11 @@ class fli( ):
         # try turn source back on 
         #my_controllino.turn_on("SBB")
         print("turning BB source back on")
-        message = "on SBB"
-        mds_socket.send_string(message)
-        response = mds_socket.recv_string()#.decode("ascii")
-        print( response )
+        ### here 
+        # message = "on SBB"
+        # mds_socket.send_string(message)
+        # response = mds_socket.recv_string()#.decode("ascii")
+        # print( response )
         time.sleep(2)
 
         if build_bad_pixel_mask :
