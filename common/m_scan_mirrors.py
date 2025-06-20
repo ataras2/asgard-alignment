@@ -353,6 +353,8 @@ if args.scantype == "square_spiral":
     scan_pattern = pct.square_spiral_scan(starting_point=starting_point, step_size= float(args.dx), search_radius = float(args.search_radius))
 elif args.scantype == "raster":
     scan_pattern = pct.raster_scan_with_orientation(starting_point=starting_point, dx=float(args.dx), dy=float(args.dx), width=float(args.search_radius), height=float(args.search_radius), orientation=0)
+elif args.scantype == "cross": # tested in software not hardware (20/6/25)
+    scan_pattern = pct.cross_scan(starting_point=starting_point, dx=float(args.dx), dy=float(args.dx), width=float(2 * args.search_radius), height=float(2* args.search_radius), angle=0)
 else:
     raise UserWarning("invalud scan. Try square spiral,raster")   
 #spiral_pattern = pct.square_spiral_scan(starting_point, args.dx, args.search_radius)

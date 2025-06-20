@@ -342,6 +342,48 @@ def raster_scan_with_orientation(starting_point, dx, dy, width, height, orientat
     return rotated_points
 
 
+def cross_scan(starting_point, dx, dy, X_amp, Y_amp, angle):
+    """
+    Generates a cross scan pattern with a given angle of rotation. This function
+    generates two lines crossing at the origin and rotates them based on the given angle.
+
+    Parameters:
+    starting_point (tuple): The center of the cross scan (origin of cross).
+    dx (float): Step size in the x-direction (spacing between points).
+    dy (float): Step size in the y-direction (spacing between points).
+    X_amp (float): Amplitude of the cross in the x-direction (half-length).
+    Y_amp (float): Amplitude of the cross in the y-direction (half-length).
+    angle (float): Rotation angle in degrees (counterclockwise).
+
+    Returns:
+    list: A list of tuples where each tuple contains (x, y) positions for the scan.
+    """
+    # Define the lines along x and y axes before rotation (horizontal and vertical)
+    line_1 = [( i, 0) for i in np.arange(-X_amp/2, X_amp/2+dx, dx)]  # Horizontal line (X-axis)
+    line_2 = [(0,  i) for i in np.arange(-Y_amp/2, Y_amp/2+dy, dy)]  # Vertical line (Y-axis)
+
+    # Rotate the lines based on the angle
+    angle_rad = np.radians(angle - 90)  # Adjust the angle so 0 degrees is aligned with X,Y axes
+    cos_theta, sin_theta = np.cos(angle_rad), np.sin(angle_rad)
+
+    # Apply rotation to both lines
+    rotated_line_1 = [(cos_theta * x - sin_theta * y, sin_theta * x + cos_theta * y) for x, y in line_1]
+    rotated_line_2 = [(cos_theta * x - sin_theta * y, sin_theta * x + cos_theta * y) for x, y in line_2]
+
+    # Shift back to the starting point
+    rotated_line_1 = [(x + starting_point[0], y + starting_point[1]) for x, y in rotated_line_1]
+    rotated_line_2 = [(x + starting_point[0], y + starting_point[1]) for x, y in rotated_line_2]
+
+    # Combine both lines into one list of tuples (x, y)
+    cross_points = rotated_line_1 + rotated_line_2
+
+    return cross_points
+
+
+    
+    
+    
+
 def raster_square_search_and_save_images(
     cam,
     beam,
