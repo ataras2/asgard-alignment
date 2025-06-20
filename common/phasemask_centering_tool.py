@@ -342,7 +342,7 @@ def raster_scan_with_orientation(starting_point, dx, dy, width, height, orientat
     return rotated_points
 
 
-def cross_scan(starting_point, dx, dy, X_amp, Y_amp, angle):
+def cross_scan(starting_point, dx, dy, width, height, angle):
     """
     Generates a cross scan pattern with a given angle of rotation. This function
     generates two lines crossing at the origin and rotates them based on the given angle.
@@ -352,15 +352,15 @@ def cross_scan(starting_point, dx, dy, X_amp, Y_amp, angle):
     dx (float): Step size in the x-direction (spacing between points).
     dy (float): Step size in the y-direction (spacing between points).
     X_amp (float): Amplitude of the cross in the x-direction (half-length).
-    Y_amp (float): Amplitude of the cross in the y-direction (half-length).
+    height (float): Amplitude of the cross in the y-direction (half-length).
     angle (float): Rotation angle in degrees (counterclockwise).
 
     Returns:
     list: A list of tuples where each tuple contains (x, y) positions for the scan.
     """
     # Define the lines along x and y axes before rotation (horizontal and vertical)
-    line_1 = [( i, 0) for i in np.arange(-X_amp/2, X_amp/2+dx, dx)]  # Horizontal line (X-axis)
-    line_2 = [(0,  i) for i in np.arange(-Y_amp/2, Y_amp/2+dy, dy)]  # Vertical line (Y-axis)
+    line_1 = [( i, 0) for i in np.arange(-width/2, width/2+dx, dx)]  # Horizontal line (X-axis)
+    line_2 = [(0,  i) for i in np.arange(-height/2, height/2+dy, dy)]  # Vertical line (Y-axis)
 
     # Rotate the lines based on the angle
     angle_rad = np.radians(angle - 90)  # Adjust the angle so 0 degrees is aligned with X,Y axes
