@@ -52,7 +52,7 @@ def get_devices():
 
 
 class Controllino:
-    def __init__(self, ip, port=23):
+    def __init__(self, ip, port=23, init_motors=True):
         """
         Initialize the Controllino class.
 
@@ -69,33 +69,34 @@ class Controllino:
         self.client = None
 
         # The turn-on command needs a string, not a number!
-        self.turn_on("Piezo/Laser")
-        self.turn_on("MFF101 (BLF)")
-        self.turn_on("LS16P (HFO)")
-        self.turn_on("X-MCC (BMX,BMY)")
-        self.turn_on("X-MCC (BFO,SDL,BDS)")
-        self.turn_on("USB hubs")
-        self.turn_on("Upper Kickstart")
-        time.sleep(0.1)
-        self.turn_on("Lower Kickstart")
+        if init_motors:
+            self.turn_on("Piezo/Laser")
+            self.turn_on("MFF101 (BLF)")
+            self.turn_on("LS16P (HFO)")
+            self.turn_on("X-MCC (BMX,BMY)")
+            self.turn_on("X-MCC (BFO,SDL,BDS)")
+            self.turn_on("USB hubs")
+            self.turn_on("Upper Kickstart")
+            time.sleep(0.1)
+            self.turn_on("Lower Kickstart")
 
-        self.turn_on("DM1")
-        self.turn_on("DM2")
-        self.turn_on("DM3")
-        self.turn_on("DM4")
+            self.turn_on("DM1")
+            self.turn_on("DM2")
+            self.turn_on("DM3")
+            self.turn_on("DM4")
 
-        # Wait for the piezo to settle and fans to start up, then we will
-        # set piezos and fans to mid range.
-        time.sleep(1)
-        self.turn_off("Upper Kickstart")
-        self.modulate("Upper Fan", 128)
-        time.sleep(0.1)
-        self.turn_off("Lower Kickstart")
-        self.modulate("Lower Fan", 128)
-        self.set_piezo_dac(0, 2048)
-        self.set_piezo_dac(1, 2048)
-        self.set_piezo_dac(2, 2048)
-        self.set_piezo_dac(3, 2048)
+            # Wait for the piezo to settle and fans to start up, then we will
+            # set piezos and fans to mid range.
+            time.sleep(1)
+            self.turn_off("Upper Kickstart")
+            self.modulate("Upper Fan", 128)
+            time.sleep(0.1)
+            self.turn_off("Lower Kickstart")
+            self.modulate("Lower Fan", 128)
+            self.set_piezo_dac(0, 2048)
+            self.set_piezo_dac(1, 2048)
+            self.set_piezo_dac(2, 2048)
+            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """
@@ -392,3 +393,101 @@ class Controllino:
             raise ValueError("The value must be between 0 and 4095")
         value = int(value)
         return self.send_command(f"a{channel} {value}")
+    
+    #Some functions for the stepper motors
+    def rmove(self, motor: int, steps: int) -> bool:
+        """
+        Command to move a stepper motor.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+        steps : int
+            Number of steps to move.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
+        return self.send_command(f"r{motor} {steps}")
+    
+    #An abolute move command "s"
+    def amove(self, motor: int, position: int) -> bool:
+        """
+        Command to move a stepper motor to an absolute position.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+        position : int
+            Position to move to.
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
+        return self.send_command(f"s{motor} {position}")
+    
+    #Home the motor
+    def home(self, motor: int) -> bool:
+        """
+        Command to home a stepper motor.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
+        return self.send_command(f"h{motor}")
+    
+    #Find out where a motor is in steps
+    def where(self, motor: int) -> int:
+        """
+        Command to get the current position of a stepper motor.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+
+        Returns
+        -------
+        int
+            Current position of the motor in steps.
+
+        Raises
+        ------
+        ValueError
+            If the returned value is not an integer.
+        """
+        return_str = self.send_command_anyreply(f"w{motor}")
+        try:
+            return int(return_str)
+        except ValueError:
+            raise ValueError("Returned value was not an integer")
+        
+    #Find out if a motor is homed with the "z" command
+    def is_homed(self, motor: int) -> bool:
+        """
+        Command to check if a stepper motor is homed.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+
+        Returns
+        -------
+        bool
+            True if the motor is homed, False otherwise.
+        """
+        return self.send_command(f"z{motor}")
