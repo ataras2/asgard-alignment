@@ -7,23 +7,27 @@ import serial.tools.list_ports
 import sys
 import pandas as pd
 from zaber_motion.ascii import Connection
-
+import numpy as np
+import os
+import glob
 import asgard_alignment.CustomMotors
 import asgard_alignment.ESOdevice
+import asgard_alignment.Engineering
 import asgard_alignment.Lamps
 import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
 
+import time
+
 # SDK for DM
-sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
+# sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import asgard_alignment.controllino
-import bmc
+
+# import bmc
 
 
-phasemask_position_directory = Path(
-    "/home/heimdallr/Documents/asgard-alignment/config_files/phasemask_positions"
-)
+phasemask_position_directory = Path.cwd().joinpath("config_files/phasemask_positions")
 
 
 class Instrument:
@@ -82,9 +86,22 @@ class Instrument:
 
         self._controllers = {}
         self._devices = {}  # str of name : ESOdevice
+        # bcb
+        self.compound_devices = (
+            {}
+        )  # new dictionary for combined devices (e.g. phasemask)
 
         self._prev_port_mapping = None
         self._prev_zaber_port = None
+        self._zaber_detected_devs = None
+
+        self._managed_usb_hub_port = self.find_managed_USB_hub_port()
+        print("managed port:", self._managed_usb_hub_port)
+        if self._managed_usb_hub_port is None:
+            print("WARN: Could not find managed USB hub port")
+        else:
+            self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
+            print("managed port short:", self.managed_usb_port_short)
 
         self._rm = pyvisa.ResourceManager()
 
@@ -103,6 +120,19 @@ class Instrument:
         A dictionary of devices with the device name as the key
         """
         return self._devices
+
+    # bcb
+    @property
+    def all_devices(self):
+        """
+        Return a merged dictionary of all devices,
+        giving access to the entries in compound_devices.
+        """
+        merged = dict(self._devices)  # copy the standard devices
+        merged.update(
+            self.compound_devices
+        )  # phasemask devices override if keys overlap
+        return merged
 
     def health(self):
         """
@@ -133,6 +163,202 @@ class Instrument:
 
         return health
 
+    def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
+        # input validation
+        if beam_number not in [1, 2, 3, 4]:
+            raise ValueError("beam_number must be in the range [1, 4]")
+        if config not in ["c_red_one_focus", "intermediate_focus", "baldr"]:
+            raise ValueError(
+                "config must be 'c_red_one_focus' or 'intermediate_focus' or 'baldr'"
+            )
+
+    def move_image(self, config, beam_number, x, y):
+        """
+        Move the heimdallr image to a new location without moving the pupil
+
+        Parameters
+        ----------
+        config : str
+            The configuration to use - either "c_red_one_focus" or "intermediate_focus"
+
+        beam_number : int
+            The beam number to move - in the range [1, 4]
+
+        x : float
+            The x coordinate to move to, in pixels
+
+        y : float
+            The y coordinate to move to, in pixels
+
+        Returns
+        -------
+        is_successful : bool
+            True if the move was successful, False otherwise
+        """
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
+
+        desired_deviation = np.array([[x], [y]])
+
+        _, image_move_matricies = asgard_alignment.Engineering.get_matricies(config)
+
+        M_I = image_move_matricies[beam_number]
+        M_I_pupil = M_I[0]
+        M_I_image = M_I[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_I_pupil, 0.0],
+                [0.0, M_I_pupil],
+                [M_I_image, 0.0],
+                [0.0, M_I_image],
+            ]
+        )
+
+        # used for heimdallr
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+        # used for baldr
+        LH_motor = asgard_alignment.Engineering.LH_motor
+        RH_motor = asgard_alignment.Engineering.RH_motor
+
+        if config == "baldr":
+            pupil_motor = RH_motor
+            image_motor = LH_motor
+        else:
+            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+            image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+
+        if config == "baldr":
+            axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+        else:
+            axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        # axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
+
+        return True
+
+    def move_pupil(self, config, beam_number, x, y):
+        """
+        Move the Heimdallr pupil to a new location, without moving the image
+        """
+        self._validate_move_img_pup_inputs(config, beam_number, x, y)
+
+        desired_deviation = np.array([[x], [y]])
+
+        pupil_move_matricies, _ = asgard_alignment.Engineering.get_matricies(config)
+
+        M_P = pupil_move_matricies[beam_number]
+        M_P_pupil = M_P[0]
+        M_P_image = M_P[1]
+
+        changes_to_deviations = np.array(
+            [
+                [M_P_pupil, 0.0],
+                [0.0, M_P_pupil],
+                [M_P_image, 0.0],
+                [0.0, M_P_image],
+            ]
+        )
+
+        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
+        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
+        # used for baldr
+        LH_motor = asgard_alignment.Engineering.LH_motor
+        RH_motor = asgard_alignment.Engineering.RH_motor
+
+        if config == "baldr":
+            # Baldr has a different orientation. This will be correct
+            # up to a sign in front of one of the motors.
+            pupil_motor = RH_motor
+            image_motor = LH_motor
+        else:
+            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+            image_motor = np.linalg.inv(so_matrix[beam_number])
+
+        deviations_to_uv = np.block(
+            [
+                [pupil_motor, np.zeros((2, 2))],
+                [np.zeros((2, 2)), image_motor],
+            ]
+        )
+
+        beam_deviations = changes_to_deviations @ desired_deviation
+
+        print(f"beam deviations: {beam_deviations}")
+
+        uv_commands = deviations_to_uv @ beam_deviations
+        if config == "baldr":
+            axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
+            print(uv_commands)  # bug shooting
+        else:
+            axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+
+        axes = [axis + str(beam_number) for axis in axis_list]
+
+        # check that the commands are valid
+        is_valid = self._check_commands_against_state(axes, uv_commands)
+
+        if not all(is_valid):
+            # figure out which axis/axes are invalid
+            invalid_axes = [axis for axis, valid in zip(axes, is_valid) if not valid]
+            raise ValueError(f"Invalid move commands for axes: {invalid_axes}")
+
+        # shuffle to parallelise
+        self.devices[axes[0]].move_relative(uv_commands[0][0])
+        self.devices[axes[2]].move_relative(uv_commands[2][0])
+        time.sleep(0.5)
+        self.devices[axes[1]].move_relative(uv_commands[1][0])
+        self.devices[axes[3]].move_relative(uv_commands[3][0])
+        time.sleep(0.5)
+
+        return True
+
+    def _check_commands_against_state(self, axes, commands, type="rel"):
+        """
+        Check that the commands are valid for the current state of the axes
+        """
+        res = []
+
+        for axis, command in zip(axes, commands):
+            if type == "rel":
+                is_val = self.devices[axis].is_relmove_valid(command)
+                res.append(is_val)
+            elif type == "abs":
+                raise NotImplementedError("Absolute moves not implemented yet")
+
+        return res
+
     def ping_connection(self, axis):
         """
         Ping the connection to the motor
@@ -160,6 +386,7 @@ class Instrument:
             # TODO: include check if it is just the axis or the controller that is down,
             # and remove as needed
             del self.devices[axis]
+            return res
 
         print("success")
         return res
@@ -192,10 +419,12 @@ class Instrument:
             else:
                 # try to find if configuration file provided in config file
                 pth = phasemask_position_directory.joinpath(Path(f"beam{beam}/"))
+
                 # if not try find the most recent in a predefined folder
                 files = list(
                     pth.glob("*.json")
                 )  # [file for file in pth.iterdir() if file.is_file()]
+
                 # most recent
                 if files:
                     phase_positions_json = max(
@@ -211,7 +440,8 @@ class Instrument:
                 # otherwise raise error - we do not want to deal with case where we don't have on
 
                 # do I need to update the self._config dictionaries?
-                self.devices[f"phasemask{beam}"] = (
+                # bcb #self.devices[f"phasemask{beam}"]
+                self.compound_devices[f"phasemask{beam}"] = (
                     asgard_alignment.Baldr_phasemask.BaldrPhaseMask(
                         beam=beam,
                         x_axis_motor=self.devices[f"BMX{beam}"],
@@ -220,10 +450,266 @@ class Instrument:
                     )
                 )
 
+    # BCB to do , make new variable dictionary (not device)
+    # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions
+    # update Mutil device server
+    #
     def _open_controllino(self):
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino"]["ip_address"]
         )
+
+    def _remove_devices(self, dev_list):
+        pass
+
+    def _remove_controllers(self, controller_list):
+        pass
+
+    def standby(self, device):
+        # TODO: work on a list of devices instead? so that we aren't turning things off
+        # and getting many warnings! Or could ESO just send a standby for a single dev knowing this?
+        """
+        Put the device in standby mode
+
+        This has to be done in the instrument class to correctly encode the electrical connections
+        and the motors that are connected to the controllino.
+
+        For any of the X-MCC common connections, the controllino will standby all axes connected after parking them.
+
+        """
+        print(f"Attempting to place {device} in standby mode...")
+
+        if device not in self.devices:
+            print(f"WARN: {device} not in devices dictionary")
+            return
+
+        zabers = (
+            asgard_alignment.ZaberMotor.ZaberLinearActuator,
+            asgard_alignment.ZaberMotor.ZaberLinearStage,
+        )
+
+        if isinstance(self.devices[device], zabers):  # Zaber
+            # id the wire that powers the controller(s)
+            if "BM" in device:
+                wire_name = "X-MCC (BMX,BMY)"
+                all_devs = [f"BMX{i}" for i in range(1, 5)] + [
+                    f"BMY{i}" for i in range(1, 5)
+                ]
+                controller_connctions = [
+                    self._motor_config["BMX1"]["x_mcc_ip_address"],
+                    self._motor_config["BMY1"]["x_mcc_ip_address"],
+                ]
+
+            elif "BFO" in device or "BDS" in device or "SDL" in device:
+                wire_name = "X-MCC (BFO,SDL,BDS)"
+                all_devs = (
+                    ["BFO"]
+                    + ["SDLA", "SDL12", "SDL34"]
+                    + [f"BDS{i}" for i in range(1, 5)]
+                    + ["SSS"]
+                )
+                controller_connctions = [
+                    self._motor_config["BFO"]["x_mcc_ip_address"],
+                    self.find_zaber_usb_port(),  # the usb connections for the BDS
+                ]
+            else:
+                print(f"WARN: {device} not in devices dictionary")
+                return
+
+            # park all axes - note unpark is done in zaber ctor
+            for dev in all_devs:
+                if dev in self.devices:
+                    # park the axis
+                    self.devices[dev].axis.park()
+                else:
+                    print(f"WARN: {dev} not in devices dictionary")
+
+            # turn off the relevant power
+            self._controllers["controllino"].turn_off(wire_name)
+
+            # and also delete all device instances
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+
+            # close all zaber connections
+            for controller in controller_connctions:
+                print(f"Closing connection to {controller}")
+                self._controllers[controller].close()
+
+            # manage instrument internals to no longer show these connections
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
+        elif isinstance(self.devices[device], asgard_alignment.NewportMotor.LS16PAxis):
+            wire_name = "LS16P (HFO)"
+            all_devs = [f"HFO{i}" for i in range(1, 5)]
+
+            controller_connctions = []
+            for dev in all_devs:
+                sn = self._motor_config[dev]["serial_number"]
+                port = self._prev_port_mapping[sn]
+                controller_connctions.append(port)
+
+            # turn off the power
+            self._controllers["controllino"].turn_off(wire_name)
+
+            # remove the devices
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+
+            # and the controllers:
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
+
+        elif isinstance(self.devices[device], asgard_alignment.NewportMotor.M100DAxis):
+            # in this case, we will need to switch off all grouped motors
+            if "BT" in device:
+                # this is like the BTX + HFO row
+                wire_names = []
+                all_devs = (
+                    [f"BTP{i}" for i in range(1, 5)]
+                    + [f"BTT{i}" for i in range(1, 5)]
+                    + [f"HFO{i}" for i in range(1, 5)]
+                )
+                usb_command = (
+                    f"cusbi /S:{self.managed_usb_port_short} 0:3"  # 0 means off
+                )
+            elif "HT" in device:
+                wire_names = []
+                prefixes = ["HTTP", "HTPI", "HTPP", "HTTI"]
+                all_devs = []
+                for prefix in prefixes:
+                    for i in range(1, 5):
+                        all_devs.append(f"{prefix}{i}")
+                usb_command = (
+                    f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
+                )
+            elif "BOT" in device:
+                wire_names = ["LS16P (HFO)"]
+                all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
+                    f"BOTT{i}"
+                    for i in range(2, 5)  # noting that BOTX is only beams 2-4
+                ]
+                usb_command = f"cusbi /S:{self.managed_usb_port_short} 0:2"
+
+            controller_connctions = []
+            for dev in all_devs:
+                sn = self._motor_config[dev]["serial_number"]
+                port = self._prev_port_mapping[sn]
+                controller_connctions.append(port)
+
+            wire_names = set(wire_names)
+            usb_commands = set(usb_command)
+
+            print(f"Turning off wires: {wire_names}")
+            print(f"Sending USB command: {usb_command}")
+
+            # turn off the USB
+            os.system(usb_command)
+
+            print("USB command sent")
+
+            # turn off the power
+            for wire_name in wire_names:
+                self._controllers["controllino"].turn_off(wire_name)
+            print("Power turned off")
+
+            # remove the devices
+            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+
+            # and the controllers:
+            self._controllers = {
+                k: v
+                for k, v in self._controllers.items()
+                if k not in controller_connctions
+            }
+
+            print("Devices and controllers removed")
+
+        else:
+            # just remove the device from the list
+            self._devices = {k: v for k, v in self.devices.items() if k != device}
+
+        print(f"{device} is now in standby mode.")
+
+    def online(self, dev_list):
+
+        devs = []
+        for dev in dev_list:
+            if dev not in self._motor_config:
+                print(f"WARN: {dev} not in motor config")
+                continue
+            if dev in self.devices:
+                print(f"{dev} is already online")
+                continue
+            devs.append(dev)
+
+        dev_list = devs
+        if len(dev_list) == 0:
+            print("No devices to turn on")
+            return
+
+        # turn on any nessecary power supplies
+        wire_list = []
+        usb_commands = []
+        for dev in dev_list:
+            if "BM" in dev:
+                wire_name = "X-MCC (BMX,BMY)"
+                wire_list.append(wire_name)
+            elif "BFO" in dev or "BDS" in dev or "SDL" in dev:
+                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_list.append(wire_name)
+            elif "HFO" in dev or "BT" in dev:
+                wire_name = "LS16P (HFO)"
+                wire_list.append(wire_name)
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:3"
+                )  # 1 means on, 3 means HFO
+            elif "HT" in dev:
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:1"
+                )  # 1 means on, 1 means HT
+            elif "BOT" in dev:
+                wire_name = "USB hubs"
+                wire_list.append(wire_name)
+                wire_name = "LS16P (HFO)"
+                wire_list.append(wire_name)
+                usb_commands.append(
+                    f"cusbi /S:{self.managed_usb_port_short} 1:2"
+                )  # 1 means on, 2 means BOT
+
+        wire_list = set(wire_list)
+        usb_commands = set(usb_commands)
+
+        print(f"Turning on wires: {wire_list}")
+
+        for wire in set(wire_list):
+            self._controllers["controllino"].turn_on(wire)
+
+        print(f"Sending USB commands: {usb_commands}")
+
+        for usb_command in usb_commands:
+            os.system(usb_command)
+            time.sleep(0.1)
+
+        time.sleep(0.5)
+
+        # reconnect all
+        self._prev_port_mapping = self.compute_serial_to_port_map()
+        self._prev_zaber_port = self.find_zaber_usb_port()
+        for name in dev_list:
+            res = self._attempt_to_open(name, recheck_ports=False)
+            if res:
+                print(f"Successfully connected to {name}")
+            else:
+                print(f"WARN: Could not connect to {name}")
 
     def _create_controllers_and_motors(self):
         """
@@ -242,7 +728,7 @@ class Instrument:
             if res:
                 print(f"Successfully connected to {name}")
             else:
-                print(f"Could not connect to {name}")
+                print(f"WARN: Could not connect to {name}")
 
     def _create_lamps(self):
         """
@@ -308,8 +794,10 @@ class Instrument:
 
             if recheck_ports:
                 self._prev_port_mapping = self.compute_serial_to_port_map()
+                print(f"New port mapping: {self._prev_port_mapping}")
 
             if cfg["serial_number"] not in self._prev_port_mapping:
+                print("WARN: Could not find serial number in port mapping")
                 return False
 
             port = self._prev_port_mapping[cfg["serial_number"]]
@@ -363,11 +851,48 @@ class Instrument:
 
             if "FZ" in axis.warnings.get_flags():
                 return False
-            self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
-                name,
-                cfg["semaphore_id"],
-                axis,
-            )
+
+            if ("BMX" in name) or ("BMY" in name):
+                if "BMX" in name:
+                    beam_id_tmp = name.split("BMX")[-1]
+                if "BMY" in name:
+                    beam_id_tmp = name.split("BMY")[-1]
+                phasemask_folder_path = f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{beam_id_tmp}/"
+                phasemask_files = glob.glob(
+                    os.path.join(phasemask_folder_path, "*.json")
+                )
+                recent_phasemask_file = max(
+                    phasemask_files, key=os.path.getmtime
+                )  # most recently created
+                with open(recent_phasemask_file, "r", encoding="utf-8") as pfile:
+                    positions_tmp = json.load(pfile)
+                if "BMX" in name:
+                    oneAxis_dict = {
+                        key: value[0] for key, value in positions_tmp.items()
+                    }
+                elif "BMY" in name:
+                    oneAxis_dict = {
+                        key: value[1] for key, value in positions_tmp.items()
+                    }
+
+                self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
+                    name,
+                    cfg["semaphore_id"],
+                    axis,
+                    named_positions=oneAxis_dict,
+                )
+            else:
+                if "named_pos" in self._motor_config[name]:
+                    named_positions = self._motor_config[name]["named_pos"]
+                else:
+                    named_positions = None
+
+                self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearActuator(
+                    name,
+                    cfg["semaphore_id"],
+                    axis,
+                    named_positions=named_positions,
+                )
             return True
 
         elif self._motor_config[name]["motor_type"] in [
@@ -378,6 +903,7 @@ class Instrument:
             # check what the zaber com port is
             if recheck_ports:
                 self._prev_zaber_port = self.find_zaber_usb_port()
+                print(f"Zaber port found at: {self._prev_zaber_port}")
 
             if self._prev_zaber_port is None:
                 return False
@@ -386,14 +912,21 @@ class Instrument:
                 self._controllers[self._prev_zaber_port] = Connection.open_serial_port(
                     self._prev_zaber_port
                 )
+                self._zaber_detected_devs = None
 
-            for dev in self._controllers[self._prev_zaber_port].detect_devices():
+            if self._zaber_detected_devs is None or recheck_ports:
+                self._zaber_detected_devs = self._controllers[
+                    self._prev_zaber_port
+                ].detect_devices()
+
+            for dev in self._zaber_detected_devs:
                 if dev.serial_number == self._motor_config[name]["serial_number"]:
                     dev.settings.set("system.led.enable", 0)
                     self._devices[name] = asgard_alignment.ZaberMotor.ZaberLinearStage(
                         name,
                         self._motor_config[name]["semaphore_id"],
                         dev,
+                        named_positions=self._motor_config[name]["named_pos"],
                     )
                     return True
         elif self._motor_config[name]["motor_type"] in ["8893KM"]:
@@ -401,9 +934,27 @@ class Instrument:
                 name,
                 self._motor_config[name]["semaphore_id"],
                 self._controllers["controllino"],
-                self._motor_config[name]["modulation_value"],
-                self._motor_config[name]["delay_time"],
+                self._motor_config[name]["motor_config"]["modulation_value"],
+                self._motor_config[name]["motor_config"]["delay_time"],
             )
+            return True
+        elif self._motor_config[name]["motor_type"] in ["MFF101M"]:
+            self.devices[name] = asgard_alignment.CustomMotors.MFF101(
+                name,
+                self._motor_config[name]["semaphore_id"],
+                self._controllers["controllino"],
+                self._motor_config[name]["named_pos"],
+            )
+            return True
+
+    @staticmethod
+    def find_managed_USB_hub_port():
+        ports = serial.tools.list_ports.comports()
+
+        for port, _, hwid in sorted(ports):
+            if "SER=B001DGUX" in hwid:  # the serial for managed hub
+                return port
+        return None
 
     @staticmethod
     def find_zaber_usb_port():
@@ -417,9 +968,36 @@ class Instrument:
         """
         ports = serial.tools.list_ports.comports()
 
+        # First, we need the list of cusbi ports. If we don't do this, the next time we query,
+        # we get an error. I've put this as a fake list for now.
+        # Command to find is cusbi (in ~/bin). Syntax
+        # ./cusbi /Q:ttyUSB0
+        # If we query all ports, then some Newport M100D ports get confused.
+        # See:
+        # https://sgcdn.startech.com/005329/media/sets/USB_Admin_Software_Manual/USB_Hub_Admin_Software_Manual.pdf
+        # If we try to open a Zaber connection to this port, then it seems stuck in an error state.
+        cusb_ports = ["/dev/ttyUSBX"]
+
         for port, _, hwid in sorted(ports):
-            if "VID:PID=0403:6001" in hwid:
+            if "SER=B001DGUX" in hwid:  # the serial for managed hub
+                if port in cusb_ports:
+                    print("Found a Managed USB hub.")
+                    continue
+            if "SER=AB0NSCTM" in hwid:
                 return port
+
+            # # # Try to open it - if we can, it is a Zaber port!
+            # test_connection = Connection.open_serial_port(port)
+            # try:
+            #     devices = test_connection.detect_devices()
+            #     test_connection.close()
+            #     print(f"Found a Zaber USB port {port}")
+            #     return port
+            # except:
+            #     # This next line is essential, or the port remains open and no other process
+            #     # can use it (including MDS later in the code)
+            #     test_connection.close()
+            #     print(f"A non-zaber motor using the same USB ID. Port {port}")
         return None
 
     @staticmethod

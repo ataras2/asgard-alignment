@@ -1,11 +1,22 @@
 /data
 /tmp
 /calibration/reports/
+/calibration/cal_data/
 *.ipynb
 *.pyc
 
 *.json
 !motor_info_full_system.json
+!config_files/phasemask_positions/beam1/phase_positions_beam_1_original_DONT_DELETE.json
+!config_files/phasemask_positions/beam2/phase_positions_beam_2_original_DONT_DELETE.json
+!config_files/phasemask_positions/beam3/phase_positions_beam_3_original_DONT_DELETE.json
+!config_files/phasemask_positions/beam4/phase_positions_beam_4_original_DONT_DELETE.json
+!config_files/phasemask_positions/beam1/phase_positions_beam1_2024-12-13T01-56-10.json
+!config_files/phasemask_positions/beam2/phase_positions_beam2_2024-11-22T18-47-39.json
+!config_files/phasemask_positions/beam3/phase_positions_beam3_2024-12-13T01-59-49.json
+!config_files/phasemask_positions/beam4/phase_positions_beam_4_2024-12-16T02-05-00.json
+!config_files/default_cred1_config.json
+
 *.log
 
 build
@@ -17,6 +28,8 @@ build
 
 phasemask_centering_tool.log
 
+!.npz
+
 *.austin
 
 *.pickle
@@ -25,6 +38,7 @@ phasemask_centering_tool.log
 *.csv
 *.txt
 !requirements.txt
+!spinview_reqs.txt
 *.austin
 
 asgard_alignment.egg-info

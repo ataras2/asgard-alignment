@@ -72,7 +72,7 @@ def construct_bilinear_interpolation_matrix(image_shape, x_grid, y_grid, x_targe
         interpolation_matrix[i, idx12] = w12
         interpolation_matrix[i, idx22] = w22
 
-    return interpolation_matrix #.tocsr().toarray()  # Convert to compressed sparse row format for efficiency
+    return interpolation_matrix.toarray() #.tocsr().toarray()  # Convert to compressed sparse row format for efficiency
 
 
 
@@ -744,10 +744,10 @@ def calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debu
         tmp =np.zeros(140)
         tmp[np.array(dm_4_corners)] = 1
         plt.imshow( get_DM_command_in_2D( tmp ) )
-        if fig_path is not None:
-            savefig = fig_path + 'DM_corner_poke_in_DM_space.png'
-            fig.savefig(savefig, dpi=300, bbox_inches = 'tight' )
-
+        #if fig_path is not None:
+        #    savefig = fig_path + 'DM_corner_poke_in_DM_space.png'
+        #    fig.savefig(savefig, dpi=300, bbox_inches = 'tight' )
+        plt.close()
 
         # Show the actuator registration in Pixel space 
         fig = plt.figure(2)
@@ -772,7 +772,7 @@ def calibrate_transform_between_DM_and_image( dm_4_corners, img_4_corners , debu
             savefig = fig_path + 'DM_registration_in_pixel_space.png'
             plt.savefig(savefig, dpi=300, bbox_inches = 'tight' )
         plt.show()
-
+        plt.close()
         
 
     ## write to file 

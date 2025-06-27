@@ -1,7 +1,14 @@
 
 # Documentation
 
-The documentation can be found at [https://asgard-alignment.readthedocs.io/en/latest/](https://asgard-alignment.readthedocs.io/en/latest/). In particular the `Script For Alignment` section is useful for running the scripts in this repository.
+Some documentation can be found at [https://asgard-alignment.readthedocs.io/en/latest/](https://asgard-alignment.readthedocs.io/en/latest/). In particular the `Script For Alignment` section is useful for running the scripts in this repository.
+
+# Installed scripts and settings
+
+The key scripts are:
+
+* *mds* : the Multi-device server. It relies on a single settings file, which is usually "motor_info_full_system.json".
+* *eng_gui* : the Engineering GUI. This requires no settings files. However, it saves and restores motor states.
 
 # Useful commands
 
@@ -13,7 +20,7 @@ cd Documents/asgard-alignment
 ```
 
 
-## Running the MDS
+## Running the MDS directly from the repository
 ```bash
 python asgard_alignment/MultiDeviceServer.py -c <config file name>
 ```
@@ -24,7 +31,7 @@ python asgard_alignment/MultiDeviceServer.py -c motor_info_full_system.json
 ```
 
 
-## Running the engineering GUI
+## Running the engineering GUI directly from the repository
 ```bash
 python -m streamlit run common/m_engineering_GUI.py
 ```

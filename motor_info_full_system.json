@@ -220,30 +220,56 @@
         "name": "BDS1",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121405,
+        "named_pos" : {
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 13
     },
     {
         "name": "BDS2",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121406,
+        "named_pos" : {
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 14
     },
     {
         "name": "BDS3",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121408,
+        "named_pos" : {
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 15
     },
     {
         "name": "BDS4",
         "motor_type": "X-LSM150A-SE03",
         "serial_number": 121407,
+        "named_pos" : {
+            "BIF_H": 133.07,
+            "BIF_YJ": 63.07,
+            "CLEAR": 0.0
+        },
         "semaphore_id": 16
     },
     {
         "name": "SSS",
         "motor_type": "X-LHM100A-SE03",
         "serial_number": 121474,
+        "named_pos":{
+            "SRL" : 11.5,
+            "SGL" : 38.5,
+            "SBB" : 65.5,
+            "SLD" : 0.0
+        },
         "semaphore_id": 17
     },
     {
@@ -277,7 +303,11 @@
     {
         "name": "BFO",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
+        "named_pos" : {
+            "J" : 2800.0,
+            "H" : 2800.0 
+        },
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 1,
         "semaphore_id": 22
@@ -285,7 +315,7 @@
     {
         "name": "SDLA",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 4,
         "semaphore_id": 23
@@ -293,7 +323,7 @@
     {
         "name": "SDL12",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 3,
         "semaphore_id": 24
@@ -301,7 +331,7 @@
     {
         "name": "SDL34",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120408",
         "x_mcc_ip_address" : "172.16.8.113",
         "axis_number" : 2,
         "semaphore_id": 25
@@ -309,7 +339,7 @@
     {
         "name": "BMX1",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 1,
         "semaphore_id": 26
@@ -317,7 +347,7 @@
     {
         "name": "BMX2",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 2,
         "semaphore_id": 27
@@ -325,7 +355,7 @@
     {
         "name": "BMX3",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 3,
         "semaphore_id": 28
@@ -333,7 +363,7 @@
     {
         "name": "BMX4",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-121337",
         "x_mcc_ip_address" : "172.16.8.112",
         "axis_number" : 4,
         "semaphore_id": 29
@@ -341,7 +371,7 @@
     {
         "name": "BMY1",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 1,
         "semaphore_id": 26
@@ -349,7 +379,7 @@
     {
         "name": "BMY2",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 2,
         "semaphore_id": 27
@@ -357,7 +387,7 @@
     {
         "name": "BMY3",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 3,
         "semaphore_id": 28
@@ -365,7 +395,7 @@
     {
         "name": "BMY4",
         "motor_type": "LAC10A-T4A",
-        "serial_number": "",
+        "serial_number": "Zaber-120405",
         "x_mcc_ip_address" : "172.16.8.111",
         "axis_number" : 4,
         "semaphore_id": 29
@@ -463,6 +493,46 @@
             "delay_time": 1.0
         },
         "semaphore_id": 36
+    },
+    {
+        "name": "BLF1",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
+        },
+        "semaphore_id": 37
+    },
+    {
+        "name": "BLF2",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
+        },
+        "semaphore_id": 38
+    },
+    {
+        "name": "BLF3",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "FAINT" : 1.0,
+            "STANDARD" : 0.0 
+        },
+        "semaphore_id": 39
+    },
+    {
+        "name": "BLF4",
+        "motor_type": "MFF101M",
+        "serial_number": "",
+        "named_pos" : {
+            "STANDARD" : 1.0,
+            "FAINT" : 0.0
+        },
+        "semaphore_id": 40
     }
 ],
     "lamps" : [
@@ -483,11 +553,11 @@
             }
         },
         {
-            "name" : "SBB",
+            "name": "SBB",
             "config": {
                 "nCooldown" : 1.0,
                 "nWarmup" : 3.0,
-                "nMaxOn" : 28800.0
+                "nMaxOn" : 3600.0      
             }
         }
     ],
@@ -497,7 +567,7 @@
     "other_devices" : [
         {
             "name": "controllino",
-            "ip_address" : ""
+            "ip_address" : "172.16.8.200"
         }
     ]
 }

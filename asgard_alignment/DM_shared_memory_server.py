@@ -24,7 +24,7 @@ logging.basicConfig(
 
 # Constants
 DM_COMMAND_SIZE = 140
-CONFIG_FILE = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_shared_memory_config.json"
+CONFIG_FILE = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_shared_memory_config.json"
 
 
 class DMController(Thread):
@@ -214,7 +214,7 @@ import numpy as np
 from baldr import _baldr as ba
 from baldr import sardine as sa
 import json
-#ff = "/home/heimdallr/Documents/asgard-alignment/config_files/dm_shared_memory_config.json"
+#ff = "/home/asg/Progs/repos/asgard-alignment/config_files/dm_shared_memory_config.json"
 ff = "dm_shared_memory_config.json"
 with open(ff, "r") as f:
     config_data = json.load(f)

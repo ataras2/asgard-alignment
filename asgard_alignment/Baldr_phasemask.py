@@ -63,6 +63,9 @@ class BaldrPhaseMask:
 
         return config
 
+    def update_position_file(self, phase_positions_json ):
+        self.phase_positions = self._load_phase_positions(phase_positions_json)
+
     def move_relative(self, new_pos):
         self.motors["x"].move_relative(
             new_pos[0], units=zaber_motion.units.Units.LENGTH_MICROMETRES
@@ -105,6 +108,14 @@ class BaldrPhaseMask:
 
         with open(file_name, "w") as f:
             json.dump(self.phase_positions, f, indent=4)
+
+    def offset_all_mask_positions(self, rel_offset_x, rel_offset_y):
+        "offset ALL phasemask positions by rel_offset_x, rel_offset_y"
+        for mask in self.phase_positions:
+            self.phase_positions[mask][0] += rel_offset_x
+            self.phase_positions[mask][1] += rel_offset_y
+        
+
 
     def update_all_mask_positions_relative_to_current(
         self, current_mask_name, reference_mask_position_file, write_file=False

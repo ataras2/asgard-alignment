@@ -1,0 +1,20 @@
+{
+    "fps": "100",
+    "gain": "1",
+    "testpattern": "off",
+    "bias": "off",
+    "flat": "off",
+    "imagetags": "on",
+    "led": "off",
+    "events": "on",
+    "extsynchro": "off",
+    "rawimages": "off",
+    "cooling": "on",
+    "mode": "globalresetcds",
+    "resetwidth": "15",
+    "nbreadworeset": "10",
+    "cropping": "off",
+    "cropping columns": "1-320",
+    "cropping rows": "1-256",
+    "aduoffset": "100"
+}

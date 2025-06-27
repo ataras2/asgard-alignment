@@ -30,9 +30,12 @@ class ZaberLinearActuator(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, semaphore_id, axis) -> None:
-        super().__init__(name, semaphore_id)
+    def __init__(self, name, semaphore_id, axis, named_positions=None) -> None:
+        super().__init__(name, semaphore_id, named_positions)
         self.axis = axis
+
+        if self.axis.is_parked():
+            self.axis.unpark()
 
         if not self.axis.is_homed():
             self.axis.home(wait_until_idle=ZaberLinearActuator.IS_BLOCKING)
@@ -188,7 +191,7 @@ class ZaberLinearActuator(ESOdevice.Motor):
         """
         return not self.axis.is_busy()
 
-    def is_motion_done(self):
+    def is_moving(self):
         """
         Check if the motion is done
 
@@ -197,13 +200,44 @@ class ZaberLinearActuator(ESOdevice.Motor):
         bool
             True if the motion is done, False otherwise
         """
-        return not self.axis.is_busy()
+        return self.axis.is_busy()
 
     def stop(self):
         self.axis.stop()
 
-    def setup(self, value):
-        self.axis.move_absolute(value)
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        Device moves in um, ESO moves in um (discrete)
+        """
+        return int(value)
+
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        Device moves in um, ESO moves in um (discrete)
+        """
+        return float(value)
+
+    def ESO_read_position(self):
+        return self.internal_to_ESO(
+            self.axis.get_position(unit=zaber_motion.Units.LENGTH_MICROMETRES)
+        )
+
+    def setup(self, motion_type, value):
+        if motion_type == "NAME":
+            try:
+                self.move_absolute(self.named_positions[value])
+            except KeyError:
+                print(f"{self.name} does not have a named position {value}")
+
+            return
+
+        value = self.ESO_to_internal(value)
+        if motion_type == "ENC":
+            self.move_absolute(value)
+        elif motion_type == "ENCREL":
+            self.move_relative(value)
 
     def disable(self):
         pass
@@ -226,10 +260,13 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     IS_BLOCKING = False
 
-    def __init__(self, name, semaphore_id, device):
-        super().__init__(name, semaphore_id)
+    def __init__(self, name, semaphore_id, device, named_positions=None):
+        super().__init__(name, semaphore_id, named_positions)
         self.device = device
         self.axis = device.get_axis(1)
+
+        if self.axis.is_parked():
+            self.axis.unpark()
 
         # get the device type and the bounds from it
         if self.device.name == "X-LHM100A-SE03":
@@ -291,7 +328,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         try:
             self.axis.is_busy()
             return True
-        except Exception as e:
+        except Exception:
             return False
 
     def read_state(self):
@@ -310,6 +347,18 @@ class ZaberLinearStage(ESOdevice.Motor):
 
     def read_position(self, units=zaber_motion.Units.LENGTH_MILLIMETRES):
         return self.axis.get_position(unit=units)
+
+    def ESO_read_position(self):
+        # return self.internal_to_ESO(
+        #     self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        # )
+
+        # check if near a named position
+        cur_pos = self.axis.get_position(unit=zaber_motion.Units.LENGTH_MILLIMETRES)
+        for name, position in self.named_positions.items():
+            if np.isclose(cur_pos, position):
+                return name
+        return self.internal_to_ESO(cur_pos)
 
     def is_at_limit(self):
         """
@@ -393,7 +442,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         """
         return not self.axis.is_busy()
 
-    def is_motion_done(self):
+    def is_moving(self):
         """
         Check if the motion is done
 
@@ -402,13 +451,39 @@ class ZaberLinearStage(ESOdevice.Motor):
         bool
             True if the motion is done, False otherwise
         """
-        return not self.axis.is_busy()
+        return self.axis.is_busy()
 
     def stop(self):
         pass
 
-    def setup(self, value):
-        pass
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        Device moves in mm, ESO moves in um (discrete)
+        """
+        return int(value * 1_000)
+
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        Device moves in um, ESO moves in mm (discrete)
+        """
+        return float(value) / 1_000
+
+    def setup(self, motion_type, value):
+        if motion_type == "NAME":
+            try:
+                self.move_absolute(self.named_positions[value])
+            except KeyError:
+                print(f"{self.name} does not have a named position {value}")
+
+            return
+
+        value = self.ESO_to_internal(value)
+        if motion_type == "ENC":
+            self.move_absolute(value)
+        elif motion_type == "ENCREL":
+            self.move_relative(value)
 
     def disable(self):
         pass

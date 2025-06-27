@@ -12,9 +12,11 @@ import pandas as pd
 import argparse
 import zmq
 import atexit
+import toml
+import subprocess
 # to use plotting when remote sometimes X11 forwarding is bogus.. so use this: 
 import matplotlib 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 
 # custom
 from asgard_alignment import FLI_Cameras as FLI
@@ -28,8 +30,12 @@ import ast
 # if server is stuck 
 # sudo lsof -i :5555 then kill the PID 
 
+#export PYTHONPATH=~/Progs/repos/asgard-alignment:$PYTHONPATH
 
 # python -i calibration/phasemask_raster.py --beam 2 --initial_pos 10,10 --dx 500 --dy 3000 --width 9000 --height 9800 --orientation 0 
+
+"BTW - I only painted around the phase masks black on beans 1 and 2."
+"So the bad news is that I put a fingerprint on the phase mask of beam 4,"
 
 def close_all_dms():
     try:
@@ -155,74 +161,74 @@ def create_scatter_image_movie(data_dict, save_path="scatter_image_movie.mp4", f
     ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
 
     # Save the animation as a movie file
-    ani.save(save_path, fps=fps, writer='ffmpeg')
+    ani.save(save_path, fps=fps, writer='ffmpeg') #, codec='libx264')
 
     plt.close(fig)  # Close the figure to avoid displaying it unnecessarily
 
 
+# use pct 
+# def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
+#     """
+#     Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
 
-def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
-    """
-    Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
+#     Parameters:
+#         x_positions (list or array): List of x positions.
+#         y_positions (list or array): List of y positions.
+#         clusters (list or array): Cluster numbers corresponding to the x, y positions.
+#         show_grid (bool): If True, overlays a grid on the heatmap.
+#         grid_color (str): Color of the grid lines (default is 'white').
+#         grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
 
-    Parameters:
-        x_positions (list or array): List of x positions.
-        y_positions (list or array): List of y positions.
-        clusters (list or array): Cluster numbers corresponding to the x, y positions.
-        show_grid (bool): If True, overlays a grid on the heatmap.
-        grid_color (str): Color of the grid lines (default is 'white').
-        grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
+#     Returns:
+#         None
+#     """
+#     # Convert inputs to NumPy arrays
+#     x_positions = np.array(x_positions)
+#     y_positions = np.array(y_positions)
+#     clusters = np.array(clusters)
 
-    Returns:
-        None
-    """
-    # Convert inputs to NumPy arrays
-    x_positions = np.array(x_positions)
-    y_positions = np.array(y_positions)
-    clusters = np.array(clusters)
+#     # Ensure inputs have the same length
+#     if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
+#         raise ValueError("x_positions, y_positions, and clusters must have the same length.")
 
-    # Ensure inputs have the same length
-    if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
-        raise ValueError("x_positions, y_positions, and clusters must have the same length.")
+#     # Get unique x and y positions to define the grid
+#     unique_x = np.unique(x_positions)
+#     unique_y = np.unique(y_positions)
 
-    # Get unique x and y positions to define the grid
-    unique_x = np.unique(x_positions)
-    unique_y = np.unique(y_positions)
+#     # Create an empty grid to store cluster numbers
+#     heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
 
-    # Create an empty grid to store cluster numbers
-    heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
+#     # Map each (x, y) to grid indices
+#     x_indices = np.searchsorted(unique_x, x_positions)
+#     y_indices = np.searchsorted(unique_y, y_positions)
 
-    # Map each (x, y) to grid indices
-    x_indices = np.searchsorted(unique_x, x_positions)
-    y_indices = np.searchsorted(unique_y, y_positions)
+#     # Fill the heatmap with cluster values
+#     for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
+#         heatmap[y_idx, x_idx] = cluster
 
-    # Fill the heatmap with cluster values
-    for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
-        heatmap[y_idx, x_idx] = cluster
+#     # Plot the heatmap
+#     fig, ax = plt.subplots(figsize=(8, 6))
+#     cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
+#     cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
 
-    # Plot the heatmap
-    fig, ax = plt.subplots(figsize=(8, 6))
-    cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
-    cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
+#     # Add colorbar
+#     cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
+#     cbar.set_label('Cluster Number', fontsize=12)
 
-    # Add colorbar
-    cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
-    cbar.set_label('Cluster Number', fontsize=12)
+#     # Label the axes
+#     ax.set_xlabel('X Position', fontsize=12)
+#     ax.set_ylabel('Y Position', fontsize=12)
+#     ax.set_title('Cluster Heatmap', fontsize=14)
 
-    # Label the axes
-    ax.set_xlabel('X Position', fontsize=12)
-    ax.set_ylabel('Y Position', fontsize=12)
-    ax.set_title('Cluster Heatmap', fontsize=14)
+#     # Add grid overlay if requested
+#     if show_grid:
+#         ax.set_xticks(unique_x, minor=True)
+#         ax.set_yticks(unique_y, minor=True)
+#         ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
+#         ax.tick_params(which="minor", length=0)  # Hide minor tick marks
 
-    # Add grid overlay if requested
-    if show_grid:
-        ax.set_xticks(unique_x, minor=True)
-        ax.set_yticks(unique_y, minor=True)
-        ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
-        ax.tick_params(which="minor", length=0)  # Hide minor tick marks
+#     plt.tight_layout()
 
-    plt.tight_layout()
-    plt.show()
 
 
 
@@ -241,9 +247,23 @@ with open( "config_files/file_paths.json") as f:
 # positions to put thermal source on and take it out to empty position to get dark
 source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
+
+default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
+
+
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+
+# TOML file path; default is relative to the current file's directory.
+parser.add_argument(
+    "--toml_file",
+    type=str,
+    default=default_toml,
+    help="TOML file pattern (replace # with beam_id) to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+)
+
+
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host") # localhost
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -256,7 +276,7 @@ parser.add_argument('--non_verbose',
 parser.add_argument(
     '--data_path',
     type=str,
-    default=f"/home/heimdallr/Documents/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
+    default=f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/phasemask_aquisition/{tstamp_rough}/", #f"/home/heimdallr/data/phasemask_aquisition/{tstamp_rough}/",
     help="Path to the directory for storing pokeramp data. Default: %(default)s"
 )
 parser.add_argument(
@@ -269,7 +289,7 @@ parser.add_argument(
 parser.add_argument(
     '--initial_pos',
     type=str,
-    default="recent",
+    default="5000,5000", #"recent",
     help="x,y initial position of search or 'recent' to use most recent calibration file. Default: %(default)s "
 )
 
@@ -289,21 +309,21 @@ parser.add_argument(
 parser.add_argument(
     '--dy',
     type=float,
-    default=1000,
+    default=20,
     help="set size in microns of y increments in raster. Default: %(default)s"
 )
 
 parser.add_argument(
     '--width',
     type=float,
-    default=1000,
+    default=100,
     help="set width (x-axis in local frame) in microns of raster search. Default: %(default)s"
 )
 
 parser.add_argument(
     '--height',
     type=float,
-    default=1000,
+    default=100,
     help="set height (y-axis in local frame) in microns of raster search. Default: %(default)s"
 )
 
@@ -329,6 +349,12 @@ parser.add_argument(
     help="camera gain. Default: %(default)s"
 )
 
+parser.add_argument(
+    '--sleeptime',
+    type=int,
+    default=0.2,
+    help="sleep time (seconds) between moving the motors: %(default)s"
+)
 
 
 args = parser.parse_args()
@@ -353,48 +379,66 @@ if not os.path.exists(args.data_path):
 
 
 
-message = f"!read BMX{args.beam}"
+message = f"read BMY{args.beam}"
 initial_Ypos = float(send_and_get_response(message))
 
-message = f"!read BMX{args.beam}"
+message = f"read BMX{args.beam}"
 initial_Xpos = float(send_and_get_response(message))
 
 # home mask.. 
-# message = f"!init BMX2"
+# message = f"init BMX2"
 # res = send_and_get_response(message)
 # print(res)
-# message = f"!init BMY2"
+# message = f"init BMY2"
 # res = send_and_get_response(message)
 # print(res)
 
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
 
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+# baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
 
 
+# # with open(baldr_pupils_path, "r") as json_file:
+# #     baldr_pupils = json.load(json_file)
+
+
+# # Load the TOML file
+# with open(baldr_pupils_path) as file:
+#     pupildata = toml.load(file)
+
+# # Extract the "baldr_pupils" section
+# baldr_pupils = pupildata.get("baldr_pupils", {})
+
+
+with open(args.toml_file.replace('#',f'{args.beam}'), "r") as f:
+
+    config_dict = toml.load(f)
+    
+    # Baldr pupils from global frame 
+    baldr_pupils = config_dict['baldr_pupils']
 
 # init camera 
 roi = baldr_pupils[str(args.beam)] #[None, None, None, None] # 
-c = FLI.fli(cameraIndex=0, roi=roi)
+c = FLI.fli(roi=roi) #cameraIndex=0, roi=roi)
 # configure with default configuration file
-config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
-c.configure_camera(config_file_name)
 
-with open(config_file_name, "r") as file:
-    camera_config = json.load(file)
+### UNCOMMENT WHEN CMDS WORKING AGAIN
+#config_file_name = os.path.join(c.config_file_path, "default_cred1_config.json")
+#c.configure_camera(config_file_name)
 
-apply_manual_reduction = True
+# with open(config_file_name, "r") as file:
+#     camera_config = json.load(file)
 
-c.send_fli_cmd("set mode globalresetcds")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {args.cam_gain}")
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
+# apply_manual_reduction = True
 
-c.start_camera()
+# c.send_fli_cmd("set mode globalresetcds")
+# time.sleep(1)
+# c.send_fli_cmd(f"set gain {args.cam_gain}")
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
 
-time.sleep(5)
+# c.start_camera()
+
+# time.sleep(5)
 
 # check the cropped pupil regions are correct: 
 full_im = c.get_image_in_another_region( )
@@ -420,25 +464,48 @@ plt.legend(loc='upper right')
 plt.savefig('delme.png')
 plt.show()
 plt.close() 
-plt.savefig('delme.png')
 
 
 
-# goiing to initial position 
-try: 
-    tmp_pos = args.initial_pos.split( ',')
+# # get all available files 
+valid_reference_position_files = glob.glob(
+    f"/home/asg/Progs/repos/asgard-alignment/config_files/phasemask_positions/beam{args.beam}/*json"
+    )
 
-    Xpos = int( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
-    Ypos = int( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
-    print(f'using user input initial position x,y ={Xpos}, {Ypos}')
-except: 
-    raise UserWarning( 'invalid user input {args.initial_pos} for initial position x,y. Try (for example) --initial_pos 5000,5000  (i.e they are comma-separated)' )
+if 'recent' in args.initial_pos:
 
-message = f"!moveabs BMX{args.beam} {Xpos}"
+    # read in the most recent and make initial posiition the most recent one for given mask 
+    with open(max(valid_reference_position_files, key=os.path.getmtime)
+    , "r") as file:
+        start_position_dict = json.load(file)
+
+    Xpos = start_position_dict[args.phasemask_name][0]
+    Ypos = start_position_dict[args.phasemask_name][1]
+
+else: 
+    try: 
+        tmp_pos = args.initial_pos.split( ',')
+
+        Xpos = float( tmp_pos[0] )  # start_position_dict[args.phasemask_name][0]
+        Ypos = float( tmp_pos[1] ) # start_position_dict[args.phasemask_name][1]
+        print(f'using user input initial position x,y ={Xpos}, {Ypos}')
+    except: 
+        print( 'invalid user input {args.initial_pos} for initial position x,y. Try (for example) --initial_pos 5000,5000  (i.e they are comma-separated)' )
+        recent_file = max(valid_reference_position_files, key=os.path.getmtime)
+        with open(recent_file, "r") as file:
+            start_position_dict = json.load(file)
+
+        print( '\n\n--using the most recent calibration file \n  {recent_file}')
+
+        Xpos = start_position_dict[args.phasemask_name][0]
+        Ypos = start_position_dict[args.phasemask_name][1]
+
+
+message = f"moveabs BMX{args.beam} {Xpos}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {Ypos}"
+message = f"moveabs BMY{args.beam} {Ypos}"
 res = send_and_get_response(message)
 print(res) 
 
@@ -475,20 +542,75 @@ print(res)
 # if using multidevice server phasemask is the MDS server socket
 print( f'doing raster search for beam {args.beam}')
 
-img_dict = pct.raster_square_search_and_save_images(
-    cam=c,
-    beam=args.beam,
-    phasemask=state_dict["socket"],
-    starting_point=[Xpos, Ypos],
-    dx=args.dx, 
-    dy=args.dy, 
-    width=args.width, 
-    height=args.height, 
-    orientation=args.orientation,
-    sleep_time=1,
-    use_multideviceserver=True,
-    plot_grid_before_scan=args.non_verbose
-)
+# img_dict = pct.raster_square_search_and_save_images(
+#     cam=c,
+#     beam=args.beam,
+#     phasemask=state_dict["socket"],
+#     starting_point=[Xpos, Ypos],
+#     dx=args.dx, 
+#     dy=args.dy, 
+#     width=args.width, 
+#     height=args.height, 
+#     orientation=args.orientation,
+#     sleep_time=1,
+#     use_multideviceserver=True,
+#     plot_grid_before_scan=args.non_verbose
+# )
+
+
+### TRY NOT PASS TO FUNCTION 
+if 1:
+    spiral_pattern = pct.raster_scan_with_orientation(starting_point=[Xpos, Ypos], dx=args.dx, dy=args.dy, width=args.width, height=args.height, orientation=args.orientation )
+
+    x_points, y_points = zip(*spiral_pattern)
+    img_dict = {}
+
+    for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
+        print("at ", x_pos, y_pos)
+        print(f"{100 * i/len(x_points)}% complete")
+
+        # motor limit safety checks!
+        if x_pos <= 0:
+            print('x_pos < 0. set x_pos = 1')
+            x_pos = 1
+        if x_pos >= 10000:
+            print('x_pos > 10000. set x_pos = 9999')
+            x_pos = 9999
+        if y_pos <= 0:
+            print('y_pos < 0. set y_pos = 1')
+            y_pos = 1
+        if y_pos >= 10000:
+            print('y_pos > 10000. set y_pos = 9999')
+            y_pos = 9999
+
+    
+        #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+
+        start_time = time.time()
+        message = f"moveabs BMX{args.beam} {x_pos}"
+        state_dict["socket"].send_string(message)
+        response = state_dict["socket"].recv_string()
+        print(response)
+
+        message = f"moveabs BMY{args.beam} {y_pos}"
+        state_dict["socket"].send_string(message)
+        response = state_dict["socket"].recv_string()
+        print(response)
+
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"Execution time: {elapsed_time:.6f} seconds")
+            
+        time.sleep(args.sleeptime)  # wait for the phase mask to move and settle
+
+        img = np.mean(
+            c.get_data(), #get_some_frames( number_of_frames=10, apply_manual_reduction=True),
+            axis=0,
+        )
+
+        img_dict[(x_pos, y_pos)] = img
+###=========== end 
+
     
 #final_coord = pct.analyse_search_results(img_dict, savepath="delme.png", plot_logscale=True)
 
@@ -521,19 +643,20 @@ if make_movie:
     # remove bad pixels
     filtered_images = pct.pixelmask_image_dict(img_dict, bad_pixel_map)
 
-    create_scatter_image_movie(filtered_images, save_path=args.data_path+f"phasemask_search_movie_beam{args.beam}.mp4", fps=15)
+    savefile = args.data_path+f"phasemask_search_movie_beam{args.beam}.mp4"
+    create_scatter_image_movie(filtered_images, save_path=savefile, fps=15)
 
-    print( f"COMPLETE. MOVIE SAVED --> ", args.data_path+f"raster_search_movie_beam{args.beam}.mp4")
+    print( f"COMPLETE. MOVIE SAVED --> ", savefile)
 
 
 
 ### Move back to the initial position 
 
-message = f"!moveabs BMX{args.beam} {initial_Xpos}"
+message = f"moveabs BMX{args.beam} {initial_Xpos}"
 res = send_and_get_response(message)
 print(res) 
 
-message = f"!moveabs BMY{args.beam} {initial_Ypos}"
+message = f"moveabs BMY{args.beam} {initial_Ypos}"
 res = send_and_get_response(message)
 print(res) 
 
@@ -543,9 +666,15 @@ bad_pixel_map = pct.create_bad_pixel_mask( img_dict, mean_thresh=6, std_thresh=2
 masked_search_dict = pct.pixelmask_image_dict(img_dict, bad_pixel_map)
 # cluster analysis on the fitted pupil center and radius 
 image_list = np.array( list( masked_search_dict.values() ) ) 
+
+
+optimal_k = pct.find_optimal_clusters(images=image_list, detect_circle_function=pct.detect_circle, max_clusters=10, plot_elbow=False)
+
+print(f"optimal number of clusters found to be : {optimal_k}. Using this for cluster analysis")
+
 res = pct.cluster_analysis_on_searched_images(images= image_list,
                                           detect_circle_function=pct.detect_circle, 
-                                          n_clusters=6, 
+                                          n_clusters=optimal_k, 
                                           plot_clusters=False)
 
 
@@ -557,13 +686,42 @@ x_positions, y_positions = zip(*positions)
 
 
 
-plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
-plt.savefig('delme.png')
+plt.figure()
+pct.plot_cluster_heatmap( x_positions,  y_positions ,  res['clusters'] ) 
+plt.savefig(args.data_path + f'cluster_search_heatmap_beam{args.beam}.png')
+plt.close()
 
-pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="std")
-plt.savefig('delme2.png')
+
+pct.plot_aggregate_cluster_images(images = image_list, clusters = res['clusters'], operation="mean") #std")
+plt.savefig(args.data_path + f'clusters_heatmap_beam{args.beam}.png')
 
 
 plt.close('all')
 
 print('Finished')
+
+
+
+# print('Try to send to bens computer')
+
+# #SCP AUTOMATICALLY TO MY MACHINE 
+# remote_file = args.data_path+f'raster_search_dictionary_beam{args.beam}.json'   # The file to to transfer
+# remote_user = "bencb"  # Your username on the target machine
+# remote_host = "10.106.106.34"  
+# # (base) bencb@cos-076835 Downloads % ifconfig | grep "inet " | grep -v 127.0.0.1
+# # 	inet 192.168.20.5 netmask 0xffffff00 broadcast 192.168.20.255
+# # 	inet 10.200.32.250 --> 10.200.32.250 netmask 0xffffffff
+# # 	inet 10.106.106.34 --> 10.106.106.33 netmask 0xfffffffc
+
+# remote_path = "/Users/bencb/Downloads"  # Destination path on your computer
+
+# # Construct the SCP command
+# scp_command = f"scp {remote_file} {remote_user}@{remote_host}:{remote_path}"
+
+
+# try:
+#     subprocess.run(scp_command, shell=True, check=True)
+#     print(f"File {remote_file} successfully transferred to {remote_user}@{remote_host}:{remote_path}")
+# except subprocess.CalledProcessError as e:
+#     print(f"Error transferring file: {e}")
+

@@ -40,6 +40,12 @@ class NewportConnection:
         self._connection.write_termination = self.SERIAL_TERMIN
         self._connection.read_termination = self.SERIAL_TERMIN
 
+        # check valid connection:
+        try:
+            self._connection.query("1ID?")
+        except pyvisa.VisaIOError as e:
+            print(f"Error opening connection to Newport motor: {e}")
+
     def close_connection(self):
         """
         Close the connection to the motor
@@ -192,6 +198,22 @@ class M100DAxis(ESOdevice.Motor):
         position = float(parse_results[0])
         return position
 
+    def is_relmove_valid(self, value):
+        """
+        Check if a relative move is valid
+
+        Parameters:
+        -----------
+        value: float
+            The value to move by
+
+        Returns:
+        --------
+        bool
+            True if the move is valid, False otherwise
+        """
+        return self.LOWER_LIMIT <= self.read_position() + value <= self.UPPER_LIMIT
+
     def is_moving(self):
         """
         Check if the motor is moving
@@ -272,12 +294,39 @@ class M100DAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str(f"1ST{self.axis}")
 
-    def setup(self, value):
-        # option 1: blind absolute move
-        self.move_abs(value)
+    def ESO_read_position(self):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return self.internal_to_ESO(self.read_position())
+
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        Internal positions in mm, ESO in um (discrete)
+        """
+        return int(value * 1e3)  # ESO in um
+
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return value * 1e-3
+
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(self.ESO_to_internal(value))
+        elif motion_type == "ENCREL":
+            self.move_relative(self.ESO_to_internal(value))
+        elif motion_type == "NAME":
+            pass
 
         # option 2: relative move using internal state (assuming encoder drifts and not motor)
         # self.move_relative(value - self.internal_position)
+
+    def reset(self):
+        self._connection.write_str(f"1RS")
 
     def disable(self):
         pass
@@ -346,10 +395,15 @@ class LS16PAxis(ESOdevice.Motor):
         self.init()
 
     def init(self):
+
+        state = self.read_state()
+        if "DISABLE" in state:
+            self.reset()
+            time.sleep(2.0)
+
         self._connection.write_str("OR")
-        time.sleep(0.5)
+        time.sleep(0.1)
         self._connection.write_str("RFP")
-        time.sleep(0.5)
 
     def move_abs(self, position: float):
         self._connection.write_str(f"1PA{position:.5f}")
@@ -382,6 +436,9 @@ class LS16PAxis(ESOdevice.Motor):
 
         return f"{error_str}\n {state_str}"
 
+    def reset(self):
+        self._connection.write_str("RS")
+
     def ping(self):
         try:
             self.read_state()
@@ -391,8 +448,9 @@ class LS16PAxis(ESOdevice.Motor):
             return False
 
     def is_moving(self):
-        _, state_str = self.read_state()
-        return state_str in ["MOVING OPEN LOOP (OL)", "MOVING CLOSED LOOP (CL)"]
+        state_str = self.read_state()
+        print("is_moving fn", state_str)
+        return state_str.startswith("MOVING")
 
     def is_reset_success(self):
         _, state_str = self.read_state()
@@ -419,8 +477,31 @@ class LS16PAxis(ESOdevice.Motor):
     def stop(self):
         self._connection.write_str("1ST")
 
-    def setup(self, value):
-        self.move_abs(value)
+    @staticmethod
+    def ESO_to_internal(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return value * 1e-3
+
+    @staticmethod
+    def internal_to_ESO(value):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return int(value * 1e3)  # ESO in um
+
+    def ESO_read_position(self):
+        """
+        ESO positions in um, internal in mm (discrete)
+        """
+        return self.internal_to_ESO(self.read_position())
+
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(self.ESO_to_internal(value))
+        elif motion_type == "ENCREL":
+            self.move_relative(self.ESO_to_internal(value))
 
     def disable(self):
         pass

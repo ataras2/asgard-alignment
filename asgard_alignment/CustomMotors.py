@@ -1,4 +1,7 @@
 import asgard_alignment.ESOdevice
+import numpy as np
+
+import asgard_alignment.controllino
 
 
 class PK2FVF1(asgard_alignment.ESOdevice.Motor):
@@ -9,8 +12,13 @@ class PK2FVF1(asgard_alignment.ESOdevice.Motor):
 
 
 class MFF101(asgard_alignment.ESOdevice.Motor):
-    def __init__(self, name, semaphore_id, controllino_controller) -> None:
-        named_pos = {"30mm": 0, "15mm": 1}
+    def __init__(
+        self,
+        name: str,
+        semaphore_id: int,
+        controllino_controller: asgard_alignment.controllino.Controllino,
+        named_pos: dict,
+    ) -> None:
         super().__init__(
             name,
             semaphore_id,
@@ -19,61 +27,40 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
 
         self._controller = controllino_controller
 
-    def move_abs(self, position: float):
-        pass
+    def move_abs(self, position):
+        if np.isclose(position, 1.0):
+            self._controller.turn_on(self.name)
+        elif np.isclose(position, 0.0):
+            self._controller.turn_off(self.name)
+        else:
+            raise ValueError(f"Invalid position for bistable motor {self.name}")
+
+    def read_position(self):
+        return str(float(self._controller.get_status(self.name)))
 
     def move_relative(self, position: float):
         pass
 
-    def read_state(self):
-        pass
+    def ping(self):
+        return True
 
-    def setup(self, value):
-        pass
-
-    def disable(self):
-        pass
-
-    def enable(self):
-        pass
-
-    def stop(self):
-        pass
-
-    def online(self):
-        pass
-
-    def standby(self):
-        pass
-
-
-class GD40Z(asgard_alignment.ESOdevice.Motor):
-    """
-    A rotation stage, used for the LiNbO3 plates in Heimdallr.
-    https://www.pdvcn.com/motorized-rotation-stage/electric-rotary-table-indexing-disc-pc-gd40z.html
-    """
-
-    def __init__(self, name, semaphore_id, controllino_controller) -> None:
-        named_pos = {}
-        super().__init__(
-            name,
-            semaphore_id,
-            named_positions=named_pos,
-        )
-
-        self._controller = controllino_controller
-
-    def move_abs(self, position: float):
-        pass
-
-    def move_relative(self, position: float):
-        pass
+    def is_moving(self):
+        return False
 
     def read_state(self):
-        pass
+        return str(self._controller.get_status(self.name))
 
-    def setup(self, value):
-        pass
+    def setup(self, motion_type, value):
+
+        if motion_type == "ENC":
+            self.move_abs(value)
+        elif motion_type == "ENCREL":
+            print(f"ERROR: ENCREL not implemented for {self.name}")
+        elif motion_type == "NAME":
+            self.move_abs(self.named_positions[value])
+
+    def ESO_read_position(self):
+        return int(float(self.read_position()))
 
     def disable(self):
         pass
@@ -100,7 +87,7 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         modulation_value,
         delay_time,
     ) -> None:
-        named_pos = {"down": 0, "up": 1}
+        named_pos = {"OUT": 0, "IN": 1}
         super().__init__(
             name,
             semaphore_id,
@@ -108,22 +95,24 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
         )
 
         self._controller = controllino_controller
-        self._state = None
+        self._state = ""
 
         self._modulation_value = modulation_value
         self._delay_time = delay_time
 
     def _flip_up(self):
         self._controller.flip_up(self.name, self._modulation_value, self._delay_time)
-        self._state = "up"
+        self._state = "IN"
 
     def _flip_down(self):
         self._controller.flip_down(self.name, self._modulation_value, self._delay_time)
-        self._state = "down"
+        self._state = "OUT"
 
     def move_abs(self, position):
+        print(f"Moving {self.name} to {position}")
         if isinstance(position, str):
-            position = self._named_positions[position]
+            position = self.named_positions[position]
+        position = int(position)
 
         if position == 0:
             self._flip_down()
@@ -131,26 +120,29 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
             self._flip_up()
 
     def move_relative(self, position: float):
-        raise NotImplementedError(
-            "Relative movement is not implemented for MirrorFlipper."
-        )
+        print(f"Move_rel not implemented for {self.name}")
 
-    def read_state(self):
+    def read_position(self):
         return self._state
 
-    def stop(self):
-        pass
+    def is_moving(self):
+        return False
 
-    def ping(self):
-        pass
+    def ESO_read_position(self):
+        return self.read_position()
 
-    def setup(self, value):
-        if isinstance(value, str):
-            raise NotImplementedError(
-                "Setting up MirrorFlipper with a string value is not implemented."
-            )
+    def read_state(self):
+        return f"READY ({self._state})"
 
-        self.move_abs(value)
+    def setup(self, motion_type, value):
+        if motion_type == "ENC":
+            self.move_abs(value)
+        elif motion_type == "ENCREL":
+            print(f"ERROR: ENCREL not implemented for {self.name}")
+        elif motion_type == "NAME":
+            self.move_abs(self.named_positions[value])
+        else:
+            print(f"ERROR: Unknown motion type {motion_type} for {self.name}")
 
     def disable(self):
         pass
@@ -163,3 +155,6 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
 
     def standby(self):
         pass
+
+    def ping(self):
+        return True

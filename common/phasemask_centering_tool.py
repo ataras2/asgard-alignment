@@ -89,6 +89,75 @@ def complete_collinear_points(known_points, separation, tolerance=20):
     return ordered_result
 
 
+
+def plot_cluster_heatmap(x_positions, y_positions, clusters, show_grid=True, grid_color="white", grid_linewidth=0.5):
+    """
+    Creates a 2D heatmap of cluster numbers vs x, y positions, with an optional grid overlay.
+
+    Parameters:
+        x_positions (list or array): List of x positions.
+        y_positions (list or array): List of y positions.
+        clusters (list or array): Cluster numbers corresponding to the x, y positions.
+        show_grid (bool): If True, overlays a grid on the heatmap.
+        grid_color (str): Color of the grid lines (default is 'white').
+        grid_linewidth (float): Linewidth of the grid lines (default is 0.5).
+
+    Returns:
+        None
+    """
+    # Convert inputs to NumPy arrays
+    x_positions = np.array(x_positions)
+    y_positions = np.array(y_positions)
+    clusters = np.array(clusters)
+
+    # Ensure inputs have the same length
+    if len(x_positions) != len(y_positions) or len(x_positions) != len(clusters):
+        raise ValueError("x_positions, y_positions, and clusters must have the same length.")
+
+    # Get unique x and y positions to define the grid
+    unique_x = np.unique(x_positions)
+    unique_y = np.unique(y_positions)
+
+    # Create an empty grid to store cluster numbers
+    heatmap = np.full((len(unique_y), len(unique_x)), np.nan)  # Use NaN for empty cells
+
+    # Map each (x, y) to grid indices
+    x_indices = np.searchsorted(unique_x, x_positions)
+    y_indices = np.searchsorted(unique_y, y_positions)
+
+    # Fill the heatmap with cluster values
+    for x_idx, y_idx, cluster in zip(x_indices, y_indices, clusters):
+        heatmap[y_idx, x_idx] = cluster
+
+    # Plot the heatmap
+    fig, ax = plt.subplots(figsize=(8, 6))
+    cmap = plt.cm.get_cmap('viridis', len(np.unique(clusters)))  # Colormap with distinct colors
+    cax = ax.imshow(heatmap, origin='lower', cmap=cmap, extent=[unique_x.min(), unique_x.max(), unique_y.min(), unique_y.max()])
+
+    # Add colorbar
+    cbar = fig.colorbar(cax, ax=ax, ticks=np.unique(clusters))
+    cbar.set_label('Cluster Number', fontsize=12)
+
+    # Label the axes
+    ax.set_xlabel('X Position', fontsize=12)
+    ax.set_ylabel('Y Position', fontsize=12)
+    ax.set_title('Cluster Heatmap', fontsize=14)
+
+    # Add grid overlay if requested
+    if show_grid:
+        ax.set_xticks(unique_x, minor=True)
+        ax.set_yticks(unique_y, minor=True)
+        ax.grid(which="minor", color=grid_color, linestyle="-", linewidth=grid_linewidth)
+        ax.tick_params(which="minor", length=0)  # Hide minor tick marks
+
+    plt.tight_layout()
+    #plt.show()
+    return fig, ax 
+    
+
+
+
+
 def compute_image_difference(img1, img2):
     # normalize both images first
     img1 = img1.copy() / np.sum(img1)
@@ -273,6 +342,48 @@ def raster_scan_with_orientation(starting_point, dx, dy, width, height, orientat
     return rotated_points
 
 
+def cross_scan(starting_point, dx, dy, width, height, angle):
+    """
+    Generates a cross scan pattern with a given angle of rotation. This function
+    generates two lines crossing at the origin and rotates them based on the given angle.
+
+    Parameters:
+    starting_point (tuple): The center of the cross scan (origin of cross).
+    dx (float): Step size in the x-direction (spacing between points).
+    dy (float): Step size in the y-direction (spacing between points).
+    X_amp (float): Amplitude of the cross in the x-direction (half-length).
+    height (float): Amplitude of the cross in the y-direction (half-length).
+    angle (float): Rotation angle in degrees (counterclockwise).
+
+    Returns:
+    list: A list of tuples where each tuple contains (x, y) positions for the scan.
+    """
+    # Define the lines along x and y axes before rotation (horizontal and vertical)
+    line_1 = [( i, 0) for i in np.arange(-width/2, width/2+dx, dx)]  # Horizontal line (X-axis)
+    line_2 = [(0,  i) for i in np.arange(-height/2, height/2+dy, dy)]  # Vertical line (Y-axis)
+
+    # Rotate the lines based on the angle
+    angle_rad = np.radians(angle - 90)  # Adjust the angle so 0 degrees is aligned with X,Y axes
+    cos_theta, sin_theta = np.cos(angle_rad), np.sin(angle_rad)
+
+    # Apply rotation to both lines
+    rotated_line_1 = [(cos_theta * x - sin_theta * y, sin_theta * x + cos_theta * y) for x, y in line_1]
+    rotated_line_2 = [(cos_theta * x - sin_theta * y, sin_theta * x + cos_theta * y) for x, y in line_2]
+
+    # Shift back to the starting point
+    rotated_line_1 = [(x + starting_point[0], y + starting_point[1]) for x, y in rotated_line_1]
+    rotated_line_2 = [(x + starting_point[0], y + starting_point[1]) for x, y in rotated_line_2]
+
+    # Combine both lines into one list of tuples (x, y)
+    cross_points = rotated_line_1 + rotated_line_2
+
+    return cross_points
+
+
+    
+    
+    
+
 def raster_square_search_and_save_images(
     cam,
     beam,
@@ -335,13 +446,13 @@ def raster_square_search_and_save_images(
             y_pos = 9999
 
         if use_multideviceserver:
-            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-            message = f"!moveabs BMX{beam} {x_pos}"
+            #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"moveabs BMX{beam} {x_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
 
-            message = f"!moveabs BMY{beam} {y_pos}"
+            message = f"moveabs BMY{beam} {y_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
@@ -350,7 +461,7 @@ def raster_square_search_and_save_images(
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
         img = np.mean(
-            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            cam.get_data(), #get_some_frames( number_of_frames=10, apply_manual_reduction=True),
             axis=0,
         )
 
@@ -366,7 +477,7 @@ def spiral_square_search_and_save_images(
     starting_point,
     step_size,
     search_radius,
-    sleep_time=1,
+    sleep_time=2,
     use_multideviceserver=True,
 ):
     """
@@ -400,13 +511,13 @@ def spiral_square_search_and_save_images(
             y_pos = 9999
 
         if use_multideviceserver:
-            #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-            message = f"!moveabs BMX{beam} {x_pos}"
+            #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+            message = f"moveabs BMX{beam} {x_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
 
-            message = f"!moveabs BMY{beam} {y_pos}"
+            message = f"moveabs BMY{beam} {y_pos}"
             phasemask.send_string(message)
             response = phasemask.recv_string()
             print(response)
@@ -414,8 +525,10 @@ def spiral_square_search_and_save_images(
             phasemask.move_absolute([x_pos, y_pos])
 
         time.sleep(sleep_time)  # wait for the phase mask to move and settle
+        
+        #number_of_frames=10, apply_manual_reduction=True),
         img = np.mean(
-            cam.get_some_frames(number_of_frames=10, apply_manual_reduction=True),
+            cam.get_data()[-10:], 
             axis=0,
         )
 
@@ -574,13 +687,13 @@ def spiral_search_and_center(
 ):
 
     if use_multideviceserver:
-        #message = f"!fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
-        message = f"!moveabs BMX{beam} {x_pos}"
+        #message = f"fpm_moveabs phasemask{beam} {[x_pos, y_pos]}"
+        message = f"moveabs BMX{beam} {x_pos}"
         phasemask.send_string(message)
         response = phasemask.recv_string()
         print(response)
 
-        message = f"!moveabs BMY{beam} {y_pos}"
+        message = f"moveabs BMY{beam} {y_pos}"
         phasemask.send_string(message)
         response = phasemask.recv_string()
         print(response)
@@ -688,7 +801,7 @@ def spiral_search_and_center(
     if move2best:
 
         if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {best_pos}"
+            message = f"fpm_moveabs phasemask{beam} {best_pos}"
             phasemask.send_string(message)
 
         else:
@@ -697,7 +810,7 @@ def spiral_search_and_center(
     else:
         print("moving back to initial position")
         if use_multideviceserver:
-            message = f"!fpm_moveabs phasemask{beam} {starting_point}"
+            message = f"fpm_moveabs phasemask{beam} {starting_point}"
             phasemask.send_string(message)
         else:
             phasemask.move_absolute(starting_point)
@@ -777,16 +890,16 @@ def spiral_search_and_center(
     if save_pos:
 
         if use_multideviceserver:
-            message = f"!fpm_updatemaskpos phasemask{beam} {phasemask_name}"
+            message = f"fpm_updatemaskpos phasemask{beam} {phasemask_name}"
             phasemask.send_string(message)
 
         else:
             phasemask.update_mask_position(phasemask_name)
 
     if use_multideviceserver:
-        message = f"!fpm_pos phasemask{beam}"
+        message = f"fpm_pos phasemask{beam}"
         phasemask.send_string(message)
-        message = f"!fpm_readpos phasemask{beam}"
+        message = f"fpm_readpos phasemask{beam}"
         phasemask.send_string(message)
         pos = phasemask.recv_string()
     else:
@@ -879,14 +992,14 @@ def move_relative_and_get_image(cam, beam, phasemask, savefigName=None, use_mult
                 y = float(xy[1])
 
                 if use_multideviceserver:
-                    #message = f"!fpm_moveabs phasemask{beam} {[x,y]}"
+                    #message = f"fpm_moveabs phasemask{beam} {[x,y]}"
                     #phasemask.send_string(message)
-                    message = f"!moverel BMX{beam} {x}"
+                    message = f"moverel BMX{beam} {x}"
                     phasemask.send_string(message)
                     response = phasemask.recv_string()
                     print(response)
 
-                    message = f"!moverel BMY{beam} {y}"
+                    message = f"moverel BMY{beam} {y}"
                     phasemask.send_string(message)
                     response = phasemask.recv_string()
                     print(response)
@@ -957,6 +1070,62 @@ def create_bad_pixel_mask( search_dict, mean_thresh=6, std_thresh=20 ):
 
 
 
+def find_optimal_clusters(images, detect_circle_function, max_clusters=10, plot_elbow=False):
+    """
+    Determines the optimal number of clusters for pupil centers using the Elbow Method.
+
+    Parameters:
+        images (list of 2D arrays): List of cropped grayscale images containing single pupils.
+        detect_circle_function (function): Function to detect circular pupils (e.g., detect_circle).
+        max_clusters (int): Maximum number of clusters to evaluate.
+        plot_elbow (bool): If True, plots the Elbow Method graph.
+
+    Returns:
+        int: Optimal number of clusters.
+    """
+    # Detect pupils in all images
+    centers = []
+    for idx, image in enumerate(images):
+        try:
+            center_x, center_y, radius = detect_circle_function(image, plot=False)
+            centers.append((center_x, center_y, radius))
+        except Exception as e:
+            print(f"Warning: Failed to detect circle in image {idx}. Error: {e}")
+    
+    # Convert to NumPy array and filter NaN values
+    centers_array = np.array([c for c in centers if not np.isnan(c).any()])
+    
+    if len(centers_array) < 2:
+        raise ValueError("Not enough valid pupil centers detected for clustering.")
+
+    # Compute Within-Cluster Sum of Squares (WCSS) for different k values
+    wcss = []
+    cluster_range = range(1, min(max_clusters, len(centers_array)) + 1)
+    
+    for k in cluster_range:
+        centroids, _ = kmeans(centers_array, k)
+        labels, _ = vq(centers_array, centroids)
+        wcss.append(sum(np.linalg.norm(centers_array - centroids[labels], axis=1)**2))
+
+    # Find the "elbow" in WCSS curve
+    diffs = np.diff(wcss)  # First derivative
+    second_diffs = np.diff(diffs)  # Second derivative
+    optimal_k = np.argmax(second_diffs) + 2  # Elbow is at max second derivative (+2 because of diff index shift)
+
+    # Plot elbow curve
+    if plot_elbow:
+        plt.figure(figsize=(6, 4))
+        plt.plot(cluster_range, wcss, marker='o', linestyle='-')
+        plt.xlabel("Number of Clusters")
+        plt.ylabel("WCSS (Within-Cluster Sum of Squares)")
+        plt.title("Elbow Method for Optimal Clusters")
+        plt.axvline(optimal_k, color='red', linestyle="--", label=f"Optimal k={optimal_k}")
+        plt.legend()
+        plt.show()
+
+    return optimal_k
+
+
 def cluster_analysis_on_searched_images(images, detect_circle_function, n_clusters=3, plot_clusters=False):
     """
     Detects circular pupils in a list of images, performs clustering on their positions and radii
@@ -990,11 +1159,11 @@ def cluster_analysis_on_searched_images(images, detect_circle_function, n_cluste
     if len(centers_array) < n_clusters:
         raise ValueError("Number of valid centers is less than the number of clusters.")
 
-    # Step 2: Perform k-means clustering using scipy
+    # Perform k-means clustering using scipy
     centroids, _ = kmeans(centers_array, n_clusters)
     cluster_labels, _ = vq(centers_array, centroids)
 
-    # Step 3: Assign cluster labels back to all images (use NaN for failed detections)
+    #  Assign cluster labels back to all images (use NaN for failed detections)
     cluster_assignments = []
     idx_center = 0
     for center in centers:
@@ -1004,7 +1173,7 @@ def cluster_analysis_on_searched_images(images, detect_circle_function, n_cluste
             cluster_assignments.append(cluster_labels[idx_center])
             idx_center += 1
 
-    # Step 4: Plot clustering results (optional)
+    # Plot clustering results (optional)
     if plot_clusters:
         plt.figure(figsize=(8, 6))
         for cluster_id in range(n_clusters):
@@ -1078,7 +1247,64 @@ def plot_aggregate_cluster_images(images, clusters, operation="median"):
 
     #plt.tight_layout()
     #plt.show()
+    return fig, ax 
 
+
+
+def plot_image_grid(image_dict, savepath='delme.png'):
+    """
+    Plots images on a grid where positions correspond to their (x, y) keys,
+    with dynamically computed extents for maximum size without overlap.
+    
+    works best for up to 6x6 scan ! (36 points total)
+
+    Parameters:
+        image_dict (dict): Dictionary with (x, y) tuple keys and image arrays as values.
+    """
+    # Extract unique x and y coordinates
+    x_positions = sorted(set(pos[0] for pos in image_dict.keys()))
+    y_positions = sorted(set(pos[1] for pos in image_dict.keys()))
+
+    # Compute minimum spacing between points (avoiding overlap)
+    dx = min(np.diff(x_positions)) if len(x_positions) > 1 else 1
+    dy = min(np.diff(y_positions)) if len(y_positions) > 1 else 1
+
+    # Scale factor to prevent touching (adjust if needed)
+    scale_factor = 0.9  # Slightly less than full spacing to leave small gaps
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    for (x, y), img in image_dict.items():
+        # Compute extent using calculated dx, dy
+        extent = [
+            x - (dx * scale_factor) / 2,  # Left boundary
+            x + (dx * scale_factor) / 2,  # Right boundary
+            y - (dy * scale_factor) / 2,  # Bottom boundary
+            y + (dy * scale_factor) / 2   # Top boundary
+        ]
+
+        # Display the image
+        ax.imshow(img, extent=extent, origin='upper', cmap='gray')
+
+        # Add text label at the top of each image
+        ax.text(x, y + (dy * 0.4), f"({round(x)}, {round(y)})", ha='center', va='bottom', fontsize=8, color='white',
+                bbox=dict(facecolor='black', alpha=0.5, edgecolor='none', boxstyle='round,pad=0.3'))
+
+    # Set limits based on x, y ranges
+    ax.set_xlim(min(x_positions) - dx, max(x_positions) + dx)
+    ax.set_ylim(min(y_positions) - dy, max(y_positions) + dy)
+
+    # Set aspect ratio to equal
+    ax.set_aspect('equal')
+
+    # Remove axis ticks
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    if savepath is not None:
+        plt.savefig( savepath )
+    plt.show()
+    plt.close()
 
 
 def find_optimal_connected_region(image, connectivity=4, initial_percentile_threshold=95):
@@ -1219,6 +1445,6 @@ if __name__ == "__main__":
 
         return response.strip()
 
-    # socket.send_string(f"!movetomask phasemask1 J1")
+    # socket.send_string(f"movetomask phasemask1 J1")
     # res = socket.recv_string()
     # print(f"Response: {res}")

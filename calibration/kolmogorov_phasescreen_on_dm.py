@@ -7,6 +7,7 @@ import importlib
 import json
 import datetime
 import sys
+import toml
 import pandas as pd
 import argparse
 import zmq
@@ -67,7 +68,7 @@ def get_motor_states_as_list_of_dicts( ):
 
     states = []
     for name in motor_names:
-        message = f"!read {name}"
+        message = f"read {name}"
         res = send_and_get_response(message)
 
         if "NACK" in res:
@@ -146,7 +147,7 @@ source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -155,13 +156,13 @@ parser.add_argument(
 parser.add_argument(
     '--dm_config_path',
     type=str,
-    default="/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json",
+    default="/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json",
     help="Path to the DM configuration file. Default: %(default)s"
 )
 parser.add_argument(
     '--DMshapes_path',
     type=str,
-    default="/home/heimdallr/Documents/asgard-alignment/DMShapes/",
+    default="/home/asg/Progs/repos/asgard-alignment/DMShapes/",
     help="Path to the directory containing DM shapes. Default: %(default)s"
 )
 parser.add_argument(
@@ -236,13 +237,22 @@ state_dict = {"message_history": [], "socket": socket}
 
 
 # Baldr pupils (for checking phasemask alignment before beginning)
-baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/heimdallr/Documents/asgard-alignment/config_files/baldr_pupils_coords.json"
-with open(baldr_pupils_path, "r") as json_file:
-    baldr_pupils = json.load(json_file)
+# baldr_pupils_path = default_path_dict['baldr_pupil_crop'] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+# with open(baldr_pupils_path, "r") as json_file:
+#     baldr_pupils = json.load(json_file)
+
+baldr_pupils_path = default_path_dict["pupil_crop_toml"] #"/home/asg/Progs/repos/asgard-alignment/config_files/baldr_pupils_coords.json"
+
+# Load the TOML file
+with open(baldr_pupils_path) as file:
+    pupildata = toml.load(file)
+
+# Extract the "baldr_pupils" section
+baldr_pupils = pupildata.get("baldr_pupils", {})
 
 
-#DMshapes_path = args.DMshapes_path #"/home/heimdallr/Documents/asgard-alignment/DMShapes/"
-#dm_config_path = #"/home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json"
+#DMshapes_path = args.DMshapes_path #"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+#dm_config_path = #"/home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json"
 # data_path = f"/home/heimdallr/data/pokeramp/{tstamp_rough}/"
 if not os.path.exists(args.data_path):
      os.makedirs(args.data_path)
@@ -274,7 +284,7 @@ c.start_camera()
 
 # phasemask
 for beam in [1,2,3,4]:
-    message = f"!fpm_movetomask phasemask{beam} {args.phasemask_name}"
+    message = f"fpm_movetomask phasemask{beam} {args.phasemask_name}"
     res = send_and_get_response(message)
     print(res)
     time.sleep(2)

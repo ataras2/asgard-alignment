@@ -55,8 +55,8 @@ class MultiDeviceServer:
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
 
-        self.client_socket = self.context.socket(zmq.PUSH)
-        self.client_socket.connect("tcp://localhost:5556")
+        self.db_update_socket = self.context.socket(zmq.PUSH)
+        self.db_update_socket.connect("tcp://wag:5561")
 
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
@@ -64,6 +64,8 @@ class MultiDeviceServer:
             self.instr = MockMDS()
         else:
             self.instr = asgard_alignment.Instrument.Instrument(self.config_file)
+
+        print("Instrument all set up, ready to accept messages")
 
     def socket_funct(self, s):
         try:
@@ -89,7 +91,7 @@ class MultiDeviceServer:
                     running = False
                 elif data != 0:
                     print(f"Received message: {data}")
-                    response = self.handle_message(data)
+                    is_custom_msg, response = self.handle_message(data)
                     if response == -1:
                         running = False
                         if s == sys.stdin:
@@ -97,12 +99,22 @@ class MultiDeviceServer:
                         else:
                             self.log("Shut down by remote connection. Goodbye.")
                     else:
-                        s.send_string(response + "\n")
+                        if response is None:
+                            response = ""
+                        if is_custom_msg:
+                            s.send_string(response + "\n")
 
     @staticmethod
     def get_time_stamp():
-        time_now = datetime.datetime.now()
-        return time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        # time_now = datetime.datetime.now()
+        # time_now = time.gmtime()
+        # return time.strftime("%Y-%m-%dT%H:%M:%S", time_now)
+
+        # Get the current UTC time
+        current_utc_time = datetime.datetime.utcnow()
+
+        # Format the UTC time
+        return current_utc_time.strftime("%Y-%m-%dT%H:%M:%S")
 
     def handle_message(self, message):
         """
@@ -112,19 +124,19 @@ class MultiDeviceServer:
         # if "!" in message:
         if message[0].islower():
             print(f"Custom command: {message}")
-            return self._handle_custom_command(message)
+            return True, self._handle_custom_command(message)
 
         if message[0] == "!":
             print("Old custom command")
-            return "NACK: Are you using old custom commands?"
+            return True, "NACK: Are you using old custom commands?"
 
         try:
             message = message.rstrip(message[-1])
-            print(message)
+            print(f"ESO msg recv: {message}")
             json_data = json.loads(message)
         except:
             print("Error: Invalid JSON message")
-            return "NACK: Invalid JSON message"
+            return False, "NACK: Invalid JSON message"
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
 
@@ -148,8 +160,21 @@ class MultiDeviceServer:
             # If needed, call controller-specific functions to power up
             # the devices and have them ready for operations
             # .............................................................
-            for key in self.instr.devices:
-                self.instr.devices[key].online()
+            # for key in self.instr.devices:
+            #     self.instr.devices[key].online()
+
+            # new version:
+            if "parameters" not in json_data["command"]:
+                all_motor_names = self.instr._motor_config.keys()
+                self.instr.online(all_motor_names)
+            else:
+                # only online a subset
+                n_devs_commanded = len(json_data["command"]["parameters"])
+                devs_to_online = [
+                    json_data["command"]["parameters"][i]["device"]
+                    for i in range(n_devs_commanded)
+                ]
+                self.instr.online(devs_to_online)
 
             # Update the wagics database to show all the devices in ONLINE
             # state (value of "state" attribute has to be set to 3)
@@ -165,7 +190,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = self.get_time_stamp()
             output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(output_msg)
+            self.db_update_socket.send_string(output_msg)
             print(output_msg)
 
             reply = "OK"
@@ -178,23 +203,55 @@ class MultiDeviceServer:
             # If needed, call controller-specific functions to bring some
             # devices to a "parking" position and to power them off
             # .............................................................
-            n_devs_commanded = len(json_data["command"]["parameters"])
-            for i in range(n_devs_commanded):
-                dev = json_data["command"]["parameters"][i]["device"]
-                print(f"Standby device: {dev}")
+            # can have no parameters (standby all) or a subset indicated by parameters
 
-                self.instr.devices[dev].standby()
+            if "parameters" not in json_data["command"]:
+                print("No parameters in standby command, going to standby all")
 
-            # Update the wagics database to show all the devices in STANDBY
-            # state (value of "state" attrivute has to be set to 2)
+                # for key in self.instr.devices:
+                #     self.instr.devices[key].standby()
 
-            self.database_message["command"]["parameters"].clear()
-            for i in range(n_devs_commanded):
-                dev = json_data["command"]["parameters"][i]["device"]
-                attribute = f"<alias>{dev}.state"
-                self.database_message["command"]["parameters"].append(
-                    {"attribute": attribute, "value": 2}
-                )
+                # new version:
+                # for key in self.instr.devices:
+                #     self.instr.standby(key)
+                devices_to_standby = list(self.instr.devices.keys())
+                while len(devices_to_standby) > 0:
+                    print(f"Working to standby device: {devices_to_standby[0]}")
+                    self.instr.standby(devices_to_standby[0])
+
+                    devices_to_standby = list(self.instr.devices.keys())
+
+                # Update the wagics database to show all the devices in STANDBY
+                # state (value of "state" attrivute has to be set to 2)
+                for key in self.instr.devices:
+                    attribute = f"<alias>{key}.state"
+                    self.database_message["command"]["parameters"].append(
+                        {"attribute": attribute, "value": 2}
+                    )
+
+            else:
+                n_devs_commanded = len(json_data["command"]["parameters"])
+
+                devs_to_standby = [
+                    json_data["command"]["parameters"][i]["device"]
+                    for i in range(n_devs_commanded)
+                ]
+                while len(devs_to_standby) > 0:
+                    print(f"Working to standby device: {devs_to_standby[0]}")
+                    self.instr.standby(devs_to_standby[0])
+
+                    devs_to_standby = list(
+                        set(self.instr.devices.keys()).intersection(devs_to_standby)
+                    )
+
+                # update the database message
+                self.database_message["command"]["parameters"].clear()
+                for i in range(n_devs_commanded):
+                    dev = json_data["command"]["parameters"][i]["device"]
+                    attribute = f"<alias>{dev}.state"
+                    self.database_message["command"]["parameters"].append(
+                        {"attribute": attribute, "value": 2}
+                    )
 
             # Send message to wag to update the database
             time_now = datetime.datetime.now()
@@ -202,7 +259,7 @@ class MultiDeviceServer:
             self.database_message["command"]["time"] = time_stamp
             output_msg = json.dumps(self.database_message) + "\0"
 
-            self.client_socket.send_string(output_msg)
+            self.db_update_socket.send_string(output_msg)
             print(output_msg)
 
             reply = "OK"
@@ -217,7 +274,10 @@ class MultiDeviceServer:
             setup_cmds = [[], []]
             for i in range(n_devs_to_setup):
                 kwd = json_data["command"]["parameters"][i]["name"]
-                val = json_data["command"]["parameters"][i]["value"]
+                try:
+                    val = float(json_data["command"]["parameters"][i]["value"])
+                except ValueError:
+                    val = json_data["command"]["parameters"][i]["value"]
                 print(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
@@ -237,21 +297,34 @@ class MultiDeviceServer:
 
                 # Look if device exists in list
                 # (something should be done if device does not exist) TODO
-                device = self.instr.devices[dev_name]
 
-                semaphore_id = device.semaphore_id
-                if semaphore_array[semaphore_id] == 0:
-                    # Semaphore is free =>
-                    # Device can be moved now
-                    setup_cmds[0].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
-                    )
-                    semaphore_array[semaphore_id] = 1
+                if motion_type != "ST":
+                    device = self.instr.devices[dev_name]
+
+                    semaphore_id = device.semaphore_id
+                    if semaphore_array[semaphore_id] == 0:
+                        # Semaphore is free =>
+                        # Device can be moved now
+                        setup_cmds[0].append(
+                            asgard_alignment.ESOdevice.SetupCommand(
+                                dev_name, motion_type, val
+                            )
+                        )
+                        semaphore_array[semaphore_id] = 1
+                    else:
+                        # Semaphore is already taken =>
+                        # Device will be moved in a second batch
+                        setup_cmds[1].append(
+                            asgard_alignment.ESOdevice.SetupCommand(
+                                dev_name, motion_type, val
+                            )
+                        )
                 else:
-                    # Semaphore is already taken =>
-                    # Device will be moved in a second batch
-                    setup_cmds[1].append(
-                        asgard_alignment.ESOdevice.SetupCommand(dev, motion_type, val)
+                    # ST commands are only for lamps, so do them in batch 1
+                    setup_cmds[0].append(
+                        asgard_alignment.ESOdevice.SetupCommand(
+                            dev_name, motion_type, val
+                        )
                     )
 
             # Move devices (two batches if needed)
@@ -261,14 +334,14 @@ class MultiDeviceServer:
                     self.database_message["command"]["parameters"].clear()
                     for s in setup_cmds[batch]:
                         print(
-                            f"Moving: {s.dev} to: {s.val} ( setting {s.motion_type} )"
+                            f"Moving: {s.device_name} to: {s.value} ( setting {s.motion_type} )"
                         )
 
                         # do the actual move...
-                        self.instr.devices[s.dev].setup(s.motion_type, s.val)
+                        self.instr.devices[s.device_name].setup(s.motion_type, s.value)
 
                         # Inform wag ICS that the device is moving
-                        attribute = f"<alias>{s.dev}:DATA.status0"
+                        attribute = f"<alias>{s.device_name}:DATA.status0"
                         self.database_message["command"]["parameters"].append(
                             {"attribute": attribute, "value": "MOVING"}
                         )
@@ -277,7 +350,7 @@ class MultiDeviceServer:
                     self.database_message["command"]["time"] = self.get_time_stamp()
                     output_msg = json.dumps(self.database_message) + "\0"
 
-                    self.client_socket.send_string(output_msg)
+                    self.db_update_socket.send_string(output_msg)
                     print(output_msg)
 
                     # TODO
@@ -290,14 +363,15 @@ class MultiDeviceServer:
                     still_moving_prev = setup_cmds[batch]
                     still_moving = setup_cmds[batch]
                     while len(still_moving) > 0:
+                        print(f"Still moving: {still_moving}")
                         time.sleep(1.0)
 
                         still_moving = []
                         still_moving_prev = setup_cmds[batch]
 
                         for s in still_moving_prev:
-                            dev = s.dev
-                            pos = self.instr.devices[dev].read_position()
+                            dev = s.device_name
+                            pos = self.instr.devices[dev].ESO_read_position()
 
                             self.database_message["command"]["parameters"].append(
                                 {
@@ -315,12 +389,12 @@ class MultiDeviceServer:
                                     ].append(
                                         {
                                             "attribute": f"<alias>{dev}:DATA.status0",
-                                            "value": s.val,
+                                            "value": s.value,
                                         }
                                     )
                                 elif s.motion_type == "ST":
                                     # TODO: change this to a mapping T -> OPEN, F -> CLOSED, and lamp case...
-                                    if s.val == "T":
+                                    if s.value == "T":
                                         self.database_message["command"][
                                             "parameters"
                                         ].append(
@@ -347,10 +421,19 @@ class MultiDeviceServer:
                                             "value": "",
                                         }
                                     )
-                            # Case of motor with relative encoder position
-                            # not considered yet
-                            # The simplest would be to read the encoder position
-                            # and to update the database as for the previous case
+                                # Case of motor with relative encoder position
+                                # not considered yet
+                                # The simplest would be to read the encoder position
+                                # and to update the database as for the previous case
+                                elif s.motion_type == "ENCREL":
+                                    self.database_message["command"][
+                                        "parameters"
+                                    ].append(
+                                        {
+                                            "attribute": f"<alias>{dev}:DATA.status0",
+                                            "value": "",
+                                        }
+                                    )
 
                         still_moving_prev = deepcopy(still_moving)
 
@@ -358,10 +441,12 @@ class MultiDeviceServer:
                         self.database_message["command"]["time"] = self.get_time_stamp()
                         output_msg = json.dumps(self.database_message) + "\0"
 
-                        self.client_socket.send_string(output_msg)
+                        self.db_update_socket.send_string(output_msg)
                         print(output_msg)
 
                         self.database_message["command"]["parameters"].clear()
+
+            reply = "OK"
 
         # Case of "stop" (sent by wag to immediately stop the devices)
 
@@ -401,11 +486,12 @@ class MultiDeviceServer:
 
         # Send back reply to ic0fb process
 
-        time_now = datetime.datetime.now()
-        time_stamp = time_now.strftime("%Y-%m-%dT%H:%M:%S")
+        time_stamp = MultiDeviceServer.get_time_stamp()
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         print(reply)
         self.server.send_string(reply)
+
+        return False, None
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol
@@ -424,7 +510,9 @@ class MultiDeviceServer:
 
         def connect_msg(axis):
             # this is a connection open request
-            self.instr._attempt_to_open(axis, recheck_ports=True)
+            print("attempting open connection to ", axis)
+            res = self.instr._attempt_to_open(axis, recheck_ports=True)
+            print("attempted to open", axis, "with result", res)
 
             return "connected" if axis in self.instr.devices else "not connected"
 
@@ -464,6 +552,29 @@ class MultiDeviceServer:
 
             return health_str
 
+        def mv_img_msg(config, beam_number, x, y):
+            try:
+                res = self.instr.move_image(config, int(beam_number), x, y)
+            except ValueError as e:
+                return f"NACK: {e}"
+
+            if res:
+                return "ACK: moved"
+            else:
+                return "NACK: not moved"
+
+        def mv_pup_msg(config, beam_number, x, y):
+            print(beam_number, type(beam_number))
+            try:
+                res = self.instr.move_pupil(config, int(beam_number), x, y)
+            except ValueError as e:
+                return f"NACK: {e}"
+
+            if res:
+                return "ACK: moved"
+            else:
+                return "NACK: not moved"
+
         def on_msg(lamp_name):
             self.instr.devices[lamp_name].turn_on()
             return "ACK"
@@ -473,7 +584,26 @@ class MultiDeviceServer:
             return "ACK"
 
         def is_on_msg(lamp_name):
-            return self.instr.devices[lamp_name].is_on()
+            return str(self.instr.devices[lamp_name].is_on())
+
+        def reset_msg(axis):
+            try:
+                self.instr.devices[axis].reset()
+                return "ACK"
+            except Exception as e:
+                return f"NACK: {e}"
+
+        def asg_setup_msg(axis, mtype, value):
+            try:
+                # if it is a float, convert it to a python float
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+                self.instr.devices[axis].setup(mtype, value)
+                return "ACK"
+            except Exception as e:
+                return f"NACK: {e}"
 
         def apply_flat_msg(dm_name):
             if dm_name not in self.instr.devices:
@@ -508,68 +638,149 @@ class MultiDeviceServer:
             return f"ACK: Cross map applied to  {dm_name}"
 
         def fpm_get_savepath_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].savepath
+                return device.savepath
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].savepath
 
         def fpm_mask_positions_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].mask_positions
+                return device.mask_positions
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].mask_positions
+
+        def fpm_update_position_file_msg(axis, filename):
+            device = self.instr.all_devices[axis]
+            if device is None:
+                return f"NACK: Axis {axis} not found"
+            else:
+                device.update_position_file(filename)
+                return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].update_position_file(filename)
+            #     return "ACK"
 
         def fpm_move_to_phasemask_msg(axis, maskname):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_to_mask(maskname)
+                device.move_to_mask(maskname)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_to_mask(maskname)
+            #     return "ACK"
 
         def fpm_move_relative_msg(axis, new_pos):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_relative(new_pos)
+                device.move_relative(new_pos)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_relative(new_pos)
+            #     return "ACK"
 
         def fpm_move_absolute_msg(axis, new_pos):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].move_absolute(new_pos)
+                device.move_absolute(new_pos)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].move_absolute(new_pos)
+            #     return "ACK"
 
         def fpm_read_position_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                return self.instr.devices[axis].read_position()
+                return device.read_position()
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     return self.instr.devices[axis].read_position()
 
         def fpm_update_mask_position_msg(axis, mask_name):
-            if axis not in self.instr.devices:
-                return f"NACK: Mask {mask_name} not found"
-            else:
-                self.instr.devices[axis].update_mask_position(mask_name)
-                return "ACK"
-
-        def fpm_write_mask_positions_msg(axis):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].write_current_mask_positions()
+                device.update_mask_position(mask_name)
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Mask {mask_name} not found"
+            # else:
+            #     self.instr.devices[axis].update_mask_position(mask_name)
+            #     return "ACK"
+
+        def fpm_offset_all_mask_positions_msg(axis, rel_offset_x, rel_offset_y):
+            device = self.instr.all_devices[axis]
+            if device is None:
+                return f"NACK: Axis {axis} not found"
+            else:
+                device.offset_all_mask_positions(rel_offset_x, rel_offset_y)
+                return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].offset_all_mask_positions(
+            #         rel_offset_x, rel_offset_y
+            #     )
+            #     return "ACK"
+
+        def fpm_write_mask_positions_msg(axis):
+            device = self.instr.all_devices[axis]
+            if device is None:
+                return f"NACK: Axis {axis} not found"
+            else:
+                device.write_current_mask_positions()
+                return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].write_current_mask_positions()
+            #     return "ACK"
 
         def fpm_update_all_mask_positions_relative_to_current_msg(
             axis, current_mask_name, reference_mask_position_file
         ):
-            if axis not in self.instr.devices:
+            device = self.instr.all_devices[axis]
+            if device is None:
                 return f"NACK: Axis {axis} not found"
             else:
-                self.instr.devices[axis].update_all_mask_positions_relative_to_current(
+                device.update_all_mask_positions_relative_to_current(
                     current_mask_name, reference_mask_position_file, write_file=False
                 )
                 return "ACK"
+            # if axis not in self.instr.devices:
+            #     return f"NACK: Axis {axis} not found"
+            # else:
+            #     self.instr.devices[axis].update_all_mask_positions_relative_to_current(
+            #         current_mask_name, reference_mask_position_file, write_file=False
+            #     )
+            #     return "ACK"
 
         # patterns = {
         #     "read {}": read_msg,
@@ -612,7 +823,9 @@ class MultiDeviceServer:
             "fpm_moverel": fpm_move_relative_msg,
             "fpm_moveabs": fpm_move_absolute_msg,
             "fpm_readpos": fpm_read_position_msg,
+            "fpm_update_position_file": fpm_update_position_file_msg,
             "fpm_updatemaskpos": fpm_update_mask_position_msg,
+            "fpm_offsetallmaskpositions": fpm_offset_all_mask_positions_msg,
             "fpm_writemaskpos": fpm_write_mask_positions_msg,
             "fpm_updateallmaskpos": fpm_update_all_mask_positions_relative_to_current_msg,
             "ping": ping_msg,
@@ -620,6 +833,10 @@ class MultiDeviceServer:
             "on": on_msg,
             "off": off_msg,
             "is_on": is_on_msg,
+            "reset": reset_msg,
+            "mv_img": mv_img_msg,
+            "mv_pup": mv_pup_msg,
+            "asg_setup": asg_setup_msg,
         }
 
         first_word_to_format = {
@@ -639,7 +856,9 @@ class MultiDeviceServer:
             "fpm_moverel": "fpm_moverel {} {}",
             "fpm_moveabs": "fpm_moveabs {} {}",
             "fpm_readpos": "fpm_readpos {}",
+            "fpm_update_position_file": "fpm_update_position_file {} {}",
             "fpm_updatemaskpos": "fpm_updatemaskpos {} {}",
+            "fpm_offsetallmaskpositions": "fpm_offsetallmaskpositions {} {} {}",
             "fpm_writemaskpos": "fpm_writemaskpos {}",
             "fpm_updateallmaskpos": "fpm_updateallmaskpos {} {} {}",
             "ping": "ping {}",
@@ -647,6 +866,10 @@ class MultiDeviceServer:
             "on": "on {}",
             "off": "off {}",
             "is_on": "is_on {}",
+            "reset": "reset {}",
+            "mv_img": "mv_img {} {} {:f} {:f}",  # mv_img {config} {beam_number} {x} {y}
+            "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
+            "asg_setup": "asg_setup {} {} {}",  # 2nd input is either a named position or a float
         }
 
         try:
@@ -672,7 +895,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, required=True, help="Path to the configuration file"
     )
-    parser.add_argument("--host", type=str, default="localhost", help="Host address")
+    parser.add_argument("--host", type=str, default="172.16.8.6", help="Host address")
     parser.add_argument("-p", "--port", type=int, default=5555, help="Port number")
 
     args = parser.parse_args()

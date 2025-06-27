@@ -5,33 +5,47 @@ import pyzelda.utils.zernike as zernike
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import datetime
 import time 
+from matplotlib.widgets import Slider
+import matplotlib.animation as animation
+import math
 from astropy.io import fits 
 import pandas as pd
 from scipy.interpolate import interp1d
+import subprocess
 from scipy.integrate import quad
 from scipy import ndimage
 import scipy.ndimage as ndimage
 from scipy.spatial import distance
 from scipy import signal
+from scipy.ndimage import binary_erosion
 from scipy.interpolate import RegularGridInterpolator
 from scipy.ndimage import distance_transform_edt
 from scipy.optimize import curve_fit
+from scipy.optimize import leastsq
+from scipy.ndimage import gaussian_filter,  median_filter
+from scipy.ndimage import label, find_objects
+import glob
+import re
+from pathlib import Path
+
 import itertools
 import corner
 
-import sys 
-sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
-sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
-import FliSdk_V2 
-import FliCredThree
-import FliCredTwo
-import FliCredOne
+#####
+# ANYTHING THAT RELIES ON THESE SDK'S NEEDS
+# TO BE UPDATED WITH  SHM
+#####
+# import sys 
+# sys.path.insert(1, '/opt/FirstLightImaging/FliSdk/Python/demo/')
+# sys.path.insert(1,'/opt/Boston Micromachines/lib/Python3/site-packages/')
+# import FliSdk_V2 
+# import FliCredThree
+# import FliCredTwo
+# import FliCredOne
 
-import bmc
+# import bmc
 # ============== UTILITY FUNCTIONS
 
-
-data_path = '/home/baldr/Documents/baldr/ANU_demo_scripts/BALDR/data/' 
 
 
 def convert_to_serializable(obj):
@@ -51,6 +65,153 @@ def convert_to_serializable(obj):
         return [convert_to_serializable(item) for item in obj]
     else:
         return obj  # Base case: return the object itself if it doesn't need conversion
+
+
+
+def recursive_update(orig, new):
+    """
+    Recursively update dictionary 'orig' with 'new' without overwriting sub-dictionaries.
+    """
+    for key, value in new.items():
+        if (key in orig and isinstance(orig[key], dict) 
+            and isinstance(value, dict)):
+            recursive_update(orig[key], value)
+        else:
+            orig[key] = value
+    return orig
+
+    
+# Function to run script
+def run_script(command):
+    """
+    Run an external python script using subprocess.
+    """
+    try:
+
+        # Ensure stdout and stderr are properly closed
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                print(f"Script failed: {stderr}")
+                return False
+        return True  # Script succeeded
+    except Exception as e:
+        print(f"Error running script: {e}")
+        return False
+
+
+def run_script_with_output(command):
+    """
+    Run an external script using subprocess and capture its output 
+    """
+    try:
+
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+            
+            output = []
+            for line in process.stdout:
+                print(line.strip())  # Stream output in real-time to UI
+                output.append(line.strip())
+
+            stderr_output = process.stderr.read().strip()
+            print(f'process return code {process.returncode}')
+            ### This always fails even when script runs fine.. even when using sys.exit(0) I dont understand
+            #if process.returncode != 0:
+            #    st.error(f"Script failed: {stderr_output}")
+            #    return False, output
+        return True, output  # Script succeeded
+
+    except Exception as e:
+        print(f"Error running script: {e}")
+        return False, []
+
+
+
+
+def find_calibration_files(mode, gain, target_fps, base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(1), fps_diff_thresh=100):
+    """
+    For finding claibration files in DCS (on mimir:/home/asg/Progs/repos/dcs/calibration_frames/products/)
+
+    Search through the calibration directories from base_dir (default= MASTER_DARK) to findfiles matching a given mode and gain,
+    and further filter by time difference (from current time) and fps difference constraints.
+    
+    Parameters:
+      mode (str): The calibration mode to match.
+      gain (int or str): The gain value to match.
+      target_fps (float): The target fps value.
+      time_diff_thresh (datetime.timedelta): (default 1 day) Maximum allowed age (difference between now and file timestamp).
+      fps_diff_thresh (float): Maximum allowed difference in fps from target_fps, .
+      
+    Returns:
+      list of Path: A list of file paths that pass the filters.
+    """
+    
+    try:
+        gain = int(gain)
+        target_fps = float(target_fps)
+    except:
+        raise UserWarning("input type for gain or fps is wrong.")
+    
+    # Define the base directory pattern.
+    base_pattern = f"/home/asg/Progs/repos/dcs/calibration_frames/products/*/{base_dir}/"
+    # Prepare the glob pattern: we'll insert the mode and gain in the filename. 
+    # For example, if mode='A' and gain=5, we want files like:
+    # master_darks_A_fps-<fps_value>_gain-5_<timestamp>.fits
+    file_pattern = f"*_{mode}_fps-*_gain-{gain}_*.fits"
+    
+    # Combine the base path and the file pattern using glob:
+    search_path = base_pattern + file_pattern
+    file_list = glob.glob(search_path)
+    
+    # Prepare the regular expression to parse the filename.
+    # Example filename:
+    # master_darks_A_fps-30_gain-5_2021-05-22T13-37-02.fits
+    regex = re.compile(
+        r".*_(?P<mode>\w+)_fps-(?P<fps>\d+(?:\.\d+)?)_gain-(?P<gain>\d+)_"
+        r"(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})\.fits"
+    )
+    
+    now = datetime.datetime.now()
+    accepted_files = []
+    
+    for file_path in file_list:
+        fname = Path(file_path).name
+        match = regex.fullmatch(fname)
+        if not match:
+            # Skip files that don't match the expected pattern
+            continue
+
+        # Extract the file parameters
+        file_mode = match.group("mode")
+        file_fps = float(match.group("fps"))
+        file_gain = match.group("gain")  # as string, or convert to int if needed
+        timestamp_str = match.group("timestamp")
+        
+        # Check that file_mode and file_gain match input parameters.
+        # Note: You may need to adjust comparisons (e.g., case insensitive, numeric conversion) as needed.
+        if file_mode != mode or str(file_gain) != str(gain):
+            continue
+        
+        # Parse the timestamp. The expected format is: YYYY-MM-DDTHH-MM-SS
+        try:
+            file_timestamp = datetime.datetime.strptime(timestamp_str, "%Y-%m-%dT%H-%M-%S")
+        except ValueError:
+            continue  # skip if the timestamp can't be parsed
+        
+        # Check time difference: we want files that are not older than the threshold.
+        time_diff = now - file_timestamp
+        if time_diff > time_diff_thresh:
+            continue
+        
+        # Check fps difference.
+        if abs(file_fps - target_fps) > fps_diff_thresh:
+            continue
+        
+        # If passed both filters, add to the list.
+        accepted_files.append(Path(file_path))
+    
+    return accepted_files
 
 
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
@@ -493,8 +654,7 @@ def pin_to_nearest_registered_with_missing_corners(dm_shape, missing_corners, re
     
     return basis_norm
 
-
-def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, coldstop_diam=None, eta=0, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
     """
     get theoretical reference pupil intensities of ZWFS with / without phasemask 
     
@@ -509,6 +669,8 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
             if diameter_in_angular_units=True than this has diffraction limit units ( 1.22 * f * lambda/D )
             if  diameter_in_angular_units=False than this has physical units (m) determined by F_number and wavelength
         DESCRIPTION. The default is 1.2.
+    coldstop_diam : diameter in lambda / D of focal plane coldstop
+    eta : ratio of secondary obstruction radius (r_2/r_1), where r2 is secondary, r1 is primary. 0 meams no secondary obstruction
     diameter_in_angular_units : TYPE, optional
         DESCRIPTION. The default is True.
     get_individual_terms : Type optional
@@ -530,7 +692,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     pupil_radius = 1  # Pupil radius in meters
 
     # Define the grid in the pupil plane
-    N = 2**9 + 1 #256  # Number of grid points (assumed to be square)
+    N = 2**9+1  # for parity (to not introduce tilt) works better ODD!  # Number of grid points (assumed to be square)
     L_pupil = 2 * pupil_radius  # Pupil plane size (physical dimension)
     dx_pupil = L_pupil / N  # Sampling interval in the pupil plane
     x_pupil = np.linspace(-L_pupil/2, L_pupil/2, N)   # Pupil plane coordinates
@@ -541,14 +703,22 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
 
 
     # Define a circular pupil function
-    pupil = np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius
+    pupil = (np.sqrt(X_pupil**2 + Y_pupil**2) > eta*pupil_radius) & (np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius)
 
     # Zero padding to increase resolution
     # Increase the array size by padding (e.g., 4x original size)
     N_padded = N * padding_factor
+    if (N % 2) != (N_padded % 2):  
+        N_padded += 1  # Adjust to maintain parity
+        
     pupil_padded = np.zeros((N_padded, N_padded))
-    start_idx = (N_padded - N) // 2
-    pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+    #start_idx = (N_padded - N) // 2
+    #pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+
+    start_idx_x = (N_padded - N) // 2
+    start_idx_y = (N_padded - N) // 2  # Explicitly ensure symmetry
+
+    pupil_padded[start_idx_y:start_idx_y+N, start_idx_x:start_idx_x+N] = pupil
 
     # Perform the Fourier transform on the padded array (normalizing for the FFT)
     pupil_ft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)))
@@ -560,6 +730,7 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     L_image = wavelength * F_number / dx_pupil  # Total size in the image plane
     dx_image_padded = L_image / N_padded  # Sampling interval in the image plane with padding
     
+
     if diameter_in_angular_units:
         x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale  # Image plane coordinates in Airy units
         y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale
@@ -574,7 +745,15 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
     else: 
         mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 4
         
-    psi_B = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded)) )
+    if coldstop_diam is not None:
+        coldmask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= coldstop_diam / 4
+    else:
+        coldmask = np.ones(X_image_padded.shape)
+
+    pupil_ft = np.fft.fft2(np.fft.ifftshift(pupil_padded))  # Remove outer fftshift
+    pupil_ft = np.fft.fftshift(pupil_ft)  # Shift only once at the end
+
+    psi_B = coldmask * pupil_ft
                             
     b = np.fft.fftshift( np.fft.ifft2( mask * psi_B ) ) 
 
@@ -640,7 +819,9 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         
         Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
     
-        return( P, Ic)
+        return( P, Ic )
+
+
 
 
 def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n, x_c, y_c, new_radius):
@@ -684,6 +865,394 @@ def interpolate_pupil_to_measurement(original_pupil, original_image, M, N, m, n,
     new_pupil = new_pupil.reshape(n, m)
 
     return new_pupil
+
+
+
+
+def filter_exterior_annulus(pupil_mask, inner_radius, outer_radius):
+    """
+    Generate a boolean mask that filters pixels exterior to the circular pupil
+    but within the specified inner and outer radii.
+    """
+    # Get the image shape
+    ny, nx = pupil_mask.shape
+
+    # Compute the pupil center (mean of True pixels)
+    y_indices, x_indices = np.where(pupil_mask)
+    center_x = np.mean(x_indices)
+    center_y = np.mean(y_indices)
+
+    # Generate a coordinate grid
+    X, Y = np.meshgrid(np.arange(nx), np.arange(ny))
+
+    # Compute the Euclidean distance of each pixel from the pupil center
+    distance_from_center = np.sqrt((X - center_x) ** 2 + (Y - center_y) ** 2)
+
+    # Create an annular mask where pixels are within the given inner and outer radius
+    annular_mask = (distance_from_center >= inner_radius) & (distance_from_center <= outer_radius)
+
+    return annular_mask
+
+
+def remove_boundary(mask):
+    """
+    Remove boundary pixels from a boolean mask.
+    
+    Parameters:
+        mask (np.ndarray): 2D boolean array.
+        
+    Returns:
+        np.ndarray: New mask where any True pixel that touches a False pixel (in its 3x3 neighborhood)
+                    has been set to False.
+    """
+    # Create a 3x3 structure element that considers all 8 neighbors.
+    structure = np.ones((3, 3), dtype=bool)
+    # binary_erosion returns a new mask where a pixel is True only if all pixels in its neighborhood
+    # (defined by structure) were True in the original mask.
+    return binary_erosion(mask, structure=structure)
+
+
+def get_secondary_mask(image, center):
+    """
+    Create a boolean mask with the same shape as `image` that is True 
+    for a 3x3 patch centered at the given (x,y) coordinate (floats)
+    and False elsewhere. x,y is rounded to nearet integer
+
+    Designed for identifying pixels shaddowed by secondary obstruction. 
+    Use detect_pupil() function to get the center! 
+    
+    Parameters:
+        image (np.ndarray): 2D array (image).
+        center (tuple): (x, y) coordinate (floats) of the patch center.
+                        x is column, y is row.
+    
+    Returns:
+        mask (np.ndarray): Boolean mask array with True in the 3x3 patch.
+    """
+    # Initialize a boolean mask of the same shape as the image with all False
+    mask = np.zeros_like(image, dtype=bool)
+    
+    # Unpack the center coordinates and round to nearest integer
+    x, y = center
+    col = int(round(x))
+    row = int(round(y))
+    
+    # Set the 3x3 patch to True.
+    # Note: This simple example assumes the patch is fully contained in the image.
+    mask[row-1:row+2, col-1:col+2] = True
+    
+    return mask
+
+
+
+def detect_circle(image, sigma=2, threshold=0.5, plot=False):
+    """
+    Detects a circular pupil in a given image using edge detection and circle fitting.
+
+    Returns:
+        (center_x, center_y, radius) of the detected pupil.
+    """
+    
+
+    # Normalize and smooth the image
+    image = image / np.max(image)
+    smoothed_image = gaussian_filter(image, sigma=sigma)
+
+    # Compute gradient-based edge detection
+    grad_x = np.gradient(smoothed_image, axis=1)
+    grad_y = np.gradient(smoothed_image, axis=0)
+    edges = np.sqrt(grad_x**2 + grad_y**2)
+
+    # Threshold the edges
+    binary_edges = edges > (threshold * edges.max())
+
+    # Get edge coordinates
+    y, x = np.nonzero(binary_edges)
+
+    # Initial guess: Center is mean position of edge points
+    center_x, center_y = np.mean(x), np.mean(y)
+    radius = np.sqrt(((x - center_x) ** 2 + (y - center_y) ** 2).mean())
+
+    if plot:
+        import matplotlib.pyplot as plt
+        fig, ax = plt.subplots()
+        ax.imshow(image, cmap="gray", origin="upper")
+        circle = plt.Circle((center_x, center_y), radius, color='red', fill=False)
+        ax.add_patch(circle)
+        ax.scatter(center_x, center_y, color='blue', marker='+')
+        plt.title("Detected Pupil")
+        plt.show()
+
+    return int(center_x), int(center_y), int(radius)
+
+
+
+
+def percentile_based_detect_pupils(
+    image, percentile=80, min_group_size=50, buffer=20, square_region=True, plot=True
+):
+    """
+    Detects circular pupils by identifying regions with grouped pixels above a given percentile.
+
+    Parameters:
+        image (2D array): Full grayscale image containing multiple pupils.
+        percentile (float): Percentile of pixel intensities to set the threshold (default 80th).
+        min_group_size (int): Minimum number of adjacent pixels required to consider a region.
+        buffer (int): Extra pixels to add around the detected region for cropping.
+        plot (bool): If True, displays the detected regions and coordinates.
+
+    Returns:
+        list of tuples: Cropping coordinates [(x_start, x_end, y_start, y_end), ...].
+    """
+    # Normalize the image
+    image = image / image.max()
+
+    # Calculate the intensity threshold as the 80th percentile
+    threshold = np.percentile(image, percentile)
+
+    # Create a binary mask where pixels are above the threshold
+    binary_image = image > threshold
+
+    # Label connected regions in the binary mask
+    labeled_image, num_features = label(binary_image)
+
+    # Extract regions and filter by size
+    regions = find_objects(labeled_image)
+    pupil_regions = []
+    for region in regions:
+        y_slice, x_slice = region
+        # Count the number of pixels in the region
+        num_pixels = np.sum(labeled_image[y_slice, x_slice] > 0)
+        if num_pixels >= min_group_size:
+            # Add a buffer around the region for cropping
+            y_start = max(0, y_slice.start - buffer)
+            y_end = min(image.shape[0], y_slice.stop + buffer)
+            x_start = max(0, x_slice.start - buffer)
+            x_end = min(image.shape[1], x_slice.stop + buffer)
+
+            if square_region:
+                max_delta = np.max( [x_end - x_start,y_end - y_start] )                
+                pupil_regions.append((x_start, x_start+max_delta, y_start, y_start+max_delta))
+            else:
+                pupil_regions.append((x_start, x_end, y_start, y_end))
+            
+    if plot:
+        # Plot the original image with bounding boxes
+        plt.figure(figsize=(10, 10))
+        plt.imshow(image, cmap="gray", origin="upper")
+        for x_start, x_end, y_start, y_end in pupil_regions:
+            rect = plt.Rectangle(
+                (x_start, y_start),
+                x_end - x_start,
+                y_end - y_start,
+                edgecolor="red",
+                facecolor="none",
+                linewidth=2,
+            )
+            plt.gca().add_patch(rect)
+        plt.title(f"Detected Pupils: {len(pupil_regions)}")
+        plt.savefig('delme.png')
+        plt.show()
+        
+
+    return pupil_regions
+
+def detect_pupil(image, sigma=2, threshold=0.5, plot=True, savepath=None):
+    """
+    Detects an elliptical pupil (with possible rotation) in a cropped image using edge detection 
+    and least-squares fitting. Returns both the ellipse parameters and a pupil mask.
+
+    This is a generalized version of detect circle function 
+    The ellipse is modeled by:
+
+        ((x - cx)*cos(theta) + (y - cy)*sin(theta))^2 / a^2 +
+        (-(x - cx)*sin(theta) + (y - cy)*cos(theta))^2 / b^2 = 1
+
+    Parameters:
+        image (2D array): Cropped grayscale image containing a single pupil.
+        sigma (float): Standard deviation for Gaussian smoothing.
+        threshold (float): Threshold factor for edge detection.
+        plot (bool): If True, displays the image with the fitted ellipse overlay.
+        savepath (str): If provided, the plot is saved to this path.
+
+    Returns:
+        (center_x, center_y, a, b, theta, pupil_mask)
+          where (center_x, center_y) is the ellipse center,
+                a and b are the semimajor and semiminor axes,
+                theta is the rotation angle in radians,
+                pupil_mask is a 2D boolean array (True = inside ellipse).
+    """
+    # Normalize the image
+    image = image / image.max()
+    
+    # Smooth the image
+    smoothed_image = gaussian_filter(image, sigma=sigma)
+    
+    # Compute gradients (Sobel-like edge detection)
+    grad_x = np.gradient(smoothed_image, axis=1)
+    grad_y = np.gradient(smoothed_image, axis=0)
+    edges = np.sqrt(grad_x**2 + grad_y**2)
+    
+    # Threshold edges to create a binary mask
+    binary_edges = edges > (threshold * edges.max())
+    
+    # Get edge pixel coordinates
+    y_coords, x_coords = np.nonzero(binary_edges)
+    
+    # Initial guess: center from mean, radius from average distance, and theta = 0.
+    def initial_guess(x, y):
+        center_x = np.mean(x)
+        center_y = np.mean(y)
+        r_init = np.sqrt(np.mean((x - center_x)**2 + (y - center_y)**2))
+        return center_x, center_y, r_init, r_init, 0.0  # (cx, cy, a, b, theta)
+    
+    # Ellipse model function with rotation.
+    def ellipse_model(params, x, y):
+        cx, cy, a, b, theta = params
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+        x_shift = x - cx
+        y_shift = y - cy
+        xp =  cos_t * x_shift + sin_t * y_shift
+        yp = -sin_t * x_shift + cos_t * y_shift
+        # Model: xp^2/a^2 + yp^2/b^2 = 1 => residual = sqrt(...) - 1
+        return np.sqrt((xp/a)**2 + (yp/b)**2) - 1.0
+
+    # Fit via least squares.
+    guess = initial_guess(x_coords, y_coords)
+    result, _ = leastsq(ellipse_model, guess, args=(x_coords, y_coords))
+    center_x, center_y, a, b, theta = result
+    
+    # Create a boolean pupil mask for the fitted ellipse
+    yy, xx = np.ogrid[:image.shape[0], :image.shape[1]]
+    cos_t = np.cos(theta)
+    sin_t = np.sin(theta)
+    x_shift = xx - center_x
+    y_shift = yy - center_y
+    xp = cos_t * x_shift + sin_t * y_shift
+    yp = -sin_t * x_shift + cos_t * y_shift
+    pupil_mask = (xp/a)**2 + (yp/b)**2 <= 1
+
+    if plot:
+        # Overlay for visualization
+        overlay = np.zeros_like(image)
+        overlay[pupil_mask] = 1
+        
+        plt.figure(figsize=(6, 6))
+        plt.imshow(image, cmap="gray", origin="upper")
+        plt.contour(binary_edges, colors="cyan", linewidths=1)
+        plt.contour(overlay, colors="red", linewidths=1)
+        plt.scatter(center_x, center_y, color="blue", marker="+")
+        plt.title("Detected Pupil with Fitted Ellipse")
+        if savepath is not None:
+            plt.savefig(savepath)
+        plt.show()
+    
+    return center_x, center_y, a, b, theta, pupil_mask
+
+
+def crop_to_square(mask):
+    # Find the (row, col) indices of the pupil (True values)
+    indices = np.argwhere(mask)
+    if indices.size == 0:
+        raise ValueError("Mask has no True values.")
+    
+    # Determine the bounding box of the pupil
+    y_min, x_min = indices.min(axis=0)
+    y_max, x_max = indices.max(axis=0)
+    
+    # Determine the required side length for the square (largest dimension)
+    height = y_max - y_min + 1
+    width = x_max - x_min + 1
+    side = max(width, height)
+    
+    # Compute the pupil center as a float for subpixel precision
+    center_y = (y_min + y_max) / 2.0
+    center_x = (x_min + x_max) / 2.0
+    
+    # Calculate the crop boundaries so that the pupil is centered.
+    # Using floor when subtracting half the side helps keep the crop symmetric.
+    new_y_min = int(np.floor(center_y - side / 2.0))
+    new_x_min = int(np.floor(center_x - side / 2.0))
+    new_y_max = new_y_min + side
+    new_x_max = new_x_min + side
+
+    # Adjust if the computed indices extend beyond the image boundaries.
+    if new_y_min < 0:
+        new_y_min = 0
+        new_y_max = side
+    if new_x_min < 0:
+        new_x_min = 0
+        new_x_max = side
+    if new_y_max > mask.shape[0]:
+        new_y_max = mask.shape[0]
+        new_y_min = new_y_max - side
+    if new_x_max > mask.shape[1]:
+        new_x_max = mask.shape[1]
+        new_x_min = new_x_max - side
+        
+    return new_y_min, new_y_max, new_x_min, new_x_max
+
+
+def get_mask_center(mask,  method='2'):
+    """
+    for a 2D boolean mask we 
+    detect the edge coordinates in x,y and the centers
+    """
+
+    if method == '1':
+        x_edge_pixels = np.where(abs(np.diff( np.nansum( mask, axis=0)>0 ) ) > 0)
+        y_edge_pixels = np.where(abs(np.diff( np.nansum( mask, axis=1)>0 ) ) > 0)
+
+        if len( x_edge_pixels ) > 0:
+            x_c = np.mean( x_edge_pixels[0] )
+        else:
+            x_c = None 
+
+        if len( y_edge_pixels ) > 0:
+            y_c = np.mean( y_edge_pixels[0] )
+        else:
+            y_c = None 
+
+    elif method=='2':
+        x_c = np.mean(  np.where( mask )[0])
+        y_c = np.mean(  np.where( mask )[1])
+
+    return( x_c, y_c )
+
+def get_circle_DM_command(radius, Nx_act=12):
+    """
+    Generates a DM command that forms a circular shape of the given radius.
+
+    Parameters:
+        radius (float): Desired radius in actuator units.
+        Nx_act (int, optional): Number of actuators per side of the DM (default 12).
+
+    Returns:
+        cmd (ndarray): A 140-length DM command vector with a circular shape.
+    """
+    # Generate actuator coordinate grid
+    x = np.arange(Nx_act)
+    y = np.arange(Nx_act)
+    X, Y = np.meshgrid(x, y)
+
+    # Compute distances from the center of the DM grid
+    center = (Nx_act - 1) / 2  # DM is 12x12, so center is at (5.5, 5.5)
+    distances = np.sqrt((X - center) ** 2 + (Y - center) ** 2)
+
+    # Mask actuators inside the desired radius
+    mask = distances <= radius
+
+    # Flatten the mask and remove corner actuators
+    mask_flattened = mask.flatten()
+    corner_indices = [0, Nx_act-1, Nx_act*(Nx_act-1), Nx_act*Nx_act-1]
+    mask_flattened = np.delete(mask_flattened, corner_indices)
+
+    # Create the DM command vector of length 140
+    cmd = np.zeros(140)
+    cmd[mask_flattened] = 1  # Set selected actuators to 1
+
+    return cmd
 
 
 # Planck's law function for spectral radiance
@@ -803,7 +1372,27 @@ def get_DM_command_in_2D(cmd,Nx_act=12):
         cmd_in_2D.insert(i,np.nan)
     return( np.array(cmd_in_2D).reshape(Nx_act,Nx_act) )
 
-
+def convert_12x12_to_140(arr):
+    # Convert input to a NumPy array (if it isn't already)
+    arr = np.asarray(arr)
+    
+    if arr.shape != (12, 12):
+        raise ValueError("Input must be a 12x12 array.")
+    
+    # Flatten the array (row-major order)
+    flat = arr.flatten()
+    
+    # The indices for the four corners in a 12x12 flattened array (row-major order):
+    # Top-left: index 0
+    # Top-right: index 11
+    # Bottom-left: index 11*12 = 132
+    # Bottom-right: index 143 (11*12 + 11)
+    corner_indices = [0, 11, 132, 143]
+    
+    # Delete the corner elements from the flattened array
+    vector = np.delete(flat, corner_indices)
+    
+    return vector
 
 def circle(radius, size, circle_centre=(0, 0), origin="middle"):
     
@@ -1211,10 +1800,37 @@ def watch_camera(zwfs, frames_to_watch = 10, time_between_frames=0.01,cropping_c
 
 
 
-
+def bin_phase_screen(phase_screen, out_size=12):
+    """
+    Rebin (average) a square 2D phase screen into an out_size x out_size array.
+    
+    If the phase_screen shape is not exactly divisible by out_size,
+    the phase_screen is cropped to the largest size that is a multiple of out_size.
+    
+    Parameters:
+      phase_screen (np.ndarray): 2D array (square) representing the phase screen.
+      out_size (int): Desired output size (default: 12)
+      
+    Returns:
+      np.ndarray: A (out_size x out_size) binned phase screen.
+    """
+    m, n = phase_screen.shape
+    if m != n:
+        raise ValueError("Phase screen must be square.")
+    
+    # Crop the array if necessary
+    new_dim = (m // out_size) * out_size  # largest multiple of out_size <= m
+    if new_dim < m:
+        phase_screen = phase_screen[:new_dim, :new_dim]
+    
+    block_size = new_dim // out_size
+    # Reshape so that each block is block_size x block_size and average each block.
+    binned = phase_screen.reshape(out_size, block_size, out_size, block_size).mean(axis=(1,3))
+    return binned
 
 def create_phase_screen_cmd_for_DM(scrn,  scaling_factor=0.1, drop_indicies = None, plot_cmd=False):
     """
+    ### only works for factors of 12 * n , better to use  bin_phase_screen(
     aggregate a scrn (aotools.infinitephasescreen object) onto a DM command space. phase screen is normalized by
     between +-0.5 and then scaled by scaling_factor. Final DM command values should
     always be between -0.5,0.5 (this should be added to a flat reference so flat reference + phase screen should always be bounded between 0-1). phase screens are usually a NxN matrix, while DM is MxM with some missing pixels (e.g. 
@@ -1274,7 +1890,8 @@ def block_sum(ar, fact): # sums over subwindows of a 2D array
 
 
 # ========== PLOTTING STANDARDS 
-def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
+
+def nice_heatmap_subplots( im_list , xlabel_list=None, ylabel_list=None, title_list=None, cbar_label_list=None, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
 
     n = len(im_list)
     fs = fontsize
@@ -1282,15 +1899,17 @@ def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_l
 
     for a in range(n) :
         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
-        ax1.set_title(title_list[a] ,fontsize=fs)
 
-        if vlims!=None:
+        if vlims is not None:
             im1 = ax1.imshow(  im_list[a] , vmin = vlims[a][0], vmax = vlims[a][1])
         else:
             im1 = ax1.imshow(  im_list[a] )
-        ax1.set_title( title_list[a] ,fontsize=fs)
-        ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
-        ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
+        if title_list is not None:
+            ax1.set_title( title_list[a] ,fontsize=fs)
+        if xlabel_list is not None:
+            ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
+        if ylabel_list is not None:
+            ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
         ax1.tick_params( labelsize=fs ) 
 
         if axis_off:
@@ -1308,13 +1927,235 @@ def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_l
             cax = divider.append_axes('right', size='5%', pad=0.05)
             cbar = fig.colorbar( im1, cax=cax, orientation='vertical')  
         
-   
-        cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
+        if cbar_label_list is not None:
+            cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
         cbar.ax.tick_params(labelsize=fs)
-    if savefig!=None:
+    if savefig is not None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
 
-    #plt.show() 
+
+
+
+
+def display_images_with_slider(image_lists, plot_titles=None, cbar_labels=None):
+    """
+    Displays multiple images or 1D plots from a list of lists with a slider to control the shared index.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    """
+    
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(5 * ncols, 5 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Slider for selecting the frame index
+    ax_slider = plt.axes([0.2, 0.05, 0.65, 0.03], facecolor='lightgoldenrodyellow')
+    frame_slider = Slider(ax_slider, 'Frame', 0, num_frames - 1, valinit=0, valstep=1)
+
+    # Update function for the slider
+    def update(val):
+        index = int(frame_slider.val)  # Get the selected index from the slider
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][index])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the selected index)
+                line_display.set_data(np.arange(index), image_lists[i][:index])
+        fig.canvas.draw_idle()  # Redraw the figure
+
+    # Connect the slider to the update function
+    frame_slider.on_changed(update)
+
+    plt.show()
+
+
+
+def display_images_as_movie(image_lists, plot_titles=None, cbar_labels=None, save_path="output_movie.mp4", fps=5):
+    """
+    Creates an animation from multiple images or 1D plots from a list of lists and saves it as a movie.
+    
+    Parameters:
+    - image_lists: list of lists where each inner list contains either 2D arrays (images) or 1D arrays (scalars).
+                   The inner lists must all have the same length.
+    - plot_titles: list of strings, one for each subplot. Default is None (no titles).
+    - cbar_labels: list of strings, one for each colorbar. Default is None (no labels).
+    - save_path: path where the output movie will be saved.
+    - fps: frames per second for the output movie.
+    """
+    
+    # Check that all inner lists have the same length
+    assert all(len(lst) == len(image_lists[0]) for lst in image_lists), "All inner lists must have the same length."
+    
+    # Number of rows and columns based on the number of plots
+    num_plots = len(image_lists)
+    ncols = math.ceil(math.sqrt(num_plots))  # Number of columns for grid
+    nrows = math.ceil(num_plots / ncols)     # Number of rows for grid
+    
+    num_frames = len(image_lists[0])
+
+    # Create figure and axes
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 6 * nrows))
+    plt.subplots_adjust(bottom=0.2)
+
+    # Flatten axes array for easier iteration
+    axes = axes.flatten() if num_plots > 1 else [axes]
+
+    # Store the display objects for each plot (either imshow or line plot)
+    img_displays = []
+    line_displays = []
+    
+    # Get max/min values for 1D arrays to set static axis limits
+    max_values = [max(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+    min_values = [min(lst) if not isinstance(lst[0], np.ndarray) else None for lst in image_lists]
+
+    for i, ax in enumerate(axes[:num_plots]):  # Only iterate over the number of plots
+        # Check if the first item in the list is a 2D array (an image) or a scalar
+        if isinstance(image_lists[i][0], np.ndarray) and image_lists[i][0].ndim == 2:
+            # Use imshow for 2D data (images)
+            img_display = ax.imshow(image_lists[i][0], cmap='viridis')
+            img_displays.append(img_display)
+            line_displays.append(None)  # Placeholder for line plots
+            
+            # Add colorbar if it's an image
+            cbar = fig.colorbar(img_display, ax=ax)
+            if cbar_labels and i < len(cbar_labels) and cbar_labels[i] is not None:
+                cbar.set_label(cbar_labels[i])
+
+        else:
+            # Plot the list of scalar values up to the initial index
+            line_display, = ax.plot(np.arange(len(image_lists[i])), image_lists[i], color='b')
+            line_display.set_data(np.arange(1), image_lists[i][:1])  # Start with only the first value
+            ax.set_xlim(0, len(image_lists[i]))  # Set x-axis to full length of the data
+            ax.set_ylim(min_values[i], max_values[i])  # Set y-axis to cover the full range
+            line_displays.append(line_display)
+            img_displays.append(None)  # Placeholder for image plots
+
+        # Set plot title if provided
+        if plot_titles and i < len(plot_titles) and plot_titles[i] is not None:
+            ax.set_title(plot_titles[i])
+
+    # Remove any unused axes
+    for ax in axes[num_plots:]:
+        ax.remove()
+
+    # Function to update the frames
+    def update_frame(frame_idx):
+        for i, (img_display, line_display) in enumerate(zip(img_displays, line_displays)):
+            if img_display is not None:
+                # Update the image data for 2D data
+                img_display.set_data(image_lists[i][frame_idx])
+            if line_display is not None:
+                # Update the line plot for scalar values (plot up to the current index)
+                line_display.set_data(np.arange(frame_idx), image_lists[i][:frame_idx])
+        return img_displays + line_displays
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update_frame, frames=num_frames, blit=False, repeat=False)
+
+    # Save the animation as a movie file
+    ani.save(save_path, fps=fps, writer='ffmpeg')
+
+    plt.show()
+
+
+# Delete this version
+# def nice_heatmap_subplots( im_list , xlabel_list, ylabel_list, title_list,cbar_label_list, fontsize=15, cbar_orientation = 'bottom', axis_off=True, vlims=None, savefig=None):
+
+#     n = len(im_list)
+#     fs = fontsize
+#     fig = plt.figure(figsize=(5*n, 5))
+
+#     for a in range(n) :
+#         ax1 = fig.add_subplot(int(f'1{n}{a+1}'))
+#         ax1.set_title(title_list[a] ,fontsize=fs)
+
+#         if vlims!=None:
+#             im1 = ax1.imshow(  im_list[a] , vmin = vlims[a][0], vmax = vlims[a][1])
+#         else:
+#             im1 = ax1.imshow(  im_list[a] )
+#         ax1.set_title( title_list[a] ,fontsize=fs)
+#         ax1.set_xlabel( xlabel_list[a] ,fontsize=fs) 
+#         ax1.set_ylabel( ylabel_list[a] ,fontsize=fs) 
+#         ax1.tick_params( labelsize=fs ) 
+
+#         if axis_off:
+#             ax1.axis('off')
+#         divider = make_axes_locatable(ax1)
+#         if cbar_orientation == 'bottom':
+#             cax = divider.append_axes('bottom', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
+                
+#         elif cbar_orientation == 'top':
+#             cax = divider.append_axes('top', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='horizontal')
+                
+#         else: # we put it on the right 
+#             cax = divider.append_axes('right', size='5%', pad=0.05)
+#             cbar = fig.colorbar( im1, cax=cax, orientation='vertical')  
+        
+   
+#         cbar.set_label( cbar_label_list[a], rotation=0,fontsize=fs)
+#         cbar.ax.tick_params(labelsize=fs)
+#     if savefig!=None:
+#         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
+
+#     #plt.show() 
 
 def nice_DM_plot( data, savefig=None , include_actuator_number = True): #for a 140 actuator BMC 3.5 DM
     fig,ax = plt.subplots(1,1)
@@ -1340,6 +2181,35 @@ def nice_DM_plot( data, savefig=None , include_actuator_number = True): #for a 1
 
     if savefig!=None:
         plt.savefig( savefig , bbox_inches='tight', dpi=300) 
+
+
+
+
+def truncated_pseudoinverse(U, s, Vt, k):
+    """
+    Compute the pseudoinverse of a matrix using a truncated SVD.
+
+    Parameters:
+        U (np.ndarray): Left singular vectors (m x m if full_matrices=True)
+        s (np.ndarray): Singular values (vector of length min(m,n))
+        Vt (np.ndarray): Right singular vectors (n x n if full_matrices=True)
+        k (int): Number of singular values/modes to keep.
+
+    Returns:
+        np.ndarray: The truncated pseudoinverse of the original matrix.
+    """
+    # Keep only the first k modes
+    U_k = U[:, :k]      # shape: (m, k)
+    s_k = s[:k]         # shape: (k,)
+    Vt_k = Vt[:k, :]    # shape: (k, n)
+
+    # Build the inverse of the diagonal matrix with the truncated singular values
+    S_inv_k = np.diag(1.0 / s_k)  # shape: (k, k)
+
+    # Compute the truncated pseudoinverse
+    IM_trunc_inv = Vt_k.T @ S_inv_k @ U_k.T
+    return IM_trunc_inv
+
 
 
 

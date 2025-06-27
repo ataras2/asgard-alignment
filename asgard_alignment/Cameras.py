@@ -24,7 +24,7 @@ class PointGrey:
         "OffsetY",
     ]
 
-    def __init__(self, cam_index=0):
+    def __init__(self, cam_index=0, device_id=None):
         """
         Initialize the PointGrey camera.
 
@@ -33,10 +33,25 @@ class PointGrey:
         cam_index : int, optional
             Index of the camera to initialize, by default 0
         """
+
+        if cam_index is None and device_id is None:
+            raise ValueError("Must provide either cam_index or device_id")
+
         self.system = PySpin.System.GetInstance()
         self.cam_list = self.system.GetCameras()
-        self.cam = self.cam_list.GetByIndex(cam_index)
-        self.cam.Init()
+
+        if device_id is not None:
+            for i in range(len(self.cam_list)):
+                cam = self.cam_list.GetByIndex(i)
+                cam.Init()
+                if cam.DeviceID() == device_id:
+                    self.cam = cam
+                    break
+            else:
+                raise ValueError(f"Device ID {device_id} not found")
+        else:
+            self.cam = self.cam_list.GetByIndex(cam_index)
+            self.cam.Init()
 
         self._set_default_configs()
 
@@ -66,6 +81,7 @@ class PointGrey:
 
         # frame rate stuff
         # self.cam.AcquisitionFrameRateEnable.SetValue(True)
+        # self.cam.AcquisitionFrameRateAuto.SetValue(PySpin.AcquisitionFrameRateAuto_Off)
         # self.cam.AcquisitionFrameRate.SetValue(self.cam.AcquisitionFrameRate.GetMax())
 
     def start_stream(self):
@@ -234,6 +250,38 @@ class PointGrey:
             The height and width of the image.
         """
         return (self.cam.Height.GetValue(), self.cam.Width.GetValue())
+
+    def get_node_max(self, node_name):
+        """
+        Get the maximum value of a camera node.
+
+        Parameters
+        ----------
+        node_name : str
+            The name of the node.
+
+        Returns
+        -------
+        float
+            The maximum value of the node.
+        """
+        return getattr(self.cam, node_name).GetMax()
+
+    def get_node_min(self, node_name):
+        """
+        Get the minimum value of a camera node.
+
+        Parameters
+        ----------
+        node_name : str
+            The name of the node.
+
+        Returns
+        -------
+        float
+            The minimum value of the node.
+        """
+        return getattr(self.cam, node_name).GetMin()
 
 
 class MockPointGrey:
@@ -446,7 +494,7 @@ class MockPointGrey:
 if __name__ == "__main__":
     # run some tests quickly
 
-    testing_what = "MockPointGrey"
+    testing_what = "PointGrey"
     mock_fname = "data/lab_imgs/beam_4_f400_laser_top_level_nd3.png"
 
     if testing_what == "PointGrey":

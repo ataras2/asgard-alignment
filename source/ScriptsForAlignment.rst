@@ -174,8 +174,8 @@ This script pokes each actuator on the DMs over a specified range of values and 
 - `--host`: Server hostname or IP address for ZeroMQ communication (default: localhost).
 - `--port`: Port number for ZeroMQ communication (default: 5555).
 - `--timeout`: Response timeout in milliseconds (default: 5000).
-- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
-- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
+- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json).
+- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/asg/Progs/repos/asgard-alignment/DMShapes/).
 - `--data_path`: Directory to store calibration data FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
 - `--number_images_recorded_per_cmd`: Number of images recorded per DM command, typically averaged (default: 5).
 - `--number_amp_samples`: Number of amplitude steps to apply to DM actuators (default: 18).
@@ -192,8 +192,8 @@ To poke actuators using the Zonal basis with default FPS and gain:
 .. code-block:: bash
 
     python calibration/poke_dm_actuators.py --host localhost --port 5555 --timeout 5000 \
-    --dm_config_path /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json \
-    --DMshapes_path /home/heimdallr/Documents/asgard-alignment/DMShapes/ \
+    --dm_config_path /home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json \
+    --DMshapes_path /home/asg/Progs/repos/asgard-alignment/DMShapes/ \
     --data_path /home/heimdallr/data/baldr_calibration/01-12-2024/ \
     --number_images_recorded_per_cmd 5 \
     --number_amp_samples 18 \
@@ -213,8 +213,8 @@ This script applies Kolmogorov phase screens across multiple DMs (four by defaul
 - `--host`: Server hostname or IP address for ZeroMQ communication (default: localhost).
 - `--portv: Port number for ZeroMQ communication (default: 5555).
 - `--timeout`: Response timeout in milliseconds (default: 5000).
-- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json).
-- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/heimdallr/Documents/asgard-alignment/DMShapes/).
+- `--dm_config_path`: Path to the DM configuration JSON file (default: /home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json).
+- `--DMshapes_path`: Path to the directory containing DM shapes (default: /home/asg/Progs/repos/asgard-alignment/DMShapes/).
 - `--data_path`: Directory to store phase screen calibration FITS files (default: /home/heimdallr/data/baldr_calibration/<timestamp>/).
 - `--number_of_rolls`: Number of iterations (rolls) of the Kolmogorov phase screen applied to the DM (default: 1000).
 - `--scaling_factor`: Scaling factor for the amplitude of the phase screen applied to the DM. Keep this value low to avoid saturation (default: 0.05).
@@ -229,8 +229,8 @@ To apply Kolmogorov screens with default parameters:
 .. code-block:: bash
 
     python calibration/apply_kolmogorov_screens.py --host localhost --port 5555 --timeout 5000 \
-    --dm_config_path /home/heimdallr/Documents/asgard-alignment/config_files/dm_serial_numbers.json \
-    --DMshapes_path /home/heimdallr/Documents/asgard-alignment/DMShapes/ \
+    --dm_config_path /home/asg/Progs/repos/asgard-alignment/config_files/dm_serial_numbers.json \
+    --DMshapes_path /home/asg/Progs/repos/asgard-alignment/DMShapes/ \
     --data_path /home/heimdallr/data/baldr_calibration/01-12-2024/ \
     --number_of_rolls 1000 \
     --scaling_factor 0.05 \
@@ -255,8 +255,8 @@ This script performs basic calibration for the Baldr wavefront sensing and contr
 - `--signal_method`: Method to compute the ZWFS signal, e.g., I-I0/N0 (default: 'I-I0/N0').
 - `--control_method`: Control method for DM operations, e.g., zonal_linear (default: 'zonal_linear').
 - `--output_config_filename`: Output JSON filename for saving calibration results (default: baldr_transform_dict_beam2_<timestamp>.json).
-- `--output_report_dir`: Directory to save PDF reports (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/).
-- `--fig_path`: Directory to save generated figures (default: /home/heimdallr/Documents/asgard-alignment/calibration/reports/<timestamp>/figures/).
+- `--output_report_dir`: Directory to save PDF reports (default: /home/asg/Progs/repos/asgard-alignment/calibration/reports/<timestamp>/).
+- `--fig_path`: Directory to save generated figures (default: /home/asg/Progs/repos/asgard-alignment/calibration/reports/<timestamp>/figures/).
 
 **Example Usage:**
 

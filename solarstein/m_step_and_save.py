@@ -72,6 +72,9 @@ def main():
     n_imgs = args.n_imgs
     axis = args.axis
 
+    if axis not in ["SDL12", "SDLA", "SDL34"]:
+        raise ValueError("Invalid axis")
+
     if not os.path.exists(pth):
         os.makedirs(pth)
 
@@ -89,6 +92,9 @@ def main():
     res = socket.recv_string()
     print(f"Response: {res}")
     input("check we are at end")
+
+    socket.send_string(f"moveabs {axis} {positions[0]}")
+    res = socket.recv_string()
 
     # setup camera
     cam = asgard_alignment.Cameras.PointGrey()
