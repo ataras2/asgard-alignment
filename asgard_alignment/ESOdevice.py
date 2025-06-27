@@ -65,6 +65,14 @@ class Motor(ESOdevice):
     def read_state(self):
         pass
 
+    @abc.abstractmethod
+    def read_position(self):
+        """
+        This command is used to read the current position of the device.
+        It should return a float value representing the position in encoder counts.
+        """
+        pass
+
     # note that the stop command is common to both command sets!
     @abc.abstractmethod
     def stop(self):

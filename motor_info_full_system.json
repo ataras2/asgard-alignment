@@ -566,8 +566,12 @@
     ],
     "other_devices" : [
         {
-            "name": "controllino",
+            "name": "controllino0",
             "ip_address" : "172.16.8.200"
+        },
+        {
+            "name": "controllino1",
+            "ip_address" : "172.16.8.201"
         }
     ]
 }

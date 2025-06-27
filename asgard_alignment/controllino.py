@@ -1,6 +1,8 @@
 import socket
 import time
 
+import numpy as np
+
 # List of devices and the associated arduino pin
 CONNEXIONS = {
     "SSF1+": 3,
@@ -52,6 +54,7 @@ def get_devices():
 
 
 class Controllino:
+    PING_TIMEOUT = 3 # seconds
     def __init__(self, ip, port=23, init_motors=True):
         """
         Initialize the Controllino class.
@@ -66,6 +69,7 @@ class Controllino:
         self.ip = ip
         self.port = port
         self._maintain_connection = True
+        self.last_ping_time = -np.inf # avoids pinging a lot 
         self.client = None
 
         # The turn-on command needs a string, not a number!
@@ -230,6 +234,18 @@ class Controllino:
         self._ensure_device(key)
         return self.send_command(f"o{CONNEXIONS[key]}")
 
+    def ping(self) -> bool:
+        """
+        Ping sending the ? command.
+        """
+        t = time.time()
+        if t - self.last_ping_time < self.PING_TIMEOUT:
+            return True
+        
+        result = self.send_command_anyreply("?")
+        self.last_ping_time = t
+        return result == "OK"
+
     def turn_off(self, key: str) -> bool:
         """
         Command to turn off a device.
@@ -393,8 +409,8 @@ class Controllino:
             raise ValueError("The value must be between 0 and 4095")
         value = int(value)
         return self.send_command(f"a{channel} {value}")
-    
-    #Some functions for the stepper motors
+
+    # Some functions for the stepper motors
     def rmove(self, motor: int, steps: int) -> bool:
         """
         Command to move a stepper motor.
@@ -412,8 +428,8 @@ class Controllino:
             Status of the command.
         """
         return self.send_command(f"r{motor} {steps}")
-    
-    #An abolute move command "s"
+
+    # An abolute move command "s"
     def amove(self, motor: int, position: int) -> bool:
         """
         Command to move a stepper motor to an absolute position.
@@ -431,8 +447,8 @@ class Controllino:
             Status of the command.
         """
         return self.send_command(f"s{motor} {position}")
-    
-    #Home the motor
+
+    # Home the stepper motor
     def home(self, motor: int) -> bool:
         """
         Command to home a stepper motor.
@@ -448,8 +464,8 @@ class Controllino:
             Status of the command.
         """
         return self.send_command(f"h{motor}")
-    
-    #Find out where a motor is in steps
+
+    # Find out where a motor is in steps
     def where(self, motor: int) -> int:
         """
         Command to get the current position of a stepper motor.
@@ -474,8 +490,8 @@ class Controllino:
             return int(return_str)
         except ValueError:
             raise ValueError("Returned value was not an integer")
-        
-    #Find out if a motor is homed with the "z" command
+
+    # Find out if a motor is homed with the "z" command
     def is_homed(self, motor: int) -> bool:
         """
         Command to check if a stepper motor is homed.
