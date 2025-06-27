@@ -250,10 +250,11 @@ class Instrument:
         """
         for name in self._lamps_config:
             self.devices[name] = asgard_alignment.Lamps.LightSource(
-                    name,
-                    self._controllers["controllino"],
-                    **self._lamps_config[name]["config"],
-                )
+                name,
+                self._controllers["controllino"],
+                **self._lamps_config[name]["config"],
+            )
+
     def _create_shutters(self):
         """
         Create the connections to the shutters
@@ -400,7 +401,7 @@ class Instrument:
                 name,
                 self._motor_config[name]["semaphore_id"],
                 self._controllers["controllino"],
-                self._motor_config[name]["modulation_value"],   
+                self._motor_config[name]["modulation_value"],
                 self._motor_config[name]["delay_time"],
             )
 

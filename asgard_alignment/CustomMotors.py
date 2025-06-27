@@ -47,6 +47,50 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
 
+class GD40Z(asgard_alignment.ESOdevice.Motor):
+    """
+    A rotation stage, used for the LiNbO3 plates in Heimdallr.
+    https://www.pdvcn.com/motorized-rotation-stage/electric-rotary-table-indexing-disc-pc-gd40z.html
+    """
+
+    def __init__(self, name, semaphore_id, controllino_controller) -> None:
+        named_pos = {}
+        super().__init__(
+            name,
+            semaphore_id,
+            named_positions=named_pos,
+        )
+
+        self._controller = controllino_controller
+
+    def move_abs(self, position: float):
+        pass
+
+    def move_relative(self, position: float):
+        pass
+
+    def read_state(self):
+        pass
+
+    def setup(self, value):
+        pass
+
+    def disable(self):
+        pass
+
+    def enable(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def online(self):
+        pass
+
+    def standby(self):
+        pass
+
+
 class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
     def __init__(
         self,
@@ -87,21 +131,31 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
             self._flip_up()
 
     def move_relative(self, position: float):
-        pass
+        raise NotImplementedError(
+            "Relative movement is not implemented for MirrorFlipper."
+        )
 
     def read_state(self):
         return self._state
 
-    def setup(self, value):
+    def stop(self):
         pass
+
+    def ping(self):
+        pass
+
+    def setup(self, value):
+        if isinstance(value, str):
+            raise NotImplementedError(
+                "Setting up MirrorFlipper with a string value is not implemented."
+            )
+
+        self.move_abs(value)
 
     def disable(self):
         pass
 
     def enable(self):
-        pass
-
-    def stop(self):
         pass
 
     def online(self):
