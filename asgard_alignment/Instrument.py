@@ -455,15 +455,20 @@ class Instrument:
     # update Mutil device server
     #
     def _open_controllino(self):
-        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino"]["ip_address"]
+        self._controllers["controllino0"] = asgard_alignment.controllino.Controllino(
+            self._other_config["controllino0"]["ip_address"]
+        )
+        self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
+            self._other_config["controllino1"]["ip_address"]
         )
 
     def _remove_devices(self, dev_list):
-        pass
+        self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}
 
     def _remove_controllers(self, controller_list):
-        pass
+        self._controllers = {
+            k: v for k, v in self._controllers.items() if k not in controller_list
+        }
 
     def standby(self, device):
         # TODO: work on a list of devices instead? so that we aren't turning things off
@@ -528,7 +533,7 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # and also delete all device instances
-            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._remove_devices(all_devs)
 
             # close all zaber connections
             for controller in controller_connctions:
@@ -536,11 +541,8 @@ class Instrument:
                 self._controllers[controller].close()
 
             # manage instrument internals to no longer show these connections
-            self._controllers = {
-                k: v
-                for k, v in self._controllers.items()
-                if k not in controller_connctions
-            }
+            self._remove_controllers(controller_connctions)
+
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.LS16PAxis):
             wire_name = "LS16P (HFO)"
             all_devs = [f"HFO{i}" for i in range(1, 5)]
@@ -555,14 +557,10 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # remove the devices
-            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._remove_devices(all_devs)
 
             # and the controllers:
-            self._controllers = {
-                k: v
-                for k, v in self._controllers.items()
-                if k not in controller_connctions
-            }
+            self._remove_controllers(controller_connctions)
 
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.M100DAxis):
             # in this case, we will need to switch off all grouped motors
@@ -618,20 +616,15 @@ class Instrument:
             print("Power turned off")
 
             # remove the devices
-            self._devices = {k: v for k, v in self.devices.items() if k not in all_devs}
+            self._remove_devices(all_devs)
 
             # and the controllers:
-            self._controllers = {
-                k: v
-                for k, v in self._controllers.items()
-                if k not in controller_connctions
-            }
-
+            self._remove_controllers(controller_connctions)
             print("Devices and controllers removed")
 
         else:
             # just remove the device from the list
-            self._devices = {k: v for k, v in self.devices.items() if k != device}
+            self._remove_devices([device])
 
         print(f"{device} is now in standby mode.")
 
@@ -934,7 +927,7 @@ class Instrument:
                     )
                     return True
         elif self._motor_config[name]["motor_type"] in ["8893KM"]:
-            self.devices[name] = asgard_alignment.CustomMotors.MirrorFlipper(
+            self.devices[name] = asgard_alignment.CustomMotors.Flip8893KM(
                 name,
                 self._motor_config[name]["semaphore_id"],
                 self._controllers["controllino"],

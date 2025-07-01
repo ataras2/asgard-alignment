@@ -4,13 +4,6 @@ import numpy as np
 import asgard_alignment.controllino
 
 
-class PK2FVF1(asgard_alignment.ESOdevice.Motor):
-    def __init__(self, name, semaphore_id, controllino_controller) -> None:
-        super().__init__(name, semaphore_id, {})
-
-        self._controller = controllino_controller
-
-
 class MFF101(asgard_alignment.ESOdevice.Motor):
     def __init__(
         self,
@@ -39,10 +32,12 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         return str(float(self._controller.get_status(self.name)))
 
     def move_relative(self, position: float):
-        pass
+        raise NotImplementedError(
+            f"Relative movement not implemented for bistable motor {self.name}"
+        )
 
     def ping(self):
-        return True
+        return self._controller.ping()
 
     def is_moving(self):
         return False
@@ -78,12 +73,12 @@ class MFF101(asgard_alignment.ESOdevice.Motor):
         pass
 
 
-class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
+class Flip8893KM(asgard_alignment.ESOdevice.Motor):
     def __init__(
         self,
         name,
         semaphore_id,
-        controllino_controller,
+        controllino_controller: asgard_alignment.controllino.Controllino,
         modulation_value,
         delay_time,
     ) -> None:
@@ -122,17 +117,23 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
     def move_relative(self, position: float):
         print(f"Move_rel not implemented for {self.name}")
 
+    def read_state(self):
+        return f"READY ({self._state})"
+
     def read_position(self):
         return self._state
+
+    def stop(self):
+        pass
+
+    def ping(self):
+        return self._controller.ping()
 
     def is_moving(self):
         return False
 
     def ESO_read_position(self):
-        return self.read_position()
-
-    def read_state(self):
-        return f"READY ({self._state})"
+        return int(self._state == "IN")
 
     def setup(self, motion_type, value):
         if motion_type == "ENC":
@@ -150,14 +151,9 @@ class MirrorFlipper(asgard_alignment.ESOdevice.Motor):
     def enable(self):
         pass
 
-    def stop(self):
-        pass
-
     def online(self):
         pass
 
     def standby(self):
         pass
 
-    def ping(self):
-        return True

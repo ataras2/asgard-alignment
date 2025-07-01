@@ -2670,7 +2670,7 @@ with col_main:
 
             scantype = st.selectbox(
                     "type of scan",
-                    ['square_spiral','raster'],
+                    ['square_spiral','raster','cross'], # cross tested in software not hardware (20/6/25)
                     key="scantype",
                 )
 
@@ -2861,7 +2861,8 @@ with col_main:
                 scan_pattern = pct.square_spiral_scan(starting_point=[0,0], step_size= float(dx), search_radius = float(search_radius))
             elif scantype == "raster":
                 scan_pattern = pct.raster_scan_with_orientation(starting_point=[0,0], dx=float(dx), dy=float(dx), width=float(search_radius), height=float(search_radius), orientation=0)
-                
+            elif scantype == "cross":# tested in software, not hardware (20/6/25)
+                scan_pattern = pct.cross_scan(starting_point=[0,0], dx=float(dx), dy=float(dx), width=float(2 * search_radius), height=float(2*search_radius), angle=0)
             #### FROM HERE WE SHOULD PUT THIS IN A SCRIPT THAT IS RUN HERE! 
             # ------------------------------------------
             # where we save output images to
