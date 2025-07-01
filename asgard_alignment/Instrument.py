@@ -835,9 +835,13 @@ class Instrument:
             # through the X-MCC
             cfg = self._motor_config[name]
             if cfg["x_mcc_ip_address"] not in self._controllers:
-                self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
-                    cfg["x_mcc_ip_address"]
-                )
+                try:
+                    self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
+                        cfg["x_mcc_ip_address"]
+                    )
+                except Exception as e:
+                    print(e)
+                    return False
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).settings.set(
                     "system.led.enable", 0

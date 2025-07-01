@@ -16,7 +16,7 @@ class LightSource(ESOdevice.Lamp):
         self.nWarmup = nWarmup
         self.nMaxOn = nMaxOn
 
-        self.turn_off()
+        # self.turn_off()
         self._on = False
 
     def turn_on(self):

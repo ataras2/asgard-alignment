@@ -1,6 +1,4 @@
 import argparse
-from zaber_motion.ascii import Connection
-from zaber_motion import Units
 import PySpin
 import numpy as np
 import matplotlib.pyplot as plt
