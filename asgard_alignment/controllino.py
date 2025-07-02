@@ -215,7 +215,10 @@ class Controllino:
         bool
             Reply from the device.
         """
-        return bool(int(self.send_command_anyreply(command)))
+        reply = self.send_command_anyreply(command)
+        if reply[0] = "S" return true
+        else if reply[0] = "F" return false
+        else raise ValueError("Invalid response: should be S or F (success/failure)")
 
     def turn_on(self, key: str) -> bool:
         """
@@ -506,4 +509,4 @@ class Controllino:
         bool
             True if the motor is homed, False otherwise.
         """
-        return self.send_command(f"z{motor}")
+        return self.send_command_anyreply(f"z{motor}")
