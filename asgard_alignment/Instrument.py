@@ -455,12 +455,12 @@ class Instrument:
     # update Mutil device server
     #
     def _open_controllino(self):
-        self._controllers["controllino0"] = asgard_alignment.controllino.Controllino(
+        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
-        self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino1"]["ip_address"]
-        )
+        # self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
+        #     self._other_config["controllino1"]["ip_address"]
+        # )
 
     def _remove_devices(self, dev_list):
         self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}
@@ -854,9 +854,13 @@ class Instrument:
             # through the X-MCC
             cfg = self._motor_config[name]
             if cfg["x_mcc_ip_address"] not in self._controllers:
-                self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
-                    cfg["x_mcc_ip_address"]
-                )
+                try:
+                    self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
+                        cfg["x_mcc_ip_address"]
+                    )
+                except Exception as e:
+                    print(e)
+                    return False
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).settings.set(
                     "system.led.enable", 0

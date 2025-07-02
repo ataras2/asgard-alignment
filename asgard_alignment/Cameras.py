@@ -63,12 +63,12 @@ class PointGrey:
         self.cam.ExposureMode.SetValue(PySpin.ExposureMode_Timed)
 
         self.cam.ExposureAuto.SetValue(PySpin.ExposureAuto_Off)
-        self.cam.ExposureTime.SetValue(1000)
+        self.cam.ExposureTime.SetValue(2_000)
 
         # self.cam.AcquisitionFrameRateEnable.SetValue(True)
 
         self.cam.GainAuto.SetValue(PySpin.GainAuto_Off)
-        self.cam.Gain.SetValue(0)
+        self.cam.Gain.SetValue(30)
 
         # pixel format
         self.cam.PixelFormat.SetValue(PySpin.PixelFormat_Mono8)
