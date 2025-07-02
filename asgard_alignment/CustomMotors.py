@@ -157,3 +157,73 @@ class Flip8893KM(asgard_alignment.ESOdevice.Motor):
     def standby(self):
         pass
 
+
+class GD40Z(asgard_alignment.ESOdevice.Motor):
+    """
+    https://www.pdvcn.com/motorized-rotation-stage/electric-rotary-table-indexing-disc-pc-gd40z.html
+    Controlled through controllino
+    """
+
+    def __init__(
+        self,
+        name,
+        semaphore_id,
+        controllino_controller: asgard_alignment.controllino.Controllino,
+        controllino_motor_number: int,
+    ):
+        named_positions = {}
+        super().__init__(
+            name,
+            semaphore_id,
+            named_positions,
+        )
+        self._controller = controllino_controller
+        self._controllino_motor_number = controllino_motor_number
+
+    def move_abs(self, position: float):
+        self._controller.amove(self._controllino_motor_number, position)
+
+    def move_relative(self, position: float):
+        self._controller.rmove(self._controllino_motor_number, position)
+
+    def read_state(self):
+        return f"READY ({self.read_position()})"
+
+    def read_position(self):
+        return self._controller.where(self._controllino_motor_number)
+
+    def stop(self):
+        pass
+
+    def ping(self):
+        return self._controller.ping()
+
+    def ESO_read_position(self):
+        return int(self.read_position())
+
+    def is_moving(self):
+        pass
+
+    def setup(self, motion_type: str, value: float):
+        if motion_type == "ENC":
+            self.move_abs(value)
+        elif motion_type == "ENCREL":
+            self.move_relative(value)
+        elif motion_type == "NAME":
+            raise NotImplementedError(
+                f"NAME motion type not implemented for {self.name}"
+            )
+        else:
+            print(f"ERROR: Unknown motion type {motion_type} for {self.name}")
+
+    def disable(self):
+        pass
+
+    def enable(self):
+        pass
+
+    def online(self):
+        pass
+
+    def standby(self):
+        pass

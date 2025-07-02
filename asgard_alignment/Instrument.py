@@ -939,6 +939,14 @@ class Instrument:
                 self._motor_config[name]["named_pos"],
             )
             return True
+        elif self._motor_config[name]["motor_type"] in ["GD40Z"]:
+            self.devices[name] = asgard_alignment.CustomMotors.MFF101(
+                name,
+                self._motor_config[name]["semaphore_id"],
+                self._controllers["controllino"],
+                self._motor_config[name]["named_pos"],
+            )
+            return True
 
     @staticmethod
     def find_managed_USB_hub_port():

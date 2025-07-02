@@ -327,8 +327,7 @@ class MultiDeviceServer:
                         )
                     )
 
-            # Move devices (two batches if needed)
-            for batch in range(2):
+            for batch in range(3):
                 if len(setup_cmds[batch]) > 0:
                     print(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()

@@ -533,6 +533,27 @@
             "FAINT" : 0.0
         },
         "semaphore_id": 40
+    },
+    {
+        "name": "HPOL1",
+        "motor_type": "GD40Z",
+        "serial_number": "",
+        "named_pos" : {},
+        "semaphore_id": 41
+    },
+    {
+        "name": "HPOL2",
+        "motor_type": "GD40Z",
+        "serial_number": "",
+        "named_pos" : {},
+        "semaphore_id": 42
+    },
+    {
+        "name": "HPOL4",
+        "motor_type": "GD40Z",
+        "serial_number": "",
+        "named_pos" : {},
+        "semaphore_id": 43
     }
 ],
     "lamps" : [
