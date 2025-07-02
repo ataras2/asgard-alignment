@@ -1228,6 +1228,45 @@ def handle_bistable_motor():
             st.session_state["selected_state"] = states[1]
             st.write(res)
 
+def handle_linbo_motor():
+    st.subheader("LiNbO3 Stepper motor interface")
+
+    # 3 buttons: read pos, read state, home
+    cols = st.columns(3)
+    with cols[0]:
+        if st.button("Read Position"):
+            message = f"read {target}"
+        res = send_and_get_response(message)
+        st.write(f"Current position: {res} steps")
+    with cols[1]:
+        if st.button("Read State"):
+            message = f"state {target}"
+            res = send_and_get_response(message)
+            st.write(res)
+    with cols[2]:
+        if st.button("Home (if needed)"):
+            message = f"home_steppers {target}"
+            res = send_and_get_response(message)
+            st.write(res)
+        
+    # now setting a position, using relative move
+    st.write("Move relative")
+    inc = st.number_input(
+        "Move size (steps)",
+        value=0,
+        min_value=-1000,
+        max_value=1000,
+        key=f"linbo_increment",
+        step=100,
+        format="%d",
+    )        
+    with st.form(key="relative_move_linbo"):
+        submit = st.form_submit_button("Move")
+        if submit:
+            message = f"moverel {target} {inc}"
+            res = send_and_get_response(message)
+            st.write(res)
+
 
 def handle_lens_flipper():
     st.subheader("Baldr lens flippers")
@@ -1302,8 +1341,7 @@ with col_main:
                 targets = [target.replace("X", "P"), target.replace("X", "T")]
         
         elif component == "BLF":
-            targets = [f"BLF{ii}" for ii in [1,2,3,4]]
-        # HERE     
+            targets = [f"BLF{ii}" for ii in [1,2,3,4]] 
         else:
             beam_number = None
             targets = [component]
@@ -1370,6 +1408,9 @@ with col_main:
 
             elif component in ["BLF"]:
                 handle_lens_flipper()
+
+            elif component in ["HPOL1", "HPOL2", "HPOL4"]:
+                handle_linbo_motor()
 
     elif operating_mode == "Routines":
         # move pupil and move image go here

@@ -19,10 +19,9 @@
 // and each loop the "client" variable is over-written. as "new" isn't used, it is probably OK without
 // memory leaks!
 
-#include <Controllino.h>
+#include "Controllino.h"
 #include <SPI.h>
 #include <Ethernet.h>
-#include <Adafruit_MCP4728.h>
 
 // #define ANALOG_I2C_ADDR 40 // Not needed???
 
@@ -32,7 +31,6 @@
 byte mac[] = {0x50, 0xD7, 0x53, 0x00, 0xEB, 0x9F};    // MAC address (can be found on the Controllino)
 IPAddress ip(192,168,100,12);                           // IP address (arbitrarily choosen)
 EthernetServer server(23);                            // HTTP port
-Adafruit_MCP4728 mcp;
 int next_str_ix;  // The next index in the string we're passing (saves passing back and forth)
 
 #define MAX_MOTORS 3

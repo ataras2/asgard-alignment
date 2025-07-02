@@ -54,17 +54,18 @@ def get_devices():
 
 
 class Controllino:
-    PING_TIMEOUT = 3 # seconds
+    PING_TIMEOUT = 3  # seconds
     # stepper motors. First entry corresponds to motor config file, second to the
     # number in the controllino.
     STEPPER_NAME_TO_NUM = {
-        "HPOL1" : 0,
-        "HPOL2" : 1,  
-        "HPOL4" : 2,
+        "HPOL1": 2,
+        "HPOL2": 1,
+        "HPOL4": 0,
     }
 
     SUCCESS = "S"
     FAILURE = "F"
+
     def __init__(self, ip, port=23, init_motors=True):
         """
         Initialize the Controllino class.
@@ -79,7 +80,7 @@ class Controllino:
         self.ip = ip
         self.port = port
         self._maintain_connection = True
-        self.last_ping_time = -np.inf # avoids pinging a lot 
+        self.last_ping_time = -np.inf  # avoids pinging a lot
         self.client = None
 
         # The turn-on command needs a string, not a number!
@@ -226,9 +227,12 @@ class Controllino:
             Reply from the device.
         """
         reply = self.send_command_anyreply(command)
-        if reply[0] = "S" return true
-        else if reply[0] = "F" return false
-        else raise ValueError("Invalid response: should be S or F (success/failure)")
+        if reply[0] == self.SUCCESS:
+            return True
+        elif reply[0] == self.FAILURE:
+            return False
+        else:
+            raise ValueError("Invalid response: should be S or F (success/failure)")
 
     def turn_on(self, key: str) -> bool:
         """
@@ -254,7 +258,7 @@ class Controllino:
         t = time.time()
         if t - self.last_ping_time < self.PING_TIMEOUT:
             return True
-        
+
         result = self.send_command_anyreply("?")
         self.last_ping_time = t
         return result == self.SUCCESS
