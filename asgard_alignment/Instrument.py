@@ -455,12 +455,12 @@ class Instrument:
     # update Mutil device server
     #
     def _open_controllino(self):
-        self._controllers["controllino0"] = asgard_alignment.controllino.Controllino(
+        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
-        self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino1"]["ip_address"]
-        )
+        # self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
+        #     self._other_config["controllino1"]["ip_address"]
+        # )
 
     def _remove_devices(self, dev_list):
         self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}

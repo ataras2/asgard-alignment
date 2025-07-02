@@ -566,7 +566,7 @@
     ],
     "other_devices" : [
         {
-            "name": "controllino",
+            "name": "controllino0",
             "ip_address" : "192.168.100.10"
         }
     ]
