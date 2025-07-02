@@ -11,6 +11,7 @@
 //  "m[PIN] [VALUE]" PWM modulated analog out for a pin.
 //  "p[index] [mPIN] [iPIN] [setpoint] [k_prop] [k_int] [m_min]" Set a PI loop - all terms integers.
 //      Setting gain to 0 turns of, and setting integral term to 0 resets the integral term.
+//  "?" Ping
 //  "q" Quit this client. Can start another! (only 1 at a time)
 //
 //  For the PI loops, if a range of +/- 128 on  the input would mean full range on the output
@@ -33,7 +34,7 @@
 // The IP address will be dependent on your local network.
 // gateway and subnet are optional:
 byte mac[] = {0x50, 0xD7, 0x53, 0x00, 0xEB, 0xA7};    // MAC address (can be found on the Controllino)
-IPAddress ip(172,16,8,200);                           // IP address (arbitrarily choosen)
+IPAddress ip(192,168,100,10);                           // IP address (arbitrarily choosen)
 EthernetServer server(23);                            // HTTP port
 Adafruit_MCP4728 mcp;
 int next_str_ix;  // The next index in the string we're passing (saves passing back and forth)
@@ -119,6 +120,9 @@ void loop() {
       client.stop();
       return;
     } 
+    if (c=='?'){
+      return success(client);
+    }
     // Get the "pin" value (the first integer)
     next_str_ix = 1;
     int pin = get_value(request);
@@ -211,7 +215,7 @@ void loop() {
       if (output > 255) output = 255;
       analogWrite(pi_params[s_ix].m_pin, output);
     }
-    s_ix++; // move on to the next servo when we get the next chance. 
+    s_ix = (s_ix + 1) % MAX_SERVOS; // move on to the next servo when we get the next chance. 
   }
 }
 
@@ -243,8 +247,8 @@ int get_value(String request){
 
 // Failure and success as functions so behaviour is easy to read and easily changed.
 void failure(EthernetClient client){
-  client.println("0");
+  client.println("F");
 }
 void success(EthernetClient client){
-  client.println("1");
+  client.println("S");
 }

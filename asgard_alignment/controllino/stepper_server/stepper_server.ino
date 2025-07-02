@@ -6,6 +6,8 @@
 //  "s[MOTOR] [STEPS]" Move to a fixed number of steps from zero.
 //  "h[MOTOR]" Home a motor, but moving backwards until the home sensor is found.
 //  "w[MOTOR]" Find the position of a motor.
+//  "z[MOTOR]" Find if the motor is homed.
+//  "?" Ping
 //  "q" Quit this client. Can start another! (only 1 at a time)
 //
 //  For the PI loops, if a range of +/- 128 on  the input would mean full range on the output
@@ -28,7 +30,7 @@
 // The IP address will be dependent on your local network.
 // gateway and subnet are optional:
 byte mac[] = {0x50, 0xD7, 0x53, 0x00, 0xEB, 0x9F};    // MAC address (can be found on the Controllino)
-IPAddress ip(172,16,8,201);                           // IP address (arbitrarily choosen)
+IPAddress ip(192,168,100,12);                           // IP address (arbitrarily choosen)
 EthernetServer server(23);                            // HTTP port
 Adafruit_MCP4728 mcp;
 int next_str_ix;  // The next index in the string we're passing (saves passing back and forth)
@@ -115,6 +117,9 @@ void loop() {
       client.stop();
       return;
     } 
+    if (c=='?'){
+      return success(client);
+    }
     // Get the "pin" value (the first integer)
     next_str_ix = 1;
     int pin = get_value(request);
@@ -213,8 +218,8 @@ int get_value(String request){
 
 // Failure and success as functions so behaviour is easy to read and easily changed.
 void failure(EthernetClient client){
-  client.println("0");
+  client.println("F");
 }
 void success(EthernetClient client){
-  client.println("1");
+  client.println("S");
 }
