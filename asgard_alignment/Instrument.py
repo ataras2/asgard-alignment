@@ -628,6 +628,32 @@ class Instrument:
 
         print(f"{device} is now in standby mode.")
 
+    def home_steppers(self, dev_list, blocking=True):
+        """
+        Home the steppers in the given list of devices.
+        """
+        for dev in dev_list:
+            if dev in self.devices:
+                self.devices[dev].home()
+            else:
+                print(f"WARN: {dev} not found in device list")
+
+        # block until homed if needed
+        if blocking:
+            # use is_homed to check if the device is homed for all devices
+            all_homed = False
+            while not all_homed:
+                all_homed = True
+                for dev in dev_list:
+                    if dev in self.devices:
+                        if not self.devices[dev].is_homed():
+                            all_homed = False
+                            print(f"{dev} is not homed yet, waiting...")
+                    else:
+                        print(f"WARN: {dev} not found in device list")
+                if not all_homed:
+                    time.sleep(0.5)
+
     def online(self, dev_list):
 
         devs = []

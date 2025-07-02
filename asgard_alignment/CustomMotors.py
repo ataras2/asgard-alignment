@@ -169,7 +169,6 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         name,
         semaphore_id,
         controllino_controller: asgard_alignment.controllino.Controllino,
-        controllino_motor_number: int,
     ):
         named_positions = {}
         super().__init__(
@@ -178,16 +177,24 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
             named_positions,
         )
         self._controller = controllino_controller
-        self._controllino_motor_number = controllino_motor_number
+        self._controllino_motor_number = (
+            asgard_alignment.controllino.STEPPER_NAME_TO_NUM[name]
+        )
 
-    def move_abs(self, position: float):
+    def move_abs(self, position: int):
         self._controller.amove(self._controllino_motor_number, position)
 
-    def move_relative(self, position: float):
+    def move_relative(self, position: int):
         self._controller.rmove(self._controllino_motor_number, position)
 
     def read_state(self):
         return f"READY ({self.read_position()})"
+
+    def home(self):
+        self._controller.home(self._controllino_motor_number)
+
+    def is_homed(self):
+        return self._controller.is_homed(self._controllino_motor_number)
 
     def read_position(self):
         return self._controller.where(self._controllino_motor_number)

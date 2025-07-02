@@ -515,6 +515,13 @@ class MultiDeviceServer:
 
             return "connected" if axis in self.instr.devices else "not connected"
 
+        def home_steppers_msg(motor):
+            if isinstance(motor, str):
+                if motor == "all":
+                    motor = list(asgard_alignment.controllino.STEPPER_NAME_TO_NUM.keys())
+
+            self.instr.home_steppers(motor)
+
         def init_msg(axis):
             self.instr.devices[axis].init()
             return "ACK"
@@ -773,37 +780,6 @@ class MultiDeviceServer:
                     current_mask_name, reference_mask_position_file, write_file=False
                 )
                 return "ACK"
-            # if axis not in self.instr.devices:
-            #     return f"NACK: Axis {axis} not found"
-            # else:
-            #     self.instr.devices[axis].update_all_mask_positions_relative_to_current(
-            #         current_mask_name, reference_mask_position_file, write_file=False
-            #     )
-            #     return "ACK"
-
-        # patterns = {
-        #     "read {}": read_msg,
-        #     "stop {}": stop_msg,
-        #     "moveabs {} {:f}": moveabs_msg,
-        #     "connected? {}": connected_msg,
-        #     "connect {}": connect_msg,
-        #     "init {}": init_msg,
-        #     "moverel {} {:f}": moverel_msg,
-        #     "state {}": state_msg,
-        #     "dmapplyflat {}": apply_flat_msg,
-        #     "dmapplycross {}": apply_cross_msg,
-        #     "fpm_getsavepath {}": fpm_get_savepath_msg,
-        #     "fpm_maskpositions {}": fpm_mask_positions_msg,
-        #     "fpm_movetomask {} {}": fpm_move_to_phasemask_msg,
-        #     "fpm_moverel {} {}": fpm_move_relative_msg,
-        #     "fpm_moveabs {} {}": fpm_move_absolute_msg,
-        #     "fpm_readpos {}": fpm_read_position_msg,
-        #     "fpm_updatemaskpos {} {}": fpm_update_mask_position_msg,
-        #     "fpm_writemaskpos {}": fpm_write_mask_positions_msg,
-        #     "fpm_updateallmaskpos {} {} {}": fpm_update_all_mask_positions_relative_to_current_msg,
-        #     #            "on {}": on_msg,
-        #     #            "off {}": off_msg,
-        # }
 
         first_word_to_function = {
             "read": read_msg,
@@ -836,6 +812,7 @@ class MultiDeviceServer:
             "mv_img": mv_img_msg,
             "mv_pup": mv_pup_msg,
             "asg_setup": asg_setup_msg,
+            "home_steppers": home_steppers_msg,
         }
 
         first_word_to_format = {
@@ -869,6 +846,7 @@ class MultiDeviceServer:
             "mv_img": "mv_img {} {} {:f} {:f}",  # mv_img {config} {beam_number} {x} {y}
             "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
             "asg_setup": "asg_setup {} {} {}",  # 2nd input is either a named position or a float
+            "home_steppers": "home_steppers {}",
         }
 
         try:

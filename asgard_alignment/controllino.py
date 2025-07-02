@@ -55,6 +55,16 @@ def get_devices():
 
 class Controllino:
     PING_TIMEOUT = 3 # seconds
+    # stepper motors. First entry corresponds to motor config file, second to the
+    # number in the controllino.
+    STEPPER_NAME_TO_NUM = {
+        "HPOL1" : 0,
+        "HPOL2" : 1,  
+        "HPOL4" : 2,
+    }
+
+    SUCCESS = "S"
+    FAILURE = "F"
     def __init__(self, ip, port=23, init_motors=True):
         """
         Initialize the Controllino class.
@@ -247,7 +257,7 @@ class Controllino:
         
         result = self.send_command_anyreply("?")
         self.last_ping_time = t
-        return result == "OK"
+        return result == self.SUCCESS
 
     def turn_off(self, key: str) -> bool:
         """
