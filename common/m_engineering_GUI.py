@@ -1481,7 +1481,7 @@ with col_main:
             "Select Routine",
             [
                 "Quick buttons",
-                "Camera & DMs",
+                #"Camera & DMs",
                 "Illumination",
                 "Move image/pupil",
                 "Phasemask Alignment",
