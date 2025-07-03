@@ -24,14 +24,16 @@ start_time = time.time()
 with open(savepth, "w") as f:
     f.write("Time," + ",".join(temp_probes) + "\n")
     while time.time() - start_time < duration:
-        temps = cc.get_temperatures()
-        if temps is None:
-            print("Failed to get temperatures, retrying...")
-            time.sleep(sampling)
-            continue
+        temps = []
+        for probe in temp_probes:
+            try:
+                temp = cc.analog_input(probe)
+                temps.append(temp)
+            except Exception as e:
+                print(f"Error (probe {probe}: {e}")
 
         current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        f.write(current_time + "," + ",".join(f"{temp:.2f}" for temp in temps) + "\n")
+        f.write(current_time + "," + ",".join(f"{temp}" for temp in temps) + "\n")
         print(f"{current_time}: {temps}")
 
         time.sleep(sampling)
