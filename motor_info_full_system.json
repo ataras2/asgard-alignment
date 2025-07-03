@@ -589,6 +589,10 @@
         {
             "name": "controllino0",
             "ip_address" : "192.168.100.10"
+        },
+        {
+            "name": "controllino1",
+            "ip_address" : "192.168.100.12"
         }
     ]
 }

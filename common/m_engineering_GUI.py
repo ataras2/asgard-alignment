@@ -142,6 +142,7 @@ beam_specific_devices = [
     # "phasemask", # this is in routines
     "SSF",
     "BOTX",
+    "HPOL",
     # "DM", # this is based on the old Sardine shared memory, won't work anymore. Could be updated with Frantz's
     "BMX",
     "BMY",
@@ -1294,34 +1295,34 @@ def handle_linbo_motor():
     with cols[0]:
         if st.button("Read Position"):
             message = f"read {target}"
-        res = send_and_get_response(message)
-        st.write(f"Current position: {res} steps")
+            res = send_and_get_response(message)
+            st.write(f"Current position: {res} steps")
     with cols[1]:
         if st.button("Read State"):
             message = f"state {target}"
             res = send_and_get_response(message)
             st.write(res)
     with cols[2]:
-        if st.button("Home (if needed)"):
+        if st.button("Home"):
             message = f"home_steppers {target}"
             res = send_and_get_response(message)
             st.write(res)
 
     # now setting a position, using relative move
-    st.write("Move relative")
+    st.write("Move absolute")
     inc = st.number_input(
-        "Move size (steps)",
+        "Value (steps)",
         value=0,
-        min_value=-1000,
-        max_value=1000,
-        key=f"linbo_increment",
+        min_value=-24000 // 4,
+        max_value=24000 // 4,
+        key="linbo_pos",
         step=100,
         format="%d",
     )
-    with st.form(key="relative_move_linbo"):
+    with st.form(key="abs_move_linbo"):
         submit = st.form_submit_button("Move")
         if submit:
-            message = f"moverel {target} {inc}"
+            message = f"moveabs {target} {float(inc)}"  # move only does floats, but motor class will convert back to int
             res = send_and_get_response(message)
             st.write(res)
 
@@ -1382,6 +1383,8 @@ with col_main:
         if component in beam_specific_devices:
             if component == "BOTX":
                 beam_numbers = [2, 3, 4]
+            elif component == "HPOL":
+                beam_numbers = [1, 2, 4]
             else:
                 beam_numbers = [1, 2, 3, 4]
 
@@ -1467,7 +1470,7 @@ with col_main:
             elif component in ["BLF"]:
                 handle_lens_flipper()
 
-            elif component in ["HPOL1", "HPOL2", "HPOL4"]:
+            elif component in ["HPOL"]:
                 handle_linbo_motor()
 
     elif operating_mode == "Routines":

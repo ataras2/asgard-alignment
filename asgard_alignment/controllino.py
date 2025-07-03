@@ -53,15 +53,17 @@ def get_devices():
     return list(CONNEXIONS.keys())
 
 
+# stepper motors. First entry corresponds to motor config file, second to the
+# number in the controllino.
+STEPPER_NAME_TO_NUM = {
+    "HPOL1": 2,
+    "HPOL2": 1,
+    "HPOL4": 0,
+}
+
+
 class Controllino:
     PING_TIMEOUT = 3  # seconds
-    # stepper motors. First entry corresponds to motor config file, second to the
-    # number in the controllino.
-    STEPPER_NAME_TO_NUM = {
-        "HPOL1": 2,
-        "HPOL2": 1,
-        "HPOL4": 0,
-    }
 
     SUCCESS = "S"
     FAILURE = "F"
@@ -506,7 +508,7 @@ class Controllino:
         try:
             return int(return_str)
         except ValueError:
-            raise ValueError("Returned value was not an integer")
+            raise ValueError(f"Returned value {return_str} was not an integer")
 
     # Find out if a motor is homed with the "z" command
     def is_homed(self, motor: int) -> bool:

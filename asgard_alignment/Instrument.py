@@ -98,7 +98,9 @@ class Instrument:
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         print("managed port:", self._managed_usb_hub_port)
         if self._managed_usb_hub_port is None:
-            print("WARN: Could not find managed USB hub port, trying again in 5 seconds ")
+            print(
+                "WARN: Could not find managed USB hub port, trying again in 5 seconds "
+            )
 
             time.sleep(5)
         else:
@@ -460,9 +462,9 @@ class Instrument:
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
-        # self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
-        #     self._other_config["controllino1"]["ip_address"]
-        # )
+        self._controllers["stepper_controllino"] = asgard_alignment.controllino.Controllino(
+            self._other_config["controllino1"]["ip_address"]
+        )
 
     def _remove_devices(self, dev_list):
         self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}
@@ -972,11 +974,10 @@ class Instrument:
             )
             return True
         elif self._motor_config[name]["motor_type"] in ["GD40Z"]:
-            self.devices[name] = asgard_alignment.CustomMotors.MFF101(
+            self.devices[name] = asgard_alignment.CustomMotors.GD40Z(
                 name,
                 self._motor_config[name]["semaphore_id"],
-                self._controllers["controllino"],
-                self._motor_config[name]["named_pos"],
+                self._controllers["stepper_controllino"],
             )
             return True
 
