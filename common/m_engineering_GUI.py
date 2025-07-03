@@ -26,13 +26,6 @@ try:
 except:
     print( "CANT IMPORT PHASEMASK CENTERING TOOL!")
 
-try:
-    # This is old from Julien's RTC. 
-    from baldr import _baldr as ba
-    from baldr import sardine as sa
-except ImportError:
-    print(f"current conda environment = {sys.prefix}")
-    print("need base environment to use sardine shared memory. Try conda activate base")
 
 
 
