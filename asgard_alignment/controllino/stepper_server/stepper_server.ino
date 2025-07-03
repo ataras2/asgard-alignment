@@ -35,7 +35,7 @@ int next_str_ix;  // The next index in the string we're passing (saves passing b
 
 #define MAX_MOTORS 3
 #define START_PIN 2
-#define MOTOR_HIGH 100 
+#define MOTOR_HIGH 50 
 #define MOTOR_AB MOTOR_HIGH*5/7
 int current_pos[3] = {0,0,0};
 int target_pos[3] = {0,0,0};
@@ -81,6 +81,8 @@ void setup() {
 
   Serial.print("Chat server address: ");
   Serial.println(Ethernet.localIP());
+
+
 }
 
 void loop() {
@@ -173,10 +175,20 @@ void loop() {
         analogWrite(i*4 + START_PIN+2, 0); 
         analogWrite(i*4 + START_PIN+3, 0); 
       } else {
-        if (target_pos[i] > current_pos[i]) current_pos[i] += 1;
-        if (target_pos[i] < current_pos[i]) current_pos[i] -= 1;
+        Serial.print(i);
+        Serial.print(target_pos[i]);
+        Serial.print(current_pos[i]);
+        Serial.println();
+        if (target_pos[i] > current_pos[i]) {
+          current_pos[i] += 1;
+        }
+        if (target_pos[i] < current_pos[i]) {
+          current_pos[i] -= 1;
+        }
         int mod_result = current_pos[i] % 8;
-        if (mod_result < 0) mod_result += 8;
+        if (mod_result < 0) {
+          mod_result += 8;
+        }
         this_step = STEPS[mod_result];
         analogWrite(i*4 + START_PIN, this_step[0]);
         analogWrite(i*4 + START_PIN+1, this_step[1]); 
@@ -194,9 +206,9 @@ int get_value(String request){
   int value;
   char command = request[0];
 
-  if (sizeof(request) > 1 && isdigit(request[i])) {
+  if (sizeof(request) > 1 && (isdigit(request[i])) || (request[i] == '-')) {
     // Read the value at the end of the command
-    while (isdigit(request[i]) && i < request.length()) {
+    while ((isdigit(request[i]) || (request[i] == '-')) && i < request.length()) {
         svalue += request[i];
         i++;
     }
