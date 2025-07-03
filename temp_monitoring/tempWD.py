@@ -1,5 +1,6 @@
 # a temperature watch dog that uses the controllino, polls it and saves some data
-# monitoring only, no PI setting
+# monitoring only, no PI setting\
+# to be run from the base directory of the asgard_alignment package
 
 import time
 import asgard_alignment.controllino as co
