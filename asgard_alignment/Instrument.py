@@ -98,7 +98,9 @@ class Instrument:
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         print("managed port:", self._managed_usb_hub_port)
         if self._managed_usb_hub_port is None:
-            print("WARN: Could not find managed USB hub port")
+            print("WARN: Could not find managed USB hub port, trying again in 5 seconds ")
+
+            time.sleep(5)
         else:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
             print("managed port short:", self.managed_usb_port_short)
