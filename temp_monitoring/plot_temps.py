@@ -53,10 +53,10 @@ with open(log_path, "r") as f:
     header = next(reader)
     probe_names = header[1:]
     for row in reader:
-        # Parse time and temperatures, convert to deg C: degC = (raw/10) - 10
+        # Parse time and temperatures, convert to deg C: T = 42.5 + (D-512)*0.11
         times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
         probe_data.append(
-            [(float(x) / 10.0 - 10) if x != "None" else None for x in row[1:]]
+            [42.5 + (float(x) - 512) * 0.11 if x != "None" else None for x in row[1:]]
         )
 
 # Transpose probe_data to get a list per probe
