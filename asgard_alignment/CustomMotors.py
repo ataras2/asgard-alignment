@@ -180,12 +180,13 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         self._controllino_motor_number = (
             asgard_alignment.controllino.STEPPER_NAME_TO_NUM[name]
         )
+        print(f"GD40Z created with number {self._controllino_motor_number}")
 
     def move_abs(self, position: int):
-        self._controller.amove(self._controllino_motor_number, position)
+        self._controller.amove(self._controllino_motor_number, int(position))
 
     def move_relative(self, position: int):
-        self._controller.rmove(self._controllino_motor_number, position)
+        self._controller.rmove(self._controllino_motor_number, int(position))
 
     def read_state(self):
         return f"READY ({self.read_position()})"
@@ -197,6 +198,7 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         return self._controller.is_homed(self._controllino_motor_number)
 
     def read_position(self):
+        print(f"Asking stepper controllino about {self._controllino_motor_number}")
         return self._controller.where(self._controllino_motor_number)
 
     def stop(self):

@@ -516,9 +516,10 @@ class MultiDeviceServer:
             return "connected" if axis in self.instr.devices else "not connected"
 
         def home_steppers_msg(motor):
-            if isinstance(motor, str):
-                if motor == "all":
-                    motor = list(asgard_alignment.controllino.STEPPER_NAME_TO_NUM.keys())
+            if motor == "all":
+                motor = list(asgard_alignment.controllino.STEPPER_NAME_TO_NUM.keys())
+            else:
+                motor = [motor]
 
             self.instr.home_steppers(motor)
 
@@ -527,6 +528,7 @@ class MultiDeviceServer:
             return "ACK"
 
         def moverel_msg(axis, position):
+            print("moverel", axis, position)
             self.instr.devices[axis].move_relative(float(position))
             return "ACK"
 
@@ -872,7 +874,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c", "--config", type=str, required=True, help="Path to the configuration file"
     )
-    parser.add_argument("--host", type=str, default="192.168.100.2", help="Host address")
+    parser.add_argument(
+        "--host", type=str, default="192.168.100.2", help="Host address"
+    )
     parser.add_argument("-p", "--port", type=int, default=5555, help="Port number")
 
     args = parser.parse_args()
