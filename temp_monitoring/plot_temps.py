@@ -75,25 +75,25 @@ ax = plt.gca()
 
 for i, probe in enumerate(probe_names):
     y = np.array(probe_data[i], dtype=np.float64)
-    # Get next color from cycler
     color = f"C{i}"
-    # Plot true data as crosses (with label for legend)
     plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
-    # Rolling average (ignoring None)
     y_masked = np.ma.masked_invalid(y)
     if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
         valid_idx = ~y_masked.mask
         y_valid = y_masked[valid_idx]
         t_valid = np.array(times)[valid_idx]
         if len(y_valid) >= window_samples:
-            # Centered moving average
-            pad = window_samples // 2
             kernel = np.ones(window_samples) / window_samples
             roll = np.convolve(y_valid, kernel, mode="same")
-            # For the x-axis, use all valid times (same length as roll)
+            # Set to nan the values at the edges that do not use the full window
+            edge = window_samples // 2
+            roll[:edge] = np.nan
+            roll[-edge if edge != 0 else None :] = np.nan
+            # Only plot points where the moving average is valid (not nan)
+            valid_ma = ~np.isnan(roll)
             plt.plot(
-                t_valid,
-                roll,
+                t_valid[valid_ma],
+                roll[valid_ma],
                 color="grey",
                 linewidth=1.5,
                 alpha=0.8,
