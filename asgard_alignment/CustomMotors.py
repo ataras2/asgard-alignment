@@ -202,7 +202,7 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         return self._controller.where(self._controllino_motor_number)
 
     def stop(self):
-        pass
+        self._controller.stop(self._controllino_motor_number)
 
     def ping(self):
         return self._controller.ping()
@@ -235,4 +235,4 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         pass
 
     def standby(self):
-        pass
+        self.home()

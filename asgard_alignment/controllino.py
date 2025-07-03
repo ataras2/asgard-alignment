@@ -467,6 +467,23 @@ class Controllino:
         """
         return self.send_command(f"s{motor} {position}")
 
+    def stop(self, motor: int) -> bool:
+        """
+        Command to stop a stepper motor.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
+        cur_pos = self.where(motor)
+        return self.amove(motor, cur_pos)
+
     # Home the stepper motor
     def home(self, motor: int) -> bool:
         """
