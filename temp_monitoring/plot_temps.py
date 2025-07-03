@@ -72,12 +72,11 @@ else:
     window_samples = 1
 
 ax = plt.gca()
-color_cycle = ax._get_lines.prop_cycler
 
 for i, probe in enumerate(probe_names):
     y = np.array(probe_data[i], dtype=np.float64)
     # Get next color from cycler
-    color = next(color_cycle)["color"]
+    color = f"C{i}"
     # Plot true data as crosses (with label for legend)
     plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
     # Rolling average (ignoring None)
