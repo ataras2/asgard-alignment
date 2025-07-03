@@ -71,14 +71,18 @@ if len(times) > 1:
 else:
     window_samples = 1
 
+ax = plt.gca()
+color_cycle = ax._get_lines.prop_cycler
+
 for i, probe in enumerate(probe_names):
     y = np.array(probe_data[i], dtype=np.float64)
-    # Plot true data as crosses
-    plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)")
+    # Get next color from cycler
+    color = next(color_cycle)["color"]
+    # Plot true data as crosses (with label for legend)
+    plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
     # Rolling average (ignoring None)
     y_masked = np.ma.masked_invalid(y)
     if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
-        # Use convolution for rolling mean, ignoring masked values
         valid_idx = ~y_masked.mask
         y_valid = y_masked[valid_idx]
         t_valid = np.array(times)[valid_idx]
@@ -87,7 +91,15 @@ for i, probe in enumerate(probe_names):
                 y_valid, np.ones(window_samples) / window_samples, mode="valid"
             )
             t_roll = t_valid[window_samples - 1 :]
-            plt.plot(t_roll, roll, label=f"{probe} (rolling avg, {args.window:.0f}s)")
+            # Plot rolling average as grey line, no label
+            plt.plot(
+                t_roll,
+                roll,
+                color="grey",
+                linewidth=1.5,
+                alpha=0.8,
+                zorder=1,
+            )
     # If not enough valid points, skip rolling average
 
 plt.xlabel("Time")
