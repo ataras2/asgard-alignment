@@ -5,6 +5,8 @@ import sys
 import argparse
 import os
 import glob
+import numpy as np
+from collections import deque
 
 parser = argparse.ArgumentParser(description="Plot temperature logs from tempWD.")
 parser.add_argument(
@@ -12,6 +14,12 @@ parser.add_argument(
     nargs="?",
     default=None,
     help="Path to log file or integer index (e.g. -1 for most recent log)",
+)
+parser.add_argument(
+    "--window",
+    type=float,
+    default=20,
+    help="Rolling average window size in seconds (default: 20)",
 )
 args = parser.parse_args()
 
@@ -53,8 +61,34 @@ with open(log_path, "r") as f:
 probe_data = list(zip(*probe_data))
 
 plt.figure(figsize=(10, 6))
+
+# Calculate rolling window size in samples
+if len(times) > 1:
+    # Compute median sampling interval in seconds
+    intervals = [(t2 - t1).total_seconds() for t1, t2 in zip(times[:-1], times[1:])]
+    median_interval = np.median(intervals)
+    window_samples = max(1, int(round(args.window / median_interval)))
+else:
+    window_samples = 1
+
 for i, probe in enumerate(probe_names):
-    plt.plot(times, probe_data[i], label=probe)
+    y = np.array(probe_data[i], dtype=np.float64)
+    # Plot true data as crosses
+    plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)")
+    # Rolling average (ignoring None)
+    y_masked = np.ma.masked_invalid(y)
+    if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
+        # Use convolution for rolling mean, ignoring masked values
+        valid_idx = ~y_masked.mask
+        y_valid = y_masked[valid_idx]
+        t_valid = np.array(times)[valid_idx]
+        if len(y_valid) >= window_samples:
+            roll = np.convolve(
+                y_valid, np.ones(window_samples) / window_samples, mode="valid"
+            )
+            t_roll = t_valid[window_samples - 1 :]
+            plt.plot(t_roll, roll, label=f"{probe} (rolling avg, {args.window:.0f}s)")
+    # If not enough valid points, skip rolling average
 
 plt.xlabel("Time")
 plt.ylabel("Temperature (°C)")
