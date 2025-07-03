@@ -2,12 +2,39 @@ import matplotlib.pyplot as plt
 import csv
 from datetime import datetime
 import sys
+import argparse
+import os
+import glob
 
-# Prompt for log file path or use command line argument
-if len(sys.argv) > 1:
-    log_path = sys.argv[1]
-else:
+parser = argparse.ArgumentParser(description="Plot temperature logs from tempWD.")
+parser.add_argument(
+    "logfile",
+    nargs="?",
+    default=None,
+    help="Path to log file or integer index (e.g. -1 for most recent log)",
+)
+args = parser.parse_args()
+
+
+def get_log_by_index(idx):
+    log_dir = os.path.join("data", "templogs")
+    files = sorted(
+        glob.glob(os.path.join(log_dir, "tempWD_*.log")), key=os.path.getmtime
+    )
+    if not files:
+        raise FileNotFoundError("No log files found in data/templogs.")
+    return files[idx]
+
+
+if args.logfile is None:
     log_path = input("Enter path to tempWD log file: ").strip()
+else:
+    try:
+        idx = int(args.logfile)
+        log_path = get_log_by_index(idx)
+        print(f"Using log file: {log_path}")
+    except ValueError:
+        log_path = args.logfile
 
 times = []
 probe_names = []
@@ -31,7 +58,8 @@ for i, probe in enumerate(probe_names):
 
 plt.xlabel("Time")
 plt.ylabel("Temperature (°C)")
-plt.title("Temperature Monitoring Log")
+date_only = times[0].strftime("%Y-%m-%d")
+plt.title(f"Temperature Monitoring Log - {date_only}")
 plt.legend()
 plt.tight_layout()
 plt.show()
