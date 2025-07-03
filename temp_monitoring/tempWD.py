@@ -1,5 +1,6 @@
 # a temperature watch dog that uses the controllino, polls it and saves some data
-# monitoring only, no PI setting
+# monitoring only, no PI setting\
+# to be run from the base directory of the asgard_alignment package
 
 import time
 import asgard_alignment.controllino as co
@@ -24,7 +25,14 @@ start_time = time.time()
 with open(savepth, "w") as f:
     f.write("Time," + ",".join(temp_probes) + "\n")
     while time.time() - start_time < duration:
-        temps = cc.get_temperatures()
+        temps = []
+        for probe in temp_probes:
+            try:
+                temp = cc.analog_input(probe)
+                temps.append(temp)
+            except Exception as e:
+                print(f"Error getting temperature for {probe}: {e}")
+                temps.append(None)
         if temps is None:
             print("Failed to get temperatures, retrying...")
             time.sleep(sampling)
