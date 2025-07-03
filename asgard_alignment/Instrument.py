@@ -512,7 +512,7 @@ class Instrument:
                 ]
 
             elif "BFO" in device or "BDS" in device or "SDL" in device:
-                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_name = "X-MCC (BFO,SDL,BDS,SSS)"
                 all_devs = (
                     ["BFO"]
                     + ["SDLA", "SDL12", "SDL34"]
@@ -592,7 +592,7 @@ class Instrument:
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )
             elif "BOT" in device:
-                wire_names = ["LS16P (HFO)"]
+                wire_names = []
                 all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
                     f"BOTT{i}"
                     for i in range(2, 5)  # noting that BOTX is only beams 2-4
@@ -609,10 +609,11 @@ class Instrument:
             usb_commands = set(usb_command)
 
             print(f"Turning off wires: {wire_names}")
-            print(f"Sending USB command: {usb_command}")
+            print(f"Sending USB command: {usb_commands}")
 
             # turn off the USB
-            os.system(usb_command)
+            for cmd in usb_commands:
+                os.system(cmd)
 
             print("USB command sent")
 
@@ -685,7 +686,7 @@ class Instrument:
                 wire_name = "X-MCC (BMX,BMY)"
                 wire_list.append(wire_name)
             elif "BFO" in dev or "BDS" in dev or "SDL" in dev:
-                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_name = "X-MCC (BFO,SDL,BDS,SSS)"
                 wire_list.append(wire_name)
             elif "HFO" in dev or "BT" in dev:
                 wire_name = "LS16P (HFO)"

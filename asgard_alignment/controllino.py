@@ -20,7 +20,7 @@ CONNEXIONS = {
     "DM3": 44,
     "DM4": 45,
     "X-MCC (BMX,BMY)": 46,
-    "X-MCC (BFO,SDL,BDS)": 47,
+    "X-MCC (BFO,SDL,BDS,SSS)": 47,
     "MFF101 (BLF)": 48,
     "USB hubs": 77,
     "LS16P (HFO)": 49,
@@ -91,7 +91,7 @@ class Controllino:
             self.turn_on("MFF101 (BLF)")
             self.turn_on("LS16P (HFO)")
             self.turn_on("X-MCC (BMX,BMY)")
-            self.turn_on("X-MCC (BFO,SDL,BDS)")
+            self.turn_on("X-MCC (BFO,SDL,BDS,SSS)")
             self.turn_on("USB hubs")
             self.turn_on("Upper Kickstart")
             time.sleep(0.1)
