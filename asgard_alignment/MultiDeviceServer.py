@@ -855,9 +855,7 @@ class MultiDeviceServer:
             first_word = message.split(" ")[0]
             if first_word in first_word_to_function:
                 format_str = first_word_to_format[first_word]
-                print(first_word, first_word_to_format[first_word], message)
                 result = parse(format_str, message)
-                print(result)
                 return first_word_to_function[first_word](*result)
             else:
                 return "NACK: Unkown custom command"

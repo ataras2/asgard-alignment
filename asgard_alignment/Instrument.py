@@ -462,8 +462,10 @@ class Instrument:
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
-        self._controllers["stepper_controllino"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino1"]["ip_address"]
+        self._controllers["stepper_controllino"] = (
+            asgard_alignment.controllino.Controllino(
+                self._other_config["controllino1"]["ip_address"]
+            )
         )
 
     def _remove_devices(self, dev_list):

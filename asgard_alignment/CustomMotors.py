@@ -183,7 +183,7 @@ class GD40Z(asgard_alignment.ESOdevice.Motor):
         print(f"GD40Z created with number {self._controllino_motor_number}")
 
     def move_abs(self, position: int):
-        self._controller.amove(self._controllino_motor_number, position)
+        self._controller.amove(self._controllino_motor_number, int(position))
 
     def move_relative(self, position: int):
         self._controller.rmove(self._controllino_motor_number, int(position))
