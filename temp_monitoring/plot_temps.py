@@ -86,20 +86,20 @@ for i, probe in enumerate(probe_names):
         y_valid = y_masked[valid_idx]
         t_valid = np.array(times)[valid_idx]
         if len(y_valid) >= window_samples:
-            roll = np.convolve(
-                y_valid, np.ones(window_samples) / window_samples, mode="valid"
-            )
-            t_roll = t_valid[window_samples - 1 :]
-            # Plot rolling average as grey line, no label
+            # Centered moving average
+            pad = window_samples // 2
+            kernel = np.ones(window_samples) / window_samples
+            roll = np.convolve(y_valid, kernel, mode="same")
+            # For the x-axis, use all valid times (same length as roll)
             plt.plot(
-                t_roll,
+                t_valid,
                 roll,
                 color="grey",
                 linewidth=1.5,
                 alpha=0.8,
                 zorder=1,
             )
-    # If not enough valid points, skip rolling average
+    # If not enough valid points, skip moving average
 
 plt.xlabel("Time")
 plt.ylabel("Temperature (°C)")
