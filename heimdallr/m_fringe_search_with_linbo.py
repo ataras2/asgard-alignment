@@ -1,17 +1,31 @@
+# %%
 from xaosim.shmlib import shm
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import zmq
+import os
+from tqdm import tqdm
 
 moving_beam = 1
 reference_beam = 3
 
+stepper_range = 50 # will do +/- this number
+n_stepper_values = 10
 
+dl_range = 200e-3 # in mm
+n_dl_values = 5
 
+cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+
+# savepth = None
+base = ["data", "stepper_vs_dl"]
+fname = f"stepper_vs_linbo_{cur_datetime}.npz"
+savepth = os.path.join(*base, fname)
 
 assert reference_beam != moving_beam
 
+# %%
 ### SHM/processing functions
 
 def get_ps(ps_stream):
@@ -65,18 +79,20 @@ def send_and_get_response(socket,message):
     return response.strip()
 
 def read_stepper(socket, beam):
-    return send_and_get_response(socket, f"read HPOL{beam}")
+    return int(send_and_get_response(socket, f"read HPOL{beam}"))
 
-def read_delay_line(socket, beam):
-    return send_and_get_response(socket, f"read HFO{beam}")
+def read_dl(socket, beam):
+    res = send_and_get_response(socket, f"read HFO{beam}")
+    print(res)
+    return float(res)
 
-def mv_delay_line(socket,beam, pos, blocking=True):
+def mv_dl(socket,beam, pos, blocking=True):
     send_and_get_response(socket, f"moveabs HFO{beam} {pos}")
     if blocking:
-        cur_pos = read_delay_line(beam)
+        cur_pos = read_dl(beam)
         while not np.isclose(pos, cur_pos, atol=1.0):
             time.sleep(0.5)
-            cur_pos = read_delay_line(beam)
+            cur_pos = read_dl(beam)
 
 def mv_stepper(socket, beam, pos, blocking=True):
     send_and_get_response(socket, f"moveabs HPOL{beam} {pos}")
@@ -87,21 +103,48 @@ def mv_stepper(socket, beam, pos, blocking=True):
             time.sleep(0.5)
             cur_pos = read_stepper(beam)
 
+# %%
+ps_stream = shm('/dev/shm/hei_ps.im.shm')
+mds = open_mds_connection()
 
-if __name__ == "__main__":
-    ps_stream = shm('/dev/shm/hei_ps.im.shm')
-    mds = open_mds_connection()
+res = send_and_get_response(mds, f"read HFO{moving_beam}")
+print(res)
 
-    res = send_and_get_response(mds, f"read HFO{moving_beam}")
-    print(res)
+ps = get_ps(ps_stream)
+print(ps.shape)
 
-    ps = get_ps(ps_stream)
-    print(ps.shape)
-    
-    shp = ps[0].shape
-    mask = make_mask(ps[0], np.array(shp)//2, radius = 3)
-    # plt.imshow(mask)
-    # plt.show()
+shp = ps[0].shape
+mask = make_mask(ps[0], np.array(shp)//2, radius = 3)
+# plt.imshow(mask)
+# plt.show()
+
+# %%
+stepper_start = read_stepper(mds, moving_beam)
+stepper_vals = np.arange(stepper_start - stepper_range, stepper_start + stepper_range, (2*stepper_range)//n_stepper_values)
+print(stepper_vals)
+
+dl_start = read_dl(mds, moving_beam)
+dl_vals = np.arange(dl_start - dl_range, dl_start+ dl_range, (2*dl_range)/n_dl_values)
+print(dl_vals)
+
+# %%
+n_samples = 5
+stats = np.zeros([len(stepper_vals), len(dl_vals), n_samples, 2])
+
+for i, step in tqdm(enumerate(stepper_vals)):
+    mv_stepper(mds, moving_beam, step)
+    for j, dlp in tqdm(enumerate(dl_vals)):
+        mv_dl(mds, moving_beam, dlp)
+        v2s = capture_and_process_data(ps_stream, mask, n_samples)
+        stats[i,j] = v2s
 
 
-    stepper_start = read_stepper(mds, moving_beam)
+# %%
+np.savez(
+    savepth,
+    stats = stats,
+    stepper_vals=stepper_vals,
+    dl_vals=dl_vals,
+    moving_beam=moving_beam,
+    reference_beam=reference_beam,   
+)
