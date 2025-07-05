@@ -1553,7 +1553,7 @@ with col_main:
                     beam_id: dmclass(beam_id=beam_id) for beam_id in [1, 2, 3, 4]
                 }
 
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 if st.button("Zero all DM's"):
                     for beam in [1, 2, 3, 4]:
@@ -1572,9 +1572,19 @@ with col_main:
                         st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
 
             with col4:
+                if st.button("Apply Heim DM flat's"):
+                    for beam in [1, 2, 3, 4]:
+                        #st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
+                        wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+                        flat_cmd = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd( wdirtmp ))
+                        flat_cmd_offset = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd_offset( wdirtmp))
+                        st.session_state.dm_shm_dict[beam].shms[0].set_data(st.session_state.dm_shm_dict[beam].cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
+                        ##
+                        st.session_state.dm_shm_dict[beam].shm0.post_sems(1)
+            with col5:
                 if st.button("Apply DM cross"):
                     for beam in [1, 2, 3, 4]:
-                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.1)
+                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
 
             st.write("Defocus")
 
