@@ -3270,8 +3270,8 @@ with col_main:
                     starting_point=[0, 0],
                     dx=float(dx),
                     dy=float(dx),
-                    width=float(2 * search_radius),
-                    height=float(2 * search_radius),
+                    width= 2 * float(search_radius),
+                    height= 2 * float( search_radius),
                     angle=0,
                 )
             #### FROM HERE WE SHOULD PUT THIS IN A SCRIPT THAT IS RUN HERE!
