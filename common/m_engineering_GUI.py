@@ -885,12 +885,12 @@ def handle_linear_stage():
     st.subheader("Linear Stage Interface")
 
     if component == "BDS":
-        valid_pos = ["H", "J", "empty"]
+        valid_pos = ["BIF_H", "BIF_YJ", "empty"]
 
         if f"BDS{beam_number}_fixed_mapping" not in st.session_state:
             st.session_state[f"BDS{beam_number}_fixed_mapping"] = {
-                "H": 133.07,  # (white target)
-                "J": 63.07,  # (mirror)
+                "BIF_H": 133.07,  # (white target)
+                "BIF_YJ": 63.07,  # (mirror)
                 "empty": 0.0,
             }
             st.session_state[f"BDS{beam_number}_offset"] = 0.0
