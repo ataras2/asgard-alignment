@@ -96,12 +96,24 @@ for i, probe in enumerate(probe_names):
             plt.plot(
                 t_valid[valid_ma],
                 roll[valid_ma],
-                color="grey",
+                color=f"C{i}",
                 linewidth=1.5,
                 alpha=0.8,
                 zorder=1,
             )
     # If not enough valid points, skip moving average
+
+# dummy plot for legend
+
+plt.plot(
+    [],
+    [],
+    color=f"gray",
+    linewidth=1.5,
+    alpha=0.8,
+    zorder=1,
+    label="moving avg"
+)
 
 plt.xlabel("Time")
 plt.ylabel("Temperature (°C)")

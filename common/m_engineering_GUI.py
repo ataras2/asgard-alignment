@@ -1291,7 +1291,7 @@ def handle_linbo_motor():
     st.subheader("LiNbO3 Stepper motor interface")
 
     # 3 buttons: read pos, read state, home
-    cols = st.columns(3)
+    cols = st.columns(4)
     with cols[0]:
         if st.button("Read Position"):
             message = f"read {target}"
@@ -1305,6 +1305,12 @@ def handle_linbo_motor():
     with cols[2]:
         if st.button("Home"):
             message = f"home_steppers {target}"
+            res = send_and_get_response(message)
+            st.write(res)
+
+    with cols[3]:
+        if st.button("Stop", type="primary"):
+            message = f"stop {target}"
             res = send_and_get_response(message)
             st.write(res)
 
