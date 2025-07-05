@@ -116,7 +116,7 @@ angled_motor = (
 # describes the mapping from horizontal movements to u,v directions
 spherical_orientation_matricies = {
     1: RH_motor,
-    2: LH_motor,
+    2: RH_motor,
     3: LH_motor,
     4: RH_motor,
 }

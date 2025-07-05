@@ -116,6 +116,7 @@ class dmclass():
         ##
         self.shm0.post_sems(1)
         
+        
     def get_baldr_flat_offset(self):
         # baldr calibrated offset from the BMC factory flat
         wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"

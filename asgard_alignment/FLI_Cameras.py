@@ -56,7 +56,7 @@ camera.save_fits("output.fits", number_of_frames=10)
 
 
 ### MDS
-mds_host = "172.16.8.6"
+mds_host = "192.168.100.2"# France, Nice: "172.16.8.6"
 mds_port = 5555 
 timeout = 5000
 context = zmq.Context()
@@ -71,7 +71,7 @@ mds_socket.connect( f"tcp://{mds_host}:{mds_port}")
 
 
 ### CAMERA PORT 
-cam_host = "tcp://172.16.8.6" #"tcp://mimir" #doesnt seem to work with mimir?
+cam_host = "tcp://192.168.100.2" # France, Nice:"tcp://172.16.8.6" #"tcp://mimir" #doesnt seem to work with mimir?
 cam_port = 6667
 context = zmq.Context()
 cam_socket = context.socket(zmq.REQ)

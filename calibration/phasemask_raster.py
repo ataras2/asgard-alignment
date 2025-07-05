@@ -239,13 +239,13 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 
 # default data paths 
-with open( "config_files/file_paths.json") as f:
-    default_path_dict = json.load(f)
+#with open( "config_files/file_paths.json") as f:
+#    default_path_dict = json.load(f)
 
 
 
 # positions to put thermal source on and take it out to empty position to get dark
-source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
+#source_positions = {"SSS": {"empty": 80.0, "SBB": 65.5}}
 
 
 default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
@@ -263,7 +263,7 @@ parser.add_argument(
 )
 
 
-parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host") # localhost
+parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host") # localhost
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"

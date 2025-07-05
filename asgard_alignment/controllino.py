@@ -20,7 +20,7 @@ CONNEXIONS = {
     "DM3": 44,
     "DM4": 45,
     "X-MCC (BMX,BMY)": 46,
-    "X-MCC (BFO,SDL,BDS)": 47,
+    "X-MCC (BFO,SDL,BDS,SSS)": 47,
     "MFF101 (BLF)": 48,
     "USB hubs": 77,
     "LS16P (HFO)": 49,
@@ -53,8 +53,21 @@ def get_devices():
     return list(CONNEXIONS.keys())
 
 
+# stepper motors. First entry corresponds to motor config file, second to the
+# number in the controllino.
+STEPPER_NAME_TO_NUM = {
+    "HPOL1": 2,
+    "HPOL2": 1,
+    "HPOL4": 0,
+}
+
+
 class Controllino:
-    PING_TIMEOUT = 3 # seconds
+    PING_TIMEOUT = 3  # seconds
+
+    SUCCESS = "S"
+    FAILURE = "F"
+
     def __init__(self, ip, port=23, init_motors=True):
         """
         Initialize the Controllino class.
@@ -69,7 +82,7 @@ class Controllino:
         self.ip = ip
         self.port = port
         self._maintain_connection = True
-        self.last_ping_time = -np.inf # avoids pinging a lot 
+        self.last_ping_time = -np.inf  # avoids pinging a lot
         self.client = None
 
         # The turn-on command needs a string, not a number!
@@ -78,11 +91,11 @@ class Controllino:
             self.turn_on("MFF101 (BLF)")
             self.turn_on("LS16P (HFO)")
             self.turn_on("X-MCC (BMX,BMY)")
-            self.turn_on("X-MCC (BFO,SDL,BDS)")
+            self.turn_on("X-MCC (BFO,SDL,BDS,SSS)")
             self.turn_on("USB hubs")
             self.turn_on("Upper Kickstart")
             time.sleep(0.1)
-            self.turn_on("Lower Kickstart")
+            self.turn_on("Lower Kickstart")  
 
             self.turn_on("DM1")
             self.turn_on("DM2")
@@ -97,10 +110,10 @@ class Controllino:
             time.sleep(0.1)
             self.turn_off("Lower Kickstart")
             self.modulate("Lower Fan", 128)
-            self.set_piezo_dac(0, 2048)
-            self.set_piezo_dac(1, 2048)
-            self.set_piezo_dac(2, 2048)
-            self.set_piezo_dac(3, 2048)
+#            self.set_piezo_dac(0, 2048)
+#            self.set_piezo_dac(1, 2048)
+#            self.set_piezo_dac(2, 2048)
+#            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """
@@ -216,9 +229,12 @@ class Controllino:
             Reply from the device.
         """
         reply = self.send_command_anyreply(command)
-        if reply[0] = "S" return true
-        else if reply[0] = "F" return false
-        else raise ValueError("Invalid response: should be S or F (success/failure)")
+        if reply[0] == self.SUCCESS:
+            return True
+        elif reply[0] == self.FAILURE:
+            return False
+        else:
+            raise ValueError("Invalid response: should be S or F (success/failure)")
 
     def turn_on(self, key: str) -> bool:
         """
@@ -244,10 +260,10 @@ class Controllino:
         t = time.time()
         if t - self.last_ping_time < self.PING_TIMEOUT:
             return True
-        
+
         result = self.send_command_anyreply("?")
         self.last_ping_time = t
-        return result == "OK"
+        return result == self.SUCCESS
 
     def turn_off(self, key: str) -> bool:
         """
@@ -451,6 +467,23 @@ class Controllino:
         """
         return self.send_command(f"s{motor} {position}")
 
+    def stop(self, motor: int) -> bool:
+        """
+        Command to stop a stepper motor.
+
+        Parameters
+        ----------
+        motor : int
+            Motor number (0-2).
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
+        cur_pos = self.where(motor)
+        return self.amove(motor, cur_pos)
+
     # Home the stepper motor
     def home(self, motor: int) -> bool:
         """
@@ -492,7 +525,7 @@ class Controllino:
         try:
             return int(return_str)
         except ValueError:
-            raise ValueError("Returned value was not an integer")
+            raise ValueError(f"Returned value {return_str} was not an integer")
 
     # Find out if a motor is homed with the "z" command
     def is_homed(self, motor: int) -> bool:

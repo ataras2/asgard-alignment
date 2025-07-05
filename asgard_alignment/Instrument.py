@@ -98,7 +98,11 @@ class Instrument:
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         print("managed port:", self._managed_usb_hub_port)
         if self._managed_usb_hub_port is None:
-            print("WARN: Could not find managed USB hub port")
+            print(
+                "WARN: Could not find managed USB hub port, trying again in 5 seconds "
+            )
+
+            time.sleep(5)
         else:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
             print("managed port short:", self.managed_usb_port_short)
@@ -455,11 +459,13 @@ class Instrument:
     # update Mutil device server
     #
     def _open_controllino(self):
-        self._controllers["controllino0"] = asgard_alignment.controllino.Controllino(
+        self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
-        self._controllers["controllino1"] = asgard_alignment.controllino.Controllino(
-            self._other_config["controllino1"]["ip_address"]
+        self._controllers["stepper_controllino"] = (
+            asgard_alignment.controllino.Controllino(
+                self._other_config["controllino1"]["ip_address"]
+            )
         )
 
     def _remove_devices(self, dev_list):
@@ -506,7 +512,7 @@ class Instrument:
                 ]
 
             elif "BFO" in device or "BDS" in device or "SDL" in device:
-                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_name = "X-MCC (BFO,SDL,BDS,SSS)"
                 all_devs = (
                     ["BFO"]
                     + ["SDLA", "SDL12", "SDL34"]
@@ -586,7 +592,7 @@ class Instrument:
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )
             elif "BOT" in device:
-                wire_names = ["LS16P (HFO)"]
+                wire_names = []
                 all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
                     f"BOTT{i}"
                     for i in range(2, 5)  # noting that BOTX is only beams 2-4
@@ -603,10 +609,11 @@ class Instrument:
             usb_commands = set(usb_command)
 
             print(f"Turning off wires: {wire_names}")
-            print(f"Sending USB command: {usb_command}")
+            print(f"Sending USB command: {usb_commands}")
 
             # turn off the USB
-            os.system(usb_command)
+            for cmd in usb_commands:
+                os.system(cmd)
 
             print("USB command sent")
 
@@ -627,6 +634,32 @@ class Instrument:
             self._remove_devices([device])
 
         print(f"{device} is now in standby mode.")
+
+    def home_steppers(self, dev_list, blocking=True):
+        """
+        Home the steppers in the given list of devices.
+        """
+        for dev in dev_list:
+            if dev in self.devices:
+                self.devices[dev].home()
+            else:
+                print(f"WARN: {dev} not found in device list")
+
+        # block until homed if needed
+        if blocking:
+            # use is_homed to check if the device is homed for all devices
+            all_homed = False
+            while not all_homed:
+                all_homed = True
+                for dev in dev_list:
+                    if dev in self.devices:
+                        if not self.devices[dev].is_homed():
+                            all_homed = False
+                            print(f"{dev} is not homed yet, waiting...")
+                    else:
+                        print(f"WARN: {dev} not found in device list")
+                if not all_homed:
+                    time.sleep(0.5)
 
     def online(self, dev_list):
 
@@ -653,7 +686,7 @@ class Instrument:
                 wire_name = "X-MCC (BMX,BMY)"
                 wire_list.append(wire_name)
             elif "BFO" in dev or "BDS" in dev or "SDL" in dev:
-                wire_name = "X-MCC (BFO,SDL,BDS)"
+                wire_name = "X-MCC (BFO,SDL,BDS,SSS)"
                 wire_list.append(wire_name)
             elif "HFO" in dev or "BT" in dev:
                 wire_name = "LS16P (HFO)"
@@ -828,9 +861,13 @@ class Instrument:
             # through the X-MCC
             cfg = self._motor_config[name]
             if cfg["x_mcc_ip_address"] not in self._controllers:
-                self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
-                    cfg["x_mcc_ip_address"]
-                )
+                try:
+                    self._controllers[cfg["x_mcc_ip_address"]] = Connection.open_tcp(
+                        cfg["x_mcc_ip_address"]
+                    )
+                except Exception as e:
+                    print(e)
+                    return False
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).settings.set(
                     "system.led.enable", 0
@@ -937,6 +974,13 @@ class Instrument:
                 self._motor_config[name]["semaphore_id"],
                 self._controllers["controllino"],
                 self._motor_config[name]["named_pos"],
+            )
+            return True
+        elif self._motor_config[name]["motor_type"] in ["GD40Z"]:
+            self.devices[name] = asgard_alignment.CustomMotors.GD40Z(
+                name,
+                self._motor_config[name]["semaphore_id"],
+                self._controllers["stepper_controllino"],
             )
             return True
 

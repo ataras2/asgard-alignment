@@ -1,6 +1,4 @@
 import argparse
-from zaber_motion.ascii import Connection
-from zaber_motion import Units
 import PySpin
 import numpy as np
 import matplotlib.pyplot as plt
@@ -43,7 +41,7 @@ def main():
         help="Number of images to capture at each position (default: 3)",
     )
 
-    parser.add_argument("--host", type=str, default="localhost", help="Server host")
+    parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host")
     parser.add_argument("--port", type=int, default=5555, help="Server port")
     parser.add_argument(
         "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
