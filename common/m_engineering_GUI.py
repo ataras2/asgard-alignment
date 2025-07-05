@@ -2431,61 +2431,8 @@ with col_main:
             if st.button("Refresh"):
                 pass
 
-            # source position
-            st.subheader("Source Position")
-            target = "SSS"
-            mapping = {
-                k: v + st.session_state[f"{target}_offset"]
-                for k, v in st.session_state[f"{target}_fixed_mapping"].items()
-            }
+            use_sol = st.checkbox("use solarstein?")
 
-            but, txt = st.columns([1, 1])
-            res = None
-            with but:
-                if st.button("Read Position"):
-                    message = f"read {target}"
-                    res = send_and_get_response(message)
-            with txt:
-                if res:
-                    # check if close to any preset position
-                    for pos, val in mapping.items():
-                        if np.isclose(float(res), val, atol=0.1):
-                            st.write(f"Pos: {float(res):.2f} mm ({pos})")
-                            break
-                    else:
-                        st.write(f"Current position: {float(res):.2f} mm")
-
-            buttons = ["SRL", "SGL", "SLD/SSP", "SBB"]
-            button_cols = st.columns(len(buttons))
-
-            for i, button in enumerate(buttons):
-                with button_cols[i]:
-                    if st.button(button):
-                        print(st.session_state[f"SSS_fixed_mapping"][button])
-                        message = f"moveabs SSS {st.session_state[f'SSS_fixed_mapping'][button]}"
-                        res = send_and_get_response(message)
-                        st.write(res)
-
-            # source on/off vertical buttons
-            st.subheader("Source On/Off")
-            headers = ["SRL", "SGL", "SBB"]
-            header_colours = ["red", "green", "white"]
-            button_cols = st.columns(len(headers))
-
-            for i, header in enumerate(headers):
-                with button_cols[i]:
-                    st.markdown(
-                        f'<h4 style="color:{header_colours[i]};">{header}</h4>',
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(f"{header} On"):
-                        message = f"on {header}"
-                        res = send_and_get_response(message)
-                        # st.write(res)
-                    if st.button(f"{header} Off"):
-                        message = f"off {header}"
-                        res = send_and_get_response(message)
-                        # st.write(res)
 
             # flippers
             st.subheader("Flippers")
@@ -2508,11 +2455,75 @@ with col_main:
                     cur_state = send_and_get_response(f"state {flipper}")
                     # st.write(f"Current state: {cur_state}")
                     if "IN" in cur_state:
-                        st.success("IN")
+                        if use_sol:
+                            st.success("IN")
+                        else:
+                            st.error("IN")
                     elif "OUT" in cur_state:
-                        st.error("OUT")
+                        if use_sol:
+                            st.error("OUT")
+                        else:
+                            st.success("OUT")
                     else:
                         st.warning("Unknown")
+
+            if use_sol:
+                # source position
+                st.subheader("Source Position")
+                target = "SSS"
+                mapping = {
+                    k: v + st.session_state[f"{target}_offset"]
+                    for k, v in st.session_state[f"{target}_fixed_mapping"].items()
+                }
+
+                but, txt = st.columns([1, 1])
+                res = None
+                with but:
+                    if st.button("Read Position"):
+                        message = f"read {target}"
+                        res = send_and_get_response(message)
+                with txt:
+                    if res:
+                        # check if close to any preset position
+                        for pos, val in mapping.items():
+                            if np.isclose(float(res), val, atol=0.1):
+                                st.write(f"Pos: {float(res):.2f} mm ({pos})")
+                                break
+                        else:
+                            st.write(f"Current position: {float(res):.2f} mm")
+
+                buttons = ["SRL", "SGL", "SLD/SSP", "SBB"]
+                button_cols = st.columns(len(buttons))
+
+                for i, button in enumerate(buttons):
+                    with button_cols[i]:
+                        if st.button(button):
+                            print(st.session_state[f"SSS_fixed_mapping"][button])
+                            message = f"moveabs SSS {st.session_state[f'SSS_fixed_mapping'][button]}"
+                            res = send_and_get_response(message)
+                            st.write(res)
+
+                # source on/off vertical buttons
+                st.subheader("Source On/Off")
+                headers = ["SRL", "SGL", "SBB"]
+                header_colours = ["red", "green", "white"]
+                button_cols = st.columns(len(headers))
+
+                for i, header in enumerate(headers):
+                    with button_cols[i]:
+                        st.markdown(
+                            f'<h4 style="color:{header_colours[i]};">{header}</h4>',
+                            unsafe_allow_html=True,
+                        )
+                        if st.button(f"{header} On"):
+                            message = f"on {header}"
+                            res = send_and_get_response(message)
+                            # st.write(res)
+                        if st.button(f"{header} Off"):
+                            message = f"off {header}"
+                            res = send_and_get_response(message)
+                            # st.write(res)
+
 
         if routine_options == "Move image/pupil":
             # we save the intial positions when opening the pannel / changing beams/configs
