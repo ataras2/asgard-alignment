@@ -3,6 +3,7 @@ import json
 from astropy.io import fits
 import numpy as np
 #Now I have broken this with a comment
+#Let's break stuff
 def process_fits_files(base_directory, output_json):
     """
     Iterates through subdirectories, processes FITS files, and writes the average data to a JSON file.
