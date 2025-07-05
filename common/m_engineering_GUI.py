@@ -2431,12 +2431,24 @@ with col_main:
             if st.button("Refresh"):
                 pass
 
-            use_sol = st.checkbox("use solarstein?")
+            use_sol = st.checkbox("use solarstein?", True)
 
 
             # flippers
             st.subheader("Flippers")
+
             names = [f"SSF{i}" for i in range(1, 5)]
+
+            if st.button("All up :arrow_double_up:"):
+                for i, flipper in enumerate(names):
+                    message = f"moveabs {flipper} 1.0"
+                    res = send_and_get_response(message)
+            if st.button("All down :arrow_double_down:"):
+                for i, flipper in enumerate(names):
+                    message = f"moveabs {flipper} 1.0"
+                    res = send_and_get_response(message)
+
+
             flipper_cols = st.columns(4)
 
             for i, flipper in enumerate(names):
