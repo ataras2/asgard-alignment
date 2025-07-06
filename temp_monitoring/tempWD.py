@@ -6,7 +6,7 @@ import time
 import asgard_alignment.controllino as co
 import os
 
-duration = 20 * 60  # seconds
+duration = 1.5* 60 * 60  # seconds
 sampling = 5  # seconds
 
 cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())

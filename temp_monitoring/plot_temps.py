@@ -120,6 +120,9 @@ while True:
                     alpha=0.8,
                     zorder=1,
                 )
+    ax.plot(
+        [], [], color=f"gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
+    )
     ax.set_xlabel("Time")
     ax.set_ylabel("Temperature (°C)")
     date_only = times[0].strftime("%Y-%m-%d")

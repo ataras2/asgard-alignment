@@ -18,4 +18,18 @@ cbars = ["DM Units [0-1]" for _ in im_list]
 util.nice_heatmap_subplots( im_list=im_list ,title_list=titles, cbar_label_list=cbars,savefig='delme.png')
 
 
+# saving heimdallr flats 
+from asgard_alignment.DM_shm_ctrl import dmclass
+import pyBaldr.utilities as util 
 
+
+flat_offsets = {}
+for beam_id in [1, 2, 3, 4]:
+    dm = dmclass(beam_id)
+
+    offset = dm.shms[2].get_data()
+
+    fname = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/heim_flat_beam_{beam_id}.txt"
+    np.savetxt( fname, offset ,fmt="%.7f")
+
+    #flat_offsets[beam_id] = flat_offset_cmd

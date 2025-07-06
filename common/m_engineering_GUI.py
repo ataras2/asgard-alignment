@@ -885,12 +885,12 @@ def handle_linear_stage():
     st.subheader("Linear Stage Interface")
 
     if component == "BDS":
-        valid_pos = ["H", "J", "empty"]
+        valid_pos = ["BIF_H", "BIF_YJ", "empty"]
 
         if f"BDS{beam_number}_fixed_mapping" not in st.session_state:
             st.session_state[f"BDS{beam_number}_fixed_mapping"] = {
-                "H": 133.07,  # (white target)
-                "J": 63.07,  # (mirror)
+                "BIF_H": 133.07,  # (white target)
+                "BIF_YJ": 63.07,  # (mirror)
                 "empty": 0.0,
             }
             st.session_state[f"BDS{beam_number}_offset"] = 0.0
@@ -1291,7 +1291,7 @@ def handle_linbo_motor():
     st.subheader("LiNbO3 Stepper motor interface")
 
     # 3 buttons: read pos, read state, home
-    cols = st.columns(3)
+    cols = st.columns(4)
     with cols[0]:
         if st.button("Read Position"):
             message = f"read {target}"
@@ -1305,6 +1305,12 @@ def handle_linbo_motor():
     with cols[2]:
         if st.button("Home"):
             message = f"home_steppers {target}"
+            res = send_and_get_response(message)
+            st.write(res)
+
+    with cols[3]:
+        if st.button("Stop", type="primary"):
+            message = f"stop {target}"
             res = send_and_get_response(message)
             st.write(res)
 
@@ -1553,7 +1559,7 @@ with col_main:
                     beam_id: dmclass(beam_id=beam_id) for beam_id in [1, 2, 3, 4]
                 }
 
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 if st.button("Zero all DM's"):
                     for beam in [1, 2, 3, 4]:
@@ -1572,9 +1578,19 @@ with col_main:
                         st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
 
             with col4:
+                if st.button("Apply Heim DM flat's"):
+                    for beam in [1, 2, 3, 4]:
+                        #st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
+                        wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+                        flat_cmd = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd( wdirtmp ))
+                        flat_cmd_offset = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd_offset( wdirtmp))
+                        st.session_state.dm_shm_dict[beam].shms[0].set_data(st.session_state.dm_shm_dict[beam].cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
+                        ##
+                        st.session_state.dm_shm_dict[beam].shm0.post_sems(1)
+            with col5:
                 if st.button("Apply DM cross"):
                     for beam in [1, 2, 3, 4]:
-                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.1)
+                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
 
             st.write("Defocus")
 
@@ -2421,65 +2437,24 @@ with col_main:
             if st.button("Refresh"):
                 pass
 
-            # source position
-            st.subheader("Source Position")
-            target = "SSS"
-            mapping = {
-                k: v + st.session_state[f"{target}_offset"]
-                for k, v in st.session_state[f"{target}_fixed_mapping"].items()
-            }
+            use_sol = st.checkbox("use solarstein?", True)
 
-            but, txt = st.columns([1, 1])
-            res = None
-            with but:
-                if st.button("Read Position"):
-                    message = f"read {target}"
-                    res = send_and_get_response(message)
-            with txt:
-                if res:
-                    # check if close to any preset position
-                    for pos, val in mapping.items():
-                        if np.isclose(float(res), val, atol=0.1):
-                            st.write(f"Pos: {float(res):.2f} mm ({pos})")
-                            break
-                    else:
-                        st.write(f"Current position: {float(res):.2f} mm")
-
-            buttons = ["SRL", "SGL", "SLD/SSP", "SBB"]
-            button_cols = st.columns(len(buttons))
-
-            for i, button in enumerate(buttons):
-                with button_cols[i]:
-                    if st.button(button):
-                        print(st.session_state[f"SSS_fixed_mapping"][button])
-                        message = f"moveabs SSS {st.session_state[f'SSS_fixed_mapping'][button]}"
-                        res = send_and_get_response(message)
-                        st.write(res)
-
-            # source on/off vertical buttons
-            st.subheader("Source On/Off")
-            headers = ["SRL", "SGL", "SBB"]
-            header_colours = ["red", "green", "white"]
-            button_cols = st.columns(len(headers))
-
-            for i, header in enumerate(headers):
-                with button_cols[i]:
-                    st.markdown(
-                        f'<h4 style="color:{header_colours[i]};">{header}</h4>',
-                        unsafe_allow_html=True,
-                    )
-                    if st.button(f"{header} On"):
-                        message = f"on {header}"
-                        res = send_and_get_response(message)
-                        # st.write(res)
-                    if st.button(f"{header} Off"):
-                        message = f"off {header}"
-                        res = send_and_get_response(message)
-                        # st.write(res)
 
             # flippers
             st.subheader("Flippers")
+
             names = [f"SSF{i}" for i in range(1, 5)]
+
+            if st.button("All up :arrow_double_up:"):
+                for i, flipper in enumerate(names):
+                    message = f"moveabs {flipper} 1.0"
+                    res = send_and_get_response(message)
+            if st.button("All down :arrow_double_down:"):
+                for i, flipper in enumerate(names):
+                    message = f"moveabs {flipper} 1.0"
+                    res = send_and_get_response(message)
+
+
             flipper_cols = st.columns(4)
 
             for i, flipper in enumerate(names):
@@ -2498,11 +2473,75 @@ with col_main:
                     cur_state = send_and_get_response(f"state {flipper}")
                     # st.write(f"Current state: {cur_state}")
                     if "IN" in cur_state:
-                        st.success("IN")
+                        if use_sol:
+                            st.success("IN")
+                        else:
+                            st.error("IN")
                     elif "OUT" in cur_state:
-                        st.error("OUT")
+                        if use_sol:
+                            st.error("OUT")
+                        else:
+                            st.success("OUT")
                     else:
                         st.warning("Unknown")
+
+            if use_sol:
+                # source position
+                st.subheader("Source Position")
+                target = "SSS"
+                mapping = {
+                    k: v + st.session_state[f"{target}_offset"]
+                    for k, v in st.session_state[f"{target}_fixed_mapping"].items()
+                }
+
+                but, txt = st.columns([1, 1])
+                res = None
+                with but:
+                    if st.button("Read Position"):
+                        message = f"read {target}"
+                        res = send_and_get_response(message)
+                with txt:
+                    if res:
+                        # check if close to any preset position
+                        for pos, val in mapping.items():
+                            if np.isclose(float(res), val, atol=0.1):
+                                st.write(f"Pos: {float(res):.2f} mm ({pos})")
+                                break
+                        else:
+                            st.write(f"Current position: {float(res):.2f} mm")
+
+                buttons = ["SRL", "SGL", "SLD/SSP", "SBB"]
+                button_cols = st.columns(len(buttons))
+
+                for i, button in enumerate(buttons):
+                    with button_cols[i]:
+                        if st.button(button):
+                            print(st.session_state[f"SSS_fixed_mapping"][button])
+                            message = f"moveabs SSS {st.session_state[f'SSS_fixed_mapping'][button]}"
+                            res = send_and_get_response(message)
+                            st.write(res)
+
+                # source on/off vertical buttons
+                st.subheader("Source On/Off")
+                headers = ["SRL", "SGL", "SBB"]
+                header_colours = ["red", "green", "white"]
+                button_cols = st.columns(len(headers))
+
+                for i, header in enumerate(headers):
+                    with button_cols[i]:
+                        st.markdown(
+                            f'<h4 style="color:{header_colours[i]};">{header}</h4>',
+                            unsafe_allow_html=True,
+                        )
+                        if st.button(f"{header} On"):
+                            message = f"on {header}"
+                            res = send_and_get_response(message)
+                            # st.write(res)
+                        if st.button(f"{header} Off"):
+                            message = f"off {header}"
+                            res = send_and_get_response(message)
+                            # st.write(res)
+
 
         if routine_options == "Move image/pupil":
             # we save the intial positions when opening the pannel / changing beams/configs
@@ -3000,9 +3039,11 @@ with col_main:
 
             look_where = st.selectbox(
                 "What region of the camera to look at?",
-                ["Baldr Beam", "Heimdallr K1", "Heimdallr K2"],  # ,"whole camera"],
+                ["Baldr Beam", "Heimdallr K1", "Heimdallr K2","custom region"],  # ,"whole camera"],
                 key="look_where",
             )
+
+            
 
             scantype = st.selectbox(
                 "type of scan",
@@ -3039,6 +3080,33 @@ with col_main:
                 roi = st.session_state.heim_pupils["K1"]
             elif look_where == "Heimdallr K2":
                 roi = st.session_state.heim_pupils["K2"]
+            elif look_where == "custom region":
+                r1_str = st.sidebar.text_input("Row start (r1)", "0")
+                r2_str = st.sidebar.text_input("Row end (r2)", "256")
+                c1_str = st.sidebar.text_input("Col start (c1)", "0")
+                c2_str = st.sidebar.text_input("Col end (c2)", "320")
+                roi = None
+
+                # Parse and validate input
+                try:
+                    r1 = int(r1_str)
+                    r2 = int(r2_str)
+                    c1 = int(c1_str)
+                    c2 = int(c2_str)
+
+                    # Hardcoded bounds
+                    if not (0 <= r1 <= 256 and 0 <= r2 <= 256 and 0 <= c1 <= 320 and 0 <= c2 <= 320):
+                        st.sidebar.error("All values must be between valid range (CRED 1 is a 256x320 pixel array).")
+                    elif r1 >= r2 or c1 >= c2:
+                        st.sidebar.error("Must satisfy: r1 < r2 and c1 < c2.")
+                    else:
+                        roi = [r1, r2, c1, c2]
+                        st.sidebar.success(f"Selected ROI: {roi}")
+
+                except ValueError:
+                    st.sidebar.error("Please enter valid integers.")
+
+                roi = [int(r1), int(r2), int(c1), int(c2)]
             else:
                 st.write("invalid selection")
                 st.warning("invalid selection")
@@ -3231,8 +3299,8 @@ with col_main:
                     starting_point=[0, 0],
                     dx=float(dx),
                     dy=float(dx),
-                    width=float(2 * search_radius),
-                    height=float(2 * search_radius),
+                    width= 2 * float(search_radius),
+                    height= 2 * float( search_radius),
                     angle=0,
                 )
             #### FROM HERE WE SHOULD PUT THIS IN A SCRIPT THAT IS RUN HERE!
