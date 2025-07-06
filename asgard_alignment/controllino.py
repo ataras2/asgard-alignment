@@ -64,15 +64,15 @@ STEPPER_NAME_TO_NUM = {
 
 PI_loop_infos = [
     {
-        "name": "Upper",
-        "m_pin": CONNEXIONS["Upper Fan"],
-        "i_pin": CONNEXIONS["Upper T"],
-        "m_min": 10,
-    },
-    {
         "name": "Lower",
         "m_pin": CONNEXIONS["Lower Fan"],
         "i_pin": CONNEXIONS["Lower T"],
+        "m_min": 10,
+    },
+    {
+        "name": "Upper",
+        "m_pin": CONNEXIONS["Upper Fan"],
+        "i_pin": CONNEXIONS["Upper T"],
         "m_min": 10,
     },
 ]

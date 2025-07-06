@@ -83,12 +83,20 @@ def load_data():
 class TempPlotWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(10, 6))
+        # Set height ratios: first subplot double the others
+        self.figure = Figure(figsize=(10, 12))
+        gs = self.figure.add_gridspec(4, 1, height_ratios=[2, 1, 1, 1])
+        self.axes = [
+            self.figure.add_subplot(
+                gs[i, 0], sharex=None if i == 0 else self.figure.axes[0]
+            )
+            for i in range(4)
+        ]
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.canvas)
         self.setLayout(layout)
-        self.ax = self.figure.add_subplot(111)
+        self.figure.subplots_adjust(hspace=0.25)
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plot)
         self.timer.start(int(args.interval * 1000))
@@ -96,12 +104,28 @@ class TempPlotWidget(QtWidgets.QWidget):
         self.update_plot()
 
     def update_plot(self):
-        self.ax.clear()
+        for ax in self.axes:
+            ax.clear()
         times, probe_names, probe_data = load_data()
         if not times:
-            self.ax.set_title("No data yet...")
+            for ax in self.axes:
+                ax.set_title("No data yet...")
             self.canvas.draw()
             return
+
+        # Map probe names to their indices for easy lookup
+        probe_idx = {name: i for i, name in enumerate(probe_names)}
+
+        # Define groups for each subplot
+        subplot_groups = [
+            (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)"),
+            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val"),
+            (["Lower integral", "Upper integral"], "Integral"),
+            (
+                ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
+                "PID Constants",
+            ),
+        ]
 
         # Calculate rolling window size in samples
         if len(times) > 1:
@@ -113,10 +137,18 @@ class TempPlotWidget(QtWidgets.QWidget):
         else:
             window_samples = 1
 
-        for i, probe in enumerate(probe_names):
-            y = np.array(probe_data[i], dtype=np.float64)
+        # First subplot: crosses for data, line for moving average
+        group, ylabel = subplot_groups[0]
+        ax = self.axes[0]
+        for i, probe in enumerate(group):
+            if probe not in probe_idx:
+                continue
+            idx = probe_idx[probe]
+            y = np.array(probe_data[idx], dtype=np.float64)
             color = f"C{i}"
-            self.ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+            # Plot raw data as crosses
+            ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+            # Moving average as line
             y_masked = np.ma.masked_invalid(y)
             if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
                 valid_idx = ~y_masked.mask
@@ -129,22 +161,36 @@ class TempPlotWidget(QtWidgets.QWidget):
                     roll[:edge] = np.nan
                     roll[-edge if edge != 0 else None :] = np.nan
                     valid_ma = ~np.isnan(roll)
-                    self.ax.plot(
+                    ax.plot(
                         t_valid[valid_ma],
                         roll[valid_ma],
                         color=color,
                         linewidth=1.5,
                         alpha=0.8,
                         zorder=1,
+                        label=f"{probe} (avg)",
                     )
-        self.ax.plot(
-            [], [], color="gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
-        )
-        self.ax.set_xlabel("Time")
-        self.ax.set_ylabel("Temperature (°C)")
+        ax.set_ylabel(ylabel)
+        ax.legend(loc="best", fontsize="small")
         date_only = times[0].strftime("%Y-%m-%d")
-        self.ax.set_title(f"Temperature Monitoring Log - {date_only}")
-        self.ax.legend()
+        ax.set_title(f"Temperature Monitoring Log - {date_only}")
+
+        # Remaining subplots: just lines for data
+        for subplot_idx, (group, ylabel) in enumerate(subplot_groups[1:], start=1):
+            ax = self.axes[subplot_idx]
+            for i, probe in enumerate(group):
+                if probe not in probe_idx:
+                    continue
+                idx = probe_idx[probe]
+                y = np.array(probe_data[idx], dtype=np.float64)
+                color = f"C{i}"
+                ax.plot(
+                    times, y, "-", linewidth=1.5, alpha=0.8, label=probe, color=color
+                )
+            ax.set_ylabel(ylabel)
+            ax.legend(loc="best", fontsize="small")
+
+        self.axes[-1].set_xlabel("Time")
         self.figure.tight_layout()
         self.canvas.draw()
 

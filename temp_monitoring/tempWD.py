@@ -6,7 +6,7 @@ import time
 import asgard_alignment.controllino as co
 import os
 
-duration = 1.5* 60 * 60  # seconds
+duration = 1.5 * 60 * 60  # seconds
 sampling = 5  # seconds
 
 cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
@@ -21,9 +21,29 @@ temp_probes = [
     "Floor T",
 ]
 
+# control loop info
+PI_infos_of_interest = [
+    "m_pin_val",
+    "setpoint",
+    "integral",
+    "k_prop",
+    "k_int",
+]
+
+servo_names = ["Lower", "Upper"]
+
 start_time = time.time()
 with open(savepth, "w") as f:
-    f.write("Time," + ",".join(temp_probes) + "\n")
+    # temp probes first, followed by PI infos prefixed by servo name
+    f.write(
+        "Time,"
+        + ",".join(temp_probes)
+        + ","
+        + ",".join(
+            [f"{servo} {key}" for servo in servo_names for key in PI_infos_of_interest]
+        )
+        + "\n"
+    )
     try:
         while time.time() - start_time < duration:
             temps = []
@@ -39,10 +59,34 @@ with open(savepth, "w") as f:
                 time.sleep(sampling)
                 continue
 
+            PI_infos = []
+            for i, servo in enumerate(servo_names):
+                try:
+                    info = cc.read_PI_loop_info(servo)
+                    PI_infos.append(info)
+                except Exception as e:
+                    print(f"Error getting PI info for {servo}: {e}")
+                    PI_infos.append(None)
+
             current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            f.write(
-                current_time + "," + ",".join(f"{temp:.2f}" for temp in temps) + "\n"
-            )
+            f.write(current_time + "," + ",".join(f"{temp:.2f}" for temp in temps))
+
+            # write out the PI infos, prefixed by the servo name
+            for i, info in enumerate(PI_infos):
+                if info is not None:
+                    f.write(
+                        ","
+                        + ",".join(
+                            (
+                                f"{info.get(key, 'None'):.2f}"
+                                if isinstance(info.get(key), (int, float))
+                                else str(info.get(key))
+                            )
+                            for key in PI_infos_of_interest
+                        )
+                    )
+
+            f.write("\n")
             f.flush()
             print(f"{current_time}: {temps}")
 
