@@ -257,7 +257,7 @@ int get_value(String request){
     if (next_str_ix == 1 && value > 80) value=-1;
    
     //Increment the place of the next number.
-    next_str_ix += i;
+    next_str_ix = i + 1;
     return value;
   } else {
     return -1; // No value
