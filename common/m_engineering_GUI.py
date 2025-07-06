@@ -3039,9 +3039,11 @@ with col_main:
 
             look_where = st.selectbox(
                 "What region of the camera to look at?",
-                ["Baldr Beam", "Heimdallr K1", "Heimdallr K2"],  # ,"whole camera"],
+                ["Baldr Beam", "Heimdallr K1", "Heimdallr K2","custom region"],  # ,"whole camera"],
                 key="look_where",
             )
+
+            
 
             scantype = st.selectbox(
                 "type of scan",
@@ -3078,6 +3080,33 @@ with col_main:
                 roi = st.session_state.heim_pupils["K1"]
             elif look_where == "Heimdallr K2":
                 roi = st.session_state.heim_pupils["K2"]
+            elif look_where == "custom region":
+                r1_str = st.sidebar.text_input("Row start (r1)", "0")
+                r2_str = st.sidebar.text_input("Row end (r2)", "256")
+                c1_str = st.sidebar.text_input("Col start (c1)", "0")
+                c2_str = st.sidebar.text_input("Col end (c2)", "320")
+                roi = None
+
+                # Parse and validate input
+                try:
+                    r1 = int(r1_str)
+                    r2 = int(r2_str)
+                    c1 = int(c1_str)
+                    c2 = int(c2_str)
+
+                    # Hardcoded bounds
+                    if not (0 <= r1 <= 256 and 0 <= r2 <= 256 and 0 <= c1 <= 320 and 0 <= c2 <= 320):
+                        st.sidebar.error("All values must be between valid range (CRED 1 is a 256x320 pixel array).")
+                    elif r1 >= r2 or c1 >= c2:
+                        st.sidebar.error("Must satisfy: r1 < r2 and c1 < c2.")
+                    else:
+                        roi = [r1, r2, c1, c2]
+                        st.sidebar.success(f"Selected ROI: {roi}")
+
+                except ValueError:
+                    st.sidebar.error("Please enter valid integers.")
+
+                roi = [int(r1), int(r2), int(c1), int(c2)]
             else:
                 st.write("invalid selection")
                 st.warning("invalid selection")
