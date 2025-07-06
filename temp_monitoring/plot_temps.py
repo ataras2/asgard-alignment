@@ -115,13 +115,13 @@ while True:
                 ax.plot(
                     t_valid[valid_ma],
                     roll[valid_ma],
-                    color="grey",
+                    color=color,
                     linewidth=1.5,
                     alpha=0.8,
                     zorder=1,
                 )
     ax.plot(
-        [], [], color=f"gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
+        [], [], color="gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
     )
     ax.set_xlabel("Time")
     ax.set_ylabel("Temperature (°C)")
