@@ -11,6 +11,7 @@
 //  "m[PIN] [VALUE]" PWM modulated analog out for a pin.
 //  "p[index] [mPIN] [iPIN] [setpoint] [k_prop] [k_int] [m_min]" Set a PI loop - all terms integers.
 //      Setting gain to 0 turns of, and setting integral term to 0 resets the integral term.
+//  "l[index]" get info about PI loop with index index, returning the m_pin, i_pin, setpoint, k_prop, k_int, m_min, integral and m_pin_val.
 //  "?" Ping
 //  "q" Quit this client. Can start another! (only 1 at a time)
 //
@@ -42,17 +43,18 @@ int next_str_ix;  // The next index in the string we're passing (saves passing b
 #define MIN_9V_PIN 3
 #define MAX_9V_PIN 10
 
-#define MAX_SERVOS 4
+#define MAX_SERVOS 2
 #define MAX_INTEGRAL 5120000 //An offset of 512 for 10000 milli-seconds
 struct PIParams {
-  int k_prop;
-  int k_int;
-  int m_pin;
-  int i_pin;
-  int setpoint;
-  int m_min;
-  long integral;
-  unsigned long last_msec;
+  int k_prop;  // Proportional gain
+  int k_int; // Integral gain
+  int m_pin; // modulation (output) pin 
+  int i_pin; // input pin
+  int setpoint; // Setpoint for the PI loop
+  int m_min; // Minimum modulation value (to avoid the output being zero)
+  long integral; // Cumulative integral term
+  unsigned long last_msec; // Last time the servo was run (in milliseconds)
+  int m_pin_val; // Last value written to the modulation pin
 };
 
 struct PIParams pi_params[MAX_SERVOS];
@@ -186,6 +188,21 @@ void loop() {
       if (pi_params[pin].k_int == 0) pi_params[pin].integral=0;
       // Reset the time of last iteration (important if this is the first activation)
       pi_params[pin].last_msec = millis();
+      return success(client);
+    } else if (c == 'l') {
+      // l[index] - get info about PI loop with index index
+      if (pin < 0 || pin >= MAX_SERVOS) {
+        Serial.println("Invalid index for PI loop.");
+        return failure(client);
+      }
+      client.println(String(pi_params[pin].m_pin) + " " +
+                     String(pi_params[pin].i_pin) + " " +
+                     String(pi_params[pin].setpoint) + " " +
+                     String(pi_params[pin].k_prop) + " " +
+                     String(pi_params[pin].k_int) + " " +
+                     String(pi_params[pin].m_min) + " " +
+                     String(pi_params[pin].integral) + " " +
+                     String(pi_params[pin].m_pin_val));
     } else {
       Serial.println("Invalid command character.");
       return failure(client);
@@ -214,6 +231,8 @@ void loop() {
       if (output < pi_params[s_ix].m_min) output = pi_params[s_ix].m_min;
       if (output > 255) output = 255;
       analogWrite(pi_params[s_ix].m_pin, output);
+      // Save the last value written to the modulation pin.
+      pi_params[s_ix].m_pin_val = output;
     }
     s_ix = (s_ix + 1) % MAX_SERVOS; // move on to the next servo when we get the next chance. 
   }
