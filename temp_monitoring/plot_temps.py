@@ -60,36 +60,6 @@ else:
         log_path = args.logfile
 
 
-def load_data():
-    times = []
-    probe_names = []
-    probe_data = []
-    try:
-        with open(log_path, "r") as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            probe_names = header[1:]
-            for row in reader:
-                times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
-                # Only apply conversion to probes with " T" suffix or "setpoint" in name
-                converted_row = []
-                for name, x in zip(probe_names, row[1:]):
-                    if x == "None":
-                        converted_row.append(None)
-                    elif name.endswith(" T") or "setpoint" in name:
-                        converted_row.append(42.5 + (float(x) - 512) * 0.11)
-                    else:
-                        converted_row.append(float(x))
-                probe_data.append(converted_row)
-        if not times:
-            return [], [], []
-        probe_data = list(zip(*probe_data))
-        return times, probe_names, probe_data
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return [], [], []
-
-
 class TempPlotWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -107,16 +77,84 @@ class TempPlotWidget(QtWidgets.QWidget):
         layout.addWidget(self.canvas)
         self.setLayout(layout)
         self.figure.subplots_adjust(hspace=0.25)
+        self.setWindowTitle("Temperature Monitoring Log")
+
+        # Persistent data structures
+        self.times = []
+        self.probe_names = []
+        self.probe_data = []
+        self.file_pos = 0
+
+        self._init_data()
+
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plot)
         self.timer.start(int(args.interval * 1000))
-        self.setWindowTitle("Temperature Monitoring Log")
         self.update_plot()
+
+    def _init_data(self):
+        # Read header and any existing data
+        self.file_pos = 0
+        try:
+            with open(log_path, "r") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                self.probe_names = header[1:]
+                for row in reader:
+                    if not row:
+                        continue
+                    self.times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
+                    converted_row = []
+                    for name, x in zip(self.probe_names, row[1:]):
+                        if x == "None":
+                            converted_row.append(None)
+                        elif name.endswith(" T") or "setpoint" in name:
+                            converted_row.append(42.5 + (float(x) - 512) * 0.11)
+                        else:
+                            converted_row.append(float(x))
+                    self.probe_data.append(converted_row)
+                self.file_pos = f.tell()
+        except Exception as e:
+            print(f"Error initializing data: {e}")
+            self.times = []
+            self.probe_names = []
+            self.probe_data = []
+            self.file_pos = 0
+
+    def _append_new_data(self):
+        try:
+            with open(log_path, "r") as f:
+                f.seek(self.file_pos)
+                reader = csv.reader(f)
+                for row in reader:
+                    if not row:
+                        continue
+                    self.times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
+                    converted_row = []
+                    for name, x in zip(self.probe_names, row[1:]):
+                        if x == "None":
+                            converted_row.append(None)
+                        elif name.endswith(" T") or "setpoint" in name:
+                            converted_row.append(42.5 + (float(x) - 512) * 0.11)
+                        else:
+                            converted_row.append(float(x))
+                    self.probe_data.append(converted_row)
+                self.file_pos = f.tell()
+        except Exception as e:
+            print(f"Error appending new data: {e}")
+
+    def get_data(self):
+        self._append_new_data()
+        if not self.times:
+            return [], [], []
+        # Transpose probe_data for plotting
+        probe_data_t = list(zip(*self.probe_data))
+        return self.times, self.probe_names, probe_data_t
 
     def update_plot(self):
         for ax in self.axes:
             ax.clear()
-        times, probe_names, probe_data = load_data()
+        times, probe_names, probe_data = self.get_data()
         if not times:
             for ax in self.axes:
                 ax.set_title("No data yet...")
@@ -125,10 +163,6 @@ class TempPlotWidget(QtWidgets.QWidget):
 
         # --- Filter by lookback window if specified ---
         if args.lookback is not None:
-            cutoff = times[-1] - QtCore.QTime(0, 0).secsTo(
-                QtCore.QTime(0, int(args.lookback))
-            )
-            # Actually, use datetime.timedelta for cutoff
             from datetime import timedelta
 
             cutoff = times[-1] - timedelta(minutes=args.lookback)
@@ -168,7 +202,6 @@ class TempPlotWidget(QtWidgets.QWidget):
         group, ylabel = subplot_groups[0]
         ax = self.axes[0]
         # --- Add colored patches for y ranges ---
-        # Determine x-limits for patch (use time axis if available)
         if times:
             ax.axhspan(16, 20, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
             ax.axhspan(20, 100, xmin=0, xmax=1, color="red", alpha=0.5, zorder=0)
@@ -251,9 +284,3 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     widget = TempPlotWidget()
     widget.resize(1000, 600)
-    widget.show()
-    sys.exit(app.exec_())
-
-
-if __name__ == "__main__":
-    main()
