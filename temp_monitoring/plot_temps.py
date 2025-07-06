@@ -30,6 +30,12 @@ parser.add_argument(
     default=5,
     help="Update interval in seconds (default: 5)",
 )
+parser.add_argument(
+    "--lookback",
+    type=float,
+    default=None,
+    help="Number of minutes to look back in the plot (default: all times)",
+)
 args = parser.parse_args()
 
 
@@ -54,54 +60,133 @@ else:
         log_path = args.logfile
 
 
-def load_data():
-    times = []
-    probe_names = []
-    probe_data = []
-    try:
-        with open(log_path, "r") as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            probe_names = header[1:]
-            for row in reader:
-                times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
-                probe_data.append(
-                    [
-                        42.5 + (float(x) - 512) * 0.11 if x != "None" else None
-                        for x in row[1:]
-                    ]
-                )
-        if not times:
-            return [], [], []
-        probe_data = list(zip(*probe_data))
-        return times, probe_names, probe_data
-    except Exception as e:
-        print(f"Error loading data: {e}")
-        return [], [], []
-
-
 class TempPlotWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(10, 6))
+        # Set height ratios: first subplot double the others
+        self.figure = Figure(figsize=(10, 12))
+        gs = self.figure.add_gridspec(4, 1, height_ratios=[2, 1, 1, 1])
+        self.axes = [
+            self.figure.add_subplot(
+                gs[i, 0], sharex=None if i == 0 else self.figure.axes[0]
+            )
+            for i in range(4)
+        ]
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.canvas)
         self.setLayout(layout)
-        self.ax = self.figure.add_subplot(111)
+        self.figure.subplots_adjust(hspace=0.25)
+        self.setWindowTitle("Temperature Monitoring Log")
+
+        # Persistent data structures
+        self.times = []
+        self.probe_names = []
+        self.probe_data = []
+        self.file_pos = 0
+
+        self._init_data()
+
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plot)
         self.timer.start(int(args.interval * 1000))
-        self.setWindowTitle("Temperature Monitoring Log")
         self.update_plot()
 
+    def _init_data(self):
+        # Read header and any existing data
+        self.file_pos = 0
+        try:
+            with open(log_path, "r") as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                self.probe_names = header[1:]
+                for row in reader:
+                    if not row:
+                        continue
+                    self.times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
+                    converted_row = []
+                    for name, x in zip(self.probe_names, row[1:]):
+                        if x == "None":
+                            converted_row.append(None)
+                        elif name.endswith(" T") or "setpoint" in name:
+                            converted_row.append(42.5 + (float(x) - 512) * 0.11)
+                        else:
+                            converted_row.append(float(x))
+                    self.probe_data.append(converted_row)
+                self.file_pos = f.tell()
+        except Exception as e:
+            print(f"Error initializing data: {e}")
+            self.times = []
+            self.probe_names = []
+            self.probe_data = []
+            self.file_pos = 0
+
+    def _append_new_data(self):
+        try:
+            with open(log_path, "r") as f:
+                f.seek(self.file_pos)
+                reader = csv.reader(f)
+                for row in reader:
+                    if not row:
+                        continue
+                    self.times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
+                    converted_row = []
+                    for name, x in zip(self.probe_names, row[1:]):
+                        if x == "None":
+                            converted_row.append(None)
+                        elif name.endswith(" T") or "setpoint" in name:
+                            converted_row.append(42.5 + (float(x) - 512) * 0.11)
+                        else:
+                            converted_row.append(float(x))
+                    self.probe_data.append(converted_row)
+                self.file_pos = f.tell()
+        except Exception as e:
+            print(f"Error appending new data: {e}")
+
+    def get_data(self):
+        self._append_new_data()
+        if not self.times:
+            return [], [], []
+        # Transpose probe_data for plotting
+        probe_data_t = list(zip(*self.probe_data))
+        return self.times, self.probe_names, probe_data_t
+
     def update_plot(self):
-        self.ax.clear()
-        times, probe_names, probe_data = load_data()
+        for ax in self.axes:
+            ax.clear()
+        times, probe_names, probe_data = self.get_data()
         if not times:
-            self.ax.set_title("No data yet...")
+            for ax in self.axes:
+                ax.set_title("No data yet...")
             self.canvas.draw()
             return
+
+        # --- Filter by lookback window if specified ---
+        if args.lookback is not None:
+            from datetime import timedelta
+
+            cutoff = times[-1] - timedelta(minutes=args.lookback)
+            mask = [t >= cutoff for t in times]
+            if any(mask):
+                times = [t for t, m in zip(times, mask) if m]
+                probe_data = [
+                    [v for v, m in zip(probe, mask) if m] for probe in probe_data
+                ]
+        # --- End lookback filter ---
+
+        # Map probe names to their indices for easy lookup
+        probe_idx = {name: i for i, name in enumerate(probe_names)}
+
+        # Define groups for each subplot
+        subplot_groups = [
+            (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)"),
+            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val"),
+            (["Lower integral", "Upper integral"], "Integral"),
+            (
+                ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
+                "PID Coeffs",
+            ),
+        ]
 
         # Calculate rolling window size in samples
         if len(times) > 1:
@@ -113,10 +198,43 @@ class TempPlotWidget(QtWidgets.QWidget):
         else:
             window_samples = 1
 
-        for i, probe in enumerate(probe_names):
-            y = np.array(probe_data[i], dtype=np.float64)
+        # First subplot: crosses for data, line for moving average
+        group, ylabel = subplot_groups[0]
+        ax = self.axes[0]
+        # --- Add colored patches for y ranges ---
+        if times:
+            ax.axhspan(16, 20, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
+            ax.axhspan(20, 100, xmin=0, xmax=1, color="red", alpha=0.5, zorder=0)
+        # --- End colored patches ---
+
+        # --- Add dashed lines for setpoints if present ---
+        for setpoint_name, color in [
+            ("Lower setpoint", "C0"),
+            ("Upper setpoint", "C1"),
+        ]:
+            if setpoint_name in probe_idx:
+                idx = probe_idx[setpoint_name]
+                y = np.array(probe_data[idx], dtype=np.float64)
+                ax.plot(
+                    times,
+                    y,
+                    "--",
+                    linewidth=1.5,
+                    alpha=1.0,
+                    color=color,
+                    label=f"{setpoint_name} (setpoint)",
+                )
+        # --- End setpoint lines ---
+
+        for i, probe in enumerate(group):
+            if probe not in probe_idx:
+                continue
+            idx = probe_idx[probe]
+            y = np.array(probe_data[idx], dtype=np.float64)
             color = f"C{i}"
-            self.ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+            # Plot raw data as crosses
+            ax.plot(times, y, "x", alpha=0.1, label=f"{probe} (raw)", color=color)
+            # Moving average as line
             y_masked = np.ma.masked_invalid(y)
             if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
                 valid_idx = ~y_masked.mask
@@ -129,22 +247,35 @@ class TempPlotWidget(QtWidgets.QWidget):
                     roll[:edge] = np.nan
                     roll[-edge if edge != 0 else None :] = np.nan
                     valid_ma = ~np.isnan(roll)
-                    self.ax.plot(
+                    ax.plot(
                         t_valid[valid_ma],
                         roll[valid_ma],
                         color=color,
                         linewidth=1.5,
-                        alpha=0.8,
+                        alpha=1.0,
                         zorder=1,
                     )
-        self.ax.plot(
-            [], [], color="gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
-        )
-        self.ax.set_xlabel("Time")
-        self.ax.set_ylabel("Temperature (°C)")
+        ax.set_ylabel(ylabel)
+        ax.legend(loc="best", fontsize="small")
         date_only = times[0].strftime("%Y-%m-%d")
-        self.ax.set_title(f"Temperature Monitoring Log - {date_only}")
-        self.ax.legend()
+        ax.set_title(f"Temperature Monitoring Log - {date_only}")
+
+        # Remaining subplots: just lines for data
+        for subplot_idx, (group, ylabel) in enumerate(subplot_groups[1:], start=1):
+            ax = self.axes[subplot_idx]
+            for i, probe in enumerate(group):
+                if probe not in probe_idx:
+                    continue
+                idx = probe_idx[probe]
+                y = np.array(probe_data[idx], dtype=np.float64)
+                color = f"C{i}"
+                ax.plot(
+                    times, y, "-", linewidth=1.5, alpha=1.0, label=probe, color=color
+                )
+            ax.set_ylabel(ylabel)
+            ax.legend(loc="best", fontsize="small")
+
+        self.axes[-1].set_xlabel("Time")
         self.figure.tight_layout()
         self.canvas.draw()
 
@@ -153,9 +284,3 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     widget = TempPlotWidget()
     widget.resize(1000, 600)
-    widget.show()
-    sys.exit(app.exec_())
-
-
-if __name__ == "__main__":
-    main()

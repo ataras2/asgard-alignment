@@ -64,15 +64,15 @@ STEPPER_NAME_TO_NUM = {
 
 PI_loop_infos = [
     {
-        "name": "Upper",
-        "m_pin": CONNEXIONS["Upper Fan"],
-        "i_pin": CONNEXIONS["Upper T"],
-        "m_min": 10,
-    },
-    {
         "name": "Lower",
         "m_pin": CONNEXIONS["Lower Fan"],
         "i_pin": CONNEXIONS["Lower T"],
+        "m_min": 10,
+    },
+    {
+        "name": "Upper",
+        "m_pin": CONNEXIONS["Upper Fan"],
+        "i_pin": CONNEXIONS["Upper T"],
         "m_min": 10,
     },
 ]
@@ -388,9 +388,28 @@ class Controllino:
         self,
         box: str,
         setpoint: int,
-        k_prop: float,
-        k_int: float,
+        k_prop: int,
+        k_int: int,
     ) -> bool:
+        """
+        Set PI loop parameters.
+
+        Parameters
+        ----------
+        box : str
+            Either "Upper" or "Lower".
+        setpoint : int
+            Setpoint value.
+        k_prop : int
+            Proportional gain (integer). see # controllino_server.ino for conversion to float
+        k_int : int
+            Integral gain (integer). see # controllino_server.ino for conversion to float
+
+        Returns
+        -------
+        bool
+            Status of the command.
+        """
         assert box in ["Upper", "Lower"]
 
         # find index of the box
