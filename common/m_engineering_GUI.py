@@ -2451,7 +2451,7 @@ with col_main:
                     res = send_and_get_response(message)
             if st.button("All down :arrow_double_down:"):
                 for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 1.0"
+                    message = f"moveabs {flipper} 0.0"
                     res = send_and_get_response(message)
 
 
