@@ -6,7 +6,7 @@ import argparse
 import os
 import glob
 import numpy as np
-from collections import deque
+import time
 
 parser = argparse.ArgumentParser(description="Plot temperature logs from tempWD.")
 parser.add_argument(
@@ -20,6 +20,12 @@ parser.add_argument(
     type=float,
     default=20,
     help="Rolling average window size in seconds (default: 20)",
+)
+parser.add_argument(
+    "--interval",
+    type=float,
+    default=5,
+    help="Update interval in seconds (default: 5)",
 )
 args = parser.parse_args()
 
@@ -44,69 +50,81 @@ else:
     except ValueError:
         log_path = args.logfile
 
-times = []
-probe_names = []
-probe_data = []
+plt.ion()
+fig, ax = plt.subplots(figsize=(10, 6))
 
-with open(log_path, "r") as f:
-    reader = csv.reader(f)
-    header = next(reader)
-    probe_names = header[1:]
-    for row in reader:
-        # Parse time and temperatures, convert to deg C: T = 42.5 + (D-512)*0.11
-        times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
-        probe_data.append(
-            [42.5 + (float(x) - 512) * 0.11 if x != "None" else None for x in row[1:]]
-        )
 
-# Transpose probe_data to get a list per probe
-probe_data = list(zip(*probe_data))
+def load_data():
+    times = []
+    probe_names = []
+    probe_data = []
+    try:
+        with open(log_path, "r") as f:
+            reader = csv.reader(f)
+            header = next(reader)
+            probe_names = header[1:]
+            for row in reader:
+                times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
+                probe_data.append(
+                    [
+                        42.5 + (float(x) - 512) * 0.11 if x != "None" else None
+                        for x in row[1:]
+                    ]
+                )
+        if not times:
+            return [], [], []
+        probe_data = list(zip(*probe_data))
+        return times, probe_names, probe_data
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        return [], [], []
 
-plt.figure(figsize=(10, 6))
 
-# Calculate rolling window size in samples
-if len(times) > 1:
-    # Compute median sampling interval in seconds
-    intervals = [(t2 - t1).total_seconds() for t1, t2 in zip(times[:-1], times[1:])]
-    median_interval = np.median(intervals)
-    window_samples = max(1, int(round(args.window / median_interval)))
-else:
-    window_samples = 1
+while True:
+    ax.clear()
+    times, probe_names, probe_data = load_data()
+    if not times:
+        ax.set_title("No data yet...")
+        plt.pause(args.interval)
+        continue
 
-ax = plt.gca()
+    # Calculate rolling window size in samples
+    if len(times) > 1:
+        intervals = [(t2 - t1).total_seconds() for t1, t2 in zip(times[:-1], times[1:])]
+        median_interval = np.median(intervals)
+        window_samples = max(1, int(round(args.window / median_interval)))
+    else:
+        window_samples = 1
 
-for i, probe in enumerate(probe_names):
-    y = np.array(probe_data[i], dtype=np.float64)
-    color = f"C{i}"
-    plt.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
-    y_masked = np.ma.masked_invalid(y)
-    if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
-        valid_idx = ~y_masked.mask
-        y_valid = y_masked[valid_idx]
-        t_valid = np.array(times)[valid_idx]
-        if len(y_valid) >= window_samples:
-            kernel = np.ones(window_samples) / window_samples
-            roll = np.convolve(y_valid, kernel, mode="same")
-            # Set to nan the values at the edges that do not use the full window
-            edge = window_samples // 2
-            roll[:edge] = np.nan
-            roll[-edge if edge != 0 else None :] = np.nan
-            # Only plot points where the moving average is valid (not nan)
-            valid_ma = ~np.isnan(roll)
-            plt.plot(
-                t_valid[valid_ma],
-                roll[valid_ma],
-                color="grey",
-                linewidth=1.5,
-                alpha=0.8,
-                zorder=1,
-            )
-    # If not enough valid points, skip moving average
-
-plt.xlabel("Time")
-plt.ylabel("Temperature (°C)")
-date_only = times[0].strftime("%Y-%m-%d")
-plt.title(f"Temperature Monitoring Log - {date_only}")
-plt.legend()
-plt.tight_layout()
-plt.show()
+    for i, probe in enumerate(probe_names):
+        y = np.array(probe_data[i], dtype=np.float64)
+        color = f"C{i}"
+        ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+        y_masked = np.ma.masked_invalid(y)
+        if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
+            valid_idx = ~y_masked.mask
+            y_valid = y_masked[valid_idx]
+            t_valid = np.array(times)[valid_idx]
+            if len(y_valid) >= window_samples:
+                kernel = np.ones(window_samples) / window_samples
+                roll = np.convolve(y_valid, kernel, mode="same")
+                edge = window_samples // 2
+                roll[:edge] = np.nan
+                roll[-edge if edge != 0 else None :] = np.nan
+                valid_ma = ~np.isnan(roll)
+                ax.plot(
+                    t_valid[valid_ma],
+                    roll[valid_ma],
+                    color="grey",
+                    linewidth=1.5,
+                    alpha=0.8,
+                    zorder=1,
+                )
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Temperature (°C)")
+    date_only = times[0].strftime("%Y-%m-%d")
+    ax.set_title(f"Temperature Monitoring Log - {date_only}")
+    ax.legend()
+    fig.tight_layout()
+    plt.draw()
+    plt.pause(args.interval)
