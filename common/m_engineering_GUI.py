@@ -3081,10 +3081,10 @@ with col_main:
             elif look_where == "Heimdallr K2":
                 roi = st.session_state.heim_pupils["K2"]
             elif look_where == "custom region":
-                r1_str = st.sidebar.text_input("Row start (r1)", "0")
-                r2_str = st.sidebar.text_input("Row end (r2)", "256")
-                c1_str = st.sidebar.text_input("Col start (c1)", "0")
-                c2_str = st.sidebar.text_input("Col end (c2)", "320")
+                r1_str = st.text_input("Row start (r1)", "0")
+                r2_str = st.text_input("Row end (r2)", "256")
+                c1_str = st.text_input("Col start (c1)", "0")
+                c2_str = st.text_input("Col end (c2)", "320")
                 roi = None
 
                 # Parse and validate input
