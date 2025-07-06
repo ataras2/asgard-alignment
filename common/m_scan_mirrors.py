@@ -191,6 +191,20 @@ parser.add_argument(
 )
 
 
+parser.add_argument(
+    "--sleeptime",
+    type=float,
+    default=0.4,
+    help="sleep time between movements? Default:%(default)s"
+)
+
+parser.add_argument(
+    "--record_images",
+    type=int,
+    default=1,
+    help="Do we want to include images? 1=>yes, 0=>no Default:%(default)s"
+)
+
 
 args = parser.parse_args()
 
@@ -210,9 +224,9 @@ socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
 
-
-# set up camera 
-c = FLI.fli(roi=eval(args.roi) ) #shm(args.global_camera_shm)
+if int(args.record_images):
+    # set up camera 
+    c = FLI.fli(roi=eval(args.roi) ) #shm(args.global_camera_shm)
 
 
 # try get a dark and build bad pixel map 
@@ -363,7 +377,7 @@ x_points, y_points = zip(*scan_pattern)
 
 img_dict = {}
 
-sleep_time = 0.4
+sleep_time = arg.sleeptime #0.4
 
 
 # we should have predifed json file for these..
@@ -418,12 +432,12 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
 
     time.sleep(sleep_time)  # wait for the phase mask to move and settle
 
-
-    img = np.mean(
-        c.get_data(apply_manual_reduction=True),
-        axis=0,
-    )
-    
+    if int(args.record_images):
+        img = np.mean(
+            c.get_data(apply_manual_reduction=True),
+            axis=0,
+        )
+        
     #img_raw[bad_pixel_map] = 0
 
     #img = img_raw[r1:r2,c1:c2]
