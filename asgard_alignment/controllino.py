@@ -111,7 +111,7 @@ class Controllino:
             self.turn_on("USB hubs")
             self.turn_on("Upper Kickstart")
             time.sleep(0.1)
-            self.turn_on("Lower Kickstart")  
+            self.turn_on("Lower Kickstart")
 
             self.turn_on("DM1")
             self.turn_on("DM2")
@@ -126,10 +126,11 @@ class Controllino:
             time.sleep(0.1)
             self.turn_off("Lower Kickstart")
             self.modulate("Lower Fan", 128)
-#            self.set_piezo_dac(0, 2048)
-#            self.set_piezo_dac(1, 2048)
-#            self.set_piezo_dac(2, 2048)
-#            self.set_piezo_dac(3, 2048)
+
+    #            self.set_piezo_dac(0, 2048)
+    #            self.set_piezo_dac(1, 2048)
+    #            self.set_piezo_dac(2, 2048)
+    #            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """
@@ -313,7 +314,7 @@ class Controllino:
             Power status of the device.
         """
         self._ensure_device(key)
-        return self.send_command(f"g{CONNEXIONS[key]}")
+        return self.send_command_anyreply(f"g{CONNEXIONS[key]}")
 
     def modulate(self, key: str, value: int) -> bool:
         """
