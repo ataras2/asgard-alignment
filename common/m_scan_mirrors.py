@@ -110,7 +110,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -191,6 +191,20 @@ parser.add_argument(
 )
 
 
+parser.add_argument(
+    "--sleeptime",
+    type=float,
+    default=0.4,
+    help="sleep time between movements? Default:%(default)s"
+)
+
+parser.add_argument(
+    "--record_images",
+    type=int,
+    default=1,
+    help="Do we want to include images? 1=>yes, 0=>no Default:%(default)s"
+)
+
 
 args = parser.parse_args()
 
@@ -210,14 +224,15 @@ socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
 
-
-# set up camera 
-c = FLI.fli(roi=eval(args.roi) ) #shm(args.global_camera_shm)
+if int(args.record_images):
+    # set up camera 
+    c = FLI.fli(roi=eval(args.roi) ) #shm(args.global_camera_shm)
 
 
 # try get a dark and build bad pixel map 
 try:
-    c.build_manual_dark()
+    print("comment out dark - this should now be done by server!")
+    #c.build_manual_dark()
 except Exception as e:
     print('failed to take dark with exception {e}')
 
@@ -363,7 +378,7 @@ x_points, y_points = zip(*scan_pattern)
 
 img_dict = {}
 
-sleep_time = 0.4
+sleep_time = args.sleeptime #0.4
 
 
 # we should have predifed json file for these..
@@ -418,17 +433,17 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
 
     time.sleep(sleep_time)  # wait for the phase mask to move and settle
 
+    if int(args.record_images):
+        img = np.mean(
+            c.get_data(apply_manual_reduction=True),
+            axis=0,
+        )
+        
+        #img_raw[bad_pixel_map] = 0
 
-    img = np.mean(
-        c.get_data(apply_manual_reduction=True),
-        axis=0,
-    )
+        #img = img_raw[r1:r2,c1:c2]
     
-    #img_raw[bad_pixel_map] = 0
-
-    #img = img_raw[r1:r2,c1:c2]
-    
-    img_dict[str((x_pos, y_pos))] = img
+        img_dict[str((x_pos, y_pos))] = img
 
 
 
@@ -444,11 +459,11 @@ message = f"moveabs {targets[1]} {initial_Ypos}"
 response = send_and_get_response(message)
 print(response)
 
-
-img_json_file_path = args.data_path + f'img_dict_beam{args.beam}-{args.motor}.json'
-with open(img_json_file_path, "w") as json_file:
-    json.dump(util.convert_to_serializable(img_dict), json_file)
-
+if int(args.record_images):
+    img_json_file_path = args.data_path + f'img_dict_beam{args.beam}-{args.motor}.json'
+    with open(img_json_file_path, "w") as json_file:
+        json.dump(util.convert_to_serializable(img_dict), json_file)
+        print(f"saved json file with images at each coordinate {img_json_file_path}")
 
 
 
