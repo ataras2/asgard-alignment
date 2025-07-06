@@ -1,12 +1,15 @@
-import matplotlib.pyplot as plt
-import csv
-from datetime import datetime
 import sys
-import argparse
 import os
 import glob
+import csv
+from datetime import datetime
 import numpy as np
+import argparse
 import time
+
+from PyQt5 import QtWidgets, QtCore
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 parser = argparse.ArgumentParser(description="Plot temperature logs from tempWD.")
 parser.add_argument(
@@ -50,9 +53,6 @@ else:
     except ValueError:
         log_path = args.logfile
 
-plt.ion()
-fig, ax = plt.subplots(figsize=(10, 6))
-
 
 def load_data():
     times = []
@@ -80,54 +80,82 @@ def load_data():
         return [], [], []
 
 
-while True:
-    ax.clear()
-    times, probe_names, probe_data = load_data()
-    if not times:
-        ax.set_title("No data yet...")
-        plt.pause(args.interval)
-        continue
+class TempPlotWidget(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.figure = Figure(figsize=(10, 6))
+        self.canvas = FigureCanvas(self.figure)
+        layout = QtWidgets.QVBoxLayout()
+        layout.addWidget(self.canvas)
+        self.setLayout(layout)
+        self.ax = self.figure.add_subplot(111)
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update_plot)
+        self.timer.start(int(args.interval * 1000))
+        self.setWindowTitle("Temperature Monitoring Log")
+        self.update_plot()
 
-    # Calculate rolling window size in samples
-    if len(times) > 1:
-        intervals = [(t2 - t1).total_seconds() for t1, t2 in zip(times[:-1], times[1:])]
-        median_interval = np.median(intervals)
-        window_samples = max(1, int(round(args.window / median_interval)))
-    else:
-        window_samples = 1
+    def update_plot(self):
+        self.ax.clear()
+        times, probe_names, probe_data = load_data()
+        if not times:
+            self.ax.set_title("No data yet...")
+            self.canvas.draw()
+            return
 
-    for i, probe in enumerate(probe_names):
-        y = np.array(probe_data[i], dtype=np.float64)
-        color = f"C{i}"
-        ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
-        y_masked = np.ma.masked_invalid(y)
-        if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
-            valid_idx = ~y_masked.mask
-            y_valid = y_masked[valid_idx]
-            t_valid = np.array(times)[valid_idx]
-            if len(y_valid) >= window_samples:
-                kernel = np.ones(window_samples) / window_samples
-                roll = np.convolve(y_valid, kernel, mode="same")
-                edge = window_samples // 2
-                roll[:edge] = np.nan
-                roll[-edge if edge != 0 else None :] = np.nan
-                valid_ma = ~np.isnan(roll)
-                ax.plot(
-                    t_valid[valid_ma],
-                    roll[valid_ma],
-                    color=color,
-                    linewidth=1.5,
-                    alpha=0.8,
-                    zorder=1,
-                )
-    ax.plot(
-        [], [], color="gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
-    )
-    ax.set_xlabel("Time")
-    ax.set_ylabel("Temperature (°C)")
-    date_only = times[0].strftime("%Y-%m-%d")
-    ax.set_title(f"Temperature Monitoring Log - {date_only}")
-    ax.legend()
-    fig.tight_layout()
-    plt.draw()
-    plt.pause(args.interval)
+        # Calculate rolling window size in samples
+        if len(times) > 1:
+            intervals = [
+                (t2 - t1).total_seconds() for t1, t2 in zip(times[:-1], times[1:])
+            ]
+            median_interval = np.median(intervals)
+            window_samples = max(1, int(round(args.window / median_interval)))
+        else:
+            window_samples = 1
+
+        for i, probe in enumerate(probe_names):
+            y = np.array(probe_data[i], dtype=np.float64)
+            color = f"C{i}"
+            self.ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+            y_masked = np.ma.masked_invalid(y)
+            if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
+                valid_idx = ~y_masked.mask
+                y_valid = y_masked[valid_idx]
+                t_valid = np.array(times)[valid_idx]
+                if len(y_valid) >= window_samples:
+                    kernel = np.ones(window_samples) / window_samples
+                    roll = np.convolve(y_valid, kernel, mode="same")
+                    edge = window_samples // 2
+                    roll[:edge] = np.nan
+                    roll[-edge if edge != 0 else None :] = np.nan
+                    valid_ma = ~np.isnan(roll)
+                    self.ax.plot(
+                        t_valid[valid_ma],
+                        roll[valid_ma],
+                        color=color,
+                        linewidth=1.5,
+                        alpha=0.8,
+                        zorder=1,
+                    )
+        self.ax.plot(
+            [], [], color="gray", linewidth=1.5, alpha=0.8, zorder=1, label="moving avg"
+        )
+        self.ax.set_xlabel("Time")
+        self.ax.set_ylabel("Temperature (°C)")
+        date_only = times[0].strftime("%Y-%m-%d")
+        self.ax.set_title(f"Temperature Monitoring Log - {date_only}")
+        self.ax.legend()
+        self.figure.tight_layout()
+        self.canvas.draw()
+
+
+def main():
+    app = QtWidgets.QApplication(sys.argv)
+    widget = TempPlotWidget()
+    widget.resize(1000, 600)
+    widget.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
