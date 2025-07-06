@@ -185,3 +185,21 @@ plt.ylabel(f"OPD Difference between pols ({opd_diff_rad.unit})")
 del_lambda = 200 * u.nm
 coherence_length = wavelength**2 / del_lambda
 print(f"Coherence length: {coherence_length.to('um'):.2f}")
+
+# %%
+# how well does opd_vals_v look like a parabola?
+# use np.polyfit to fit a parabola to the data
+coeffs = np.polyfit(theta_vals.to(u.deg).value, opd_vals_v.to(u.um).value, 2)
+pred = np.polyval(coeffs, theta_vals.to(u.deg).value) *u.um
+plt.figure()
+plt.plot(theta_vals, opd_vals_v.to("um"), label="LinBO3 V")
+plt.plot(theta_vals, pred.to("um"), label="Parabola fit")
+plt.xlabel(f"Angle of Incidence ({theta_vals.unit})")
+plt.ylabel(f"Optical Path Difference ({opd_vals_v.unit})")
+plt.legend()
+plt.show()
+
+plt.figure()
+residuals = opd_vals_v.reshape(-1) - pred
+plt.plot(theta_vals, residuals.to("um"))
+
