@@ -123,7 +123,7 @@ class TempPlotWidget(QtWidgets.QWidget):
             (["Lower integral", "Upper integral"], "Integral"),
             (
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
-                "PID Constants",
+                "PID Coeffs",
             ),
         ]
 
@@ -140,6 +140,13 @@ class TempPlotWidget(QtWidgets.QWidget):
         # First subplot: crosses for data, line for moving average
         group, ylabel = subplot_groups[0]
         ax = self.axes[0]
+        # --- Add colored patches for y ranges ---
+        # Determine x-limits for patch (use time axis if available)
+        if times:
+            ax.axhspan(16, 20, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
+            ax.axhspan(20, 100, xmin=0, xmax=1, color="red", alpha=0.5, zorder=0)
+        # --- End colored patches ---
+
         for i, probe in enumerate(group):
             if probe not in probe_idx:
                 continue
@@ -147,7 +154,7 @@ class TempPlotWidget(QtWidgets.QWidget):
             y = np.array(probe_data[idx], dtype=np.float64)
             color = f"C{i}"
             # Plot raw data as crosses
-            ax.plot(times, y, "x", alpha=0.5, label=f"{probe} (raw)", color=color)
+            ax.plot(times, y, "x", alpha=0.1, label=f"{probe} (raw)", color=color)
             # Moving average as line
             y_masked = np.ma.masked_invalid(y)
             if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
@@ -166,9 +173,8 @@ class TempPlotWidget(QtWidgets.QWidget):
                         roll[valid_ma],
                         color=color,
                         linewidth=1.5,
-                        alpha=0.8,
+                        alpha=1.0,
                         zorder=1,
-                        label=f"{probe} (avg)",
                     )
         ax.set_ylabel(ylabel)
         ax.legend(loc="best", fontsize="small")
@@ -185,7 +191,7 @@ class TempPlotWidget(QtWidgets.QWidget):
                 y = np.array(probe_data[idx], dtype=np.float64)
                 color = f"C{i}"
                 ax.plot(
-                    times, y, "-", linewidth=1.5, alpha=0.8, label=probe, color=color
+                    times, y, "-", linewidth=1.5, alpha=1.0, label=probe, color=color
                 )
             ax.set_ylabel(ylabel)
             ax.legend(loc="best", fontsize="small")
