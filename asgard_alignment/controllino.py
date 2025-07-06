@@ -62,6 +62,22 @@ STEPPER_NAME_TO_NUM = {
 }
 
 
+PI_loop_infos = [
+    {
+        "name": "Upper",
+        "m_pin": CONNEXIONS["Upper Fan"],
+        "i_pin": CONNEXIONS["Upper T"],
+        "m_min": 10,
+    },
+    {
+        "name": "Lower",
+        "m_pin": CONNEXIONS["Lower Fan"],
+        "i_pin": CONNEXIONS["Lower T"],
+        "m_min": 10,
+    },
+]
+
+
 class Controllino:
     PING_TIMEOUT = 3  # seconds
 
@@ -95,7 +111,7 @@ class Controllino:
             self.turn_on("USB hubs")
             self.turn_on("Upper Kickstart")
             time.sleep(0.1)
-            self.turn_on("Lower Kickstart")  
+            self.turn_on("Lower Kickstart")
 
             self.turn_on("DM1")
             self.turn_on("DM2")
@@ -112,10 +128,11 @@ class Controllino:
             self.turn_off("Lower Kickstart")
             time.sleep(0.1)
             self.modulate("Lower Fan", 128)
-#            self.set_piezo_dac(0, 2048)
-#            self.set_piezo_dac(1, 2048)
-#            self.set_piezo_dac(2, 2048)
-#            self.set_piezo_dac(3, 2048)
+
+    #            self.set_piezo_dac(0, 2048)
+    #            self.set_piezo_dac(1, 2048)
+    #            self.set_piezo_dac(2, 2048)
+    #            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """
@@ -299,7 +316,7 @@ class Controllino:
             Power status of the device.
         """
         self._ensure_device(key)
-        return self.send_command(f"g{CONNEXIONS[key]}")
+        return self.send_command_anyreply(f"g{CONNEXIONS[key]}")
 
     def modulate(self, key: str, value: int) -> bool:
         """
@@ -326,6 +343,75 @@ class Controllino:
         if value < 0 or value > 255:
             raise ValueError("The value must be between 0 and 255")
         return self.send_command(f"m{CONNEXIONS[key]} {value}")
+
+    def read_PI_loop_info(self, box: str) -> dict:
+        """
+        Query the PI loop info for the given box.
+
+        Parameters
+        ----------
+        box : str
+            Either "Upper" or "Lower".
+
+        Returns
+        -------
+        dict
+            Dictionary with keys: m_pin, i_pin, setpoint, k_prop, k_int, m_min, integral, m_pin_val.
+        """
+        assert box in ["Upper", "Lower"]
+        # find index of the box
+        index = next(
+            (i for i, info in enumerate(PI_loop_infos) if info["name"] == box), None
+        )
+        if index is None:
+            raise ValueError(f"Unknown box '{box}'")
+        # Send the command and parse the reply
+        reply = self.send_command_anyreply(f"l{index}")
+        # reply should be: m_pin i_pin setpoint k_prop k_int m_min integral m_pin_val
+        parts = reply.strip().split()
+        if len(parts) != 8:
+            raise ValueError(f"Unexpected PI loop info format: '{reply}'")
+        keys = [
+            "m_pin",
+            "i_pin",
+            "setpoint",
+            "k_prop",
+            "k_int",
+            "m_min",
+            "integral",
+            "m_pin_val",
+        ]
+        values = [int(x) for x in parts]
+        return dict(zip(keys, values))
+
+    def set_PI_loop(
+        self,
+        box: str,
+        setpoint: int,
+        k_prop: float,
+        k_int: float,
+    ) -> bool:
+        assert box in ["Upper", "Lower"]
+
+        # find index of the box
+        index = next(
+            (i for i, info in enumerate(PI_loop_infos) if info["name"] == box), None
+        )
+        if index is None:
+            raise ValueError(f"Unknown box '{box}'")
+
+        # get the parameters
+        params = PI_loop_infos[index]
+        m_pin = params["m_pin"]
+        i_pin = params["i_pin"]
+        m_min = params["m_min"]
+
+        # command format: p[index] [mPIN] [iPIN] [setpoint] [k_prop] [k_int] [m_min]
+        cmd = f"p{index} {m_pin} {i_pin} {setpoint} {k_prop} {k_int} {m_min}"
+
+        # send the command
+        success = self.send_command(cmd)
+        return success
 
     def flip_down(self, key: str, value: int, dt: float) -> bool:
         """
