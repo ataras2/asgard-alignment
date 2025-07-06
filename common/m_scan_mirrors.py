@@ -446,9 +446,6 @@ for i, (x_pos, y_pos) in enumerate(zip(x_points, y_points)):
         img_dict[str((x_pos, y_pos))] = img
 
 
-
-## Save it 
-
 # move motor back to initial position 
 print(f"moving {args.motor} to original position ")
 message = f"moveabs {targets[0]} {initial_Xpos}"
@@ -459,14 +456,23 @@ message = f"moveabs {targets[1]} {initial_Ypos}"
 response = send_and_get_response(message)
 print(response)
 
+
+## Save it if recording images  
 if int(args.record_images):
     img_json_file_path = args.data_path + f'img_dict_beam{args.beam}-{args.motor}.json'
     with open(img_json_file_path, "w") as json_file:
         json.dump(util.convert_to_serializable(img_dict), json_file)
         print(f"saved json file with images at each coordinate {img_json_file_path}")
 
+# just in case any plots generated 
+#plt.close('all')
 
 
+##########################################################
+##########################################################
+##### -- old testing / analysis stuff. Leave commented 
+##########################################################
+##########################################################
 
 # mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
 
@@ -633,6 +639,3 @@ if int(args.record_images):
 #     send_and_get_response(message)
 #     print(f"moved in beam {b}")
 #     time.sleep( 0.5 )
-
-
-plt.close('all')
