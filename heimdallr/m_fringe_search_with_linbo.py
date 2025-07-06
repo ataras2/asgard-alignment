@@ -16,10 +16,12 @@ n_stepper_values = 10
 dl_range = 200e-3 # in mm
 n_dl_values = 5
 
+semid = 5
+
 cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
 # savepth = None
-base = ["data", "stepper_vs_dl"]
+base = ["data", "stepper_vs_delay_line"]
 fname = f"stepper_vs_linbo_{cur_datetime}.npz"
 savepth = os.path.join(*base, fname)
 
@@ -29,7 +31,7 @@ assert reference_beam != moving_beam
 ### SHM/processing functions
 
 def get_ps(ps_stream):
-    full_stack =  ps_stream.get_data()**2
+    full_stack =  ps_stream.get_latest_data()**2
     half_width = full_stack.shape[1] // 2
     stacked_ps = np.array([full_stack[:,:half_width],full_stack[:,half_width:]])
     return stacked_ps
@@ -49,7 +51,8 @@ def ps_to_v2(stacked_ps, mask):
     return v2
 
 def capture_and_process_data(ps_stream, mask, n_samp=5):
-    v2s = np.zeros(n_samp, 2)
+    v2s = np.zeros((n_samp, 2))
+    ps_stream.catch_up_with_sem(semid)
     for i in range(n_samp):
         ps = get_ps(ps_stream)
         v2 = ps_to_v2(ps, mask)
@@ -89,22 +92,23 @@ def read_dl(socket, beam):
 def mv_dl(socket,beam, pos, blocking=True):
     send_and_get_response(socket, f"moveabs HFO{beam} {pos}")
     if blocking:
-        cur_pos = read_dl(beam)
+        cur_pos = read_dl(socket, beam)
         while not np.isclose(pos, cur_pos, atol=1.0):
             time.sleep(0.5)
-            cur_pos = read_dl(beam)
+            cur_pos = read_dl(socket, beam)
 
 def mv_stepper(socket, beam, pos, blocking=True):
-    send_and_get_response(socket, f"moveabs HPOL{beam} {pos}")
+    send_and_get_response(socket, f"moveabs HPOL{beam} {float(pos)}")
 
     if blocking:
-        cur_pos = read_stepper(beam)
+        cur_pos = read_stepper(socket, beam)
         while not np.isclose(pos, cur_pos, atol=0.5):
             time.sleep(0.5)
-            cur_pos = read_stepper(beam)
+            cur_pos = read_stepper(socket, beam)
 
 # %%
-ps_stream = shm('/dev/shm/hei_ps.im.shm')
+ps_stream = shm('/dev/shm/hei_ps.im.shm', nosem=False)
+ps_stream.catch_up_with_sem(semid)
 mds = open_mds_connection()
 
 res = send_and_get_response(mds, f"read HFO{moving_beam}")
@@ -128,7 +132,7 @@ dl_vals = np.arange(dl_start - dl_range, dl_start+ dl_range, (2*dl_range)/n_dl_v
 print(dl_vals)
 
 # %%
-n_samples = 5
+n_samples = 200
 stats = np.zeros([len(stepper_vals), len(dl_vals), n_samples, 2])
 
 for i, step in tqdm(enumerate(stepper_vals)):

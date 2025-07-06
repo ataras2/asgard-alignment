@@ -120,11 +120,13 @@ class Controllino:
 
             # Wait for the piezo to settle and fans to start up, then we will
             # set piezos and fans to mid range.
-            time.sleep(1)
+            time.sleep(2)
             self.turn_off("Upper Kickstart")
+            time.sleep(0.1)
             self.modulate("Upper Fan", 128)
             time.sleep(0.1)
             self.turn_off("Lower Kickstart")
+            time.sleep(0.1)
             self.modulate("Lower Fan", 128)
 
     #            self.set_piezo_dac(0, 2048)
