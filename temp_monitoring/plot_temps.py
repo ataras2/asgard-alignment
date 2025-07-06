@@ -71,12 +71,16 @@ def load_data():
             probe_names = header[1:]
             for row in reader:
                 times.append(datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S"))
-                probe_data.append(
-                    [
-                        42.5 + (float(x) - 512) * 0.11 if x != "None" else None
-                        for x in row[1:]
-                    ]
-                )
+                # Only apply conversion to probes with " T" suffix or "setpoint" in name
+                converted_row = []
+                for name, x in zip(probe_names, row[1:]):
+                    if x == "None":
+                        converted_row.append(None)
+                    elif name.endswith(" T") or "setpoint" in name:
+                        converted_row.append(42.5 + (float(x) - 512) * 0.11)
+                    else:
+                        converted_row.append(float(x))
+                probe_data.append(converted_row)
         if not times:
             return [], [], []
         probe_data = list(zip(*probe_data))
