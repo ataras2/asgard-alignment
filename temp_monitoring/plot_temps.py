@@ -30,6 +30,12 @@ parser.add_argument(
     default=5,
     help="Update interval in seconds (default: 5)",
 )
+parser.add_argument(
+    "--lookback",
+    type=float,
+    default=None,
+    help="Number of minutes to look back in the plot (default: all times)",
+)
 args = parser.parse_args()
 
 
@@ -113,6 +119,23 @@ class TempPlotWidget(QtWidgets.QWidget):
             self.canvas.draw()
             return
 
+        # --- Filter by lookback window if specified ---
+        if args.lookback is not None:
+            cutoff = times[-1] - QtCore.QTime(0, 0).secsTo(
+                QtCore.QTime(0, int(args.lookback))
+            )
+            # Actually, use datetime.timedelta for cutoff
+            from datetime import timedelta
+
+            cutoff = times[-1] - timedelta(minutes=args.lookback)
+            mask = [t >= cutoff for t in times]
+            if any(mask):
+                times = [t for t, m in zip(times, mask) if m]
+                probe_data = [
+                    [v for v, m in zip(probe, mask) if m] for probe in probe_data
+                ]
+        # --- End lookback filter ---
+
         # Map probe names to their indices for easy lookup
         probe_idx = {name: i for i, name in enumerate(probe_names)}
 
@@ -146,6 +169,25 @@ class TempPlotWidget(QtWidgets.QWidget):
             ax.axhspan(16, 20, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
             ax.axhspan(20, 100, xmin=0, xmax=1, color="red", alpha=0.5, zorder=0)
         # --- End colored patches ---
+
+        # --- Add dashed lines for setpoints if present ---
+        for setpoint_name, color in [
+            ("Lower setpoint", "C0"),
+            ("Upper setpoint", "C1"),
+        ]:
+            if setpoint_name in probe_idx:
+                idx = probe_idx[setpoint_name]
+                y = np.array(probe_data[idx], dtype=np.float64)
+                ax.plot(
+                    times,
+                    y,
+                    "--",
+                    linewidth=1.5,
+                    alpha=1.0,
+                    color=color,
+                    label=f"{setpoint_name} (setpoint)",
+                )
+        # --- End setpoint lines ---
 
         for i, probe in enumerate(group):
             if probe not in probe_idx:
