@@ -20,6 +20,6 @@ dl_vals = data["dl_vals"]
 
 print(v2s.shape)
 
-plt.imshow(v2s.mean(-2)[...,0])
+plt.imshow(v2s.mean(-2)[..., 0])
 plt.colorbar()
 plt.show()
