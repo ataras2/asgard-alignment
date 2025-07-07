@@ -110,6 +110,7 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 
 # setting up socket to ZMQ communication to multi device server
 parser = argparse.ArgumentParser(description="ZeroMQ Client and Mode setup")
+# 192.168.100.2 is the IP of mimir ! this may change in future
 parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
@@ -261,94 +262,6 @@ except:
 
 
 
-# # Remove all other beams besides what we want to look at 
-# take_out_beams = list(filter(lambda x: x != int( args.beam ), [1,2,3,4] ))
-
-# for b in take_out_beams:
-#     message = f"moveabs SSF{b} 0.0"
-#     send_and_get_response(message)
-#     print(f"moved out beam {b}")
-#     time.sleep( 0.5 )
-
-# # initial image to find suitable cropponmg regions to zoom on feature
-# img_raw = c.get_data()
-
-# ## Identify bad pixels (this can throw it off!!)
-# mean_frame = np.mean(img_raw, axis=0)
-# std_frame = np.std(img_raw, axis=0)
-
-# global_mean = np.mean(mean_frame)
-# global_std = np.std(mean_frame)
-# bad_pixel_map = (np.abs(mean_frame - global_mean) > 20 * global_std) | (std_frame > 100 * np.median(std_frame))
-
-# # plt.figure()
-# # plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-# # plt.colorbar()
-# # plt.savefig( "delme.png")
-
-# img = np.mean( img_raw , axis=0)
-
-# img[bad_pixel_map] = 0
-
-# # mask baldr or heimdallr side of camera?
-# baldr_mask = np.zeros_like(img).astype(bool)
-# baldr_mask[img.shape[0]//2 : img.shape[0] , : ] = True # baldr occupies top half (pixels)
-# heim_mask = ~baldr_mask # heimdallr occupies bottom half
-
-# if args.system.lower() == 'baldr':
-#     mask = baldr_mask
-#     print('looking onn Baldr side')
-    
-# elif args.system.lower() == 'heimdallr':
-#     mask = heim_mask
-#     print('looking on Heimdallr side')
-# else:
-#     print('no valid system input. Looking at entire image.. Could misclassify')
-#     mask = np.ones_like(img).astype(bool)
-
-
-
-# ### A SMARTER WAY WOULD BE TO JUST MOVE MY MOTOR OF INTEREST AND DIFFERENCE IMAGES!!!
-
-# crop_pupil_coords = np.array( percentile_based_detect_pupils(
-#         img * mask, percentile = 99, min_group_size=100, buffer=60, plot=True
-#     ) )
-# #plt.savefig('delme.png')
-
-
-
-
-
-# # if multiple things detected just look at the one with heightest mean signal 
-# if len( crop_pupil_coords ) == 0:
-#     raise UserWarning('light source off? we cant detect anythin')
-
-# elif len( crop_pupil_coords ) > 1:
-#     sigtmp = []
-#     for roi in crop_pupil_coords:
-#         c1,c2,r1,r2 = roi
-    
-#         # look at mean in tight region around the center
-#         cx, cy = (r1+r2)//2 , (c1+c2)//2
-#         cr = 15
-#         meamI = np.nanmean( (img * mask)[cx-cr:cx+cr, cy-cr:cy+cr] )
-
-#         sigtmp.append( meamI ) #np.sum( (img * mask)[r1:r2, c1:c2]  > meamI) )
-
-#     high_sig_idx = np.argmax( sigtmp ) 
-#     c1,c2,r1,r2 = crop_pupil_coords[high_sig_idx]
-
-# else :
-#     c1,c2,r1,r2 = crop_pupil_coords
-
-## plt.figure()
-## plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
-## plt.colorbar()
-## plt.title('cropped image')
-## plt.savefig( "delme.png")
-## plt.show()
-
-
 # Get our starting position based on user input 
 if args.initial_pos == 'current':
     starting_point = [initial_Xpos, initial_Ypos]
@@ -361,7 +274,6 @@ else:
     starting_point = [initial_Xpos, initial_Ypos]
 
 # generate the scan points 
-
 
 
 if args.scantype == "square_spiral":
@@ -383,7 +295,7 @@ sleep_time = args.sleeptime #0.4
 
 # we should have predifed json file for these..
 if args.motor == 'BTX':
-    safety_limits = {"xmin":-0.6,"xmax":0.6, "ymin":-0.6,"ymax":0.6}
+    safety_limits = {"xmin":-0.7,"xmax":0.7, "ymin":-0.7,"ymax":0.7}
 else:
     safety_limits = {"xmin":-np.inf,"xmax":np.inf, "ymin":-np.inf,"ymax":np.inf}
 
@@ -473,6 +385,99 @@ if int(args.record_images):
 ##### -- old testing / analysis stuff. Leave commented 
 ##########################################################
 ##########################################################
+
+
+
+
+# # Remove all other beams besides what we want to look at 
+# take_out_beams = list(filter(lambda x: x != int( args.beam ), [1,2,3,4] ))
+
+# for b in take_out_beams:
+#     message = f"moveabs SSF{b} 0.0"
+#     send_and_get_response(message)
+#     print(f"moved out beam {b}")
+#     time.sleep( 0.5 )
+
+# # initial image to find suitable cropponmg regions to zoom on feature
+# img_raw = c.get_data()
+
+# ## Identify bad pixels (this can throw it off!!)
+# mean_frame = np.mean(img_raw, axis=0)
+# std_frame = np.std(img_raw, axis=0)
+
+# global_mean = np.mean(mean_frame)
+# global_std = np.std(mean_frame)
+# bad_pixel_map = (np.abs(mean_frame - global_mean) > 20 * global_std) | (std_frame > 100 * np.median(std_frame))
+
+# # plt.figure()
+# # plt.imshow( bad_pixel_map ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+# # plt.colorbar()
+# # plt.savefig( "delme.png")
+
+# img = np.mean( img_raw , axis=0)
+
+# img[bad_pixel_map] = 0
+
+# # mask baldr or heimdallr side of camera?
+# baldr_mask = np.zeros_like(img).astype(bool)
+# baldr_mask[img.shape[0]//2 : img.shape[0] , : ] = True # baldr occupies top half (pixels)
+# heim_mask = ~baldr_mask # heimdallr occupies bottom half
+
+# if args.system.lower() == 'baldr':
+#     mask = baldr_mask
+#     print('looking onn Baldr side')
+    
+# elif args.system.lower() == 'heimdallr':
+#     mask = heim_mask
+#     print('looking on Heimdallr side')
+# else:
+#     print('no valid system input. Looking at entire image.. Could misclassify')
+#     mask = np.ones_like(img).astype(bool)
+
+
+
+# ### A SMARTER WAY WOULD BE TO JUST MOVE MY MOTOR OF INTEREST AND DIFFERENCE IMAGES!!!
+
+# crop_pupil_coords = np.array( percentile_based_detect_pupils(
+#         img * mask, percentile = 99, min_group_size=100, buffer=60, plot=True
+#     ) )
+# #plt.savefig('delme.png')
+
+
+
+
+
+# # if multiple things detected just look at the one with heightest mean signal 
+# if len( crop_pupil_coords ) == 0:
+#     raise UserWarning('light source off? we cant detect anythin')
+
+# elif len( crop_pupil_coords ) > 1:
+#     sigtmp = []
+#     for roi in crop_pupil_coords:
+#         c1,c2,r1,r2 = roi
+    
+#         # look at mean in tight region around the center
+#         cx, cy = (r1+r2)//2 , (c1+c2)//2
+#         cr = 15
+#         meamI = np.nanmean( (img * mask)[cx-cr:cx+cr, cy-cr:cy+cr] )
+
+#         sigtmp.append( meamI ) #np.sum( (img * mask)[r1:r2, c1:c2]  > meamI) )
+
+#     high_sig_idx = np.argmax( sigtmp ) 
+#     c1,c2,r1,r2 = crop_pupil_coords[high_sig_idx]
+
+# else :
+#     c1,c2,r1,r2 = crop_pupil_coords
+
+## plt.figure()
+## plt.imshow( img[r1:r2,c1:c2] ) #[ crop_pupil_coords[i][2]:crop_pupil_coords[i][3],crop_pupil_coords[i][0]:crop_pupil_coords[i][1]])
+## plt.colorbar()
+## plt.title('cropped image')
+## plt.savefig( "delme.png")
+## plt.show()
+
+
+
 
 # mean_sig = np.array( [ np.nanmean( i ) for i in img_dict.values()] )
 
