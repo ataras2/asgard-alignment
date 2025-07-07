@@ -267,9 +267,9 @@ def vis_given_opd(opd, wavel):
     return 0.5 * np.abs(np.exp(1j * 2 * np.pi * opd / wavel) + 1)
 
 
-theta_vals = np.linspace(0, 40, 500) * u.deg  # angle of incidence in degrees
+theta_vals = np.linspace(0, 40, 100) * u.deg  # angle of incidence in degrees
 
-opd_offset = 0.9 * u.um
+opd_offset = -1.1* u.um
 wavelength = 2.2 * u.um  # wavelength in microns
 wavels = [2.0, 2.2, 2.4] * u.um  # wavelength in microns
 
