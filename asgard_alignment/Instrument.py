@@ -607,14 +607,14 @@ class Instrument:
                 controller_connctions.append(port)
 
             wire_names = set(wire_names)
-            usb_commands = set(usb_command)
+            # usb_commands = set(usb_command)
 
             print(f"Turning off wires: {wire_names}")
-            print(f"Sending USB command: {usb_commands}")
+            print(f"Sending USB command: {usb_command}")
 
             # turn off the USB
-            for cmd in usb_commands:
-                os.system(cmd)
+            # for cmd in usb_commands:
+            os.system(usb_command)
 
             print("USB command sent")
 
@@ -634,7 +634,7 @@ class Instrument:
             # just remove the device from the list
             self._remove_devices([device])
 
-        print(f"{device} is now in standby mode.")
+            print(f"{device} is now in standby mode.")
 
     def home_steppers(self, dev_list, blocking=True):
         """
