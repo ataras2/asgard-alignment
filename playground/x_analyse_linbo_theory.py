@@ -203,3 +203,5 @@ plt.figure()
 residuals = opd_vals_v.reshape(-1) - pred
 plt.plot(theta_vals, residuals.to("um"))
 
+
+# %%

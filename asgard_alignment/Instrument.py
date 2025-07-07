@@ -95,6 +95,11 @@ class Instrument:
         self._prev_zaber_port = None
         self._zaber_detected_devs = None
 
+        self._rm = pyvisa.ResourceManager()
+
+        # Create the connections to the controllers
+        self._open_controllino()
+
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         print("managed port:", self._managed_usb_hub_port)
         if self._managed_usb_hub_port is None:
@@ -107,10 +112,6 @@ class Instrument:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
             print("managed port short:", self.managed_usb_port_short)
 
-        self._rm = pyvisa.ResourceManager()
-
-        # Create the connections to the controllers
-        self._open_controllino()
         self._create_controllers_and_motors()
         self._create_lamps()
         self._create_shutters()
