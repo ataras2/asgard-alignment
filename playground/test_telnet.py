@@ -25,7 +25,7 @@ class AtenEcoPDU:
         self.tn = None
         self.connected = False
 
-    def connect(self, username="teladmin", password="telpwd"):
+    def connect(self, username="teladmin", password="asgard"):
         """
         Establishes a Telnet connection to the eco PDU and logs in.
 
@@ -43,11 +43,12 @@ class AtenEcoPDU:
             print(f"Connected to {self.host}:{self.port}")
 
             # Read initial login prompts
+            
             login_prompt = self.tn.read_until(b"Login: ", self.timeout).decode("ascii")
             print(f"PDU Login Prompt: {login_prompt.strip()}")
 
             # Send username
-            self.tn.write(username.encode("ascii") + b"\n")
+            self.tn.write(username.encode("ascii") + b"\r")
             print(f"Sent username: {username}")
 
             # Read password prompt
@@ -57,7 +58,7 @@ class AtenEcoPDU:
             print(f"PDU Password Prompt: {password_prompt.strip()}")
 
             # Send password
-            self.tn.write(password.encode("ascii") + b"\n")
+            self.tn.write(password.encode("ascii") + b"\r")
             print(f"Sent password (hidden)")
 
             # Read response after login
@@ -70,6 +71,7 @@ class AtenEcoPDU:
                 )  # Consume the rest of the login message
                 return True
             else:
+                print(response)
                 print("Login failed. Check username/password or PDU status.")
                 self.close()
                 return False
@@ -94,7 +96,7 @@ class AtenEcoPDU:
             print("Not connected to PDU. Please call connect() first.")
             return ""
         try:
-            full_command = command.strip() + "\n"
+            full_command = command.strip() + "\r"
             self.tn.write(full_command.encode("ascii"))
             print(f"Sent command: {full_command.strip()}")
             # Read until the expected prompt or timeout
@@ -132,7 +134,7 @@ class AtenEcoPDU:
             print("Invalid return_string. Must be 'simple' or 'format'.")
             return ""
 
-        padded_outlet = f"{outlet_number:03d}"
+        padded_outlet = f"{outlet_number:02d}"
         command = f"read status o{padded_outlet} {return_string}"
         return self._send_command(command)
 
@@ -162,7 +164,7 @@ class AtenEcoPDU:
             )
             return ""
 
-        padded_outlet = f"{outlet_number:03d}"
+        padded_outlet = f"{outlet_number:02d}"
         if control_action == "reboot":
             command = f"sw o{padded_outlet} reboot"
         else:
@@ -201,7 +203,7 @@ class AtenEcoPDU:
 
         command_parts = ["read", "meter", target]
         if number is not None:
-            command_parts.append(f"o{number:03d}")
+            command_parts.append(f"o{number:02d}")
         command_parts.append(measurement)
         command_parts.append(return_string)
 
