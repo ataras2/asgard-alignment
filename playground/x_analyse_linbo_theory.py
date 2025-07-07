@@ -155,7 +155,8 @@ def pol_opd(wavelength, theta, thickness, pol):
     return opd
 
 
-theta_vals = np.linspace(0, 20, 100) * u.deg  # angle of incidence in degrees
+# %%
+theta_vals = np.linspace(0, 40, 100) * u.deg  # angle of incidence in degrees
 wavelength = 2.2 * u.um  # wavelength in microns
 thickness = 3.0 * u.mm  # thickness of the glass plate in microns
 
@@ -190,7 +191,7 @@ print(f"Coherence length: {coherence_length.to('um'):.2f}")
 # how well does opd_vals_v look like a parabola?
 # use np.polyfit to fit a parabola to the data
 coeffs = np.polyfit(theta_vals.to(u.deg).value, opd_vals_v.to(u.um).value, 2)
-pred = np.polyval(coeffs, theta_vals.to(u.deg).value) *u.um
+pred = np.polyval(coeffs, theta_vals.to(u.deg).value) * u.um
 plt.figure()
 plt.plot(theta_vals, opd_vals_v.to("um"), label="LinBO3 V")
 plt.plot(theta_vals, pred.to("um"), label="Parabola fit")
@@ -205,3 +206,87 @@ plt.plot(theta_vals, residuals.to("um"))
 
 
 # %%
+# now the differnce between pols as a function of wavelength
+theta_vals = np.linspace(0, 20, 100) * u.deg  # angle of incidence in degrees
+wavels = np.linspace(2.0, 2.4, 5) * u.um  # wavelength in microns
+
+opd_diff_vals = np.zeros((len(wavels), len(theta_vals))) * u.um
+for i, wavelength in enumerate(wavels):
+    opd_vals_v = (
+        np.array([pol_opd(wavelength, theta, thickness, "V") for theta in theta_vals])
+        * pol_opd(wavelength, 0 * u.deg, thickness, "V").unit
+    )
+    opd_vals_h = (
+        np.array([pol_opd(wavelength, theta, thickness, "H") for theta in theta_vals])
+        * pol_opd(wavelength, 0 * u.deg, thickness, "H").unit
+    )
+    opd_diff_vals[i] = (opd_vals_v - opd_vals_h).reshape(-1)
+
+plt.figure(figsize=(10, 6))
+for i, wavelength in enumerate(wavels):
+    plt.plot(
+        theta_vals,
+        opd_diff_vals[i].to("um"),
+        label=f"{wavelength.to(u.um):.2f}",
+    )
+plt.xlabel(f"Angle of Incidence ({theta_vals.unit})")
+plt.ylabel(f"OPD Difference ({opd_diff_vals.unit})")
+plt.legend()
+
+plt.figure()
+plt.imshow(
+    opd_diff_vals.to("um").value,
+    extent=[
+        theta_vals[0].to(u.deg).value,
+        theta_vals[-1].to(u.deg).value,
+        wavels[0].to(u.um).value,
+        wavels[-1].to(u.um).value,
+    ],
+    aspect="auto",
+    origin="lower",
+)
+plt.colorbar(label="OPD Difference (um)")
+plt.contour(
+    theta_vals.to(u.deg).value,
+    wavels.to(u.um).value,
+    opd_diff_vals.to("um").value,
+    levels=np.linspace(
+        opd_diff_vals.to("um").value.min(), opd_diff_vals.to("um").value.max(), 10
+    ),
+    colors="black",
+    linewidths=0.5,
+    linestyles="dashed",
+)
+plt.xlabel("Angle of Incidence (deg)")
+plt.ylabel("Wavelength (um)")
+plt.title("OPD Difference between Polarizations")
+
+
+# %%
+def vis_given_opd(opd, wavel):
+    return 0.5 * np.abs(np.exp(1j * 2 * np.pi * opd / wavel) + 1)
+
+
+theta_vals = np.linspace(0, 40, 500) * u.deg  # angle of incidence in degrees
+
+opd_offset = 0.9 * u.um
+wavelength = 2.2 * u.um  # wavelength in microns
+wavels = [2.0, 2.2, 2.4] * u.um  # wavelength in microns
+
+for wavelength in wavels:
+    opd_vals_h = (
+        np.array([pol_opd(wavelength, theta, thickness, "H") for theta in theta_vals])
+    ) * pol_opd(wavelength, 0 * u.deg, thickness, "H").unit
+    opd_vals_v = (
+        np.array([pol_opd(wavelength, theta, thickness, "V") for theta in theta_vals])
+    ) * pol_opd(wavelength, 0 * u.deg, thickness, "V").unit
+
+    opd_diff = opd_vals_v - opd_vals_h + opd_offset
+    vis_vals = vis_given_opd(opd_diff, wavelength)
+
+    plt.plot(theta_vals, vis_vals, label=f"{wavelength.to(u.um):.2f}")
+
+plt.xlabel(f"Angle of Incidence ({theta_vals.unit})")
+plt.ylabel("Visibility")
+plt.title(f"Vis for OPD offset of {opd_offset.to(u.um):.2f}")
+plt.legend()
