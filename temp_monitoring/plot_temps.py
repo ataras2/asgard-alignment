@@ -178,16 +178,16 @@ class TempPlotWidget(QtWidgets.QWidget):
         # Map probe names to their indices for easy lookup
         probe_idx = {name: i for i, name in enumerate(probe_names)}
 
-        # Define groups for each subplot
+        # Define groups for each subplot (probe_names, ylabel, ylims)
         subplot_groups = [
-            (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)"),
-            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val"),
-            (["Lower integral", "Upper integral"], "Integral"),
+            (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)", (None, None)), #ylims ignored here
+            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val", (0,255)),
+            (["Lower integral", "Upper integral"], "Integral", (None, None)),
             (
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
-                "PID Coeffs",
+                "PID Coeffs", (0, None)
             ),
-            (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)"),
+            (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)", (0,None)),
         ]
 
         # Calculate rolling window size in samples
@@ -201,7 +201,7 @@ class TempPlotWidget(QtWidgets.QWidget):
             window_samples = 1
 
         # First subplot: crosses for data, line for moving average
-        group, ylabel = subplot_groups[0]
+        group, ylabel, _ = subplot_groups[0]
         ax = self.axes[0]
 
         for i, probe in enumerate(group):
@@ -268,7 +268,7 @@ class TempPlotWidget(QtWidgets.QWidget):
         ax.set_ylim(prev_ylim)
 
         # Remaining subplots: just lines for data
-        for subplot_idx, (group, ylabel) in enumerate(subplot_groups[1:], start=1):
+        for subplot_idx, (group, ylabel, ylims) in enumerate(subplot_groups[1:], start=1):
             ax = self.axes[subplot_idx]
             for i, probe in enumerate(group):
                 if probe not in probe_idx:
@@ -281,6 +281,8 @@ class TempPlotWidget(QtWidgets.QWidget):
                 )
             ax.set_ylabel(ylabel)
             ax.legend(loc="upper left", fontsize="small")
+            ax.set_ylim(*ylims)
+            	
 
         self.axes[-1].set_xlabel("Time")
         self.figure.tight_layout()
