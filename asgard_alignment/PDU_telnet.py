@@ -24,6 +24,7 @@ class AtenEcoPDU:
         self.timeout = timeout
         self.tn = None
         self.connected = False
+        self.debug = debug
 
     def connect(self, username="teladmin", password="asgard"):
         """
@@ -98,7 +99,8 @@ class AtenEcoPDU:
         try:
             full_command = command.strip() + "\r"
             self.tn.write(full_command.encode("ascii"))
-            print(f"Sent command: {full_command.strip()}")
+            if self.debug:
+                print(f"Sent command: {full_command.strip()}")
             # Read until the expected prompt or timeout
             response = self.tn.read_until(expected_response, self.timeout).decode(
                 "ascii"

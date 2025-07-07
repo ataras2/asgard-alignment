@@ -110,7 +110,6 @@ with open(savepth, "w") as f:
                 except Exception as e:
                     print(f"Error getting outlet info for {outlet}: {e}")
                     out_vals.append(None)
-            print(out_vals)
             f.write(",")
 
             f.write(",".join(f"{o:.2f}" for o in out_vals))

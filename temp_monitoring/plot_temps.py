@@ -262,7 +262,7 @@ class TempPlotWidget(QtWidgets.QWidget):
         # --- End setpoint lines ---
 
         ax.set_ylabel(ylabel)
-        ax.legend(loc="best", fontsize="small")
+        ax.legend(loc="upper left", fontsize="small")
         date_only = times[0].strftime("%Y-%m-%d")
         ax.set_title(f"Temperature Monitoring Log - {date_only}")
         ax.set_ylim(prev_ylim)
@@ -280,7 +280,7 @@ class TempPlotWidget(QtWidgets.QWidget):
                     times, y, "-", linewidth=1.5, alpha=1.0, label=probe, color=color
                 )
             ax.set_ylabel(ylabel)
-            ax.legend(loc="best", fontsize="small")
+            ax.legend(loc="upper left", fontsize="small")
 
         self.axes[-1].set_xlabel("Time")
         self.figure.tight_layout()
