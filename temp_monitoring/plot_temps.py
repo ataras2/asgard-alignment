@@ -64,13 +64,14 @@ class TempPlotWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         # Set height ratios: first subplot double the others
-        self.figure = Figure(figsize=(10, 12))
-        gs = self.figure.add_gridspec(4, 1, height_ratios=[2, 1, 1, 1])
+        self.figure = Figure(figsize=(10, 20))
+        n_plts = 5
+        gs = self.figure.add_gridspec(n_plts, 1, height_ratios=[2, 1, 1, 1,1])
         self.axes = [
             self.figure.add_subplot(
                 gs[i, 0], sharex=None if i == 0 else self.figure.axes[0]
             )
-            for i in range(4)
+            for i in range(n_plts)
         ]
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout()
@@ -186,6 +187,7 @@ class TempPlotWidget(QtWidgets.QWidget):
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
                 "PID Coeffs",
             ),
+            (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)"),
         ]
 
         # Calculate rolling window size in samples

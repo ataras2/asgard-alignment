@@ -4,6 +4,7 @@
 
 import time
 import asgard_alignment.controllino as co
+import asgard_alignment.PDU_telnet as pd
 import os
 
 duration = 1.5 * 60 * 60  # seconds
@@ -13,6 +14,18 @@ cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 savepth = os.path.join("data", "templogs", f"tempWD_{cur_datetime}.log")
 
 cc = co.Controllino("192.168.100.10", 23, init_motors=False)
+cc.ping()
+print("Connected to controllino")
+
+pdu = pd.AtenEcoPDU("192.168.100.11")
+pdu.connect()
+print("Connected to PDU")
+
+outlets_of_interest = [5,6]
+outlet_names = [
+    "MDS",
+    "C RED"
+]
 
 temp_probes = [
     "Lower T",
@@ -42,6 +55,8 @@ with open(savepth, "w") as f:
         + ",".join(
             [f"{servo} {key}" for servo in servo_names for key in PI_infos_of_interest]
         )
+        + ","
+        + ",".join([f"outlet{o} ({desc})" for o,desc in zip(outlets_of_interest, outlet_names)])
         + "\n"
     )
     try:
@@ -85,6 +100,20 @@ with open(savepth, "w") as f:
                             for key in PI_infos_of_interest
                         )
                     )
+
+            # read PDU currents
+            out_vals = []
+            for outlet in outlets_of_interest:
+                try:
+                    res = pdu.read_power_value("olt", outlet, "curr", "simple")
+                    out_vals.append(float(res))
+                except Exception as e:
+                    print(f"Error getting outlet info for {outlet}: {e}")
+                    out_vals.append(None)
+            print(out_vals)
+            f.write(",")
+
+            f.write(",".join(f"{o:.2f}" for o in out_vals))
 
             f.write("\n")
             f.flush()
