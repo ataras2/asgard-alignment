@@ -201,9 +201,42 @@ class TempPlotWidget(QtWidgets.QWidget):
         # First subplot: crosses for data, line for moving average
         group, ylabel = subplot_groups[0]
         ax = self.axes[0]
+
+        for i, probe in enumerate(group):
+            if probe not in probe_idx:
+                continue
+            idx = probe_idx[probe]
+            y = np.array(probe_data[idx], dtype=np.float64)
+            color = f"C{i}"
+            # Plot raw data as crosses
+            ax.plot(times, y, "x", alpha=0.2, label=f"{probe} (raw)", color=color)
+            # Moving average as line
+            y_masked = np.ma.masked_invalid(y)
+            if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
+                valid_idx = ~y_masked.mask
+                y_valid = y_masked[valid_idx]
+                t_valid = np.array(times)[valid_idx]
+                if len(y_valid) >= window_samples:
+                    kernel = np.ones(window_samples) / window_samples
+                    roll = np.convolve(y_valid, kernel, mode="same")
+                    edge = window_samples // 2
+                    roll[:edge] = np.nan
+                    roll[-edge if edge != 0 else None :] = np.nan
+                    valid_ma = ~np.isnan(roll)
+                    ax.plot(
+                        t_valid[valid_ma],
+                        roll[valid_ma],
+                        color=color,
+                        linewidth=1.5,
+                        alpha=1.0,
+                        zorder=1,
+                    )
+
+        prev_ylim = ax.get_ylim()
+
         # --- Add colored patches for y ranges ---
         if times:
-            ax.axhspan(16, 20, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
+            ax.axhspan(15, 18, xmin=0, xmax=1, color="yellow", alpha=0.5, zorder=0)
             ax.axhspan(20, 100, xmin=0, xmax=1, color="red", alpha=0.5, zorder=0)
         # --- End colored patches ---
 
@@ -226,39 +259,11 @@ class TempPlotWidget(QtWidgets.QWidget):
                 )
         # --- End setpoint lines ---
 
-        for i, probe in enumerate(group):
-            if probe not in probe_idx:
-                continue
-            idx = probe_idx[probe]
-            y = np.array(probe_data[idx], dtype=np.float64)
-            color = f"C{i}"
-            # Plot raw data as crosses
-            ax.plot(times, y, "x", alpha=0.1, label=f"{probe} (raw)", color=color)
-            # Moving average as line
-            y_masked = np.ma.masked_invalid(y)
-            if np.sum(~y_masked.mask) >= window_samples and window_samples > 1:
-                valid_idx = ~y_masked.mask
-                y_valid = y_masked[valid_idx]
-                t_valid = np.array(times)[valid_idx]
-                if len(y_valid) >= window_samples:
-                    kernel = np.ones(window_samples) / window_samples
-                    roll = np.convolve(y_valid, kernel, mode="same")
-                    edge = window_samples // 2
-                    roll[:edge] = np.nan
-                    roll[-edge if edge != 0 else None :] = np.nan
-                    valid_ma = ~np.isnan(roll)
-                    ax.plot(
-                        t_valid[valid_ma],
-                        roll[valid_ma],
-                        color=color,
-                        linewidth=1.5,
-                        alpha=1.0,
-                        zorder=1,
-                    )
         ax.set_ylabel(ylabel)
         ax.legend(loc="best", fontsize="small")
         date_only = times[0].strftime("%Y-%m-%d")
         ax.set_title(f"Temperature Monitoring Log - {date_only}")
+        ax.set_ylim(prev_ylim)
 
         # Remaining subplots: just lines for data
         for subplot_idx, (group, ylabel) in enumerate(subplot_groups[1:], start=1):
@@ -284,3 +289,8 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     widget = TempPlotWidget()
     widget.resize(1000, 600)
+    widget.show()
+    sys.exit(app.exec_())
+
+if __name__ == "__main__":
+    main()
