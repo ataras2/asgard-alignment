@@ -20,7 +20,10 @@ import zmq
 import os
 from tqdm import tqdm
 
-target_pixels = (512, 512)  # target pixels for the blob centre (K1)
+
+target_pixels = (None, None)  # target pixels for the blob centre (K1)
+if target_pixels[0] is None:
+    raise NotImplementedError()
 
 
 class HeimdallrAA:
@@ -50,6 +53,9 @@ class HeimdallrAA:
         pass
 
     def _get_frame(self):
+        pass
+
+    def _get_and_process_blob(self):
         pass
 
     def autoalign_parallel(self):
@@ -83,3 +89,19 @@ class HeimdallrAA:
         for beam, offset in pixel_offsets.items():
             uv_cmd = asgE.move_img_calc("c_red_one_focus", beam, offset)
             uv_commands[beam] = uv_cmd
+
+        # send commands
+
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        axes = [
+            [axis + str(beam_number) for axis in axis_list]
+            for beam_number in range(1, 5)
+        ]
+
+        for beam, uv_cmd in uv_commands.items():
+            pass
+        # self.devices[axes[0]].move_relative(uv_commands[0][0])
+        # self.devices[axes[2]].move_relative(uv_commands[2][0])
+        # time.sleep(0.5)
+        # self.devices[axes[1]].move_relative(uv_commands[1][0])
+        # self.devices[axes[3]].move_relative(uv_commands[3][0])
