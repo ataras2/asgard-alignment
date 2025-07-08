@@ -458,8 +458,8 @@ if not os.path.exists(args.data_path):
 roi = [None, None, None, None]
 c = FLI.fli( roi=roi)
 
-c.send_fli_cmd( "set fps 50")
-c.send_fli_cmd( "set gain 5")
+#c.send_fli_cmd( "set fps 50")
+#c.send_fli_cmd( "set gain 5")
 
 ##########
 # configure with default configuration file
@@ -498,14 +498,14 @@ mask = baldr_mask
 
 dict2write = {}
 
-regiom_labels  = ["baldr", "heimdallr"]
+regiom_labels  = ["baldr"] #, "heimdallr"]
 mask_list = [baldr_mask, heim_mask]
 for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
     if lab == 'baldr':
 
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
+            img * mask, percentile = 99.3, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
         ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
@@ -528,12 +528,33 @@ for mask, lab in zip( mask_list, regiom_labels):
             swapped_dict = {
                 key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
             }
+            beam_id_2write = ['4','3','2','1']
         else:
-            ui = input("4 pupils not detected in Baldr. enter 1 to contiune, anything else to exit")
+            ui = input("4 pupils not detected in Baldr. enter which beams we have from left to right, comma seperated, 0 to exit")
             #ui = '1'
-            if ui != '1':
+            if '0' in ui:
                 raise UserWarning("4 pupils not detected in Baldr.")
+            else:
+                try:
+                    beam_id_2write = [str(int(x.strip())) for x in ui.split(",")]
+                except:
+                    raise UserWarning("could not convert input string to list of integers. make sure they are comma seperated!")
+                #raise UserWarning("4 pupils not detected in Baldr.")
+                sorted_dict = {str(i): row.tolist() for i, row in zip(beam_id_2write,sorted_crop_pupil_coords)}
 
+                # flipped coordinates
+                swapped_dict = {
+                    key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+                }
+
+            # if ui != '1':
+            #     #raise UserWarning("4 pupils not detected in Baldr.")
+            #     sorted_dict = {str(i): row.tolist() for i, row in zip(beam_ids,sorted_crop_pupil_coords)}
+
+            #     # flipped coordinates
+            #     swapped_dict = {
+            #         key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+            #     }
     elif lab == 'heimdallr':
         if len(sorted_crop_pupil_coords) == 2: 
             # K1 (bright) on the left (low pixels), K2 on right (high pixels)
@@ -571,7 +592,7 @@ if args.saveformat=='json':
 
 elif args.saveformat=='toml':
 
-    for beam_id in [1,2,3,4]: 
+    for beam_id in beam_id_2write:#[1,2,3,4]: 
         
         toml_file_path = args.toml_file.replace('#',f'{beam_id}') #os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
 
@@ -607,8 +628,8 @@ with open( cred_server_split_file ) as f:
     
 
 
-"/home/asg/.config/cred1_split.json"
-"/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
+# "/home/asg/.config/cred1_split.json"
+# "/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
 
 
 for beam_id in dict2write["baldr_pupils"]:
@@ -622,9 +643,11 @@ for beam_id in dict2write["baldr_pupils"]:
 with open(cred_server_split_file, "w") as json_file:
     json.dump(split_dict, json_file, indent=4)
     print(f"wrote split pupil coords to {cred_server_split_file}")
-# img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
-# util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
-# convert_index_convention( corners ):
+
+
+## img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
+## util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
+## convert_index_convention( corners ):
 
 
 ### Plot final results for check
@@ -646,12 +669,13 @@ for lab in regiom_labels:
 plt.xlabel('Columns')
 plt.ylabel('Rows')
 plt.legend(loc='upper right')
+print(f"saving images here : {args.fig_path}")
 plt.savefig(f'{args.fig_path}' + 'detected_pupils.png')
 #plt.show()
 plt.close() 
 
-c.send_fli_cmd( "set gain 1")
-c.send_fli_cmd( "set fps 100")
+#c.send_fli_cmd( "set gain 1")
+#c.send_fli_cmd( "set fps 100")
 
 c.close(erase_file = False) 
 

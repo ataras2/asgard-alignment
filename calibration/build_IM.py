@@ -33,7 +33,7 @@ from asgard_alignment import FLI_Cameras as FLI
 
 
 MDS_port = 5555
-MDS_host = "172.16.8.6" # 'localhost'
+MDS_host = "192.168.100.2" # 'localhost'
 context = zmq.Context()
 context.socket(zmq.REQ)
 socket = context.socket(zmq.REQ)
@@ -211,71 +211,72 @@ for beam_id in args.beam_id:
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
 
-# change to append master dark , bias , bad pixel mask 
-c.send_fli_cmd(f"set gain {args.cam_gain}") 
-time.sleep(1)
-c.send_fli_cmd(f"set fps {args.cam_fps}")
-time.sleep(1)
+# # Dont do calibration in paranal since server is doing this now 
+# # change to append master dark , bias , bad pixel mask 
+# c.send_fli_cmd(f"set gain {args.cam_gain}") 
+# time.sleep(1)
+# c.send_fli_cmd(f"set fps {args.cam_fps}")
+# time.sleep(1)
 
-# make sure the camera cofig internal state is correct 
-assert float(c.config['fps']) == float(args.cam_fps)
-assert float(c.config['gain']) == float(args.cam_gain)
+# # make sure the camera cofig internal state is correct 
+# assert float(c.config['fps']) == float(args.cam_fps)
+# assert float(c.config['gain']) == float(args.cam_gain)
 
-# check for recent calibration files in the current setting 
-##CHANGED TO MAKE VALID TIME DIFFERENCE 0.1 DAYS (a few hours)
-valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(0.1), fps_diff_thresh=10)
+# # check for recent calibration files in the current setting 
+# ##CHANGED TO MAKE VALID TIME DIFFERENCE 0.1 DAYS (a few hours)
+# valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']), target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(0.1), fps_diff_thresh=10)
 
-# if no valid ones than we make some
-if not valid_cal_files: 
-    print( "no valid calibration files within the last few days. Taking new ones! ")
-    script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
-    params = ["--gains", f"{int(c.config['gain'])}", 
-              "--fps", f"{c.config['fps']}", 
-              "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
-              "--method", "linear_fit" ]
-    try:
-        # Run the script and ensure it completes
-        with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-            stdout, stderr = process.communicate()  # Wait for process to complete
+# # if no valid ones than we make some
+# if not valid_cal_files: 
+#     print( "no valid calibration files within the last few days. Taking new ones! ")
+#     script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
+#     params = ["--gains", f"{int(c.config['gain'])}", 
+#               "--fps", f"{c.config['fps']}", 
+#               "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
+#               "--method", "linear_fit" ]
+#     try:
+#         # Run the script and ensure it completes
+#         with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#             stdout, stderr = process.communicate()  # Wait for process to complete
 
-            if process.returncode == 0:
-                print("Script executed successfully!")
-                print(stdout)  # Print standard output (optional)
-            else:
-                print(f"Script failed with error:\n{stderr}")
+#             if process.returncode == 0:
+#                 print("Script executed successfully!")
+#                 print(stdout)  # Print standard output (optional)
+#             else:
+#                 print(f"Script failed with error:\n{stderr}")
 
-    except Exception as e:
-        print(f"Error running script: {e}")
+#     except Exception as e:
+#         print(f"Error running script: {e}")
 
 
-# get darks, bias and some raw darks to make bad pixels (we dont use the premade ones cause we adjust here the parameters)
-bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
-dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
-raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
+# # get darks, bias and some raw darks to make bad pixels (we dont use the premade ones cause we adjust here the parameters)
+# bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
+# dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
+# raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(c.config['gain']) , target_fps=float(c.config['fps']), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
 
-filename_reduction_dict = {} # to hold the files used for reduction 
+# filename_reduction_dict = {} # to hold the files used for reduction 
 
-for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
-    # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
-    most_recent = max(ff, key=os.path.getmtime) 
+# for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
+#     # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
+#     most_recent = max(ff, key=os.path.getmtime) 
 
-    filename_reduction_dict[lab+'_file'] = most_recent
+#     filename_reduction_dict[lab+'_file'] = most_recent
 
-    with fits.open( most_recent ) as d:
-        c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
-        #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-        #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
+#     with fits.open( most_recent ) as d:
+#         c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
+#         #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+#         #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
 
-# bad pixels 
-most_recent = max(raw_darks_files , key=os.path.getmtime) 
-filename_reduction_dict["raw_darks_file"] = most_recent
+# # bad pixels 
+# most_recent = max(raw_darks_files , key=os.path.getmtime) 
+# filename_reduction_dict["raw_darks_file"] = most_recent
 
-with fits.open( most_recent ) as d:
+# with fits.open( most_recent ) as d:
 
-    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
-    bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
-    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
-    c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+#     bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=4, mean_threshold=10)
+#     bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+#     #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+#     c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
 
 
 
@@ -435,7 +436,7 @@ for beam_id in args.beam_id:
     
     clear_pupils[beam_id] = N0s[:,r1:r2,c1:c2]
 
-    bad_pix_mask_tmp = np.array( c.reduction_dict["bad_pixel_mask"][-1][r1:r2,c1:c2] ).astype(bool)
+    #bad_pix_mask_tmp = np.array( c.reduction_dict["bad_pixel_mask"][-1][r1:r2,c1:c2] ).astype(bool)
 
     # move back 
     print( 'Moving FPM back in beam.')
@@ -453,7 +454,7 @@ for beam_id in args.beam_id:
     # set as clear pupils where we set exterior and bad pixels to mean interior clear pup signal
 
     # filter exterior pixels (that risk 1/0 error)
-    pixel_filter = secondary_mask[beam_id].astype(bool)  | (~inner_pupil_filt[beam_id].astype(bool) ) | (~bad_pix_mask_tmp )
+    pixel_filter = secondary_mask[beam_id].astype(bool)  | (~inner_pupil_filt[beam_id].astype(bool) ) #| (~bad_pix_mask_tmp )
     
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
@@ -799,7 +800,7 @@ for beam_id in args.beam_id:
                                                     "interior_pixels" : np.where( np.array( inner_pupil_filt[beam_id].reshape(-1) )   )[0].tolist(), # strictly interior pupil pixels in local frame
                                                     "secondary_pixels" : np.where( np.array( secondary_mask[beam_id].reshape(-1) )  )[0].tolist(),   # pixels in secondary obstruction in local frame
                                                     "exterior_pixels" : np.where(  np.array( exterior_mask[beam_id].reshape(-1) )   )[0].tolist(),  # exterior pixels that maximise diffracted light from mask in local frame 
-                                                    "bad_pixels" : np.where( np.array( c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].reshape(-1)   )[0].tolist(),
+                                                    #"bad_pixels" : np.where( np.array( c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].reshape(-1)   )[0].tolist(),
                                                     "IM": np.array( IM[beam_id] ).tolist(),
                                                     "poke_amp":args.poke_amp,
                                                     "LO":args.LO, ## THIS DEFINES WHAT INDEX IN IM WE HAVE LO VS HO MODES , DONE HERE NOW RATHER THAN build_baldr_control_matrix.py.
@@ -808,9 +809,9 @@ for beam_id in args.beam_id:
                                                     "N0": (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
                                                     "norm_pupil": ( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
                                                     "camera_config" : {k:str(v) for k,v in c.config.items()},
-                                                    "bias": np.array(c.reduction_dict["bias"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
-                                                    "dark": np.array(c.reduction_dict["dark"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
-                                                    "bad_pixel_mask": np.array(c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].astype(int).reshape(-1).tolist(),
+                                                    #"bias": np.array(c.reduction_dict["bias"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
+                                                    #"dark": np.array(c.reduction_dict["dark"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
+                                                    #"bad_pixel_mask": np.array(c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].astype(int).reshape(-1).tolist(),
                                                     "pupil": np.array(pupil_mask[beam_id]).astype(int).reshape(-1).tolist(),
                                                     "secondary": np.array(secondary_mask[beam_id]).astype(int).reshape(-1).tolist(),
                                                     "exterior" : np.array(exterior_mask[beam_id]).astype(int).reshape(-1).tolist(),

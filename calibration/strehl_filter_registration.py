@@ -167,7 +167,7 @@ def plot_strehl_pixel_registration(data , exterior_filter, secondary_filter, sav
 
 
 
-parser = argparse.ArgumentParser(description="Interaction and control matricies for fine phasemask alignment")
+parser = argparse.ArgumentParser(description="calculate strehl filter pixels for baldr pupils")
 
 
 ######## HARD CODED 
@@ -227,7 +227,7 @@ parser.add_argument("--fig_path",
                     default=None, 
                     help="path/to/output/image/ for the saved figures")
 
-parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
+parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -273,101 +273,109 @@ c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
 #####################
 
 
-## get initial gain and fps
-# fps0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "fps raw" ) ) 
-# gain0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "gain raw" ) ) 
-fps0 = FLI.extract_value( c.send_fli_cmd( "fps raw" ) ) 
-gain0 = FLI.extract_value( c.send_fli_cmd( "gain raw" ) ) 
+# ## get initial gain and fps
+# # fps0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "fps raw" ) ) 
+# # gain0 = FLI.extract_value( c_dict[args.beam_id[0]].send_fli_cmd( "gain raw" ) ) 
+
+### comment out in AIV paranal 
+# fps0 = FLI.extract_value( c.send_fli_cmd( "fps raw" ) ) 
+# gain0 = FLI.extract_value( c.send_fli_cmd( "gain raw" ) ) 
 
 
 
-## Set to standard hard coded frame rate and gain for this script
-# c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {hc_fps}")
+# ## Set to standard hard coded frame rate and gain for this script
+# # c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {hc_fps}")
+# # time.sleep(1)
+# # c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {hc_gain}")
+# # time.sleep(1)
+
+### comment out in AIV paranal 
+# c.send_fli_cmd(f"set fps {hc_fps}")
 # time.sleep(1)
-# c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {hc_gain}")
+# c.send_fli_cmd(f"set gain {hc_gain}")
 # time.sleep(1)
-c.send_fli_cmd(f"set fps {hc_fps}")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {hc_gain}")
-time.sleep(1)
-
-# get new darks, bias bad pixel map 
-# #---------- New Darks 
-# run a new set of darks 
-# we should later just find a recent one that fits settings and then go with that 
-
-
-valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
 
 
 
-# if no valid ones than we make some
-if not valid_cal_files: 
-    print( "no valid calibration files within the last few days. Taking new ones! ")
-    script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
-    params = ["--gains", f"{int(c.config['gain'])}", 
-              "--fps", f"{c.config['fps']}", 
-              "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
-              "--method", "linear_fit" ]
-    try:
-        # Run the script and ensure it completes
-        with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
-            stdout, stderr = process.communicate()  # Wait for process to complete
+### comment out in AIV paranal 
 
-            if process.returncode == 0:
-                print("Script executed successfully!")
-                print(stdout)  # Print standard output (optional)
-            else:
-                print(f"Script failed with error:\n{stderr}")
-
-    except Exception as e:
-        print(f"Error running script: {e}")
-
-# get darks and bad pixels 
-bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
-dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
-raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
-
-for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
-    # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
-    most_recent = max(ff, key=os.path.getmtime) 
-    with fits.open( most_recent ) as d:
-        c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
-        #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-        #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
-
-# bad pixels 
-most_recent = max(raw_darks_files , key=os.path.getmtime) 
-with fits.open( most_recent ) as d:
-
-    bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=3, mean_threshold=3)
-    bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
-    #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
-    c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
-
-    # for beam_id in args.beam_id:
-    #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
-    #     # we reverse so its true on pixels we want to keep 
-    #     c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int)[r1:r2, c1:c2] )
+# # get new darks, bias bad pixel map 
+# # #---------- New Darks 
+# # run a new set of darks 
+# # we should later just find a recent one that fits settings and then go with that 
 
 
-#c_dict[beam_id].reduction_dict["dark"].append( dark )
+# valid_cal_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10)
 
 
-# for beam_id in args.beam_id:
-#     c_dict[beam_id].build_manual_bias(number_of_frames=500)
-#     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
-#                                       apply_manual_reduction=True,
-#                                       build_bad_pixel_mask=True, 
-#                                       sleeptime = 10,
-#                                       kwargs={'std_threshold':10, 'mean_threshold':6} )
+
+# # if no valid ones than we make some
+# if not valid_cal_files: 
+#     print( "no valid calibration files within the last few days. Taking new ones! ")
+#     script_path = "/home/asg/Progs/repos/dcs/calibration_frames/gen_dark_bias_badpix.py"
+#     params = ["--gains", f"{int(c.config['gain'])}", 
+#               "--fps", f"{c.config['fps']}", 
+#               "--mode", f"{c.config['mode']}", #"--mode", f"{c_dict[args.beam_id[0]].config['mode']}", 
+#               "--method", "linear_fit" ]
+#     try:
+#         # Run the script and ensure it completes
+#         with subprocess.Popen(["python", script_path]+params, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
+#             stdout, stderr = process.communicate()  # Wait for process to complete
+
+#             if process.returncode == 0:
+#                 print("Script executed successfully!")
+#                 print(stdout)  # Print standard output (optional)
+#             else:
+#                 print(f"Script failed with error:\n{stderr}")
+
+#     except Exception as e:
+#         print(f"Error running script: {e}")
+
+# # get darks and bad pixels 
+# bias_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_BIAS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_BIAS/*.fits") 
+# dark_fits_files = util.find_calibration_files(mode=c.config['mode'], gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="MASTER_DARK", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/MASTER_DARK/*.fits") 
+# raw_darks_files =  util.find_calibration_files(mode=c.config['mode'],gain=int(hc_gain) , target_fps=float(hc_fps), base_dir="RAW_DARKS", time_diff_thresh=datetime.timedelta(2), fps_diff_thresh=10) #glob.glob(f"/home/asg/Progs/repos/dcs/calibration_frames/products/{tstamp_rough}/RAW_DARKS/*.fits") 
+
+# for lab, ff in zip(['bias','dark'], [bias_fits_files, dark_fits_files] ):
+#     # Assumes we just took one!!! would be quicker to check subdirectories for one that matches the mode and gain with nearest fps. 
+#     most_recent = max(ff, key=os.path.getmtime) 
+#     with fits.open( most_recent ) as d:
+#         c.reduction_dict[lab].append(  d[0].data.astype(int) )       # for beam_id in args.beam_id:
+#         #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+#         #     c_dict[beam_id].reduction_dict[lab].append(  d[0].data.astype(int)[r1:r2, c1:c2] )
+
+# # bad pixels 
+# most_recent = max(raw_darks_files , key=os.path.getmtime) 
+# with fits.open( most_recent ) as d:
+
+#     bad_pixels, bad_pixel_mask = FLI.get_bad_pixels( d[0].data, std_threshold=3, mean_threshold=3)
+#     bad_pixel_mask[0][0] = False # the frame tag should not be masked! 
+#     #c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+#     c.reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int) )
+
+#     # for beam_id in args.beam_id:
+#     #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+#     #     # we reverse so its true on pixels we want to keep 
+#     #     c_dict[beam_id].reduction_dict['bad_pixel_mask'].append(  (~bad_pixel_mask ).astype(int)[r1:r2, c1:c2] )
+
+
+# #c_dict[beam_id].reduction_dict["dark"].append( dark )
+
+
+# # for beam_id in args.beam_id:
+# #     c_dict[beam_id].build_manual_bias(number_of_frames=500)
+# #     c_dict[beam_id].build_manual_dark(number_of_frames=500, 
+# #                                       apply_manual_reduction=True,
+# #                                       build_bad_pixel_mask=True, 
+# #                                       sleeptime = 10,
+# #                                       kwargs={'std_threshold':10, 'mean_threshold':6} )
   
 
 
-# img = np.mean( c_dict[beam_id].get_some_frames(number_of_frames=100, apply_manual_reduction=True) , axis=0)
-# title_list = ['bias','dark','img']
-# im_list = [c_dict[beam_id].reduction_dict['bias'][-1], c_dict[beam_id].reduction_dict['dark'][-1], img]
-# util.nice_heatmap_subplots( im_list, savefig='delme.png')
+# # img = np.mean( c_dict[beam_id].get_some_frames(number_of_frames=100, apply_manual_reduction=True) , axis=0)
+# # title_list = ['bias','dark','img']
+# # im_list = [c_dict[beam_id].reduction_dict['bias'][-1], c_dict[beam_id].reduction_dict['dark'][-1], img]
+# # util.nice_heatmap_subplots( im_list, savefig='delme.png')
 
 
 # set up DM SHMs 
@@ -528,15 +536,18 @@ for beam_id in args.beam_id:
         toml.dump(current_data, f)
 
 
-print("returning back to prior camera settings")
-# c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {fps0}")
+
+### comment out in AIV paranal 
+
+# print("returning back to prior camera settings")
+# # c_dict[args.beam_id[0]].send_fli_cmd(f"set fps {fps0}")
+# # time.sleep(1)
+# # c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {gain0}")
+# # time.sleep(1)
+# c.send_fli_cmd(f"set fps {fps0}")
 # time.sleep(1)
-# c_dict[args.beam_id[0]].send_fli_cmd(f"set gain {gain0}")
+# c.send_fli_cmd(f"set gain {gain0}")
 # time.sleep(1)
-c.send_fli_cmd(f"set fps {fps0}")
-time.sleep(1)
-c.send_fli_cmd(f"set gain {gain0}")
-time.sleep(1)
 
 print('saving output figure')
 
@@ -555,6 +566,8 @@ try:
                                        savefig = savepath )
 
         plt.close("all")
+
+
 
 except Exception as e:
     print(f"failed to produce plots : {e}")

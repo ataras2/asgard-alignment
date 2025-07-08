@@ -339,7 +339,7 @@ parser.add_argument(
 parser.add_argument(
     '--cam_fps',
     type=int,
-    default=50,
+    default=500,
     help="frames per second on camera. Default: %(default)s"
 )
 parser.add_argument(
@@ -352,7 +352,7 @@ parser.add_argument(
 parser.add_argument(
     '--sleeptime',
     type=int,
-    default=0.2,
+    default=0.3,
     help="sleep time (seconds) between moving the motors: %(default)s"
 )
 

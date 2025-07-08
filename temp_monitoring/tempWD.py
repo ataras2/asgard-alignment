@@ -7,7 +7,7 @@ import asgard_alignment.controllino as co
 import asgard_alignment.PDU_telnet as pd
 import os
 
-duration = 1.5 * 60 * 60  # seconds
+duration = 8 * 60 * 60  # seconds
 sampling = 5  # seconds
 
 cur_datetime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())

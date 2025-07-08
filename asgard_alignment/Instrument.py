@@ -120,7 +120,7 @@ class Instrument:
         self._create_phasemask_wrapper()
 
         self.h_shutter_states = {i: "open" for i in range(1, 5)}
-        self.h_shutter_offsets = {i: {"HTTP": 0.0, "HTPP": 0.0} for i in range(1, 5)}
+        self.h_shutter_offsets = {i: {f"HTTP{i}": 0.0, f"HTPP{i}": 0.0} for i in range(1, 5)}
 
     @property
     def devices(self):
@@ -277,7 +277,7 @@ class Instrument:
         return True
 
     def _apply_shutter_state_to_beam(self, state, beam_number):
-        dev_prefixes = ["HPOL", "HFO", "HTTP", "HTPP", "HTPI", "HTTI"]
+        dev_prefixes = ["HFO", "HTTP", "HTPP", "HTPI", "HTTI"]
         if state not in ["open", "close"]:
             raise ValueError("state must be 'open' or 'close'")
 
@@ -286,6 +286,7 @@ class Instrument:
         for dev in dev_prefixes:
             name = f"{dev}{beam_number}"
             if name in self.devices:
+                print(f"Shuttering {name} to {is_shuttered}")
                 self.devices[name].is_shuttered = is_shuttered
 
     def h_shut(self, state, beam_numbers):
@@ -303,7 +304,7 @@ class Instrument:
             The beam numbers to apply the shutter state to.
         """
 
-        offest_mag = 0.2  # degrees
+        offest_mag = 0.15  # degrees
         possible_shutter_devs = ["HTTP", "HTPP"]  # knife edge motor only
 
         if state == "close":
@@ -316,8 +317,9 @@ class Instrument:
             for beam_n in beams_to_close:
                 axis_pos = {}
                 for dev in possible_shutter_devs:
-                    if dev in self.devices:
-                        axis_pos[dev] = self.devices[f"{dev}{beam_n}"].read_position()
+                    numbered_dev = f"{dev}{beam_n}"
+                    if numbered_dev in self.devices:
+                        axis_pos[numbered_dev] = self.devices[numbered_dev].read_position()
 
                 # find the axis with the largest absolute value
                 max_dev = max(axis_pos, key=lambda x: abs(axis_pos[x]))
@@ -327,24 +329,37 @@ class Instrument:
                 self.h_shutter_offsets[beam_n][max_dev] = offset
 
                 self.devices[max_dev].move_relative(offset)
+                self.h_shutter_states[beam_n] = "closed"
+                print(f"sending moverel {offset} to {numbered_dev}")
+            for beam_n in beam_numbers:
+                self._apply_shutter_state_to_beam(state, beam_n)
+
+        
 
         if state == "open":
             beams_to_open = []
             for beam_n in beam_numbers:
                 if not self.h_shutter_states[beam_n] == "open":
                     beams_to_open.append(beam_n)
+            print(f"beams to open{beams_to_open}")
+            for beam_n in beam_numbers:
+                self._apply_shutter_state_to_beam(state, beam_n)
             # if we are opening the shutter, we need apply the opposite of the offsets and set the
             # offset variable back to 0.0
             for beam_n in beams_to_open:
                 for dev in possible_shutter_devs:
-                    if not np.isclose(self.h_shutter_offsets[beam_n][dev], 0.0):
-                        self.devices[dev].move_relative(
-                            -self.h_shutter_offsets[beam_n][dev]
+                    numbered_dev = f"{dev}{beam_n}"
+                    print(f"{self.h_shutter_offsets[beam_n]}")
+                    print(f"{numbered_dev} {self.h_shutter_offsets[beam_n][numbered_dev]}")
+                    if not np.isclose(self.h_shutter_offsets[beam_n][numbered_dev], 0.0):
+                        self.devices[numbered_dev].move_relative(
+                            -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
-                        self.h_shutter_offsets[beam_n][dev] = 0.0
+                        print(f"sending moverel {-self.h_shutter_offsets[beam_n][numbered_dev]} to {numbered_dev}")
+                        self.h_shutter_offsets[beam_n][numbered_dev] = 0.0
+                        self.h_shutter_states[beam_n] = "open"
 
-        for beam_n in beam_numbers:
-            self._apply_shutter_state_to_beam(state, beam_n)
+        print(f"self.h_shutter_states: {self.h_shutter_states}")
 
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """

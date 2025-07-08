@@ -66,7 +66,7 @@ class TempPlotWidget(QtWidgets.QWidget):
         # Set height ratios: first subplot double the others
         self.figure = Figure(figsize=(10, 20))
         n_plts = 5
-        gs = self.figure.add_gridspec(n_plts, 1, height_ratios=[2, 1, 1, 1, 1])
+        gs = self.figure.add_gridspec(n_plts, 1, height_ratios=[2, 1, 1, 1, 1], hspace=0.1)
         # Create all axes, sharing x only with the last subplot
         self.axes = [
             self.figure.add_subplot(gs[i, 0])
@@ -192,8 +192,7 @@ class TempPlotWidget(QtWidgets.QWidget):
             (["Lower integral", "Upper integral"], "Integral", (None, None)),
             (
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
-                "PID Coeffs",
-                (0, None),
+                "PI Coeffs", (0, None)
             ),
             (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)", (0, None)),
         ]
@@ -285,7 +284,10 @@ class TempPlotWidget(QtWidgets.QWidget):
                     continue
                 idx = probe_idx[probe]
                 y = np.array(probe_data[idx], dtype=np.float64)
-                color = f"C{i}"
+                if subplot_idx == 4:
+                    color = f"C{i+4}"
+                else: 
+                    color = f"C{i}"
                 ax.plot(
                     times, y, "-", linewidth=1.5, alpha=1.0, label=probe, color=color
                 )

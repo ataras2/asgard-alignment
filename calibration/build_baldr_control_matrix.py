@@ -90,7 +90,7 @@ parser.add_argument("--filter_edge_actuators",
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='~/Downloads/', 
+                    default='/home/asg/Progs/repos/asgard-alignment/calibration/reports/test/', 
                     help="path/to/output/image/ for the saved figures"
                     )
 

@@ -147,9 +147,6 @@ def move_img_calc(config, beam_number, desired_deviation):
     # used for heimdallr
     ke_matrix = knife_edge_orientation_matricies
     so_matrix = spherical_orientation_matricies
-    # used for baldr
-    LH_motor = LH_motor
-    RH_motor = RH_motor
 
     if config == "baldr":
         pupil_motor = RH_motor
