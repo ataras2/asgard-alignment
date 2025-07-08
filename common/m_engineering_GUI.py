@@ -2309,12 +2309,14 @@ with col_main:
                 msg = "h_shut open all"
                 response = send_and_get_response(msg)
                 st.write(f"{response}")
-            
+
             if st.button("Close All Shutters"):
-                
+                msg = "h_shut close all"
+                response = send_and_get_response(msg)
+                st.write(f"{response}")
 
             cols = st.columns(4)
-            
+
             for i, col in enumerate(cols):
                 with col:
                     if st.button(f"Open {i+1}"):
