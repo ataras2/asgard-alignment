@@ -207,47 +207,7 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        _, image_move_matricies = asgard_alignment.Engineering.get_matricies(config)
-
-        M_I = image_move_matricies[beam_number]
-        M_I_pupil = M_I[0]
-        M_I_image = M_I[1]
-
-        changes_to_deviations = np.array(
-            [
-                [M_I_pupil, 0.0],
-                [0.0, M_I_pupil],
-                [M_I_image, 0.0],
-                [0.0, M_I_image],
-            ]
-        )
-
-        # used for heimdallr
-        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
-        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
-        # used for baldr
-        LH_motor = asgard_alignment.Engineering.LH_motor
-        RH_motor = asgard_alignment.Engineering.RH_motor
-
-        if config == "baldr":
-            pupil_motor = RH_motor
-            image_motor = LH_motor
-        else:
-            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-            image_motor = np.linalg.inv(so_matrix[beam_number])
-
-        deviations_to_uv = np.block(
-            [
-                [pupil_motor, np.zeros((2, 2))],
-                [np.zeros((2, 2)), image_motor],
-            ]
-        )
-
-        beam_deviations = changes_to_deviations @ desired_deviation
-
-        print(f"beam deviations: {beam_deviations}")
-
-        uv_commands = deviations_to_uv @ beam_deviations
+        uv_commands = asgard_alignment.Engineering.move_img_calc(config, beam_number, desired_deviation)
 
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
@@ -284,48 +244,8 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        pupil_move_matricies, _ = asgard_alignment.Engineering.get_matricies(config)
+        uv_commands = asgard_alignment.Engineering.move_pup_calc(config, beam_number, desired_deviation)
 
-        M_P = pupil_move_matricies[beam_number]
-        M_P_pupil = M_P[0]
-        M_P_image = M_P[1]
-
-        changes_to_deviations = np.array(
-            [
-                [M_P_pupil, 0.0],
-                [0.0, M_P_pupil],
-                [M_P_image, 0.0],
-                [0.0, M_P_image],
-            ]
-        )
-
-        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
-        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
-        # used for baldr
-        LH_motor = asgard_alignment.Engineering.LH_motor
-        RH_motor = asgard_alignment.Engineering.RH_motor
-
-        if config == "baldr":
-            # Baldr has a different orientation. This will be correct
-            # up to a sign in front of one of the motors.
-            pupil_motor = RH_motor
-            image_motor = LH_motor
-        else:
-            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-            image_motor = np.linalg.inv(so_matrix[beam_number])
-
-        deviations_to_uv = np.block(
-            [
-                [pupil_motor, np.zeros((2, 2))],
-                [np.zeros((2, 2)), image_motor],
-            ]
-        )
-
-        beam_deviations = changes_to_deviations @ desired_deviation
-
-        print(f"beam deviations: {beam_deviations}")
-
-        uv_commands = deviations_to_uv @ beam_deviations
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
             print(uv_commands)  # bug shooting
@@ -534,6 +454,10 @@ class Instrument:
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
+
+        self._controllers["controllino"].set_PI_loop("Lower", 258, 360, 10)
+        self._controllers["controllino"].set_PI_loop("Upper", 255, 360, 10)
+
         self._controllers["stepper_controllino"] = (
             asgard_alignment.controllino.Controllino(
                 self._other_config["controllino1"]["ip_address"]
