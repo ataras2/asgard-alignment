@@ -785,9 +785,11 @@ class MultiDeviceServer:
 
         def standby_msg(axis):
             return self.instr.standby(axis)
-        
+
         def online_msg(axes):
             # parse axes into list
+            axis_list = axes.split(",")
+            return self.instr.online(axis_list)
 
         first_word_to_function = {
             "read": read_msg,

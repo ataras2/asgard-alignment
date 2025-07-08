@@ -1054,42 +1054,42 @@ def handle_tt_motor():
     s_col1, s_col2 = st.columns(2)
     if use_button_to_move:
         with s_col1:
-            with st.form(key="absolute_move_u"):
-                u_position = st.number_input(
-                    "U Position (degrees)",
+            with st.form(key="absolute_move_p"):
+                p_position = st.number_input(
+                    "P Position (degrees)",
                     min_value=-0.750,
                     max_value=0.75,
                     step=inc,
                     value=positions[0],
                     format="%.4f",
-                    key="u_position",
+                    key="p_position",
                 )
-                submit = st.form_submit_button("Move U")
+                submit = st.form_submit_button("Move P")
 
             if submit:
-                # replace the x in target with U
+                # replace the x in target with P
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "P")
-                message = f"moveabs {target} {u_position}"
+                message = f"moveabs {target} {p_position}"
                 send_and_get_response(message)
 
         with s_col2:
-            with st.form(key="absolute_move_v"):
-                v_position = st.number_input(
-                    "V Position (degrees)",
+            with st.form(key="absolute_move_t"):
+                t_position = st.number_input(
+                    "T Position (degrees)",
                     min_value=-0.750,
                     max_value=0.75,
                     value=positions[1],
                     format="%.4f",
                     step=inc,
-                    key="v_position",
+                    key="t_position",
                 )
-                submit2 = st.form_submit_button("Move V")
+                submit2 = st.form_submit_button("Move T")
 
             if submit2:
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "T")
-                message = f"moveabs {target} {v_position}"
+                message = f"moveabs {target} {t_position}"
                 send_and_get_response(message)
     else:
 
@@ -1107,27 +1107,27 @@ def handle_tt_motor():
         sub_col1, sub_col2 = st.columns(2)
 
         with sub_col1:
-            u_position = st.number_input(
-                "U Position (degrees)",
+            p_position = st.number_input(
+                "P Position (degrees)",
                 min_value=-0.750,
                 max_value=0.75,
                 step=inc,
                 value=positions[0],
                 format="%.4f",
-                key="u_position",
-                on_change=get_onchange_fn("P", "u_position"),
+                key="p_position",
+                on_change=get_onchange_fn("P", "p_position"),
             )
 
         with sub_col2:
-            v_position = st.number_input(
-                "V Position (degrees)",
+            t_position = st.number_input(
+                "T Position (degrees)",
                 min_value=-0.750,
                 max_value=0.75,
                 step=inc,
                 value=positions[1],
                 format="%.4f",
-                key="v_position",
-                on_change=get_onchange_fn("T", "v_position"),
+                key="t_position",
+                on_change=get_onchange_fn("T", "t_position"),
             )
 
 
@@ -1487,7 +1487,7 @@ with col_main:
             "Select Routine",
             [
                 "Quick buttons",
-                #"Camera & DMs",
+                # "Camera & DMs",
                 "Illumination",
                 "Move image/pupil",
                 "Phasemask Alignment",
@@ -2439,7 +2439,6 @@ with col_main:
 
             use_sol = st.checkbox("use solarstein?", True)
 
-
             # flippers
             st.subheader("Flippers")
 
@@ -2453,7 +2452,6 @@ with col_main:
                 for i, flipper in enumerate(names):
                     message = f"moveabs {flipper} 0.0"
                     res = send_and_get_response(message)
-
 
             flipper_cols = st.columns(4)
 
@@ -2541,7 +2539,6 @@ with col_main:
                             message = f"off {header}"
                             res = send_and_get_response(message)
                             # st.write(res)
-
 
         if routine_options == "Move image/pupil":
             # we save the intial positions when opening the pannel / changing beams/configs
@@ -3039,11 +3036,14 @@ with col_main:
 
             look_where = st.selectbox(
                 "What region of the camera to look at?",
-                ["Baldr Beam", "Heimdallr K1", "Heimdallr K2","custom region"],  # ,"whole camera"],
+                [
+                    "Baldr Beam",
+                    "Heimdallr K1",
+                    "Heimdallr K2",
+                    "custom region",
+                ],  # ,"whole camera"],
                 key="look_where",
             )
-
-            
 
             scantype = st.selectbox(
                 "type of scan",
@@ -3095,8 +3095,15 @@ with col_main:
                     c2 = int(c2_str)
 
                     # Hardcoded bounds
-                    if not (0 <= r1 <= 256 and 0 <= r2 <= 256 and 0 <= c1 <= 320 and 0 <= c2 <= 320):
-                        st.sidebar.error("All values must be between valid range (CRED 1 is a 256x320 pixel array).")
+                    if not (
+                        0 <= r1 <= 256
+                        and 0 <= r2 <= 256
+                        and 0 <= c1 <= 320
+                        and 0 <= c2 <= 320
+                    ):
+                        st.sidebar.error(
+                            "All values must be between valid range (CRED 1 is a 256x320 pixel array)."
+                        )
                     elif r1 >= r2 or c1 >= c2:
                         st.sidebar.error("Must satisfy: r1 < r2 and c1 < c2.")
                     else:
@@ -3299,8 +3306,8 @@ with col_main:
                     starting_point=[0, 0],
                     dx=float(dx),
                     dy=float(dx),
-                    width= 2 * float(search_radius),
-                    height= 2 * float( search_radius),
+                    width=2 * float(search_radius),
+                    height=2 * float(search_radius),
                     angle=0,
                 )
             #### FROM HERE WE SHOULD PUT THIS IN A SCRIPT THAT IS RUN HERE!
