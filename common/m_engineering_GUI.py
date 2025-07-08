@@ -3407,8 +3407,10 @@ with col_main:
             if uploaded_file is not None:
                 if st.button("Load JSON File"):
                     # Read and parse JSON
+                    #filestring = StringIO(uploaded_file)
                     file_contents = json.load(uploaded_file)
 
+                    st.write(file_contents.keys())
                     # Store in session state
                     st.session_state.moveImPup["img_json_file"] = file_contents
                     st.success("JSON file loaded successfully!")
@@ -3434,13 +3436,13 @@ with col_main:
                         )
                         # we could allow user to read one in here manually (select)
                     else:
-                        with open(
-                            st.session_state.moveImPup["img_json_file"], "r"
-                        ) as file:
-                            data_dict = json.load(
-                                file
-                            )  # Parses the JSON content into a Python dictionary
-
+                        #with open(
+                        #    st.session_state.moveImPup["img_json_file"], "r"
+                        #) as file:
+                        #    data_dict = json.load(
+                        #        file
+                        #    )  # Parses the JSON content into a Python dictionary
+                        data_dict = st.session_state.moveImPup["img_json_file"].copy()
                         data_dict_ed = {
                             tuple(map(float, key.strip("()").split(","))): value
                             for key, value in data_dict.items()
@@ -3522,11 +3524,11 @@ with col_main:
             number_clusters = st.text_input("number of clusters ", 3)
 
             if st.button("cluster analysis"):
-                with open(st.session_state.moveImPup["img_json_file"], "r") as file:
-                    data_dict = json.load(
-                        file
-                    )  # Parses the JSON content into a Python dictionary
-
+                # with open(st.session_state.moveImPup["img_json_file"], "r") as file:
+                #     data_dict = json.load(
+                #         file
+                #     )  # Parses the JSON content into a Python dictionary
+                data_dict = st.session_state.moveImPup["img_json_file"].copy()
                 data_dict_ed = {
                     tuple(map(float, key.strip("()").split(","))): value
                     for key, value in data_dict.items()

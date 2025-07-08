@@ -458,8 +458,8 @@ if not os.path.exists(args.data_path):
 roi = [None, None, None, None]
 c = FLI.fli( roi=roi)
 
-c.send_fli_cmd( "set fps 50")
-c.send_fli_cmd( "set gain 5")
+#c.send_fli_cmd( "set fps 50")
+#c.send_fli_cmd( "set gain 5")
 
 ##########
 # configure with default configuration file
@@ -505,7 +505,7 @@ for mask, lab in zip( mask_list, regiom_labels):
     if lab == 'baldr':
 
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
+            img * mask, percentile = 99.1, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
         ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
@@ -646,12 +646,13 @@ for lab in regiom_labels:
 plt.xlabel('Columns')
 plt.ylabel('Rows')
 plt.legend(loc='upper right')
+print(f"saving images here : {args.fig_path}")
 plt.savefig(f'{args.fig_path}' + 'detected_pupils.png')
 #plt.show()
 plt.close() 
 
-c.send_fli_cmd( "set gain 1")
-c.send_fli_cmd( "set fps 100")
+#c.send_fli_cmd( "set gain 1")
+#c.send_fli_cmd( "set fps 100")
 
 c.close(erase_file = False) 
 
