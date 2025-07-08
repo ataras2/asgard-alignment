@@ -73,19 +73,19 @@ class Motor(ESOdevice):
         """
         pass
 
+    @abc.abstractmethod
+    def ping(self):
+        """
+        The PING command is used to check the status of the controller,
+        sending a dummy command such as *IDN? and making sure there is a reply
+        """
+
     # note that the stop command is common to both command sets!
     @abc.abstractmethod
     def stop(self):
         """
         The STOP command is issued by the ICS on wag to immediately stop the motion (initiated by a
         SETUP command) of devices.
-        """
-
-    @abc.abstractmethod
-    def ping(self):
-        """
-        The PING command is used to check the status of the controller,
-        sending a dummy command such as *IDN? and making sure there is a reply
         """
 
     #######################################################

@@ -267,8 +267,8 @@
         "named_pos":{
             "SRL" : 11.5,
             "SGL" : 38.5,
-            "SBB" : 65.5,
-            "SLD" : 0.0
+            "SSP" : 65.5,
+            "SBB" : 92.5
         },
         "semaphore_id": 17
     },

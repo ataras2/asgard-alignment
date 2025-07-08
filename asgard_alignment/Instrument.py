@@ -119,6 +119,9 @@ class Instrument:
         # finally do phasemask objects (the respective motors need to be in devices first)
         self._create_phasemask_wrapper()
 
+        self.h_shutter_states = {i: "open" for i in range(1, 5)}
+        self.h_shutter_offsets = {i: {"HTTP": 0.0, "HTPP": 0.0} for i in range(1, 5)}
+
     @property
     def devices(self):
         """
@@ -204,47 +207,9 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        _, image_move_matricies = asgard_alignment.Engineering.get_matricies(config)
-
-        M_I = image_move_matricies[beam_number]
-        M_I_pupil = M_I[0]
-        M_I_image = M_I[1]
-
-        changes_to_deviations = np.array(
-            [
-                [M_I_pupil, 0.0],
-                [0.0, M_I_pupil],
-                [M_I_image, 0.0],
-                [0.0, M_I_image],
-            ]
+        uv_commands = asgard_alignment.Engineering.move_img_calc(
+            config, beam_number, desired_deviation
         )
-
-        # used for heimdallr
-        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
-        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
-        # used for baldr
-        LH_motor = asgard_alignment.Engineering.LH_motor
-        RH_motor = asgard_alignment.Engineering.RH_motor
-
-        if config == "baldr":
-            pupil_motor = RH_motor
-            image_motor = LH_motor
-        else:
-            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-            image_motor = np.linalg.inv(so_matrix[beam_number])
-
-        deviations_to_uv = np.block(
-            [
-                [pupil_motor, np.zeros((2, 2))],
-                [np.zeros((2, 2)), image_motor],
-            ]
-        )
-
-        beam_deviations = changes_to_deviations @ desired_deviation
-
-        print(f"beam deviations: {beam_deviations}")
-
-        uv_commands = deviations_to_uv @ beam_deviations
 
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
@@ -281,48 +246,10 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        pupil_move_matricies, _ = asgard_alignment.Engineering.get_matricies(config)
-
-        M_P = pupil_move_matricies[beam_number]
-        M_P_pupil = M_P[0]
-        M_P_image = M_P[1]
-
-        changes_to_deviations = np.array(
-            [
-                [M_P_pupil, 0.0],
-                [0.0, M_P_pupil],
-                [M_P_image, 0.0],
-                [0.0, M_P_image],
-            ]
+        uv_commands = asgard_alignment.Engineering.move_pup_calc(
+            config, beam_number, desired_deviation
         )
 
-        ke_matrix = asgard_alignment.Engineering.knife_edge_orientation_matricies
-        so_matrix = asgard_alignment.Engineering.spherical_orientation_matricies
-        # used for baldr
-        LH_motor = asgard_alignment.Engineering.LH_motor
-        RH_motor = asgard_alignment.Engineering.RH_motor
-
-        if config == "baldr":
-            # Baldr has a different orientation. This will be correct
-            # up to a sign in front of one of the motors.
-            pupil_motor = RH_motor
-            image_motor = LH_motor
-        else:
-            pupil_motor = np.linalg.inv(ke_matrix[beam_number])
-            image_motor = np.linalg.inv(so_matrix[beam_number])
-
-        deviations_to_uv = np.block(
-            [
-                [pupil_motor, np.zeros((2, 2))],
-                [np.zeros((2, 2)), image_motor],
-            ]
-        )
-
-        beam_deviations = changes_to_deviations @ desired_deviation
-
-        print(f"beam deviations: {beam_deviations}")
-
-        uv_commands = deviations_to_uv @ beam_deviations
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
             print(uv_commands)  # bug shooting
@@ -348,6 +275,76 @@ class Instrument:
         time.sleep(0.5)
 
         return True
+
+    def _apply_shutter_state_to_beam(self, state, beam_number):
+        dev_prefixes = ["HPOL", "HFO", "HTTP", "HTPP", "HTPI", "HTTI"]
+        if state not in ["open", "close"]:
+            raise ValueError("state must be 'open' or 'close'")
+
+        is_shuttered = state == "close"
+
+        for dev in dev_prefixes:
+            name = f"{dev}{beam_number}"
+            if name in self.devices:
+                self.devices[name].is_shuttered = is_shuttered
+
+    def h_shut(self, state, beam_numbers):
+        """
+        Apply an internal "shutter" to Heimdallr devices by tilting the knife edge a known amount away
+        from the camera. The direction of the deviation is determined by the state when the shutter is first
+        set to close, and this is stored to remove the "shutter" later. Also set all internal
+        states of the devices to shuttered, preventing motion in the shuttered state.
+
+        Parameters
+        ----------
+        state : str
+            The desired state of the shutter ("open" or "close").
+        beam_numbers : list of int
+            The beam numbers to apply the shutter state to.
+        """
+
+        offest_mag = 0.2  # degrees
+        possible_shutter_devs = ["HTTP", "HTPP"]  # knife edge motor only
+
+        if state == "close":
+            beams_to_close = []
+            for beam_n in beam_numbers:
+                if not self.h_shutter_states[beam_n] == "close":
+                    beams_to_close.append(beam_n)
+            # if we are closing the shutter, we need to pick a direction for the offsets and apply them
+            # pick the direction by choosing the axis that has the largest current value (abs value sense)
+            for beam_n in beams_to_close:
+                axis_pos = {}
+                for dev in possible_shutter_devs:
+                    if dev in self.devices:
+                        axis_pos[dev] = self.devices[f"{dev}{beam_n}"].read_position()
+
+                # find the axis with the largest absolute value
+                max_dev = max(axis_pos, key=lambda x: abs(axis_pos[x]))
+
+                # apply the offset in the opposite direction
+                offset = offest_mag if axis_pos[max_dev] < 0 else -offest_mag
+                self.h_shutter_offsets[beam_n][max_dev] = offset
+
+                self.devices[max_dev].move_relative(offset)
+
+        if state == "open":
+            beams_to_open = []
+            for beam_n in beam_numbers:
+                if not self.h_shutter_states[beam_n] == "open":
+                    beams_to_open.append(beam_n)
+            # if we are opening the shutter, we need apply the opposite of the offsets and set the
+            # offset variable back to 0.0
+            for beam_n in beams_to_open:
+                for dev in possible_shutter_devs:
+                    if not np.isclose(self.h_shutter_offsets[beam_n][dev], 0.0):
+                        self.devices[dev].move_relative(
+                            -self.h_shutter_offsets[beam_n][dev]
+                        )
+                        self.h_shutter_offsets[beam_n][dev] = 0.0
+
+        for beam_n in beam_numbers:
+            self._apply_shutter_state_to_beam(state, beam_n)
 
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """
@@ -463,6 +460,10 @@ class Instrument:
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
         )
+
+        self._controllers["controllino"].set_PI_loop("Lower", 258, 360, 10)
+        self._controllers["controllino"].set_PI_loop("Upper", 255, 360, 10)
+
         self._controllers["stepper_controllino"] = (
             asgard_alignment.controllino.Controllino(
                 self._other_config["controllino1"]["ip_address"]

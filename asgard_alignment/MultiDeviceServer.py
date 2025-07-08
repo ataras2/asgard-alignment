@@ -790,6 +790,17 @@ class MultiDeviceServer:
             # parse axes into list
             axis_list = axes.split(",")
             return self.instr.online(axis_list)
+        
+        def h_shut_msg(state, beam_numbers):
+            if beam_numbers == "all":
+                beam_numbers = list(range(1, 5)) 
+            else:
+                beam_numbers = [int(b) for b in beam_numbers.split(",")]
+            
+            if state not in ["open", "close"]:
+                return "NACK: Invalid state for h_shut, must be 'open' or 'close'"
+            
+            return self.instr.h_shut(state, beam_numbers)
 
         first_word_to_function = {
             "read": read_msg,
@@ -825,6 +836,7 @@ class MultiDeviceServer:
             "home_steppers": home_steppers_msg,
             "standby": standby_msg,
             "online": online_msg,
+            "h_shut": h_shut_msg,
         }
 
         first_word_to_format = {
@@ -861,6 +873,7 @@ class MultiDeviceServer:
             "home_steppers": "home_steppers {}",
             "standby": "standby {}",
             "online": "online {}",
+            "h_shut": "h_shut {} {}",
         }
 
         try:

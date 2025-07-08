@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from io import StringIO
 import toml
+import time
 
 from asgard_alignment import FLI_Cameras as FLI
 import asgard_alignment.Engineering
@@ -125,8 +126,8 @@ if "SSS_fixed_mapping" not in st.session_state:
     st.session_state[f"SSS_fixed_mapping"] = {
         "SRL": 11.5,
         "SGL": 38.5,
-        "SLD/SSP": 92.5,
-        "SBB": 65.5,
+        "SLD/SSP": 65.5,
+        "SBB": 92.5,
     }
     st.session_state[f"SSS_offset"] = 0.0
 
@@ -1489,6 +1490,7 @@ with col_main:
                 "Quick buttons",
                 # "Camera & DMs",
                 "Illumination",
+                "Heimdallr shutters",
                 "Move image/pupil",
                 "Phasemask Alignment",
                 "Scan Mirror",
@@ -1512,7 +1514,9 @@ with col_main:
             st.write(
                 "saves all motor states along with 20 CRED 1 images in current camera settings. Saves as a fits file in:"
             )
-            save_state_data_path = f"/home/asg/Progs/repos/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/"
+            save_state_data_path = os.path.expanduser(
+                f"~/.config/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/"
+            )
             st.write(f"{save_state_data_path}")
 
             if st.button("qucik save state"):
@@ -2298,6 +2302,34 @@ with col_main:
             # if st.button(f"Run {btn_key}"):
             #     success = run_script(CLOSE_LOOP_SCRIPT[btn_key])
 
+        if routine_options == "Heimdallr shutters":
+            # all up and all down buttons
+
+            st.title("Heimdallr Shutters Control")
+
+            if st.button("Open All Shutters"):
+                msg = "h_shut open all"
+                response = send_and_get_response(msg)
+                st.write(f"{response}")
+
+            if st.button("Close All Shutters"):
+                msg = "h_shut close all"
+                response = send_and_get_response(msg)
+                st.write(f"{response}")
+
+            cols = st.columns(4)
+
+            for i, col in enumerate(cols):
+                with col:
+                    if st.button(f"Open {i+1}"):
+                        msg = f"h_shut open {i+1}"
+                        response = send_and_get_response(msg)
+                        st.write(f"{response}")
+                    if st.button(f"Close {i+1}"):
+                        msg = f"h_shut close {i+1}"
+                        response = send_and_get_response(msg)
+                        st.write(f"{response}")
+
         if routine_options == "Camera & DMs":
             st.write("testing")
 
@@ -2444,14 +2476,17 @@ with col_main:
 
             names = [f"SSF{i}" for i in range(1, 5)]
 
-            if st.button("All up :arrow_double_up:"):
-                for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 1.0"
-                    res = send_and_get_response(message)
-            if st.button("All down :arrow_double_down:"):
-                for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 0.0" 
-                    res = send_and_get_response(message)
+            all_cols = st.columns(2)
+            with all_cols[0]:
+                if st.button("All up :arrow_double_up:"):
+                    for i, flipper in enumerate(names):
+                        message = f"moveabs {flipper} 1.0"
+                        res = send_and_get_response(message)
+            with all_cols[1]:
+                if st.button("All down :arrow_double_down:"):
+                    for i, flipper in enumerate(names):
+                        message = f"moveabs {flipper} 0.0"
+                        res = send_and_get_response(message)
 
             flipper_cols = st.columns(4)
 
@@ -2472,14 +2507,14 @@ with col_main:
                     # st.write(f"Current state: {cur_state}")
                     if "IN" in cur_state:
                         if use_sol:
-                            st.success("IN")
+                            st.success("UP")
                         else:
-                            st.error("IN")
+                            st.error("UP")
                     elif "OUT" in cur_state:
                         if use_sol:
-                            st.error("OUT")
+                            st.error("DOWN")
                         else:
-                            st.success("OUT")
+                            st.success("DOWN")
                     else:
                         st.warning("Unknown")
 
@@ -2927,6 +2962,8 @@ with col_main:
                         if instr == "Solarstein" or instr == "All":
                             motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
                         if instr == "Heimdallr" or instr == "All":
+                            send_and_get_response("h_shut open all")
+                            time.sleep(2)
                             motor_names_all_beams = [
                                 "HFO",
                                 "HTPP",
@@ -2984,7 +3021,11 @@ with col_main:
                                 print()
                             states.append(state)
 
-                        fname = "instr_states/" + save_location + ".json"
+                        fname = os.path.expanduser(
+                            "~/.config/asgard-alignment/instr_states/"
+                            + save_location
+                            + ".json"
+                        )
                         if os.path.exists(fname):
                             st.error(f"File {fname} already exists")
                         else:
@@ -3570,7 +3611,7 @@ with col_main:
             with text_col:
                 st.subheader("Load from mimir instr states")
 
-                pth = os.path.expanduser("~/Progs/repos/asgard-alignment/instr_states/")
+                pth = os.path.expanduser("~/.config/asgard-alignment/instr_states/")
                 # Get all files (not directories) in the path
                 all_files = [
                     f for f in glob.glob(os.path.join(pth, "*")) if os.path.isfile(f)
