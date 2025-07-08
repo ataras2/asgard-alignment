@@ -181,11 +181,11 @@ class TempPlotWidget(QtWidgets.QWidget):
         # Define groups for each subplot (probe_names, ylabel, ylims)
         subplot_groups = [
             (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)", (None, None)), #ylims ignored here
-            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val", (0,255)),
+            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val", (0,260)),
             (["Lower integral", "Upper integral"], "Integral", (None, None)),
             (
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
-                "PID Coeffs", (0, None)
+                "PI Coeffs", (0, None)
             ),
             (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)", (0,None)),
         ]
