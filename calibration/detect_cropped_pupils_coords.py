@@ -498,7 +498,7 @@ mask = baldr_mask
 
 dict2write = {}
 
-regiom_labels  = ["baldr", "heimdallr"]
+regiom_labels  = ["baldr"] #, "heimdallr"]
 mask_list = [baldr_mask, heim_mask]
 for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
@@ -528,12 +528,33 @@ for mask, lab in zip( mask_list, regiom_labels):
             swapped_dict = {
                 key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
             }
+            beam_id_2write = ['4','3','2','1']
         else:
-            ui = input("4 pupils not detected in Baldr. enter 1 to contiune, anything else to exit")
+            ui = input("4 pupils not detected in Baldr. enter which beams we have from left to right, comma seperated, 0 to exit")
             #ui = '1'
-            if ui != '1':
+            if '0' in ui:
                 raise UserWarning("4 pupils not detected in Baldr.")
+            else:
+                try:
+                    beam_id_2write = [str(int(x.strip())) for x in ui.split(",")]
+                except:
+                    raise UserWarning("could not convert input string to list of integers. make sure they are comma seperated!")
+                #raise UserWarning("4 pupils not detected in Baldr.")
+                sorted_dict = {str(i): row.tolist() for i, row in zip(beam_id_2write,sorted_crop_pupil_coords)}
 
+                # flipped coordinates
+                swapped_dict = {
+                    key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+                }
+
+            # if ui != '1':
+            #     #raise UserWarning("4 pupils not detected in Baldr.")
+            #     sorted_dict = {str(i): row.tolist() for i, row in zip(beam_ids,sorted_crop_pupil_coords)}
+
+            #     # flipped coordinates
+            #     swapped_dict = {
+            #         key: [coords[2], coords[3], coords[0], coords[1]] for key, coords in sorted_dict.items()
+            #     }
     elif lab == 'heimdallr':
         if len(sorted_crop_pupil_coords) == 2: 
             # K1 (bright) on the left (low pixels), K2 on right (high pixels)
@@ -571,7 +592,7 @@ if args.saveformat=='json':
 
 elif args.saveformat=='toml':
 
-    for beam_id in [1,2,3,4]: 
+    for beam_id in beam_id_2write:#[1,2,3,4]: 
         
         toml_file_path = args.toml_file.replace('#',f'{beam_id}') #os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
 

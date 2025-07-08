@@ -124,7 +124,7 @@ parser.add_argument(
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default=None, 
+                    default="/home/asg/Progs/repos/asgard-alignment/calibration/reports/test/", #None, 
                     help="path/to/output/image/ for the saved figures")
 
 
@@ -636,6 +636,7 @@ c.mySHM.catch_up_with_sem(c.semid)
 dm.shm0.catch_up_with_sem(-1)
 #for it in range(args.number_of_iterations):
 while keep_going:   
+    #print('here')
     #time.sleep(0.005) # with 1kHz
 
 
@@ -718,6 +719,7 @@ while keep_going:
 
     dm.set_data( dcmd )
 
+    #print( dcmd )
 
     if telem:
         telem["time_cam"].append( t0 )

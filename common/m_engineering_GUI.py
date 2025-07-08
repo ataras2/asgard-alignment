@@ -2707,17 +2707,17 @@ with col_main:
 
                 # if move_what == "move_image":
                 with um:
-                    if st.button(f"-y: {increment:.2f}"):
-                        send_and_get_response(neg_y)
-                with lm:
-                    if st.button(f"+y: {increment:.2f}"):
-                        send_and_get_response(pos_y)
-                with ml:
-                    if st.button(f"-x: {increment:.2f}"):
-                        send_and_get_response(neg_x)
-                with mr:
                     if st.button(f"+x: {increment:.2f}"):
                         send_and_get_response(pos_x)
+                with lm:
+                    if st.button(f"-x: {increment:.2f}"):
+                        send_and_get_response(neg_x)
+                with ml:
+                    if st.button(f"-y: {increment:.2f}"):
+                        send_and_get_response(neg_y)
+                with mr:
+                    if st.button(f"+y: {increment:.2f}"):
+                        send_and_get_response(pos_y)
 
                 # elif move_what == "move_pupil":
                 #     with um:

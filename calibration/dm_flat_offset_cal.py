@@ -553,3 +553,18 @@ dmshape_save_path = f"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
 flat_fname = dmshape_save_path + f"BEAM{beam_id}_FLAT_MAP_OFFSETS_{tstamp}.txt"
 np.savetxt(flat_fname, best_baldr_flat_offset, fmt="%.7f")
 print(f"saved the new flat {flat_fname}")
+
+
+
+
+##### BELOW WAS FOR MAKING HEIMDALLR FLATS THE BALDR FLATS IN AIV COMMISSIONING PARANAL 
+##
+# files = glob.glob(dmshape_save_path + f"BEAM*_FLAT_MAP_OFFSETS_*.txt")
+# for f in files:
+#     d = np.loadtxt(f)
+    
+#     corner_indices = [(0,0),(0,11),(11,0),(11,11)]
+#     for cc in corner_indices:
+#         d[cc[0],cc[1]] = np.nan
+#     dnew = d[np.isfinite(d)]
+#     np.savetxt(f, dnew, fmt="%.7f")

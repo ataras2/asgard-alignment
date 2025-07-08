@@ -110,13 +110,13 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2],
+    default=[1],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 parser.add_argument(
     "--use_baldr_flat", 
     action="store_false",
-    default=True,
+    default=False,
     help="calibrate the Baldr flat starting with the current baldr flat. If False we beging with the BMC factory flat"
 )
 # Plot: default is True, with an option to disable.
@@ -131,7 +131,7 @@ parser.add_argument(
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='', 
+                    default='/home/asg/Progs/repos/asgard-alignment/calibration/reports/', 
                     help="path/to/output/image/ for where the saved figures are (DM_registration_in_pixel_space.png)")
 
 
@@ -177,17 +177,17 @@ fps0 = FLI.extract_value( c.send_fli_cmd( "fps raw" ) )
 gain0 = FLI.extract_value( c.send_fli_cmd( "gain raw" ) ) 
 
 ### HARD CODED GAIN AND FPS FOR THIS CALIBRATION 
-hc_fps = 200 # Hz 
-hc_gain = 1 # 
+#hc_fps = 200 # Hz 
+#hc_gain = 1 # 
 
 #c.send_fli_cmd(f"set fps {hc_fps}")
-time.sleep(1)
+#time.sleep(1)
 #c.send_fli_cmd(f"set gain {hc_gain}")
-time.sleep(1)
+#time.sleep(1)
 
 # after changing ensure that everything is ok (updated fine in the camera local config)
-assert float( c.config['gain'] ) == float(hc_gain )
-assert float( c.config['fps']) == float( hc_fps )
+#assert float( c.config['gain'] ) == float(hc_gain )
+#assert float( c.config['fps']) == float( hc_fps )
 
 
 ## r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
@@ -275,15 +275,17 @@ assert float( c.config['fps']) == float( hc_fps )
 dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
-    # activate flat 
-    #dm_shm_dict[beam_id].activate_flat()
-    # apply DM flat offset 
-    if not args.use_baldr_flat:
-        dm_shm_dict[beam_id].activate_flat()
-    else:
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+
+    ## for paranal initially assume correct flat is already on ! 
+    # # zero all channels
+    # dm_shm_dict[beam_id].zero_all()
+    # # activate flat 
+    # #dm_shm_dict[beam_id].activate_flat()
+    # # apply DM flat offset 
+    # if not args.use_baldr_flat:
+    #     dm_shm_dict[beam_id].activate_flat()
+    # else:
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 # # try get dark and build bad pixel mask 
@@ -407,16 +409,16 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
         img_4_corners[ii].append( np.array( pupil_mask[beam_id] ).astype(float) * delta_img ) #  We multiply by the pupil mask to ignore all external pixels! These can be troublesome with hot pixels etc 
 
 
-
-for beam_id in args.beam_id:
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
-    # activate flat 
-    #dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
-    if not args.use_baldr_flat:
-        dm_shm_dict[beam_id].activate_flat()
-    else:
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+## dont do this until we have the proper heim flats in 
+# for beam_id in args.beam_id:
+#     # zero all channels
+#     dm_shm_dict[beam_id].zero_all()
+#     # activate flat 
+#     #dm_shm_dict[beam_id].activate_calibrated_flat() #activate_flat()
+#     if not args.use_baldr_flat:
+#         dm_shm_dict[beam_id].activate_flat()
+#     else:
+#         dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 
@@ -511,9 +513,9 @@ for ii, beam_id in enumerate( args.beam_id ):
 
 print('returning to original camera gain and fps settings')
 #c.send_fli_cmd(f"set fps {fps0}")
-time.sleep(1)
+#time.sleep(1)
 #c.send_fli_cmd(f"set gain {gain0}")
-time.sleep(1)
+#time.sleep(1)
 
 # Close everything 
 c.close(erase_file=False)
