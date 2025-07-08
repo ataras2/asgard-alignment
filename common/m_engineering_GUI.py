@@ -1514,7 +1514,7 @@ with col_main:
             st.write(
                 "saves all motor states along with 20 CRED 1 images in current camera settings. Saves as a fits file in:"
             )
-            save_state_data_path = f"/home/asg/Progs/repos/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/"
+            save_state_data_path = os.path.expanduser(f"~/.config/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/")
             st.write(f"{save_state_data_path}")
 
             if st.button("qucik save state"):
@@ -3016,7 +3016,7 @@ with col_main:
                                 print()
                             states.append(state)
 
-                        fname = "instr_states/" + save_location + ".json"
+                        fname = os.path.expanduser("~/.config/asgard-alignment/instr_states/" + save_location + ".json")
                         if os.path.exists(fname):
                             st.error(f"File {fname} already exists")
                         else:
@@ -3600,7 +3600,7 @@ with col_main:
             with text_col:
                 st.subheader("Load from mimir instr states")
 
-                pth = os.path.expanduser("~/Progs/repos/asgard-alignment/instr_states/")
+                pth = os.path.expanduser("~/.config/asgard-alignment/instr_states/")
                 # Get all files (not directories) in the path
                 all_files = [
                     f for f in glob.glob(os.path.join(pth, "*")) if os.path.isfile(f)
