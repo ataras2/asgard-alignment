@@ -30,14 +30,15 @@ cc = co.Controllino("192.168.100.10")
 
 # turn off all sources: SRL, SGL and SBB
 lamps = ["SRL", "SGL", "SBB"]
-for lamp in lamps:
-    mds_connection.send_string(f"off {lamp}")
+#for lamp in lamps:
+#    mds_connection.send_string(f"off {lamp}")
+#    time.sleep(2.0)
 
 # flippers up
-names = [f"SSF{i}" for i in range(1, 5)]
-for i, flipper in enumerate(names):
-    message = f"moveabs {flipper} 1.0"
-    mds_connection.send_string(message)
+#names = [f"SSF{i}" for i in range(1, 5)]
+#for i, flipper in enumerate(names):
+#    message = f"moveabs {flipper} 1.0"
+#    mds_connection.send_string(message)
 
 pre_shutdown_current = float(pdu.read_power_value("olt", PDU_OUTLET, "curr"))
 print(f"Pre-shutdown current: {pre_shutdown_current} A")
