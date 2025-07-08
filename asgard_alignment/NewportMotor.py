@@ -406,8 +406,8 @@ class LS16PAxis(ESOdevice.Motor):
         self._connection = connection
         self._name = name
 
-        self.init()
         self.is_shuttered = False
+        self.init()
 
     def init(self):
 
