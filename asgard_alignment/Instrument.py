@@ -493,7 +493,7 @@ class Instrument:
 
         if device not in self.devices:
             print(f"WARN: {device} not in devices dictionary")
-            return
+            return "NACK"
 
         zabers = (
             asgard_alignment.ZaberMotor.ZaberLinearActuator,
@@ -629,12 +629,14 @@ class Instrument:
             # and the controllers:
             self._remove_controllers(controller_connctions)
             print("Devices and controllers removed")
+            return "ACK"
 
         else:
             # just remove the device from the list
             self._remove_devices([device])
 
             print(f"{device} is now in standby mode.")
+            return "ACK"
 
     def home_steppers(self, dev_list, blocking=True):
         """

@@ -783,6 +783,14 @@ class MultiDeviceServer:
                 )
                 return "ACK"
 
+        def standby_msg(axis):
+            return self.instr.standby(axis)
+
+        def online_msg(axes):
+            # parse axes into list
+            axis_list = axes.split(",")
+            return self.instr.online(axis_list)
+
         first_word_to_function = {
             "read": read_msg,
             "stop": stop_msg,
@@ -815,6 +823,8 @@ class MultiDeviceServer:
             "mv_pup": mv_pup_msg,
             "asg_setup": asg_setup_msg,
             "home_steppers": home_steppers_msg,
+            "standby": standby_msg,
+            "online": online_msg,
         }
 
         first_word_to_format = {
@@ -849,6 +859,8 @@ class MultiDeviceServer:
             "mv_pup": "mv_pup {} {} {:f} {:f}",  # mv_pup {config} {beam_number} {x} {y}
             "asg_setup": "asg_setup {} {} {}",  # 2nd input is either a named position or a float
             "home_steppers": "home_steppers {}",
+            "standby": "standby {}",
+            "online": "online {}",
         }
 
         try:
