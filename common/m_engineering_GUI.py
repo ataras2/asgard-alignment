@@ -126,8 +126,8 @@ if "SSS_fixed_mapping" not in st.session_state:
     st.session_state[f"SSS_fixed_mapping"] = {
         "SRL": 11.5,
         "SGL": 38.5,
-        "SLD/SSP": 92.5,
-        "SBB": 65.5,
+        "SLD/SSP": 65.5,
+        "SBB": 92.5,
     }
     st.session_state[f"SSS_offset"] = 0.0
 
