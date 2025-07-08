@@ -119,6 +119,9 @@ class Instrument:
         # finally do phasemask objects (the respective motors need to be in devices first)
         self._create_phasemask_wrapper()
 
+        self.h_shutter_states = {i: "open" for i in range(1, 5)}
+        self.h_shutter_offsets = {i: {"HTTP": 0.0, "HTPP": 0.0} for i in range(1, 5)}
+
     @property
     def devices(self):
         """
@@ -348,6 +351,74 @@ class Instrument:
         time.sleep(0.5)
 
         return True
+
+    def _apply_shutter_state_to_beam(self, state, beam_number):
+        dev_prefixes = ["HPOL", "HFO", "HTTP", "HTPP", "HTPI", "HTTI"]
+        if state not in ["open", "close"]:
+            raise ValueError("state must be 'open' or 'close'")
+
+        is_shuttered = state == "close"
+
+        for dev in dev_prefixes:
+            name = f"{dev}{beam_number}"
+            if name in self.devices:
+                self.devices[name].is_shuttered = is_shuttered
+
+    def h_shut(self, state, beam_numbers):
+        """
+        Apply an internal "shutter" to Heimdallr devices by tilting the knife edge a known amount away
+        from the camera. The direction of the deviation is determined by the state when the shutter is first
+        set to close, and this is stored to remove the "shutter" later. Also set all internal
+        states of the devices to shuttered, preventing motion in the shuttered state.
+
+        Parameters
+        ----------
+        state : str
+            The desired state of the shutter ("open" or "close").
+        beam_numbers : list of int
+            The beam numbers to apply the shutter state to.
+        """
+
+        offest_mag = 0.2  # degrees
+        possible_shutter_devs = ["HTTP", "HTPP"]  # knife edge motor only
+
+        if state == "close":
+            beams_to_close = []
+            for beam_n in beam_numbers:
+                if not self.h_shutter_states[beam_n] == "close":
+                    beams_to_close.append(beam_n)
+            # if we are closing the shutter, we need to pick a direction for the offsets and apply them
+            # pick the direction by choosing the axis that has the largest current value (abs value sense)
+            for beam_n in beams_to_close:
+                axis_pos = {}
+                for dev in possible_shutter_devs:
+                    if dev in self.devices:
+                        axis_pos[dev] = self.devices[f"{dev}{beam_n}"].read_position()
+
+                # find the axis with the largest absolute value
+                max_dev = max(axis_pos, key=lambda x: abs(axis_pos[x]))
+
+                # apply the offset in the opposite direction
+                offset = offest_mag if axis_pos[max_dev] < 0 else -offest_mag
+                self.h_shutter_offsets[beam_n][max_dev] = offset
+
+                self.devices[max_dev].move_relative(offset)
+
+        if state == "open":
+            beams_to_open = []
+            for beam_n in beam_numbers:
+                if not self.h_shutter_states[beam_n] == "open":
+                    beams_to_open.append(beam_n)
+            # if we are opening the shutter, we need apply the opposite of the offsets and set the 
+            # offset variable back to 0.0
+            for beam_n in beams_to_open:
+                for dev in possible_shutter_devs:
+                    if not np.isclose(self.h_shutter_offsets[beam_n][dev], 0.0):
+                        self.devices[dev].move_relative(-self.h_shutter_offsets[beam_n][dev])
+                        self.h_shutter_offsets[beam_n][dev] = 0.0
+
+        for beam_n in beam_numbers:
+            self._apply_shutter_state_to_beam(state, beam_n)
 
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """

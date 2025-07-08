@@ -125,6 +125,7 @@ class M100DAxis(ESOdevice.Motor):
         self._name = name
 
         self.internal_position = self.read_position()
+        self.is_shuttered = False
 
     def _verify_valid_connection(self):
         """
@@ -156,6 +157,9 @@ class M100DAxis(ESOdevice.Motor):
         if echo:
             print(f"State: {state_str}")
 
+        if self.is_shuttered:
+            state_str += " SHUTTERED"
+
         return state_str
 
     def move_abs(self, position: float):
@@ -167,8 +171,13 @@ class M100DAxis(ESOdevice.Motor):
         position: float
             The position to move to
         """
-        self._connection.write_str(f"1PA{self.axis}{position:.5f}")
-        self.internal_position = position
+        if not self.is_shuttered:
+            self._connection.write_str(f"1PA{self.axis}{position:.5f}")
+            self.internal_position = position
+        else:
+            raise ValueError(
+                f"Cannot move motor {self.name} to {position} as it is shuttered"
+            )
 
     def move_relative(self, position: float):
         """
@@ -179,8 +188,13 @@ class M100DAxis(ESOdevice.Motor):
         position: float
             The position to move to
         """
-        self._connection.write_str(f"1PR{self.axis}{position:.5f}")
-        self.internal_position += position
+        if not self.is_shuttered:
+            self._connection.write_str(f"1PR{self.axis}{position:.5f}")
+            self.internal_position += position
+        else:
+            raise ValueError(
+                f"Cannot move motor {self.name} to {position} as it is shuttered"
+            )
 
     def read_position(self):
         """
@@ -393,6 +407,7 @@ class LS16PAxis(ESOdevice.Motor):
         self._name = name
 
         self.init()
+        self.is_shuttered = False
 
     def init(self):
 
@@ -406,10 +421,20 @@ class LS16PAxis(ESOdevice.Motor):
         self._connection.write_str("RFP")
 
     def move_abs(self, position: float):
-        self._connection.write_str(f"1PA{position:.5f}")
+        if not self.is_shuttered:
+            self._connection.write_str(f"1PA{position:.5f}")
+        else:
+            raise ValueError(
+                f"Cannot move motor {self.name} to {position} as it is shuttered"
+            )
 
     def move_relative(self, position):
-        self._connection.write_str(f"1PR{position:.5f}")
+        if not self.is_shuttered:
+            self._connection.write_str(f"1PR{position:.5f}")
+        else:
+            raise ValueError(
+                f"Cannot move motor {self.name} to {position} as it is shuttered"
+            )
 
     def read_position(self):
         reply = self._connection.query_str("1TP?")
@@ -434,7 +459,11 @@ class LS16PAxis(ESOdevice.Motor):
         if echo:
             print(f"Error: {error_str}, State: {state_str}")
 
-        return f"{error_str}\n {state_str}"
+        res = f"{error_str}\n {state_str}"
+
+        if self.is_shuttered:
+            res += " SHUTTERED"
+        return res
 
     def reset(self):
         self._connection.write_str("RS")

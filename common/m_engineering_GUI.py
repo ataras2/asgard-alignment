@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 import matplotlib.pyplot as plt
 from io import StringIO
 import toml
+import time
 
 from asgard_alignment import FLI_Cameras as FLI
 import asgard_alignment.Engineering
@@ -1489,6 +1490,7 @@ with col_main:
                 "Quick buttons",
                 # "Camera & DMs",
                 "Illumination",
+                "Heimdallr shutters",
                 "Move image/pupil",
                 "Phasemask Alignment",
                 "Scan Mirror",
@@ -2298,6 +2300,32 @@ with col_main:
             # if st.button(f"Run {btn_key}"):
             #     success = run_script(CLOSE_LOOP_SCRIPT[btn_key])
 
+        if routine_options == "Heimdallr shutters":
+            # all up and all down buttons
+
+            st.title("Heimdallr Shutters Control")
+
+            if st.button("Open All Shutters"):
+                msg = "h_shut open all"
+                response = send_and_get_response(msg)
+                st.write(f"{response}")
+            
+            if st.button("Close All Shutters"):
+                
+
+            cols = st.columns(4)
+            
+            for i, col in enumerate(cols):
+                with col:
+                    if st.button(f"Open {i+1}"):
+                        msg = f"h_shut open {i+1}"
+                        response = send_and_get_response(msg)
+                        st.write(f"{response}")
+                    if st.button(f"Close {i+1}"):
+                        msg = f"h_shut close {i+1}"
+                        response = send_and_get_response(msg)
+                        st.write(f"{response}")
+
         if routine_options == "Camera & DMs":
             st.write("testing")
 
@@ -2927,6 +2955,8 @@ with col_main:
                         if instr == "Solarstein" or instr == "All":
                             motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
                         if instr == "Heimdallr" or instr == "All":
+                            send_and_get_response("h_shut open all")
+                            time.sleep(2)
                             motor_names_all_beams = [
                                 "HFO",
                                 "HTPP",
