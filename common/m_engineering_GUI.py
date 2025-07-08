@@ -1548,49 +1548,49 @@ with col_main:
                     for line in log_output:
                         st.text(line)
 
-            # st.title("Deformable Mirrors (DM's)")
+            st.title("Deformable Mirrors (DM's)")
 
-            # zbasis = common.DM_basis_functions.zer_bank(1, 10)
+            zbasis = common.DM_basis_functions.zer_bank(1, 10)
 
-            # # use_calibrated_dm_flat = st.checkbox('Use a calibrated "Baldr DM flat')
+            # use_calibrated_dm_flat = st.checkbox('Use a calibrated "Baldr DM flat')
 
-            # if "dm_shm_dict" not in st.session_state:
-            #     st.session_state.dm_shm_dict = {
-            #         beam_id: dmclass(beam_id=beam_id) for beam_id in [1, 2, 3, 4]
-            #     }
+            if "dm_shm_dict" not in st.session_state:
+                st.session_state.dm_shm_dict = {
+                    beam_id: dmclass(beam_id=beam_id) for beam_id in [1, 2, 3, 4]
+                }
 
-            # col1, col2, col3, col4, col5 = st.columns(5)
-            # with col1:
-            #     if st.button("Zero all DM's"):
-            #         for beam in [1, 2, 3, 4]:
-            #             st.session_state.dm_shm_dict[beam].zero_all()
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                if st.button("Zero all DM's"):
+                    for beam in [1, 2, 3, 4]:
+                        st.session_state.dm_shm_dict[beam].zero_all()
 
-            # with col2:
-            #     if st.button("Apply Factory DM flat's"):
-            #         for beam in [1, 2, 3, 4]:
-            #             st.session_state.dm_shm_dict[beam].activate_flat()
-            #             # if use_calibrated_dm_flat:
-            #             #    st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
-            #             # else:
-            # with col3:
-            #     if st.button("Apply Baldr DM flat's"):
-            #         for beam in [1, 2, 3, 4]:
-            #             st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
+            with col2:
+                if st.button("Apply Factory DM flat's"):
+                    for beam in [1, 2, 3, 4]:
+                        st.session_state.dm_shm_dict[beam].activate_flat()
+                        # if use_calibrated_dm_flat:
+                        #    st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
+                        # else:
+            with col3:
+                if st.button("Apply Baldr DM flat's"):
+                    for beam in [1, 2, 3, 4]:
+                        st.session_state.dm_shm_dict[beam].activate_calibrated_flat()
 
-            # with col4:
-            #     if st.button("Apply Heim DM flat's"):
-            #         for beam in [1, 2, 3, 4]:
-            #             #st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
-            #             wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
-            #             flat_cmd = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd( wdirtmp ))
-            #             flat_cmd_offset = np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd_offset( wdirtmp))
-            #             st.session_state.dm_shm_dict[beam].shms[0].set_data(st.session_state.dm_shm_dict[beam].cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
-            #             ##
-            #             st.session_state.dm_shm_dict[beam].shm0.post_sems(1)
-            # with col5:
-            #     if st.button("Apply DM cross"):
-            #         for beam in [1, 2, 3, 4]:
-            #             st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
+            with col4:
+                if st.button("Apply Heim DM flat's"):
+                    for beam in [1, 2, 3, 4]:
+                        #st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
+                        wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+                        flat_cmd = st.session_state.dm_shm_dict[beam].cmd_2_map2D( np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd( wdirtmp )) )
+                        flat_cmd_offset =  np.loadtxt( wdirtmp + f"heim_flat_beam_{beam}.txt") 
+                        st.session_state.dm_shm_dict[beam].shms[0].set_data(flat_cmd + flat_cmd_offset)
+                        ##
+                        st.session_state.dm_shm_dict[beam].shm0.post_sems(1)
+            with col5:
+                if st.button("Apply DM cross"):
+                    for beam in [1, 2, 3, 4]:
+                        st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
 
             # st.write("Defocus")
 
@@ -2450,7 +2450,7 @@ with col_main:
                     res = send_and_get_response(message)
             if st.button("All down :arrow_double_down:"):
                 for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 0.0"
+                    message = f"moveabs {flipper} 0.0" 
                     res = send_and_get_response(message)
 
             flipper_cols = st.columns(4)

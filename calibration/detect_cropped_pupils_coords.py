@@ -505,7 +505,7 @@ for mask, lab in zip( mask_list, regiom_labels):
     if lab == 'baldr':
 
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99.1, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
+            img * mask, percentile = 99.3, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
         ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
@@ -607,8 +607,8 @@ with open( cred_server_split_file ) as f:
     
 
 
-"/home/asg/.config/cred1_split.json"
-"/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
+# "/home/asg/.config/cred1_split.json"
+# "/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
 
 
 for beam_id in dict2write["baldr_pupils"]:
@@ -622,9 +622,11 @@ for beam_id in dict2write["baldr_pupils"]:
 with open(cred_server_split_file, "w") as json_file:
     json.dump(split_dict, json_file, indent=4)
     print(f"wrote split pupil coords to {cred_server_split_file}")
-# img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
-# util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
-# convert_index_convention( corners ):
+
+
+## img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40
+## util.nice_heatmap_subplots( [ img[r1:r2,c1:c2]],savefig='delme.png')
+## convert_index_convention( corners ):
 
 
 ### Plot final results for check
