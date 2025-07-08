@@ -275,7 +275,10 @@ class TempPlotWidget(QtWidgets.QWidget):
                     continue
                 idx = probe_idx[probe]
                 y = np.array(probe_data[idx], dtype=np.float64)
-                color = f"C{i}"
+                if subplot_idx == 4:
+                    color = f"C{i+4}"
+                else: 
+                    color = f"C{i}"
                 ax.plot(
                     times, y, "-", linewidth=1.5, alpha=1.0, label=probe, color=color
                 )
