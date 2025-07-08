@@ -1,8 +1,6 @@
 import os
 from asgard_alignment.PDU_telnet import AtenEcoPDU
 import sys
-import zmq
-import asgard_alignment.controllino as co
 import time
 
 
