@@ -24,22 +24,24 @@ if inp.lower() != "y":
     sys.exit(0)
 
 mds_connection = open_mds_connection()
-pdu = AtenEcoPDU("192.168.100.11")
-pdu.connect()
 cc = co.Controllino("192.168.100.10")
 
 # turn off all sources: SRL, SGL and SBB
 lamps = ["SRL", "SGL", "SBB"]
-#for lamp in lamps:
-#    mds_connection.send_string(f"off {lamp}")
-#    time.sleep(2.0)
+for lamp in lamps:
+    mds_connection.send_string(f"off {lamp}")
+    time.sleep(1)  # wait for the command to be processed
 
 # flippers up
-#names = [f"SSF{i}" for i in range(1, 5)]
-#for i, flipper in enumerate(names):
-#    message = f"moveabs {flipper} 1.0"
-#    mds_connection.send_string(message)
+names = [f"SSF{i}" for i in range(1, 5)]
+for i, flipper in enumerate(names):
+    message = f"moveabs {flipper} 1.0"
+    mds_connection.send_string(message)
+    time.sleep(2)  # wait for the command to be processed
 
+
+pdu = AtenEcoPDU("192.168.100.11")
+pdu.connect()
 pre_shutdown_current = float(pdu.read_power_value("olt", PDU_OUTLET, "curr"))
 print(f"Pre-shutdown current: {pre_shutdown_current} A")
 
@@ -59,6 +61,10 @@ print("All devices turned off.")
 
 time.sleep(2)  # wait for devices to turn off
 
+pdu.close()
+pdu = AtenEcoPDU("192.168.100.11")
+pdu.connect()
+
 post_shutdown_current = float(pdu.read_power_value("olt", PDU_OUTLET, "curr"))
 print(f"Post-shutdown current: {post_shutdown_current} A")
 
@@ -68,9 +74,13 @@ input(
     "In C red server terminal, type 'stop' and then type 'exit'. Then press Enter here to continue..."
 )
 
+
+pdu.close()
+pdu = AtenEcoPDU("192.168.100.11")
+pdu.connect()
 print("Turning off PDU outlet...")
 pdu.switch_outlet_status(PDU_OUTLET, "off")
-time.sleep(5)  # wait for PDU to turn off
+time.sleep(3)  # wait for PDU to turn off
 
 res = pdu.read_outlet_status(PDU_OUTLET)
 if res == "off":
