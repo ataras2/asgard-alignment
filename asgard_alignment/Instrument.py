@@ -207,7 +207,9 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        uv_commands = asgard_alignment.Engineering.move_img_calc(config, beam_number, desired_deviation)
+        uv_commands = asgard_alignment.Engineering.move_img_calc(
+            config, beam_number, desired_deviation
+        )
 
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
@@ -244,7 +246,9 @@ class Instrument:
 
         desired_deviation = np.array([[x], [y]])
 
-        uv_commands = asgard_alignment.Engineering.move_pup_calc(config, beam_number, desired_deviation)
+        uv_commands = asgard_alignment.Engineering.move_pup_calc(
+            config, beam_number, desired_deviation
+        )
 
         if config == "baldr":
             axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
@@ -329,12 +333,14 @@ class Instrument:
             for beam_n in beam_numbers:
                 if not self.h_shutter_states[beam_n] == "open":
                     beams_to_open.append(beam_n)
-            # if we are opening the shutter, we need apply the opposite of the offsets and set the 
+            # if we are opening the shutter, we need apply the opposite of the offsets and set the
             # offset variable back to 0.0
             for beam_n in beams_to_open:
                 for dev in possible_shutter_devs:
                     if not np.isclose(self.h_shutter_offsets[beam_n][dev], 0.0):
-                        self.devices[dev].move_relative(-self.h_shutter_offsets[beam_n][dev])
+                        self.devices[dev].move_relative(
+                            -self.h_shutter_offsets[beam_n][dev]
+                        )
                         self.h_shutter_offsets[beam_n][dev] = 0.0
 
         for beam_n in beam_numbers:

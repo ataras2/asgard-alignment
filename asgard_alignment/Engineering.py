@@ -50,7 +50,6 @@ def get_matricies(config):
             4: np.array([[0.00649, -0.00455], [-0.00077, 0.01745]]),
         }
 
-
     else:
         raise ValueError("Invalid configuration")
 
@@ -73,18 +72,18 @@ def get_matricies(config):
     return pupil_move_matricies, image_move_matricies
 
 
-# matrix to calculate phasemask relative offsets (BMX,BMY) 
-# based on relative OAP mirror tip/tilt (BOTX) offsets  () 
+# matrix to calculate phasemask relative offsets (BMX,BMY)
+# based on relative OAP mirror tip/tilt (BOTX) offsets  ()
 # calculate / calibrated 13/3/25 baldr logbook
 # convention is [BMX, BMY] = Matrix . [BOTP , BOTT]
 # on eng GUI BOTP is U, BOTT is V
 # convention delta_U = after - before
-# NO BOTX ON BEAM 1 ! 
+# NO BOTX ON BEAM 1 !
 phasemask_botx_matricies = {
-    1: np.array([[0.0, 0.0],[0.0, 0.0]]),
-    2: np.array([[0.0, -80/0.01],[80/0.01, 0.0]]),
-    3: np.array([[0.0, -80/0.01],[80/0.01, 0.0]]),
-    4: np.array([[0.0, 80/0.01],[80/0.01, 0.0]]),
+    1: np.array([[0.0, 0.0], [0.0, 0.0]]),
+    2: np.array([[0.0, -80 / 0.01], [80 / 0.01, 0.0]]),
+    3: np.array([[0.0, -80 / 0.01], [80 / 0.01, 0.0]]),
+    4: np.array([[0.0, 80 / 0.01], [80 / 0.01, 0.0]]),
 }
 
 # matricies for the M100D, that solve [beamx, beamy] = matrix @ [u, v]
@@ -129,8 +128,98 @@ knife_edge_orientation_matricies = {
 }
 
 
-## Move image and pupil functions belong only as method to instrument class 
-# To test with this commented out, eventually to delete once stable. 
+def move_img_calc(config, beam_number, desired_deviation):
+    _, image_move_matricies = get_matricies(config)
+
+    M_I = image_move_matricies[beam_number]
+    M_I_pupil = M_I[0]
+    M_I_image = M_I[1]
+
+    changes_to_deviations = np.array(
+        [
+            [M_I_pupil, 0.0],
+            [0.0, M_I_pupil],
+            [M_I_image, 0.0],
+            [0.0, M_I_image],
+        ]
+    )
+
+    # used for heimdallr
+    ke_matrix = knife_edge_orientation_matricies
+    so_matrix = spherical_orientation_matricies
+    # used for baldr
+    LH_motor = LH_motor
+    RH_motor = RH_motor
+
+    if config == "baldr":
+        pupil_motor = RH_motor
+        image_motor = LH_motor
+    else:
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+    deviations_to_uv = np.block(
+        [
+            [pupil_motor, np.zeros((2, 2))],
+            [np.zeros((2, 2)), image_motor],
+        ]
+    )
+
+    beam_deviations = changes_to_deviations @ desired_deviation
+
+    uv_commands = deviations_to_uv @ beam_deviations
+    return uv_commands
+
+
+def move_pup_calc(config, beam_number, desired_deviation):
+
+    pupil_move_matricies, _ = get_matricies(config)
+
+    M_P = pupil_move_matricies[beam_number]
+    M_P_pupil = M_P[0]
+    M_P_image = M_P[1]
+
+    changes_to_deviations = np.array(
+        [
+            [M_P_pupil, 0.0],
+            [0.0, M_P_pupil],
+            [M_P_image, 0.0],
+            [0.0, M_P_image],
+        ]
+    )
+
+    ke_matrix = knife_edge_orientation_matricies
+    so_matrix = spherical_orientation_matricies
+    # used for baldr
+    LH_motor = LH_motor
+    RH_motor = RH_motor
+
+    if config == "baldr":
+        # Baldr has a different orientation. This will be correct
+        # up to a sign in front of one of the motors.
+        pupil_motor = RH_motor
+        image_motor = LH_motor
+    else:
+        pupil_motor = np.linalg.inv(ke_matrix[beam_number])
+        image_motor = np.linalg.inv(so_matrix[beam_number])
+
+    deviations_to_uv = np.block(
+        [
+            [pupil_motor, np.zeros((2, 2))],
+            [np.zeros((2, 2)), image_motor],
+        ]
+    )
+
+    beam_deviations = changes_to_deviations @ desired_deviation
+
+    print(f"beam deviations: {beam_deviations}")
+
+    uv_commands = deviations_to_uv @ beam_deviations
+    return uv_commands
+
+
+## Move image and pupil functions belong only as method to instrument class
+# To test with this commented out, eventually to delete once stable.
 # def move_image(beam_number, x, y, send_command, config):
 #     """
 #     Move image to a new location (relative motion)
@@ -284,7 +373,7 @@ knife_edge_orientation_matricies = {
 #         axis_list = ["BTP", "BTT", "BOTP", "BOTT"]
 #     else:
 #         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
-        
+
 #     commands = [
 #         f"moverel {axis}{beam_number} {command[0]}"
 #         for axis, command in zip(axis_list, uv_commands)
