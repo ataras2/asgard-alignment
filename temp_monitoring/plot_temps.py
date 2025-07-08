@@ -66,13 +66,16 @@ class TempPlotWidget(QtWidgets.QWidget):
         # Set height ratios: first subplot double the others
         self.figure = Figure(figsize=(10, 20))
         n_plts = 5
-        gs = self.figure.add_gridspec(n_plts, 1, height_ratios=[2, 1, 1, 1,1])
+        gs = self.figure.add_gridspec(n_plts, 1, height_ratios=[2, 1, 1, 1, 1])
+        # Create all axes, sharing x only with the last subplot
         self.axes = [
-            self.figure.add_subplot(
-                gs[i, 0], sharex=None if i == 0 else self.figure.axes[0]
-            )
+            self.figure.add_subplot(gs[i, 0])
             for i in range(n_plts)
         ]
+        # Now set all except the last to sharex with the last
+        for i in range(n_plts - 1):
+            self.axes[i].sharex(self.axes[-1])
+
         self.canvas = FigureCanvas(self.figure)
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.canvas)
@@ -180,14 +183,19 @@ class TempPlotWidget(QtWidgets.QWidget):
 
         # Define groups for each subplot (probe_names, ylabel, ylims)
         subplot_groups = [
-            (["Lower T", "Upper T", "Bench T", "Floor T"], "Temperature (°C)", (None, None)), #ylims ignored here
-            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val", (0,255)),
+            (
+                ["Lower T", "Upper T", "Bench T", "Floor T"],
+                "Temperature (°C)",
+                (None, None),
+            ),  # ylims ignored here
+            (["Lower m_pin_val", "Upper m_pin_val"], "m_pin_val", (0, 255)),
             (["Lower integral", "Upper integral"], "Integral", (None, None)),
             (
                 ["Lower k_prop", "Upper k_prop", "Lower k_int", "Upper k_int"],
-                "PID Coeffs", (0, None)
+                "PID Coeffs",
+                (0, None),
             ),
-            (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)", (0,None)),
+            (["outlet5 (MDS)", "outlet6 (C RED)"], "Current (amps)", (0, None)),
         ]
 
         # Calculate rolling window size in samples
@@ -268,7 +276,9 @@ class TempPlotWidget(QtWidgets.QWidget):
         ax.set_ylim(prev_ylim)
 
         # Remaining subplots: just lines for data
-        for subplot_idx, (group, ylabel, ylims) in enumerate(subplot_groups[1:], start=1):
+        for subplot_idx, (group, ylabel, ylims) in enumerate(
+            subplot_groups[1:], start=1
+        ):
             ax = self.axes[subplot_idx]
             for i, probe in enumerate(group):
                 if probe not in probe_idx:
@@ -282,8 +292,11 @@ class TempPlotWidget(QtWidgets.QWidget):
             ax.set_ylabel(ylabel)
             ax.legend(loc="upper left", fontsize="small")
             ax.set_ylim(*ylims)
-            	
+            # Hide xtick labels except for the last subplot
+            if subplot_idx != len(self.axes) - 1:
+                ax.tick_params(labelbottom=False)
 
+        # Only the last subplot shows xtick labels
         self.axes[-1].set_xlabel("Time")
         self.figure.tight_layout()
         self.canvas.draw()
@@ -295,6 +308,7 @@ def main():
     widget.resize(1000, 600)
     widget.show()
     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     main()
