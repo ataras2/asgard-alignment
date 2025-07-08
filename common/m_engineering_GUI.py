@@ -2476,14 +2476,17 @@ with col_main:
 
             names = [f"SSF{i}" for i in range(1, 5)]
 
-            if st.button("All up :arrow_double_up:"):
-                for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 1.0"
-                    res = send_and_get_response(message)
-            if st.button("All down :arrow_double_down:"):
-                for i, flipper in enumerate(names):
-                    message = f"moveabs {flipper} 0.0"
-                    res = send_and_get_response(message)
+            all_cols = st.columns(2)
+            with all_cols[0]:
+                if st.button("All up :arrow_double_up:"):
+                    for i, flipper in enumerate(names):
+                        message = f"moveabs {flipper} 1.0"
+                        res = send_and_get_response(message)
+            with all_cols[1]:
+                if st.button("All down :arrow_double_down:"):
+                    for i, flipper in enumerate(names):
+                        message = f"moveabs {flipper} 0.0"
+                        res = send_and_get_response(message)
 
             flipper_cols = st.columns(4)
 
