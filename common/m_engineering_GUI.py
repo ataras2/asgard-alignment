@@ -1514,7 +1514,9 @@ with col_main:
             st.write(
                 "saves all motor states along with 20 CRED 1 images in current camera settings. Saves as a fits file in:"
             )
-            save_state_data_path = os.path.expanduser(f"~/.config/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/")
+            save_state_data_path = os.path.expanduser(
+                f"~/.config/asgard-alignment/instr_states/stability_analysis/{tstamp_rough}/"
+            )
             st.write(f"{save_state_data_path}")
 
             if st.button("qucik save state"):
@@ -2502,14 +2504,14 @@ with col_main:
                     # st.write(f"Current state: {cur_state}")
                     if "IN" in cur_state:
                         if use_sol:
-                            st.success("IN")
+                            st.success("UP")
                         else:
-                            st.error("IN")
+                            st.error("UP")
                     elif "OUT" in cur_state:
                         if use_sol:
-                            st.error("OUT")
+                            st.error("DOWN")
                         else:
-                            st.success("OUT")
+                            st.success("DOWN")
                     else:
                         st.warning("Unknown")
 
@@ -3016,7 +3018,11 @@ with col_main:
                                 print()
                             states.append(state)
 
-                        fname = os.path.expanduser("~/.config/asgard-alignment/instr_states/" + save_location + ".json")
+                        fname = os.path.expanduser(
+                            "~/.config/asgard-alignment/instr_states/"
+                            + save_location
+                            + ".json"
+                        )
                         if os.path.exists(fname):
                             st.error(f"File {fname} already exists")
                         else:
