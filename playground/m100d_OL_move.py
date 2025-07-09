@@ -19,6 +19,7 @@ def send_and_get_response(socket, message):
 
 
 mds = open_mds_connection()
+print("MDS open")
 
 step_axis = "HTTI1"
 step_size = 35  # default on startup

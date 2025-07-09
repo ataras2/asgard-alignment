@@ -3379,10 +3379,10 @@ with col_main:
                 c = FLI.fli(roi=roi)
 
                 # try get a dark
-                try:
-                    c.build_manual_dark()
-                except Exception as e:
-                    st.write(f"failed to take dark with exception {e}")
+                #try:
+                #    c.build_manual_dark()
+                #except Exception as e:
+                #    st.write(f"failed to take dark with exception {e}")
 
                 progress_bar = st.progress(0)
                 for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
