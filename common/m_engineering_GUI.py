@@ -1091,7 +1091,9 @@ def handle_tt_motor():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "T")
                 message = f"moveabs {target} {t_position}"
-                send_and_get_response(message)
+                res = send_and_get_response(message)
+                if "shuttered" in res:
+                    st.error("Device is in a Heimdallr shutter")
     else:
 
         def get_onchange_fn(axis, key):
@@ -1099,7 +1101,9 @@ def handle_tt_motor():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", axis)
                 message = f"moveabs {target} {st.session_state[key]}"
-                send_and_get_response(message)
+                res = send_and_get_response(message)
+                if "shuttered" in res:
+                    st.error("Device is in a Heimdallr shutter")
                 if delay_on_moves:
                     time.sleep(1.0)
 
@@ -1177,7 +1181,9 @@ def handle_linear_actuator():
             else:
                 desired_position = st.session_state[key]
             message = f"moveabs {target} {desired_position}"
-            send_and_get_response(message)
+            res = send_and_get_response(message)
+            if "shuttered" in res:
+                st.error("Device is in a Heimdallr shutter")
             time.sleep(1.0)
 
         return onchange_fn
@@ -2305,7 +2311,9 @@ with col_main:
         if routine_options == "Heimdallr shutters":
             # all up and all down buttons
 
-            st.title("Heimdallr Shutters Control")
+            st.title("Heimdallr internal Control")
+
+            st.header("Shutters Control")
 
             if st.button("Open All Shutters"):
                 msg = "h_shut open all"
@@ -2329,6 +2337,22 @@ with col_main:
                         msg = f"h_shut close {i+1}"
                         response = send_and_get_response(msg)
                         st.write(f"{response}")
+
+            st.header("Splay")
+
+            cols = st.columns(2)
+
+            with cols[0]:
+                if st.button("Splay on"):
+                    msg = "h_splay on"
+                    response = send_and_get_response(msg)
+                    st.write(f"{response}")
+            with cols[1]:
+                if st.button("Splay off"):
+                    msg = "h_splay off"
+                    response = send_and_get_response(msg)
+                    st.write(f"{response}")
+
 
         if routine_options == "Camera & DMs":
             st.write("testing")
