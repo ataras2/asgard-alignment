@@ -188,8 +188,8 @@ def move_pup_calc(config, beam_number, desired_deviation):
     ke_matrix = knife_edge_orientation_matricies
     so_matrix = spherical_orientation_matricies
     # used for baldr
-    LH_motor = LH_motor
-    RH_motor = RH_motor
+    # LH_motor = LH_motor
+    # RH_motor = RH_motor
 
     if config == "baldr":
         # Baldr has a different orientation. This will be correct
