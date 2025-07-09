@@ -28,13 +28,15 @@ if target_pixels[0] is None:
 
 
 class HeimdallrAA:
-    def __init__(self):
+    def __init__(self, shutter_pause_time=0.5, n_frames=5):
         self.mds = self._open_mds_connection()
 
         self.stream = self._open_stream_connection()
 
-        self._shutter_pause_time = 0.5  # seconds to pause after shuttering
-        self._n_frames = 5  # number of frames to average for each beam
+        self._shutter_pause_time = (
+            shutter_pause_time  # seconds to pause after shuttering
+        )
+        self._n_frames = n_frames  # number of frames to average for each beam
 
         self.row_bnds = (128, 255)
 
@@ -136,3 +138,11 @@ class HeimdallrAA:
             self._send_and_get_response(cmd)
             cmd = f"moverel {axes[beam][3]} {uv_cmd[3][0]}"
             self._send_and_get_response(cmd)
+
+
+if __name__ == "__main__":
+    shutter_pause_time = 0.5  # seconds to pause after shuttering
+    n_frames = 5  # number of frames to average for each beam
+    heimdallr_aa = HeimdallrAA(shutter_pause_time=shutter_pause_time, n_frames=n_frames)
+    heimdallr_aa.autoalign_parallel()
+    print("Autoalignment completed.")
