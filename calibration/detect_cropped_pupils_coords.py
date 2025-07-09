@@ -623,26 +623,37 @@ elif args.saveformat=='toml':
 ### WRITING TO THE CRED 1 SPLIT CONFIG FILE FOR THE SERVER
 cred_server_split_file = "/home/asg/.config/cred1_split.json"
 # read 
-with open( cred_server_split_file ) as f:
-    split_dict = json.load(f)
+
+ui = input("enter 1 if we should update cred split json (make sure Cred server is not in split mode before updating) any button otherwise.")
+
+if "1" in ui:
+    with open( cred_server_split_file ) as f:
+        split_dict = json.load(f)
     
+        # "/home/asg/.config/cred1_split.json"
+        # "/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
 
+        for beam_id in dict2write["baldr_pupils"]:
+            r1,r2,c1,c2 = dict2write["baldr_pupils"][ beam_id ]
+            if f"baldr{beam_id}" not in split_dict:
+                split_dict[f"baldr{beam_id}"] = {}
 
-# "/home/asg/.config/cred1_split.json"
-# "/home/asg/Progs/repos/dcs/asgard-cred1-server/cred1_split.json"
+            split_dict[f"baldr{beam_id}"].update({
+                "x0": c1,
+                "y0": r1,
+                "xsz": c2-c1,
+                "ysz": r2-r1,
+            })
 
+    print("writing now")
+    #split_dict[f"baldr{beam_id}"]['x0'] = c1
+    #split_dict[f"baldr{beam_id}"]['y0'] = r1
+    #split_dict[f"baldr{beam_id}"]['xsz'] = c2-c1
+    #split_dict[f"baldr{beam_id}"]['ysz'] = r2-r1
 
-for beam_id in dict2write["baldr_pupils"]:
-    r1,r2,c1,c2 = dict2write["baldr_pupils"][ beam_id ] 
-    split_dict[f"baldr{beam_id}"] = {}
-    split_dict[f"baldr{beam_id}"]['x0'] = c1
-    split_dict[f"baldr{beam_id}"]['y0'] = r1
-    split_dict[f"baldr{beam_id}"]['xsz'] = c2-c1
-    split_dict[f"baldr{beam_id}"]['ysz'] = r2-r1
-
-with open(cred_server_split_file, "w") as json_file:
-    json.dump(split_dict, json_file, indent=4)
-    print(f"wrote split pupil coords to {cred_server_split_file}")
+    with open(cred_server_split_file, "w") as json_file:
+        json.dump(split_dict, json_file, indent=4)
+        print(f"wrote split pupil coords to {cred_server_split_file}")
 
 
 ## img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40

@@ -26,9 +26,6 @@ PHASEMASK="H3"
 SIGNAL_SPACE="dm"
 DM_FLAT="baldr"
 
-# (Optional) Activate your Python virtualenv here, e.g.:
-# source /path/to/venv/bin/activate
-
 echo "Running build_IM.py with:"
 echo "  cam_fps      = $CAM_FPS"
 echo "  cam_gain     = $CAM_GAIN"
