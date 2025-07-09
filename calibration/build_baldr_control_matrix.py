@@ -14,7 +14,6 @@ import argparse
 import common.DM_basis_functions as dmbases
 import pyBaldr.utilities as util 
 
-
 """
 Here we put together the final control config to be read in by RTC
 
@@ -76,10 +75,15 @@ parser.add_argument(
 )
 
 
-parser.add_argument("--dont_project_TT_out_HO",
+parser.add_argument("--project_TT_out_HO",
                     dest="project_TT_out_HO",
-                    action="store_false",
+                    action="store_true",
                     help="Disable projecting TT (or what ever lower order LO is defined as) out of HO (default: enabled)")
+
+parser.add_argument("--project_waffle_out_HO",
+                    dest="project_waffle_out_HO",
+                    action="store_true",
+                    help="If set, project out the DM waffle mode from the HO space.")
 
 ## NEED TO CHECK THIS AGAIN - BUG
 parser.add_argument("--filter_edge_actuators",
@@ -90,7 +94,7 @@ parser.add_argument("--filter_edge_actuators",
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='/home/asg/Progs/repos/asgard-alignment/calibration/reports/test/', 
+                    default='~/Downloads/', 
                     help="path/to/output/image/ for the saved figures"
                     )
 
@@ -230,16 +234,52 @@ dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_ma
 
 #util.nice_heatmap_subplots( [dm_mask_144.reshape(12,12),dm_tight_mask_144.reshape(12,12)], savefig='delme.png')
 
-# project out in command / mode space 
+
+projection_basis = []
+
 if args.project_TT_out_HO:
-    print("projecting TT out of HO")
-    #we only need HO and require len 144x 140 (SHM input x number of actuatorss) which projects out the TT 
-    _ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  (dm_mask_144 * np.nan_to_num(M2C.T[:LO],0) ).reshape(-1,144) )
-    #_ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  np.nan_to_num(M2C[:,:LO],0).reshape(-1,144) )
-    M2C_LO , _ = util.project_matrix( np.nan_to_num( M2C[:,:LO], 0),  np.nan_to_num(M2C.T[LO:],0).reshape(-1,144) )
+    for t in M2C.T[:LO]:  # TT modes
+        projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
+
+if args.project_waffle_out_HO:
+    waffle_mode = util.convert_12x12_to_140(util.waffle_mode_2D())
+    projection_basis.append(dm_mask_144 * waffle_mode)
+
+if projection_basis:
+    print("Projecting TT and/or Waffle modes out of HO")
+    proj_mat = np.vstack(projection_basis).reshape(-1, 144)
+    _ , M2C_HO = util.project_matrix(M2C[:,LO:], proj_mat)
+    #M2C_LO , _ = util.project_matrix( M2C[:,:LO], proj_mat)
+    #_ , M2C_HO = util.project_matrix(M2C[:,LO:], proj_mat)
+    #M2C_LO = M2C[:,:LO]
+
+    M2C_LO_tmp = M2C[:, :LO]  # before projection
+    overlap = np.dot(proj_mat, M2C_LO_tmp)  # shape (N_proj, LO)
+    max_overlap = np.max(np.abs(overlap))
+    if max_overlap > 1e-6:
+        print(f"Max overlap between LO and projected modes = {max_overlap:.2e}, re-orthogonalizing LO")
+        M2C_LO, _ = util.project_matrix(M2C[:, :LO], proj_mat)
+    else:
+        print(f"LO commands already orthogonal to projection modes (max overlap = {max_overlap:.2e})")
+        M2C_LO = M2C[:, :LO]
 else:
     M2C_LO = M2C[:,:LO]
     M2C_HO = M2C[:,LO:]
+
+
+# # project out in command / mode space 
+# if args.project_TT_out_HO:
+#     print("projecting TT out of HO")
+#     #we only need HO and require len 144x 140 (SHM input x number of actuatorss) which projects out the TT 
+#     _ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  (dm_mask_144 * np.nan_to_num(M2C.T[:LO],0) ).reshape(-1,144) )
+#     #_ , M2C_HO = util.project_matrix( np.nan_to_num( M2C[:,LO:], 0),  np.nan_to_num(M2C[:,:LO],0).reshape(-1,144) )
+#     M2C_LO , _ = util.project_matrix( np.nan_to_num( M2C[:,:LO], 0),  np.nan_to_num(M2C.T[LO:],0).reshape(-1,144) )
+# else:
+#     M2C_LO = M2C[:,:LO]
+#     M2C_HO = M2C[:,LO:]
+
+
+
 
 
 # TO DO : FIX M2C PROJECTION ====================

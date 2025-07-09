@@ -214,6 +214,11 @@ def find_calibration_files(mode, gain, target_fps, base_dir="MASTER_DARK", time_
     return accepted_files
 
 
+def waffle_mode_2D(n=12):
+    """Returns a 2D waffle mode (checkerboard pattern) of size n x n"""
+    W = np.fromfunction(lambda i, j: (-1) ** (i + j), (n, n))
+    return W
+
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
