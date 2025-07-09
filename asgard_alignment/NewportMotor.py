@@ -196,6 +196,17 @@ class M100DAxis(ESOdevice.Motor):
                 f"Cannot move motor {self.name} to {position} as it is shuttered"
             )
 
+    def move_stepping(self, n_steps: int):
+        if not self.is_shuttered:
+            self._connection.write_str(f"1XR{self.axis}{n_steps}")
+        else:
+            raise ValueError(
+                f"Cannot move motor {self.name} to {n_steps} steps as it is shuttered"
+            )
+
+    def config_step_size(self, step_size: int):
+        self._connection.write_str(f"1XU{self.axis}{step_size}")
+
     def read_position(self):
         """
         Read the position of the motor

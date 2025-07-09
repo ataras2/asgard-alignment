@@ -527,6 +527,25 @@ class MultiDeviceServer:
             self.instr.devices[axis].init()
             return "ACK"
 
+        def tt_step_msg(axis, n_steps):
+            """
+            Move the tip-tilt stage by n_steps.
+            """
+            if "HT" not in axis:
+                raise ValueError(f"{axis} is not a valid tip-tilt stage")
+
+            if axis not in self.instr.devices:
+                raise ValueError(f"{axis} not found in instrument")
+
+            n_steps = int(n_steps)
+
+            self.instr.devices[axis].move_stepping(n_steps)
+
+        def tt_config_step_msg(axis, step_size):
+            if "HT" not in axis:
+                raise ValueError(f"{axis} is not a valid tip-tilt stage")
+            self.instr.devices[axis].config_step_size(int(step_size))
+
         def moverel_msg(axis, position):
             print("moverel", axis, position)
             self.instr.devices[axis].move_relative(float(position))
@@ -790,16 +809,16 @@ class MultiDeviceServer:
             # parse axes into list
             axis_list = axes.split(",")
             return self.instr.online(axis_list)
-        
+
         def h_shut_msg(state, beam_numbers):
             if beam_numbers == "all":
-                beam_numbers = list(range(1, 5)) 
+                beam_numbers = list(range(1, 5))
             else:
                 beam_numbers = [int(b) for b in beam_numbers.split(",")]
-            
+
             if state not in ["open", "close"]:
                 return "NACK: Invalid state for h_shut, must be 'open' or 'close'"
-            
+
             return self.instr.h_shut(state, beam_numbers)
 
         first_word_to_function = {
@@ -809,6 +828,8 @@ class MultiDeviceServer:
             "connected?": connected_msg,
             "connect": connect_msg,
             "init": init_msg,
+            "tt_step": tt_step_msg,
+            "tt_config_step": tt_config_step_msg,
             "moverel": moverel_msg,
             "state": state_msg,
             "dmapplyflat": apply_flat_msg,
@@ -846,6 +867,8 @@ class MultiDeviceServer:
             "connected?": "connected? {}",
             "connect": "connect {}",
             "init": "init {}",
+            "tt_step": "tt_step {} {}",
+            "tt_config_step": "tt_config_step {} {}",
             "moverel": "moverel {} {:f}",
             "state": "state {}",
             "dmapplyflat": "dmapplyflat {}",

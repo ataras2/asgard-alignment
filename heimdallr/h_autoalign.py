@@ -19,6 +19,7 @@ import asgard_alignment.Engineering as asgE
 import zmq
 import os
 from tqdm import tqdm
+import scipy.ndimage as ndi
 
 
 target_pixels = (None, None)  # target pixels for the blob centre (K1)
@@ -30,8 +31,12 @@ class HeimdallrAA:
     def __init__(self):
         self.mds = self._open_mds_connection()
 
+        self.stream = self._open_stream_connection()
+
         self._shutter_pause_time = 0.5  # seconds to pause after shuttering
         self._n_frames = 5  # number of frames to average for each beam
+
+        self.row_bnds = (128, 255)
 
     # MDS interface
     def _open_mds_connection(self):
@@ -47,16 +52,37 @@ class HeimdallrAA:
         response = self.mds.recv_string()
         return response.strip()
 
+    # stream interface
+    def _open_stream_connection(self):
+        stream_path = "/dev/shm/hei_ps.im.shm"
+        if not os.path.exists(stream_path):
+            raise FileNotFoundError(f"Stream file {stream_path} does not exist.")
+        return shm(stream_path)
+
     # processing
     def _find_blob_centre(self, frame):
         # use ndi median filter and then a gaussian filter on cropped image
-        pass
+        cropped_frame = frame[self.row_bnds[0] : self.row_bnds[1], :]
+
+        filtered_frame = ndi.median_filter(cropped_frame, size=3)
+        filtered_frame = ndi.gaussian_filter(filtered_frame, sigma=2)
+
+        max_loc_cropped = np.unravel_index(
+            np.argmax(filtered_frame), filtered_frame.shape
+        )
+        max_loc_cropped = np.array(max_loc_cropped)
+        max_loc = max_loc_cropped + np.array([self.row_bnds[0], 0])
+
+        return max_loc
 
     def _get_frame(self):
-        pass
+        full_frame = self.stream.get_data()
+        return full_frame
 
     def _get_and_process_blob(self):
-        pass
+        full_frame = self._get_frame()
+        blob_centre = self._find_blob_centre(full_frame)
+        return blob_centre
 
     def autoalign_parallel(self):
         # 1. shutter all beams off except 1, pause for a short time
@@ -91,7 +117,6 @@ class HeimdallrAA:
             uv_commands[beam] = uv_cmd
 
         # send commands
-
         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
         axes = [
             [axis + str(beam_number) for axis in axis_list]
@@ -99,9 +124,15 @@ class HeimdallrAA:
         ]
 
         for beam, uv_cmd in uv_commands.items():
-            pass
-        # self.devices[axes[0]].move_relative(uv_commands[0][0])
-        # self.devices[axes[2]].move_relative(uv_commands[2][0])
-        # time.sleep(0.5)
-        # self.devices[axes[1]].move_relative(uv_commands[1][0])
-        # self.devices[axes[3]].move_relative(uv_commands[3][0])
+            cmd = f"moverel {axes[beam][0]} {uv_cmd[0][0]}"
+            self._send_and_get_response(cmd)
+            cmd = f"moverel {axes[beam][2]} {uv_cmd[2][0]}"
+            self._send_and_get_response(cmd)
+
+        time.sleep(0.4)
+
+        for beam, uv_cmd in uv_commands.items():
+            cmd = f"moverel {axes[beam][1]} {uv_cmd[1][0]}"
+            self._send_and_get_response(cmd)
+            cmd = f"moverel {axes[beam][3]} {uv_cmd[3][0]}"
+            self._send_and_get_response(cmd)
