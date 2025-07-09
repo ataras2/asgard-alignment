@@ -9,10 +9,13 @@ pdu = AtenEcoPDU("192.168.100.11")
 pdu.connect()
 print("Powering on the box...")
 pdu.switch_outlet_status(5, "on")
-time.sleep(5)  # wait for the box to power on
+time.sleep(4)  # wait for the box to power on
+res = pdu.read_outlet_status(5)
+time.sleep(4)  # wait for the box to power on
 # check
 res = pdu.read_outlet_status(5)
 if res != "on":
+    print(res)
     print("Failed to power on the box. Exiting.")
     sys.exit(1)
 print("Box powered on successfully.")
