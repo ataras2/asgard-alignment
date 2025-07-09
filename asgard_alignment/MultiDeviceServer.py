@@ -5,6 +5,8 @@ import sys
 from parse import parse
 import time
 
+import os
+
 import json
 import datetime
 
@@ -20,13 +22,15 @@ import asgard_alignment.NewportMotor
 import asgard_alignment.controllino
 import asgard_alignment.ESOdevice
 
+import logging
+
 
 class MockMDS:
     def __init__(self):
         pass
 
     def handle_zmq(self, message):
-        print(f"Received message: {message}")
+        logging.info(f"Received message: {message}")
         return "Dummy response"
 
 
@@ -65,18 +69,18 @@ class MultiDeviceServer:
         else:
             self.instr = asgard_alignment.Instrument.Instrument(self.config_file)
 
-        print("Instrument all set up, ready to accept messages")
+        logging.info("Instrument all set up, ready to accept messages")
 
     def socket_funct(self, s):
         try:
             message = s.recv_string()
             return message
         except zmq.ZMQError as e:
-            print(f"ZMQ Error: {e}")
+            logging.error(f"ZMQ Error: {e}")
             return -1
 
     def log(self, message):
-        print(message)
+        logging.info(message)
 
     def run(self):
         running = True
@@ -90,7 +94,7 @@ class MultiDeviceServer:
                 if data == -1:
                     running = False
                 elif data != 0:
-                    print(f"Received message: {data}")
+                    logging.info(f"Received message: {data}")
                     is_custom_msg, response = self.handle_message(data)
                     if response == -1:
                         running = False
@@ -123,19 +127,19 @@ class MultiDeviceServer:
 
         # if "!" in message:
         if message[0].islower():
-            print(f"Custom command: {message}")
+            logging.info(f"Custom command: {message}")
             return True, self._handle_custom_command(message)
 
         if message[0] == "!":
-            print("Old custom command")
+            logging.info("Old custom command")
             return True, "NACK: Are you using old custom commands?"
 
         try:
             message = message.rstrip(message[-1])
-            print(f"ESO msg recv: {message}")
+            logging.info(f"ESO msg recv: {message}")
             json_data = json.loads(message)
         except:
-            print("Error: Invalid JSON message")
+            logging.error("Error: Invalid JSON message")
             return False, "NACK: Invalid JSON message"
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
@@ -191,7 +195,7 @@ class MultiDeviceServer:
             output_msg = json.dumps(self.database_message) + "\0"
 
             self.db_update_socket.send_string(output_msg)
-            print(output_msg)
+            logging.info(output_msg)
 
             reply = "OK"
 
@@ -206,7 +210,7 @@ class MultiDeviceServer:
             # can have no parameters (standby all) or a subset indicated by parameters
 
             if "parameters" not in json_data["command"]:
-                print("No parameters in standby command, going to standby all")
+                logging.info("No parameters in standby command, going to standby all")
 
                 # for key in self.instr.devices:
                 #     self.instr.devices[key].standby()
@@ -216,7 +220,7 @@ class MultiDeviceServer:
                 #     self.instr.standby(key)
                 devices_to_standby = list(self.instr.devices.keys())
                 while len(devices_to_standby) > 0:
-                    print(f"Working to standby device: {devices_to_standby[0]}")
+                    logging.info(f"Working to standby device: {devices_to_standby[0]}")
                     self.instr.standby(devices_to_standby[0])
 
                     devices_to_standby = list(self.instr.devices.keys())
@@ -237,7 +241,7 @@ class MultiDeviceServer:
                     for i in range(n_devs_commanded)
                 ]
                 while len(devs_to_standby) > 0:
-                    print(f"Working to standby device: {devs_to_standby[0]}")
+                    logging.info(f"Working to standby device: {devs_to_standby[0]}")
                     self.instr.standby(devs_to_standby[0])
 
                     devs_to_standby = list(
@@ -260,7 +264,7 @@ class MultiDeviceServer:
             output_msg = json.dumps(self.database_message) + "\0"
 
             self.db_update_socket.send_string(output_msg)
-            print(output_msg)
+            logging.info(output_msg)
 
             reply = "OK"
 
@@ -278,14 +282,14 @@ class MultiDeviceServer:
                     val = float(json_data["command"]["parameters"][i]["value"])
                 except ValueError:
                     val = json_data["command"]["parameters"][i]["value"]
-                print(f"Setup: {kwd} to {val}")
+                logging.info(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
 
                 prefixes = kwd.split(".")
                 dev_name = prefixes[1]
                 motion_type = prefixes[2]
-                print(f"Device: {dev_name} - motion type: {motion_type}")
+                logging.info(f"Device: {dev_name} - motion type: {motion_type}")
 
                 # motion_type can be one of these words:
                 # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
@@ -329,10 +333,10 @@ class MultiDeviceServer:
 
             for batch in range(3):
                 if len(setup_cmds[batch]) > 0:
-                    print(f"batch {batch} of devices to move:")
+                    logging.info(f"batch {batch} of devices to move:")
                     self.database_message["command"]["parameters"].clear()
                     for s in setup_cmds[batch]:
-                        print(
+                        logging.info(
                             f"Moving: {s.device_name} to: {s.value} ( setting {s.motion_type} )"
                         )
 
@@ -350,7 +354,7 @@ class MultiDeviceServer:
                     output_msg = json.dumps(self.database_message) + "\0"
 
                     self.db_update_socket.send_string(output_msg)
-                    print(output_msg)
+                    logging.info(output_msg)
 
                     # TODO
                     # ........................................................
@@ -362,7 +366,7 @@ class MultiDeviceServer:
                     still_moving_prev = setup_cmds[batch]
                     still_moving = setup_cmds[batch]
                     while len(still_moving) > 0:
-                        print(f"Still moving: {still_moving}")
+                        logging.info(f"Still moving: {still_moving}")
                         time.sleep(1.0)
 
                         still_moving = []
@@ -441,7 +445,7 @@ class MultiDeviceServer:
                         output_msg = json.dumps(self.database_message) + "\0"
 
                         self.db_update_socket.send_string(output_msg)
-                        print(output_msg)
+                        logging.info(output_msg)
 
                         self.database_message["command"]["parameters"].clear()
 
@@ -453,7 +457,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print(f"Stop device: {dev}")
+                logging.info(f"Stop device: {dev}")
 
                 self.instr.devices[dev].stop()
 
@@ -465,7 +469,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print(f"Power off device: {dev}")
+                logging.info(f"Power off device: {dev}")
 
                 self.instr.devices[dev].disable()
 
@@ -477,7 +481,7 @@ class MultiDeviceServer:
             n_devs_commanded = len(json_data["command"]["parameters"])
             for i in range(n_devs_commanded):
                 dev = json_data["command"]["parameters"][i]["device"]
-                print(f"Power on device: {dev}")
+                logging.info(f"Power on device: {dev}")
 
                 self.instr.devices[dev].enable()
 
@@ -487,7 +491,7 @@ class MultiDeviceServer:
 
         time_stamp = MultiDeviceServer.get_time_stamp()
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
-        print(reply)
+        logging.info(reply)
         self.server.send_string(reply)
 
         return False, None
@@ -509,9 +513,9 @@ class MultiDeviceServer:
 
         def connect_msg(axis):
             # this is a connection open request
-            print("attempting open connection to ", axis)
+            logging.info(f"attempting open connection to {axis}")
             res = self.instr._attempt_to_open(axis, recheck_ports=True)
-            print("attempted to open", axis, "with result", res)
+            logging.info(f"attempted to open {axis} with result {res}")
 
             return "connected" if axis in self.instr.devices else "not connected"
 
@@ -547,7 +551,7 @@ class MultiDeviceServer:
             self.instr.devices[axis].config_step_size(int(step_size))
 
         def moverel_msg(axis, position):
-            print("moverel", axis, position)
+            logging.info(f"moverel {axis} {position}")
             self.instr.devices[axis].move_relative(float(position))
             return "ACK"
 
@@ -591,7 +595,7 @@ class MultiDeviceServer:
                 return "NACK: not moved"
 
         def mv_pup_msg(config, beam_number, x, y):
-            print(beam_number, type(beam_number))
+            logging.info(f"{beam_number} {type(beam_number)}")
             try:
                 res = self.instr.move_pupil(config, int(beam_number), x, y)
             except ValueError as e:
@@ -644,7 +648,7 @@ class MultiDeviceServer:
             # Apply the flat map to the DM
             dm_device["dm"].send_data(dm_device["flat_map"])
 
-            print(f"Flat map applied to {dm_name}")
+            logging.info(f"Flat map applied to {dm_name}")
             return f"ACK: Flat map applied to {dm_name}"
 
         def apply_cross_msg(dm_name):
@@ -661,7 +665,7 @@ class MultiDeviceServer:
                 dm_device["flat_map"] + 0.3 * dm_device["cross_map"]
             )
 
-            print(f"Cross map applied to {dm_name}")
+            logging.info(f"Cross map applied to {dm_name}")
             return f"ACK: Cross map applied to  {dm_name}"
 
         def fpm_get_savepath_msg(axis):
@@ -784,11 +788,6 @@ class MultiDeviceServer:
             else:
                 device.write_current_mask_positions()
                 return "ACK"
-            # if axis not in self.instr.devices:
-            #     return f"NACK: Axis {axis} not found"
-            # else:
-            #     self.instr.devices[axis].write_current_mask_positions()
-            #     return "ACK"
 
         def fpm_update_all_mask_positions_relative_to_current_msg(
             axis, current_mask_name, reference_mask_position_file
@@ -914,6 +913,7 @@ class MultiDeviceServer:
             #     if result:
             #         return func(*result)
         except Exception as e:
+            logging.error(f"Custom command error: {e}")
             return f"NACK: {e}"
 
 
@@ -925,9 +925,28 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host", type=str, default="192.168.100.2", help="Host address"
     )
+    parser.add_argument(
+        "--log-location",
+        type=str,
+        default="~/logs/mds/",
+        help="Path to the log directory",
+    )
     parser.add_argument("-p", "--port", type=int, default=5555, help="Port number")
 
     args = parser.parse_args()
+
+    # logname from the current time
+    log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
+    logging.basicConfig(
+        filename=os.path.join(args.log_location, log_fname), level=logging.INFO
+    )
+
+    # Add stream handler to also log to stdout
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    console.setFormatter(formatter)
+    logging.getLogger().addHandler(console)
 
     serv = MultiDeviceServer(args.port, args.host, args.config)
     serv.run()
