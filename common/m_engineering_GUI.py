@@ -2305,7 +2305,9 @@ with col_main:
         if routine_options == "Heimdallr shutters":
             # all up and all down buttons
 
-            st.title("Heimdallr Shutters Control")
+            st.title("Heimdallr internal Control")
+
+            st.header("Shutters Control")
 
             if st.button("Open All Shutters"):
                 msg = "h_shut open all"
@@ -2329,6 +2331,22 @@ with col_main:
                         msg = f"h_shut close {i+1}"
                         response = send_and_get_response(msg)
                         st.write(f"{response}")
+
+            st.header("Splay")
+
+            cols = st.columns(2)
+
+            with cols[0]:
+                if st.button("Splay on"):
+                    msg = "h_splay on"
+                    response = send_and_get_response(msg)
+                    st.write(f"{response}")
+            with cols[1]:
+                if st.button("Splay off"):
+                    msg = "h_splay off"
+                    response = send_and_get_response(msg)
+                    st.write(f"{response}")
+
 
         if routine_options == "Camera & DMs":
             st.write("testing")
