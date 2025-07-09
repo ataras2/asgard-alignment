@@ -1091,7 +1091,9 @@ def handle_tt_motor():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", "T")
                 message = f"moveabs {target} {t_position}"
-                send_and_get_response(message)
+                res = send_and_get_response(message)
+                if "shuttered" in res:
+                    st.error("Device is in a Heimdallr shutter")
     else:
 
         def get_onchange_fn(axis, key):
@@ -1099,7 +1101,9 @@ def handle_tt_motor():
                 target = f"{component}{beam_number}"
                 target = target.replace("X", axis)
                 message = f"moveabs {target} {st.session_state[key]}"
-                send_and_get_response(message)
+                res = send_and_get_response(message)
+                if "shuttered" in res:
+                    st.error("Device is in a Heimdallr shutter")
                 if delay_on_moves:
                     time.sleep(1.0)
 
@@ -1177,7 +1181,9 @@ def handle_linear_actuator():
             else:
                 desired_position = st.session_state[key]
             message = f"moveabs {target} {desired_position}"
-            send_and_get_response(message)
+            res = send_and_get_response(message)
+            if "shuttered" in res:
+                st.error("Device is in a Heimdallr shutter")
             time.sleep(1.0)
 
         return onchange_fn
