@@ -112,6 +112,7 @@ class Instrument:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
             print("managed port short:", self.managed_usb_port_short)
 
+        time.sleep(3.0)  # wait for all usb connections to be established
         self._create_controllers_and_motors()
         self._create_lamps()
         self._create_shutters()
@@ -120,7 +121,10 @@ class Instrument:
         self._create_phasemask_wrapper()
 
         self.h_shutter_states = {i: "open" for i in range(1, 5)}
-        self.h_shutter_offsets = {i: {f"HTTP{i}": 0.0, f"HTPP{i}": 0.0} for i in range(1, 5)}
+        self.h_shutter_offsets = {
+            i: {f"HTTP{i}": 0.0, f"HTPP{i}": 0.0} for i in range(1, 5)
+        }
+        self.h_splay = "off"
 
     @property
     def devices(self):
@@ -170,6 +174,31 @@ class Instrument:
             )
 
         return health
+
+    def h_splay(self, state):
+        if state not in ["on", "off"]:
+            raise ValueError("state must be 'on' or 'off'")
+        if state == self.h_splay:
+            print(f"H splay already in {state} state, doing nothing")
+            return
+
+        offset_mag = 15  # pixels
+        beam_deviations = {
+            1: {"x": np.sqrt(3) / 2 * offset_mag, "y": -0.5 * offset_mag},
+            2: {"x": -np.sqrt(3) / 2 * offset_mag, "y": -0.5 * offset_mag},
+            4: {"x": 0, "y": offset_mag},
+        }
+
+        if state == "on":
+            for beam_number in [1, 2, 4]:
+                self.move_image(
+                    "c_red_one_focus", beam_number, beam_deviations[beam_number]["x"], beam_deviations[beam_number]["y"]
+                )
+        elif state == "off":
+            for beam_number in [1, 2, 4]:
+                self.move_image(
+                    "c_red_one_focus", beam_number, -beam_deviations[beam_number]["x"], -beam_deviations[beam_number]["y"]
+                )
 
     def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
         # input validation
@@ -319,7 +348,9 @@ class Instrument:
                 for dev in possible_shutter_devs:
                     numbered_dev = f"{dev}{beam_n}"
                     if numbered_dev in self.devices:
-                        axis_pos[numbered_dev] = self.devices[numbered_dev].read_position()
+                        axis_pos[numbered_dev] = self.devices[
+                            numbered_dev
+                        ].read_position()
 
                 # find the axis with the largest absolute value
                 max_dev = max(axis_pos, key=lambda x: abs(axis_pos[x]))
@@ -333,8 +364,6 @@ class Instrument:
                 print(f"sending moverel {offset} to {numbered_dev}")
             for beam_n in beam_numbers:
                 self._apply_shutter_state_to_beam(state, beam_n)
-
-        
 
         if state == "open":
             beams_to_open = []
@@ -350,12 +379,18 @@ class Instrument:
                 for dev in possible_shutter_devs:
                     numbered_dev = f"{dev}{beam_n}"
                     print(f"{self.h_shutter_offsets[beam_n]}")
-                    print(f"{numbered_dev} {self.h_shutter_offsets[beam_n][numbered_dev]}")
-                    if not np.isclose(self.h_shutter_offsets[beam_n][numbered_dev], 0.0):
+                    print(
+                        f"{numbered_dev} {self.h_shutter_offsets[beam_n][numbered_dev]}"
+                    )
+                    if not np.isclose(
+                        self.h_shutter_offsets[beam_n][numbered_dev], 0.0
+                    ):
                         self.devices[numbered_dev].move_relative(
                             -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
-                        print(f"sending moverel {-self.h_shutter_offsets[beam_n][numbered_dev]} to {numbered_dev}")
+                        print(
+                            f"sending moverel {-self.h_shutter_offsets[beam_n][numbered_dev]} to {numbered_dev}"
+                        )
                         self.h_shutter_offsets[beam_n][numbered_dev] = 0.0
                         self.h_shutter_states[beam_n] = "open"
 
@@ -528,7 +563,9 @@ class Instrument:
                     self._motor_config["BMY1"]["x_mcc_ip_address"],
                 ]
 
-            elif "BFO" in device or "BDS" in device or "SDL" in device:
+            elif (
+                "BFO" in device or "BDS" in device or "SDL" in device or "SSS" in device
+            ):
                 wire_name = "X-MCC (BFO,SDL,BDS,SSS)"
                 all_devs = (
                     ["BFO"]
@@ -744,7 +781,7 @@ class Instrument:
             os.system(usb_command)
             time.sleep(0.1)
 
-        time.sleep(0.5)
+        time.sleep(2.0)
 
         # reconnect all
         self._prev_port_mapping = self.compute_serial_to_port_map()
