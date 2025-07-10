@@ -21,14 +21,26 @@ import os
 from tqdm import tqdm
 import scipy.ndimage as ndi
 
+from scipy.optimize import curve_fit
 
-target_pixels = (28, 50)  # target pixels for the blob centre (K1)
+
+target_pixels = (290, 52)  # target pixels for the blob centre (K2)
 if target_pixels[0] is None:
     raise NotImplementedError()
 
 
 class HeimdallrAA:
-    def __init__(self, shutter_pause_time=0.5, n_frames=5):
+    def __init__(self, shutter_pause_time=0.5, band="K2"):
+        # Set target_pixels and col_bnds based on band
+        if band.upper() == "K1":
+            self.target_pixels = (31, 52)
+            self.col_bnds = (0, 160)
+        elif band.upper() == "K2":
+            self.target_pixels = (290, 52)
+            self.col_bnds = (160, 320)
+        else:
+            raise ValueError("Unknown band: choose 'K1' or 'K2'.")
+
         self.mds = self._open_mds_connection()
 
         self.stream = self._open_stream_connection()
@@ -36,9 +48,9 @@ class HeimdallrAA:
         self._shutter_pause_time = (
             shutter_pause_time  # seconds to pause after shuttering
         )
-        self._n_frames = n_frames  # number of frames to average for each beam
 
         self.row_bnds = (0, 128)
+        # self.col_bnds is set above
 
     # MDS interface
     def _open_mds_connection(self):
@@ -66,7 +78,9 @@ class HeimdallrAA:
     # processing
     def _find_blob_centre(self, frame):
         # use ndi median filter and then a gaussian filter on cropped image
-        cropped_frame = frame[self.row_bnds[0] : self.row_bnds[1], :]
+        cropped_frame = frame[
+            self.row_bnds[0] : self.row_bnds[1], self.col_bnds[0] : self.col_bnds[1]
+        ]
 
         filtered_frame = ndi.median_filter(cropped_frame, size=3)
         filtered_frame = ndi.gaussian_filter(filtered_frame, sigma=2)
@@ -75,7 +89,7 @@ class HeimdallrAA:
             np.argmax(filtered_frame), filtered_frame.shape
         )
         max_loc_cropped = np.array(max_loc_cropped)
-        max_loc = max_loc_cropped + np.array([self.row_bnds[0], 0])
+        max_loc = max_loc_cropped + np.array([self.row_bnds[0], self.col_bnds[0]])
 
         return max_loc
 
@@ -131,9 +145,11 @@ class HeimdallrAA:
             blob_centre = self._get_and_process_blob()
 
             # calculate the pixel offsets from the target pixels
-            # pixel_offsets[target_beam] = np.array(target_pixels) - np.array(blob_centre)
             pixel_offsets[target_beam] = np.array(
-                [target_pixels[1] - blob_centre[0], target_pixels[0] - blob_centre[1]]
+                [
+                    self.target_pixels[1] - blob_centre[0],
+                    self.target_pixels[0] - blob_centre[1],
+                ]
             )
 
         # 5. unshutter all beams
@@ -155,7 +171,6 @@ class HeimdallrAA:
             for beam_number in range(1, 5)
         ]
 
-        print(pixel_offsets)
         for beam, uv_cmd in uv_commands.items():
             cmd = f"moverel {axes[beam-1][0]} {uv_cmd[0]}"
             self._send_and_get_response(cmd)
@@ -170,7 +185,7 @@ class HeimdallrAA:
             cmd = f"moverel {axes[beam-1][3]} {uv_cmd[3]}"
             self._send_and_get_response(cmd)
 
-    def autoalign_full(self):
+    def autoalign_3_pupil(self):
         beam = 3
         msg = f"h_shut close 1,2,4"
         self._send_and_get_response(msg)
@@ -182,7 +197,10 @@ class HeimdallrAA:
         blob_centre = self._get_and_process_blob()
 
         pix_offset = np.array(
-            [target_pixels[1] - blob_centre[0], target_pixels[0] - blob_centre[1]]
+            [
+                self.target_pixels[1] - blob_centre[0],
+                self.target_pixels[0] - blob_centre[1],
+            ]
         )
         uv_cmd = asgE.move_img_calc("c_red_one_focus", beam, pix_offset)
 
@@ -202,10 +220,51 @@ class HeimdallrAA:
 
         # 3. move pupil to optimize flux
         pup_offset = 0.1  # mm
+        n_samp = 7
         flux_beam_radius = 8  # pixels
 
+        measurement_locs_x = np.linspace(-pup_offset, pup_offset, n_samp)
+        relative_measurement_locs = np.array(
+            [
+                measurement_locs_x[i] - measurement_locs_x[i - 1]
+                for i in range(1, n_samp)
+            ]
+        )
+        relative_measurement_locs = np.concatenate([[0], relative_measurement_locs])
 
+        fluxes = []
+        for delta in relative_measurement_locs:
+            cmd = f"mv_pup c_red_one_focus {beam} {delta[0]} {0}"
+            self._send_and_get_response(cmd)
+            time.sleep(0.5)
+            flux = self._get_blob_flux(flux_beam_radius)
+            fluxes.append(flux)
 
+        fluxes = np.array(fluxes)
+        fluxes /= np.max(fluxes)  # normalise
+
+        def fit_func(x, m, a, b, c):
+            return -m * np.abs(x - a) - m * np.abs(x - b) + c
+
+        params, _ = curve_fit(
+            fit_func, relative_measurement_locs, fluxes, p0=[1, -0.05, 0.05, 1]
+        )
+
+        optimal_offset = (params[1] + params[2]) / 2
+        cur_pupil_pos = measurement_locs_x[-1]
+
+        del_needed = optimal_offset - cur_pupil_pos
+
+        print(f"Optimal pupil offset for beam {beam}: {del_needed:.4f} mm")
+        # cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0}"
+        # self._send_and_get_response(cmd)
+
+        # back to middle:
+        cmd = f"mv_pup c_red_one_focus {beam} {-pup_offset} {0}"
+        self._send_and_get_response(cmd)
+
+    def autoalign_full(self):
+        pass
 
         # measurement_locs = np.array(
         #     [
@@ -233,8 +292,43 @@ class HeimdallrAA:
 
 
 if __name__ == "__main__":
-    shutter_pause_time = 2.5  # seconds to pause after shuttering
-    n_frames = 5  # number of frames to average for each beam
-    heimdallr_aa = HeimdallrAA(shutter_pause_time=shutter_pause_time, n_frames=n_frames)
-    heimdallr_aa.autoalign_coarse_parallel()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Autoalign Heimdallr beams.")
+    parser.add_argument(
+        "--shutter_pause_time",
+        type=float,
+        default=2.5,
+        help="Seconds to pause after shuttering (default: 2.5)",
+    )
+    parser.add_argument(
+        "-a",
+        "--align",
+        type=str,
+        required=True,
+        choices=["cp", "coarseparallel", "p3", "pupil3"],
+        help="Alignment method: 'cp'/'coarseparallel' or 'p3'/'pupil3'",
+    )
+    parser.add_argument(
+        "-b",
+        "--band",
+        type=str,
+        default="K2",
+        choices=["K1", "K2"],
+        help="Band to use: 'K1' or 'K2' (default: K2)",
+    )
+    args = parser.parse_args()
+
+    heimdallr_aa = HeimdallrAA(
+        shutter_pause_time=args.shutter_pause_time,
+        band=args.band,
+    )
+
+    if args.align in ["cp", "coarseparallel"]:
+        heimdallr_aa.autoalign_coarse_parallel()
+    elif args.align in ["p3", "pupil3"]:
+        heimdallr_aa.autoalign_3_pupil()
+    else:
+        raise ValueError("Unknown alignment method.")
+
     print("Autoalignment completed.")
