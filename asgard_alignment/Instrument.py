@@ -20,11 +20,7 @@ import asgard_alignment.Baldr_phasemask
 
 import time
 
-# SDK for DM
-# sys.path.insert(1, "/opt/Boston Micromachines/lib/Python3/site-packages/")
 import asgard_alignment.controllino
-
-# import bmc
 
 
 phasemask_position_directory = Path.cwd().joinpath("config_files/phasemask_positions")
@@ -192,13 +188,19 @@ class Instrument:
         if state == "on":
             for beam_number in [1, 2, 4]:
                 self.move_image(
-                    "c_red_one_focus", beam_number, beam_deviations[beam_number]["x"], beam_deviations[beam_number]["y"]
+                    "c_red_one_focus",
+                    beam_number,
+                    beam_deviations[beam_number]["x"],
+                    beam_deviations[beam_number]["y"],
                 )
             self.is_h_splay = True
         elif state == "off":
             for beam_number in [1, 2, 4]:
                 self.move_image(
-                    "c_red_one_focus", beam_number, -beam_deviations[beam_number]["x"], -beam_deviations[beam_number]["y"]
+                    "c_red_one_focus",
+                    beam_number,
+                    -beam_deviations[beam_number]["x"],
+                    -beam_deviations[beam_number]["y"],
                 )
             self.is_h_splay = False
 
