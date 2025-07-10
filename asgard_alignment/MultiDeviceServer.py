@@ -820,6 +820,9 @@ class MultiDeviceServer:
 
             return self.instr.h_shut(state, beam_numbers)
 
+        def h_splay_msg(state):
+            return self.instr.h_splay(state)
+
         first_word_to_function = {
             "read": read_msg,
             "stop": stop_msg,
@@ -857,6 +860,7 @@ class MultiDeviceServer:
             "standby": standby_msg,
             "online": online_msg,
             "h_shut": h_shut_msg,
+            "h_splay": h_splay_msg,
         }
 
         first_word_to_format = {
@@ -896,6 +900,7 @@ class MultiDeviceServer:
             "standby": "standby {}",
             "online": "online {}",
             "h_shut": "h_shut {} {}",
+            "h_splay": "h_splay {}",
         }
 
         try:
