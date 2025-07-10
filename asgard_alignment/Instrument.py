@@ -112,6 +112,13 @@ class Instrument:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
             print("managed port short:", self.managed_usb_port_short)
 
+        time.sleep(3)
+        os.system(f"cusbi /S:{self.managed_usb_port_short} 1:1")
+        time.sleep(0.2)
+        os.system(f"cusbi /S:{self.managed_usb_port_short} 1:2")
+        time.sleep(0.2)
+        os.system(f"cusbi /S:{self.managed_usb_port_short} 1:3")
+
         time.sleep(3.0)  # wait for all usb connections to be established
         self._create_controllers_and_motors()
         self._create_lamps()
