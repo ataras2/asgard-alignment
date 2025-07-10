@@ -938,7 +938,7 @@ if __name__ == "__main__":
     # logname from the current time
     log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
     logging.basicConfig(
-        filename=os.path.join(args.log_location, log_fname), level=logging.INFO
+        filename=os.path.join(os.path.expanduser(args.log_location), log_fname), level=logging.INFO
     )
 
     # Add stream handler to also log to stdout
