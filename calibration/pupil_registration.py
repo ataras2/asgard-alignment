@@ -329,7 +329,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_ids",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[2], #, 2, 3, 4],
+    default=[1], #, 2, 3, 4],
     help="Comma-separated beam IDs. Default: 1,2,3,4"
 )
 
@@ -370,36 +370,26 @@ with open(args.toml_file.replace('#',f'{args.beam_ids[0]}') ) as file:
 #mySHM = shm(args.global_camera_shm)
 c = FLI.fli() #
 
-### BAD PIXELS CAN RUIN PUPIL FIT - SO REDUCE INMAGES , FOR NOW WE TURN OFF SOURCE TO GET A FRESH DARK IN CURRENT SETTINGS 
-#c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
-#time.sleep(2)
+# ### BAD PIXELS CAN RUIN PUPIL FIT - SO REDUCE INMAGES , FOR NOW WE TURN OFF SOURCE TO GET A FRESH DARK IN CURRENT SETTINGS 
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+time.sleep(2)
 
-## c.build_bad_pixel_mask( no_frames = 300 )
-## bad_pixel_mask = FLI.get_bad_pixels( c.reduction_dict['dark'][-1], std_threshold = 20, mean_threshold=6)
-## c.reduction_dict['bad_pixel_mask'].append( bad_pixel_mask )
+# c.build_bad_pixel_mask( no_frames = 300 )
+# bad_pixel_mask = FLI.get_bad_pixels( c.reduction_dict['dark'][-1], std_threshold = 20, mean_threshold=6)
+# c.reduction_dict['bad_pixel_mask'].append( bad_pixel_mask )
+
 
 
 img_raw = c.get_data(apply_manual_reduction=True) #mySHM.get_data()
 
-# # try get dark and build bad pixel mask 
-# if controllino_available:
+# turn off 
+# bad_pixel_mask = FLI.get_bad_pixels( img_raw, std_threshold = 20, mean_threshold=6)
+bad_pixel_list = [(201,273)]
 
-#     myco.turn_off("SBB")
-#     time.sleep(2)
-    
-#     dark_raw = mySHM.get_data()
+print(img_raw.shape)
 
-#     myco.turn_on("SBB")
-#     time.sleep(2)
-
-#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-# else:
-#     dark_raw = mySHM.get_data()
-
-#     bad_pixel_mask = get_bad_pixel_indicies( dark_raw, std_threshold = 20, mean_threshold=6)
-# # reduce (bad pixel mask)
-
-
+for bpix in bad_pixel_list:
+    img_raw[:,bpix[0],bpix[1]] = 0
 
 if hasattr(img_raw, "__len__"):
     if len( np.array(img_raw).shape ) == 3:
@@ -414,7 +404,8 @@ else:
 for beam_id in args.beam_ids:
     # get the cropped image 
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-    cropped_img = img[r1:r2, c1:c2] #interpolate_bad_pixels(img[r1:r2, c1:c2], c.reduction_dict['bad_pixel_mask'][-1][r1:r2, c1:c2])
+    cropped_img = img[r1:r2, c1:c2] 
+    #interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2]) #img[r1:r2, c1:c2] #interpolate_bad_pixels(img[r1:r2, c1:c2], c.reduction_dict['bad_pixel_mask'][-1][r1:r2, c1:c2])
 
     # mask 
     if args.fig_path is None:
