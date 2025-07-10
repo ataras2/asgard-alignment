@@ -162,6 +162,27 @@ beam_common_devices = [
 
 all_devices = beam_common_devices + beam_specific_devices
 
+all_devices_labels_to_dev = {
+    "HFO (H delay line spherical mirror)": "HFO",
+    "HTXP (H TT on knife edge)": "HTXP",
+    "HTXI (H TT on spherical - image)": "HTXI",
+    "BTX (B TT on knife edge)": "BTX",
+    "BDS (B dichroic selector)": "BDS",
+    "SSF (S source flipper)": "SSF",
+    "BOTX (B TT on OAP)": "BOTX",
+    "HPOL (H LiNbO polarisation stepper)": "HPOL",
+    "BMX (B phase mask x)": "BMX",
+    "BMY (B phase mask y)": "BMY",
+    "BLF (B lens flipper)": "BLF",
+    "BFO (B common focus)": "BFO",
+    "SSS (S source selector)": "SSS",
+    "SDLA (S delay line between 12 and 34)": "SDLA",
+    "SDL12 (S delay line 12)": "SDL12",
+    "SDL34 (S delay line 34)": "SDL34",
+    "Lamps (S lamps)": "lamps",
+    "BLF (B lens flipper)": "BLF",
+}
+
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -1387,11 +1408,12 @@ with col_main:
         col1, col2 = st.columns(2)
 
         with col1:
-            component = st.selectbox(
+            component_nice = st.selectbox(
                 "Select device",
-                all_devices,
+                all_devices_labels_to_dev.keys(),
                 key="component",
             )
+            component = all_devices_labels_to_dev[component_nice]
 
         if component in beam_specific_devices:
             if component == "BOTX":
@@ -1590,11 +1612,21 @@ with col_main:
             with col4:
                 if st.button("Apply Heim DM flat's"):
                     for beam in [1, 2, 3, 4]:
-                        #st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
-                        wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
-                        flat_cmd = st.session_state.dm_shm_dict[beam].cmd_2_map2D( np.loadtxt(st.session_state.dm_shm_dict[beam].select_flat_cmd( wdirtmp )) )
-                        flat_cmd_offset =  np.loadtxt( wdirtmp + f"heim_flat_beam_{beam}.txt") 
-                        st.session_state.dm_shm_dict[beam].shms[0].set_data(flat_cmd + flat_cmd_offset)
+                        # st.session_state.dm_shm_dict[beam].activate_cross(amp=0.2)
+                        wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"  # os.path.dirname(__file__)
+                        flat_cmd = st.session_state.dm_shm_dict[beam].cmd_2_map2D(
+                            np.loadtxt(
+                                st.session_state.dm_shm_dict[beam].select_flat_cmd(
+                                    wdirtmp
+                                )
+                            )
+                        )
+                        flat_cmd_offset = np.loadtxt(
+                            wdirtmp + f"heim_flat_beam_{beam}.txt"
+                        )
+                        st.session_state.dm_shm_dict[beam].shms[0].set_data(
+                            flat_cmd + flat_cmd_offset
+                        )
                         ##
                         st.session_state.dm_shm_dict[beam].shm0.post_sems(1)
             with col5:
@@ -2352,7 +2384,6 @@ with col_main:
                     msg = "h_splay off"
                     response = send_and_get_response(msg)
                     st.write(f"{response}")
-
 
         if routine_options == "Camera & DMs":
             st.write("testing")
@@ -3403,9 +3434,9 @@ with col_main:
                 c = FLI.fli(roi=roi)
 
                 # try get a dark
-                #try:
+                # try:
                 #    c.build_manual_dark()
-                #except Exception as e:
+                # except Exception as e:
                 #    st.write(f"failed to take dark with exception {e}")
 
                 progress_bar = st.progress(0)
@@ -3479,7 +3510,7 @@ with col_main:
             if uploaded_file is not None:
                 if st.button("Load JSON File"):
                     # Read and parse JSON
-                    #filestring = StringIO(uploaded_file)
+                    # filestring = StringIO(uploaded_file)
                     file_contents = json.load(uploaded_file)
 
                     st.write(file_contents.keys())
@@ -3508,9 +3539,9 @@ with col_main:
                         )
                         # we could allow user to read one in here manually (select)
                     else:
-                        #with open(
+                        # with open(
                         #    st.session_state.moveImPup["img_json_file"], "r"
-                        #) as file:
+                        # ) as file:
                         #    data_dict = json.load(
                         #        file
                         #    )  # Parses the JSON content into a Python dictionary
