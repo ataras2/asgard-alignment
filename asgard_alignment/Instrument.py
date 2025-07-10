@@ -124,7 +124,7 @@ class Instrument:
         self.h_shutter_offsets = {
             i: {f"HTTP{i}": 0.0, f"HTPP{i}": 0.0} for i in range(1, 5)
         }
-        self.h_splay = "off"
+        self.is_h_splay = "off"
 
     @property
     def devices(self):
@@ -178,15 +178,15 @@ class Instrument:
     def h_splay(self, state):
         if state not in ["on", "off"]:
             raise ValueError("state must be 'on' or 'off'")
-        if state == self.h_splay:
+        if state == self.is_h_splay:
             print(f"H splay already in {state} state, doing nothing")
             return
 
         offset_mag = 15  # pixels
         beam_deviations = {
-            1: {"x": np.sqrt(3) / 2 * offset_mag, "y": -0.5 * offset_mag},
-            2: {"x": -np.sqrt(3) / 2 * offset_mag, "y": -0.5 * offset_mag},
-            4: {"x": 0, "y": offset_mag},
+            1: {"x": -np.sqrt(3) / 2 * offset_mag, "y": 0.5 * offset_mag},
+            2: {"x": np.sqrt(3) / 2 * offset_mag, "y": 0.5 * offset_mag},
+            4: {"x": 0, "y": -offset_mag},
         }
 
         if state == "on":
@@ -194,11 +194,13 @@ class Instrument:
                 self.move_image(
                     "c_red_one_focus", beam_number, beam_deviations[beam_number]["x"], beam_deviations[beam_number]["y"]
                 )
+            self.is_h_splay = True
         elif state == "off":
             for beam_number in [1, 2, 4]:
                 self.move_image(
                     "c_red_one_focus", beam_number, -beam_deviations[beam_number]["x"], -beam_deviations[beam_number]["y"]
                 )
+            self.is_h_splay = False
 
     def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
         # input validation
