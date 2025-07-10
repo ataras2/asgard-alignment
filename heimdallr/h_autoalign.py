@@ -88,7 +88,21 @@ class HeimdallrAA:
         blob_centre = self._find_blob_centre(full_frame)
         return blob_centre
 
-    def autoalign_parallel(self):
+    def _get_blob_flux(self, radius):
+        full_frame = self._get_frame()
+        blob_centre = self._find_blob_centre(full_frame)
+        mask = self.circle_mask(full_frame.shape, blob_centre, radius)
+        blob_flux = full_frame[mask].sum()
+        return blob_flux
+
+    @staticmethod
+    def circle_mask(shape, center, radius):
+        y, x = np.ogrid[: shape[0], : shape[1]]
+        dist_from_center = np.sqrt((x - center[1]) ** 2 + (y - center[0]) ** 2)
+        mask = dist_from_center <= radius
+        return mask
+
+    def autoalign_coarse_parallel(self):
         # 1. shutter all beams off except 1, pause for a short time
         # 2. find the centre of the blob in the image
         # 3. save the pixel offsets
@@ -119,10 +133,7 @@ class HeimdallrAA:
             # calculate the pixel offsets from the target pixels
             # pixel_offsets[target_beam] = np.array(target_pixels) - np.array(blob_centre)
             pixel_offsets[target_beam] = np.array(
-                [
-                    target_pixels[1] - blob_centre[0],
-                    target_pixels[0] - blob_centre[1]
-                ]
+                [target_pixels[1] - blob_centre[0], target_pixels[0] - blob_centre[1]]
             )
 
         # 5. unshutter all beams
@@ -159,10 +170,71 @@ class HeimdallrAA:
             cmd = f"moverel {axes[beam-1][3]} {uv_cmd[3]}"
             self._send_and_get_response(cmd)
 
+    def autoalign_full(self):
+        beam = 3
+        msg = f"h_shut close 1,2,4"
+        self._send_and_get_response(msg)
+        msg = f"h_shut open 3"
+        self._send_and_get_response(msg)
+        time.sleep(self._shutter_pause_time)
+
+        # 2. rough align beam 3
+        blob_centre = self._get_and_process_blob()
+
+        pix_offset = np.array(
+            [target_pixels[1] - blob_centre[0], target_pixels[0] - blob_centre[1]]
+        )
+        uv_cmd = asgE.move_img_calc("c_red_one_focus", beam, pix_offset)
+
+        axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+        axes = [axis + str(beam) for axis in axis_list]
+
+        cmd = f"moverel {axes[0]} {uv_cmd[0][0]}"
+        self._send_and_get_response(cmd)
+        cmd = f"moverel {axes[2]} {uv_cmd[2][0]}"
+        self._send_and_get_response(cmd)
+        time.sleep(0.5)
+        cmd = f"moverel {axes[1]} {uv_cmd[1][1]}"
+        self._send_and_get_response(cmd)
+        cmd = f"moverel {axes[3]} {uv_cmd[3][1]}"
+        self._send_and_get_response(cmd)
+        time.sleep(0.5)
+
+        # 3. move pupil to optimize flux
+        pup_offset = 0.1  # mm
+        flux_beam_radius = 8  # pixels
+
+
+
+
+        # measurement_locs = np.array(
+        #     [
+        #         [0, 0],  # centre
+        #         [pup_offset, 0],  # right
+        #         [-pup_offset, 0],  # left
+        #         [0, pup_offset],  # up
+        #         [0, -pup_offset],  # down
+        #     ]
+        # )
+        # delta_positions = [
+        #     measurement_locs[i] - measurement_locs[i - 1]
+        #     for i in range(1, len(measurement_locs))
+        # ]
+
+        # fluxes = []
+        # fluxes.append(self._get_blob_flux(flux_beam_radius))  # centre flux
+
+        # for delta in delta_positions:
+        #     cmd = f"mv_pup c_red_one_focus {beam} {delta[0]} {delta[1]}"
+        #     self._send_and_get_response(cmd)
+        #     time.sleep(0.5)
+        #     flux = self._get_blob_flux(flux_beam_radius)
+        #     fluxes.append(flux)
+
 
 if __name__ == "__main__":
     shutter_pause_time = 2.5  # seconds to pause after shuttering
     n_frames = 5  # number of frames to average for each beam
     heimdallr_aa = HeimdallrAA(shutter_pause_time=shutter_pause_time, n_frames=n_frames)
-    heimdallr_aa.autoalign_parallel()
+    heimdallr_aa.autoalign_coarse_parallel()
     print("Autoalignment completed.")
