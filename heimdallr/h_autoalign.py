@@ -22,7 +22,7 @@ from tqdm import tqdm
 import scipy.ndimage as ndi
 
 
-target_pixels = (28, 50)  # target pixels for the blob centre (K1)
+target_pixels = (27, 51)  # target pixels for the blob centre (K1)
 if target_pixels[0] is None:
     raise NotImplementedError()
 
