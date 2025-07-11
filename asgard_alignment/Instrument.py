@@ -798,6 +798,9 @@ class Instrument:
             else:
                 print(f"WARN: Could not connect to {name}")
 
+        # add phasemask compound_devices (registeres phasemask positions withj added functionality to update them)
+        self._create_phasemask_wrapper()
+        
     def _create_controllers_and_motors(self):
         """
         Create the connections to the controllers and motors
