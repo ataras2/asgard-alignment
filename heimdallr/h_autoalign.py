@@ -24,19 +24,15 @@ import scipy.ndimage as ndi
 from scipy.optimize import curve_fit
 
 
-target_pixels = (290, 52)  # target pixels for the blob centre (K2)
-if target_pixels[0] is None:
-    raise NotImplementedError()
-
 
 class HeimdallrAA:
     def __init__(self, shutter_pause_time=0.5, band="K2"):
         # Set target_pixels and col_bnds based on band
         if band.upper() == "K1":
-            self.target_pixels = (31, 52)
+            self.target_pixels = (27, 49)
             self.col_bnds = (0, 160)
         elif band.upper() == "K2":
-            self.target_pixels = (290, 52)
+            self.target_pixels = (289, 51)
             self.col_bnds = (160, 320)
         else:
             raise ValueError("Unknown band: choose 'K1' or 'K2'.")
@@ -62,10 +58,10 @@ class HeimdallrAA:
         return socket
 
     def _send_and_get_response(self, message):
-        print("sending", message)
+        # print("sending", message)
         self.mds.send_string(message)
         response = self.mds.recv_string()
-        print("response", response)
+        # print("response", response)
         return response.strip()
 
     # stream interface
@@ -103,7 +99,7 @@ class HeimdallrAA:
         return blob_centre
 
     def _get_blob_flux(self, radius):
-        full_frame = self._get_frame()
+        full_frame = self._get_frame() - 1000.0
         blob_centre = self._find_blob_centre(full_frame)
         mask = self.circle_mask(full_frame.shape, blob_centre, radius)
         blob_flux = full_frame[mask].sum()
@@ -207,19 +203,19 @@ class HeimdallrAA:
         axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
         axes = [axis + str(beam) for axis in axis_list]
 
-        cmd = f"moverel {axes[0]} {uv_cmd[0][0]}"
+        cmd = f"moverel {axes[0]} {uv_cmd[0]}"
         self._send_and_get_response(cmd)
-        cmd = f"moverel {axes[2]} {uv_cmd[2][0]}"
+        cmd = f"moverel {axes[2]} {uv_cmd[2]}"
         self._send_and_get_response(cmd)
         time.sleep(0.5)
-        cmd = f"moverel {axes[1]} {uv_cmd[1][1]}"
+        cmd = f"moverel {axes[1]} {uv_cmd[1]}"
         self._send_and_get_response(cmd)
-        cmd = f"moverel {axes[3]} {uv_cmd[3][1]}"
+        cmd = f"moverel {axes[3]} {uv_cmd[3]}"
         self._send_and_get_response(cmd)
         time.sleep(0.5)
 
         # 3. move pupil to optimize flux
-        pup_offset = 0.1  # mm
+        pup_offset = 0.2  # mm
         n_samp = 7
         flux_beam_radius = 8  # pixels
 
@@ -230,13 +226,14 @@ class HeimdallrAA:
                 for i in range(1, n_samp)
             ]
         )
-        relative_measurement_locs = np.concatenate([[0], relative_measurement_locs])
+        relative_measurement_locs = np.concatenate([[-pup_offset], relative_measurement_locs])
 
         fluxes = []
         for delta in relative_measurement_locs:
-            cmd = f"mv_pup c_red_one_focus {beam} {delta[0]} {0}"
+            cmd = f"mv_pup c_red_one_focus {beam} {delta} {0.0}"
             self._send_and_get_response(cmd)
-            time.sleep(0.5)
+            print("sent", cmd)
+            time.sleep(2.5)
             flux = self._get_blob_flux(flux_beam_radius)
             fluxes.append(flux)
 
@@ -247,7 +244,7 @@ class HeimdallrAA:
             return -m * np.abs(x - a) - m * np.abs(x - b) + c
 
         params, _ = curve_fit(
-            fit_func, relative_measurement_locs, fluxes, p0=[1, -0.05, 0.05, 1]
+            fit_func, measurement_locs_x, fluxes, p0=[1, -0.05, 0.05, 1]
         )
 
         optimal_offset = (params[1] + params[2]) / 2
@@ -256,12 +253,12 @@ class HeimdallrAA:
         del_needed = optimal_offset - cur_pupil_pos
 
         print(f"Optimal pupil offset for beam {beam}: {del_needed:.4f} mm")
-        # cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0}"
-        # self._send_and_get_response(cmd)
-
-        # back to middle:
-        cmd = f"mv_pup c_red_one_focus {beam} {-pup_offset} {0}"
+        cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0.0}"
         self._send_and_get_response(cmd)
+
+        # open all shutters
+        msg = f"h_shut open 1,2,3,4"
+        self._send_and_get_response(msg)
 
     def autoalign_full(self):
         pass
