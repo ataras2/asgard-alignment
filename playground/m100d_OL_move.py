@@ -22,13 +22,12 @@ mds = open_mds_connection()
 print("MDS open")
 
 step_axis = "HTTI1"
-step_size = 25 
-n_steps = 1
+step_size = 15
+n_steps = 1000
 
 cmd = f"tt_config_step {step_axis} {step_size}"
 res = send_and_get_response(mds, cmd)
 
-time.sleep(1.5)
 cmd = f"tt_step {step_axis} {n_steps}"
 res = send_and_get_response(mds, cmd)
 
