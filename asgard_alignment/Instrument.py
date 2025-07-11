@@ -119,7 +119,7 @@ class Instrument:
         time.sleep(0.2)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:3")
 
-        time.sleep(3.0)  # wait for all usb connections to be established
+        time.sleep(6.0)  # wait for all usb connections to be established
         self._create_controllers_and_motors()
         self._create_lamps()
         self._create_shutters()
@@ -768,10 +768,6 @@ class Instrument:
                     f"cusbi /S:{self.managed_usb_port_short} 1:1"
                 )  # 1 means on, 1 means HT
             elif "BOT" in dev:
-                wire_name = "USB hubs"
-                wire_list.append(wire_name)
-                wire_name = "LS16P (HFO)"
-                wire_list.append(wire_name)
                 usb_commands.append(
                     f"cusbi /S:{self.managed_usb_port_short} 1:2"
                 )  # 1 means on, 2 means BOT
@@ -790,7 +786,7 @@ class Instrument:
             os.system(usb_command)
             time.sleep(0.1)
 
-        time.sleep(2.0)
+        time.sleep(4.0)
 
         # reconnect all
         self._prev_port_mapping = self.compute_serial_to_port_map()

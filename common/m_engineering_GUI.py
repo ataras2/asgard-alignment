@@ -3867,7 +3867,8 @@ with col_main:
             res = send_and_get_response(message)
 
             if st.button("Refresh"):
-                res = send_and_get_response(message)
+                # res = send_and_get_response(message)
+                pass
 
             # st.write(res)
             # convert to list of dicts
