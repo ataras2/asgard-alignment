@@ -114,3 +114,11 @@ def shutdown(inc_CRED):
             print("C RED outlet is off.")
 
     print("Shutdown procedure completed successfully.")
+
+def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "inc_CRED":
+        inc_CRED = True
+    else:
+        inc_CRED = False
+
+    shutdown(inc_CRED)

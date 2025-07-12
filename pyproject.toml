@@ -6,7 +6,9 @@ readme = "README.md"
 requires-python =">=3.8"
 license = {file = "LICENSE"}
 
-
+[project.scripts] 
+shutdown-instrument = "asgard_alignment.common.shutdown_instrument:main"
+test-cmd-script = "asgard_alignment.playground.test_cmd_script:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["asgard_alignment"]
