@@ -264,6 +264,8 @@ for beam_id in args.beam_id:
 #c_dict = {}
 # just open one camera
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+time.sleep(2)
 # for beam_id in args.beam_id:
 #     r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
 #     c_dict[beam_id] = FLI.fli(args.global_camera_shm, roi = [r1,r2,c1,c2])

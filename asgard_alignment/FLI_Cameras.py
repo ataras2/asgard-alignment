@@ -701,10 +701,10 @@ class fli( ):
         # try turn off source 
         #my_controllino.turn_off("SBB")
         ### here 
-        # message = "off SBB"
-        # mds_socket.send_string(message)
-        # response = mds_socket.recv_string()#.decode("ascii")
-        # print( response )
+        message = "off SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
         
         print(f'turning off source and waiting {sleeptime}s')
         time.sleep(sleeptime) # wait a bit to settle
@@ -742,7 +742,7 @@ class fli( ):
             #print(dark[0, 0:5])
 
 
-        if "cds" in self.config["mode"]:
+        if 1 : #"cds" in self.config["mode"]:
             if len( self.reduction_dict['bias'] ) > 0:
                 print('...applying bias')
                 dark -= self.reduction_dict['bias'][-1]
@@ -753,7 +753,7 @@ class fli( ):
             self.reduction_dict['dark'].append( (dark * float( self.config["fps"] ) / float( self.config["gain"] )).astype(int)  ) # ADU / s / gain
             #self.reduction_dict['dark_fullframe'].append( dark_fullframe )
 
-        elif "bursts" in self.config["mode"]:
+        elif 0: #"bursts" in self.config["mode"]:
 
             # Segment data into burst blocks
             bursts = segment_ndro_stream(np.array(dark_list), threshold=15)  #  15 works well , if None auto threshold
@@ -798,10 +798,10 @@ class fli( ):
         #my_controllino.turn_on("SBB")
         print("turning BB source back on")
         ### here 
-        # message = "on SBB"
-        # mds_socket.send_string(message)
-        # response = mds_socket.recv_string()#.decode("ascii")
-        # print( response )
+        message = "on SBB"
+        mds_socket.send_string(message)
+        response = mds_socket.recv_string()#.decode("ascii")
+        print( response )
         time.sleep(2)
 
         if build_bad_pixel_mask :

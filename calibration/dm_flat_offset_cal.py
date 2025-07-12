@@ -114,7 +114,7 @@ beam_id = args.beam_id[0]
 
 input(f"start_with_current_baldr_flat = {args.start_with_current_baldr_flat}. continue?")
 
-host = "172.16.8.6"#"localhost"
+host = "192.168.100.2"#"localhost"
 port = 5555
 timeout = 60000
 context = zmq.Context()
