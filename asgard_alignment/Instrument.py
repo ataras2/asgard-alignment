@@ -252,9 +252,7 @@ class Instrument:
             print(state)
 
         fname = os.path.expanduser(
-            "~/.config/asgard-alignment/instr_states/"
-            + filename
-            + ".json"
+            "~/.config/asgard-alignment/instr_states/" + filename + ".json"
         )
         if os.path.exists(fname):
             return "NACK: File already exists, please choose a different name."
