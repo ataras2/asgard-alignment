@@ -24,13 +24,13 @@ def open_zmq_connection(port):
 
 
 def shutdown(inc_CRED):
+    mds_connection = open_zmq_connection(5555)
     date = time.strftime("%Y-%m-%d %H:%M:%S")
     mds_connection.send_string(f"save all before_shutdown_{date}")
 
     if inc_CRED:
         c_red_connection = open_zmq_connection(6667)
 
-    mds_connection = open_zmq_connection(5555)
     cc = co.Controllino("192.168.100.10")
 
     # turn off all sources: SRL, SGL and SBB
@@ -78,6 +78,19 @@ def shutdown(inc_CRED):
             "In C red server terminal, type 'stop' and then type 'exit'. Then press Enter here to continue..."
         )
 
+    if inc_CRED:
+        print("Closing C RED...")
+        c_red_connection.send_string("stop")
+        c_red_connection.send_string('cli "set cooling off"')
+        c_red_connection.send_string('cli "shutdown"')
+        print("C RED shutdown command sent.")
+
+        pdu.switch_outlet_status(C_RED_OUTLET, "off")
+        time.sleep(7)
+        res = pdu.read_outlet_status(C_RED_OUTLET)
+        if res == "off":
+            print("C RED outlet is off.")
+
     print("Turning off PDU outlet...")
     pdu.switch_outlet_status(LOWER_BOX_OUTLET, "off")
     time.sleep(7)  # wait for PDU to turn off
@@ -96,19 +109,6 @@ def shutdown(inc_CRED):
             print(f"Device {ip} is still reachable. Please check manually.")
         else:
             print(f"Device {ip} is not reachable, as expected.")
-
-    if inc_CRED:
-        print("Closing C RED...")
-        c_red_connection.send_string("stop")
-        c_red_connection.send_string('cli "set cooling off"')
-        c_red_connection.send_string('cli "shutdown"')
-        print("C RED shutdown command sent.")
-
-        pdu.switch_outlet_status(C_RED_OUTLET, "off")
-        time.sleep(7)
-        res = pdu.read_outlet_status(C_RED_OUTLET)
-        if res == "off":
-            print("C RED outlet is off.")
 
     print("Shutdown procedure completed successfully.")
 
