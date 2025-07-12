@@ -3013,80 +3013,9 @@ with col_main:
                     )
                 with col2:
                     if st.button(f"Save {instr}"):
-                        motor_names = []
-                        if instr == "Solarstein" or instr == "All":
-                            motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
-                        if instr == "Heimdallr" or instr == "All":
-                            send_and_get_response("h_shut open all")
-                            time.sleep(2)
-                            motor_names_all_beams = [
-                                "HFO",
-                                "HTPP",
-                                "HTPI",
-                                "HTTP",
-                                "HTTI",
-                            ]
+                        cmd = f"save {instr} {save_location}"
+                        send_and_get_response(cmd)
 
-                            for motor in motor_names_all_beams:
-                                for beam_number in range(1, 5):
-                                    motor_names.append(f"{motor}{beam_number}")
-                        if instr == "Baldr" or instr == "All":
-                            motor_names += ["BFO"]
-
-                            motor_names_all_beams = [
-                                "BDS",
-                                "BTT",
-                                "BTP",
-                                "BMX",
-                                "BMY",
-                                "BLF",
-                            ]
-
-                            partially_common_motors = [
-                                "BOTT",
-                                "BOTP",
-                            ]
-
-                            for motor in partially_common_motors:
-                                for beam_number in range(2, 5):
-                                    motor_names.append(f"{motor}{beam_number}")
-
-                            for motor in motor_names_all_beams:
-                                for beam_number in range(1, 5):
-                                    motor_names.append(f"{motor}{beam_number}")
-
-                        states = []
-                        for name in motor_names:
-                            message = f"read {name}"
-                            res = send_and_get_response(message)
-
-                            if "NACK" in res:
-                                is_connected = False
-                            else:
-                                is_connected = True
-
-                            state = {
-                                "name": name,
-                                "is_connected": is_connected,
-                            }
-                            print(res, type(res), is_connected)
-                            if is_connected:
-                                if res != "None":
-                                    state["position"] = float(res)
-                                print()
-                            states.append(state)
-
-                        fname = os.path.expanduser(
-                            "~/.config/asgard-alignment/instr_states/"
-                            + save_location
-                            + ".json"
-                        )
-                        if os.path.exists(fname):
-                            st.error(f"File {fname} already exists")
-                        else:
-                            # save to json at location
-                            with open(fname, "w") as f:
-                                json.dump(states, f, indent=4)
 
         if routine_options == "Scan Mirror":
 
