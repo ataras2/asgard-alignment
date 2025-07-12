@@ -10,7 +10,7 @@ class AtenEcoPDU:
     commands to the eco PDU as described in the ATEN eco PDU Telnet User Guide.
     """
 
-    def __init__(self, host, port=23, timeout=10, debug=False):
+    def __init__(self, host, port=23, timeout=60, debug=False):
         """
         Initializes the AtenEcoPDU client.
 
@@ -26,7 +26,7 @@ class AtenEcoPDU:
         self.connected = False
         self.debug = debug
 
-    def connect(self, username="teladmin", password="asgard"):
+    def connect(self, username="teladmin", password="asgard", verbose=True):
         """
         Establishes a Telnet connection to the eco PDU and logs in.
 
@@ -41,26 +41,31 @@ class AtenEcoPDU:
             # Establish Telnet connection
             self.tn = telnetlib.Telnet(self.host, self.port, self.timeout)
             self.connected = True
-            print(f"Connected to {self.host}:{self.port}")
+            if verbose:
+                print(f"Connected to {self.host}:{self.port}")
 
             # Read initial login prompts
-            
+
             login_prompt = self.tn.read_until(b"Login: ", self.timeout).decode("ascii")
-            print(f"PDU Login Prompt: {login_prompt.strip()}")
+            if verbose:
+                print(f"PDU Login Prompt: {login_prompt.strip()}")
 
             # Send username
             self.tn.write(username.encode("ascii") + b"\r")
-            print(f"Sent username: {username}")
+            if verbose:
+                print(f"Sent username: {username}")
 
             # Read password prompt
             password_prompt = self.tn.read_until(b"Password: ", self.timeout).decode(
                 "ascii"
             )
-            print(f"PDU Password Prompt: {password_prompt.strip()}")
+            if verbose:
+                print(f"PDU Password Prompt: {password_prompt.strip()}")
 
             # Send password
             self.tn.write(password.encode("ascii") + b"\r")
-            print(f"Sent password (hidden)")
+            if verbose:
+                print(f"Sent password (hidden)")
 
             # Read response after login
             response = self.tn.read_until(b"Logged in successfully", self.timeout)
