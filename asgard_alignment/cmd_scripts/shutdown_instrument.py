@@ -24,11 +24,8 @@ def open_zmq_connection(port):
 
 
 def shutdown(inc_CRED):
-    inp = input("Have you saved a state? (y/n): ")
-    # if not 'y', then exit
-    if inp.lower() != "y":
-        print("Exiting shutdown - go save a state.")
-        sys.exit(0)
+    date = time.strftime("%Y-%m-%d %H:%M:%S")
+    mds_connection.send_string(f"save all before_shutdown_{date}")
 
     if inc_CRED:
         c_red_connection = open_zmq_connection(6667)
@@ -114,6 +111,7 @@ def shutdown(inc_CRED):
             print("C RED outlet is off.")
 
     print("Shutdown procedure completed successfully.")
+
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "inc_CRED":
