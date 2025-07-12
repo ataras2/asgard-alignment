@@ -95,6 +95,9 @@ class Instrument:
 
         # Create the connections to the controllers
         self._open_controllino()
+        print("Controllino on")
+
+        time.sleep(1)
 
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         print("managed port:", self._managed_usb_hub_port)
@@ -115,7 +118,8 @@ class Instrument:
         time.sleep(0.2)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:3")
 
-        time.sleep(6.0)  # wait for all usb connections to be established
+        print("Turned on USB hubs, waiting 10 seconds...")
+        time.sleep(10.0)  # wait for all usb connections to be established
         self._create_controllers_and_motors()
         self._create_lamps()
         self._create_shutters()
