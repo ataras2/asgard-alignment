@@ -8,7 +8,7 @@ license = {file = "LICENSE"}
 
 [project.scripts] 
 shutdown-instrument = "asgard_alignment.common.shutdown_instrument:main"
-test-cmd-script = "asgard_alignment.playground.test_cmd_script:main"
+test-cmd-script = "asgard_alignment.cmd_scripts.test_cmd_script:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["asgard_alignment"]
@@ -16,4 +16,3 @@ packages = ["asgard_alignment"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
