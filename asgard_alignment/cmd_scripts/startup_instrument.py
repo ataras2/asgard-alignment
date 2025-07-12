@@ -93,6 +93,7 @@ def power_on_instrument_only():
     for cmd in cmds:
         print(f"Running command: {cmd}")
         res = os.system(cmd)
+        time.sleep(5)
         if res != 0:
             print(f"Command '{cmd}' failed. Exiting.")
             sys.exit(1)
