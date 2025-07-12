@@ -9,6 +9,7 @@ license = {file = "LICENSE"}
 [project.scripts] 
 shutdown-instrument = "asgard_alignment.common.shutdown_instrument:main"
 test-cmd-script = "asgard_alignment.cmd_scripts.test_cmd_script:main"
+h-autoalign = "asgard_alignment.cmd_scripts.h_autoalign:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["asgard_alignment"]

@@ -22,6 +22,7 @@ from tqdm import tqdm
 import scipy.ndimage as ndi
 
 from scipy.optimize import curve_fit
+import argparse
 
 
 
@@ -288,8 +289,8 @@ class HeimdallrAA:
         #     fluxes.append(flux)
 
 
-if __name__ == "__main__":
-    import argparse
+def main():
+
 
     parser = argparse.ArgumentParser(description="Autoalign Heimdallr beams.")
     parser.add_argument(
@@ -329,3 +330,6 @@ if __name__ == "__main__":
         raise ValueError("Unknown alignment method.")
 
     print("Autoalignment completed.")
+
+if __name__ == "__main__":
+    main()
