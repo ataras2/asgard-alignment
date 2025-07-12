@@ -558,6 +558,12 @@ class MultiDeviceServer:
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
 
+        def save(subset, fname):
+            if subset.lower() not in ["heimdallr", "baldr", "solarstein", "all"]:
+                return "NACK: Invalid subset, must be 'heimdallr', 'baldr', 'solarstein' or 'all'"
+            
+            return self.instr.save(subset.lower(), fname)
+
         def ping_msg(axis):
             res = self.instr.ping_connection(axis)
 
@@ -834,6 +840,7 @@ class MultiDeviceServer:
             "tt_config_step": tt_config_step_msg,
             "moverel": moverel_msg,
             "state": state_msg,
+            "save": save_msg,
             "dmapplyflat": apply_flat_msg,
             "dmapplycross": apply_cross_msg,
             "fpm_getsavepath": fpm_get_savepath_msg,
@@ -874,6 +881,7 @@ class MultiDeviceServer:
             "tt_config_step": "tt_config_step {} {}",
             "moverel": "moverel {} {:f}",
             "state": "state {}",
+            "save": "save {} {}",
             "dmapplyflat": "dmapplyflat {}",
             "dmapplycross": "dmapplycross {}",
             "fpm_getsavepath": "fpm_getsavepath {}",
@@ -943,7 +951,8 @@ if __name__ == "__main__":
     # logname from the current time
     log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
     logging.basicConfig(
-        filename=os.path.join(os.path.expanduser(args.log_location), log_fname), level=logging.INFO
+        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
+        level=logging.INFO,
     )
 
     # Add stream handler to also log to stdout

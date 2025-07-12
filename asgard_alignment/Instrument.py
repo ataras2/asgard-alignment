@@ -182,6 +182,86 @@ class Instrument:
 
         return health
 
+    def save(self, subset, filename):
+        """
+        Save the current state of the instrument to a file
+
+        Parameters
+        ----------
+        subset : str
+            The subset of the instrument to save, e.g. "devices", "lamps", "controllers"
+        filename : str
+            The name of the file to save to
+        """
+        motor_names = []
+        if subset == "Solarstein" or subset == "All":
+            motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
+        if subset == "Heimdallr" or subset == "All":
+            self.h_shut("open", [1, 2, 3, 4])
+            time.sleep(2)
+            motor_names_all_beams = [
+                "HFO",
+                "HTPP",
+                "HTPI",
+                "HTTP",
+                "HTTI",
+            ]
+
+            for motor in motor_names_all_beams:
+                for beam_number in range(1, 5):
+                    motor_names.append(f"{motor}{beam_number}")
+        if subset == "Baldr" or subset == "All":
+            motor_names += ["BFO"]
+
+            motor_names_all_beams = [
+                "BDS",
+                "BTT",
+                "BTP",
+                "BMX",
+                "BMY",
+                "BLF",
+            ]
+
+            partially_common_motors = [
+                "BOTT",
+                "BOTP",
+            ]
+
+            for motor in partially_common_motors:
+                for beam_number in range(2, 5):
+                    motor_names.append(f"{motor}{beam_number}")
+
+            for motor in motor_names_all_beams:
+                for beam_number in range(1, 5):
+                    motor_names.append(f"{motor}{beam_number}")
+
+        states = []
+        for name in motor_names:
+            is_connected = self.ping_connection(name)
+
+            state = {
+                "name": name,
+                "is_connected": is_connected,
+            }
+            if is_connected:
+                res = self.devices[name].read_position()
+                if res != "None":
+                    state["position"] = float(res)
+            states.append(state)
+
+        fname = os.path.expanduser(
+            "~/.config/asgard-alignment/instr_states/"
+            + filename
+            + ".json"
+        )
+        if os.path.exists(fname):
+            return "NACK: File already exists, please choose a different name."
+        else:
+            # save to json at location
+            with open(fname, "w") as f:
+                json.dump(states, f, indent=4)
+            return 
+
     def h_splay(self, state):
         if state not in ["on", "off"]:
             raise ValueError("state must be 'on' or 'off'")
@@ -806,7 +886,7 @@ class Instrument:
 
         # add phasemask compound_devices (registeres phasemask positions withj added functionality to update them)
         self._create_phasemask_wrapper()
-        
+
     def _create_controllers_and_motors(self):
         """
         Create the connections to the controllers and motors
