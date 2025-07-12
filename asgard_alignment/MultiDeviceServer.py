@@ -558,7 +558,7 @@ class MultiDeviceServer:
         def state_msg(axis):
             return self.instr.devices[axis].read_state()
 
-        def save(subset, fname):
+        def save_msg(subset, fname):
             if subset.lower() not in ["heimdallr", "baldr", "solarstein", "all"]:
                 return "NACK: Invalid subset, must be 'heimdallr', 'baldr', 'solarstein' or 'all'"
             

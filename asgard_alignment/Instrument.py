@@ -18,6 +18,7 @@ import asgard_alignment.NewportMotor
 import asgard_alignment.ZaberMotor
 import asgard_alignment.Baldr_phasemask
 
+import logging
 import time
 
 import asgard_alignment.controllino
@@ -194,9 +195,9 @@ class Instrument:
             The name of the file to save to
         """
         motor_names = []
-        if subset == "Solarstein" or subset == "All":
+        if subset == "solarstein" or subset == "all":
             motor_names += ["SDLA", "SDL12", "SDL34", "SSS", "SSF"]
-        if subset == "Heimdallr" or subset == "All":
+        if subset == "heimdallr" or subset == "all":
             self.h_shut("open", [1, 2, 3, 4])
             time.sleep(2)
             motor_names_all_beams = [
@@ -210,7 +211,7 @@ class Instrument:
             for motor in motor_names_all_beams:
                 for beam_number in range(1, 5):
                     motor_names.append(f"{motor}{beam_number}")
-        if subset == "Baldr" or subset == "All":
+        if subset == "baldr" or subset == "all":
             motor_names += ["BFO"]
 
             motor_names_all_beams = [
@@ -248,6 +249,7 @@ class Instrument:
                 if res != "None":
                     state["position"] = float(res)
             states.append(state)
+            print(state)
 
         fname = os.path.expanduser(
             "~/.config/asgard-alignment/instr_states/"
@@ -260,7 +262,8 @@ class Instrument:
             # save to json at location
             with open(fname, "w") as f:
                 json.dump(states, f, indent=4)
-            return 
+            logging.info("state saved")
+            return "ACK: saved"
 
     def h_splay(self, state):
         if state not in ["on", "off"]:
