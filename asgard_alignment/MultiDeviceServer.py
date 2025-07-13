@@ -561,7 +561,7 @@ class MultiDeviceServer:
         def save_msg(subset, fname):
             if subset.lower() not in ["heimdallr", "baldr", "solarstein", "all"]:
                 return "NACK: Invalid subset, must be 'heimdallr', 'baldr', 'solarstein' or 'all'"
-            
+
             return self.instr.save(subset.lower(), fname)
 
         def ping_msg(axis):
@@ -829,6 +829,17 @@ class MultiDeviceServer:
         def h_splay_msg(state):
             return self.instr.h_splay(state)
 
+        def temp_status_msg(mode):
+            """
+            Get the temperature status of the instrument.
+            Returns a list of values in order, see instrument documentation.
+            """
+            if mode == "now":
+                return str(self.instr.temp_summary.get_temp_status())
+            if mode == "keys":
+                return str(self.instr.temp_summary.get_temp_keys())
+            return "NACK: Invalid mode for temp_status, must be 'now' or 'keys'"
+
         first_word_to_function = {
             "read": read_msg,
             "stop": stop_msg,
@@ -868,6 +879,7 @@ class MultiDeviceServer:
             "online": online_msg,
             "h_shut": h_shut_msg,
             "h_splay": h_splay_msg,
+            "temp_status": temp_status_msg,
         }
 
         first_word_to_format = {
@@ -909,6 +921,7 @@ class MultiDeviceServer:
             "online": "online {}",
             "h_shut": "h_shut {} {}",
             "h_splay": "h_splay {}",
+            "temp_status": "temp_status",
         }
 
         try:

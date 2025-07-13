@@ -125,6 +125,8 @@ class Instrument:
         self._create_lamps()
         self._create_shutters()
 
+        self.temp_summary = TemperatureSummary(self._controllers["controllino"])
+
         # finally do phasemask objects (the respective motors need to be in devices first)
         self._create_phasemask_wrapper()
 
@@ -1349,3 +1351,57 @@ if __name__ == "__main__":
 
     print(instr.devices["HTPP1"].read_position())
     print(instr.devices["HTTP1"].read_position())
+
+
+class TemperatureSummary:
+    temp_probes = [
+        "Lower T",
+        "Upper T",
+        "Bench T",
+        "Floor T",
+    ]
+
+    # control loop info
+    PI_infos_of_interest = [
+        "m_pin_val",
+        "setpoint",
+        "integral",
+        "k_prop",
+        "k_int",
+    ]
+
+    servo_names = ["Lower", "Upper"]
+
+    def __init__(self, controllino):
+        self.controllino = controllino
+
+    def get_temp_keys(self):
+        keys = []
+        keys += self.temp_probes
+
+        for servo in self.servo_names:
+            for info in self.PI_infos_of_interest:
+                keys.append(f"{servo} {info}")
+
+        return keys
+
+    def get_temp_status(self):
+        temps = []
+        for probe in self.temp_probes:
+            try:
+                temp = self.controllino.analog_input(probe)
+                temps.append(temp)
+            except Exception as e:
+                print(f"Error getting temperature for {probe}: {e}")
+                temps.append(None)
+
+        PI_infos = []
+        for i, servo in enumerate(self.servo_names):
+            try:
+                info = self.controllino.read_PI_loop_info(servo)
+                PI_infos.append(info)
+            except Exception as e:
+                print(f"Error getting PI info for {servo}: {e}")
+                PI_infos.append(None)
+
+        return temps + PI_infos
