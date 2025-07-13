@@ -921,7 +921,7 @@ class MultiDeviceServer:
             "online": "online {}",
             "h_shut": "h_shut {} {}",
             "h_splay": "h_splay {}",
-            "temp_status": "temp_status",
+            "temp_status": "temp_status {}",
         }
 
         try:
