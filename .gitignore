@@ -2,6 +2,7 @@
 /tmp
 /calibration/reports/
 /calibration/cal_data/
+/_old_instr_states
 *.ipynb
 *.pyc
 
