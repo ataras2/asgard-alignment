@@ -4,22 +4,33 @@ from scipy.ndimage import distance_transform_edt
 from scipy.spatial import distance
 from math import factorial
 import pandas as pd
-
+from pathlib import Path
+import subprocess
 # used in Frantz Zernike definitions for BMC DM 
 from xaosim.zernike import mkzer1
 from scipy.interpolate import griddata
 from xaosim.pupil import _dist as dist
 
 
-dm_shape_pth = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
-dm_serials = {"1": dm_shape_pth  + "17DW019#113_FLAT_MAP_COMMANDS.csv", 
-              "2":dm_shape_pth +  "17DW019#053_FLAT_MAP_COMMANDS.csv", 
-              "3":dm_shape_pth  + "17DW019#093_FLAT_MAP_COMMANDS.csv", 
-              "4":dm_shape_pth  + "17DW019#122_FLAT_MAP_COMMANDS.csv"}
+
+def get_git_root() -> Path:
+    return Path(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    )
+
+## Git project root path 
+root_path = get_git_root()
+
+
+dm_shape_pth = root_path / "DMShapes/" #"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+dm_serials = {"1": dm_shape_pth  / "17DW019#113_FLAT_MAP_COMMANDS.csv", 
+              "2": dm_shape_pth  /  "17DW019#053_FLAT_MAP_COMMANDS.csv", 
+              "3": dm_shape_pth  / "17DW019#093_FLAT_MAP_COMMANDS.csv", 
+              "4": dm_shape_pth  / "17DW019#122_FLAT_MAP_COMMANDS.csv"}
 
 
 dm_flatmap_dict = {f"{i}" : pd.read_csv(dm_serials[f"{i}"], header=None)[0].values for i in [1,2,3,4]}
-cross_map = pd.read_csv(dm_shape_pth + "Crosshair140.csv", header=None)[0].values
+cross_map = pd.read_csv(dm_shape_pth / "Crosshair140.csv", header=None)[0].values
 
 def get_DM_command_in_2D(cmd,Nx_act=12):
     # function so we can easily plot the DM shape (since DM grid is not perfectly square raw cmds can not be plotted in 2D immediately )

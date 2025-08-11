@@ -3,7 +3,17 @@ import sys
 import glob
 import os
 from xaosim.shmlib import shm
+import subprocess
+from pathlib import Path
 
+
+def get_git_root() -> Path:
+    return Path(
+        subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
+    )
+
+## Git project root path 
+root_path = get_git_root()
 
 class dmclass():
     """wrapper of Frantz shm specifically for control of Asgard's DM's"""
@@ -95,7 +105,7 @@ class dmclass():
         """
         if self.nch == 0:
             return
-        wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+        wdir = root_path / "DMShapes/" #"/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
         flat_cmd = np.loadtxt(self.select_flat_cmd( wdir))
         self.shms[0].set_data(self.cmd_2_map2D(flat_cmd, fill=0.0))
         ##
@@ -109,7 +119,7 @@ class dmclass():
         """
         if self.nch == 0:
             return
-        wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
+        wdir = root_path / "DMShapes/" #"/home/asg/Progs/repos/asgard-alignment/DMShapes/" #os.path.dirname(__file__)
         flat_cmd = np.loadtxt(self.select_flat_cmd( wdir))
         flat_cmd_offset = np.loadtxt(self.select_flat_cmd_offset( wdir))
         self.shms[0].set_data(self.cmd_2_map2D(flat_cmd + flat_cmd_offset, fill=0.0))
@@ -119,7 +129,7 @@ class dmclass():
         
     def get_baldr_flat_offset(self):
         # baldr calibrated offset from the BMC factory flat
-        wdir = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"
+        wdir = root_path / "DMShapes/" #"/home/asg/Progs/repos/asgard-alignment/DMShapes/"
         flat_cmd_offset = np.loadtxt(self.select_flat_cmd_offset( wdir))
         return flat_cmd_offset 
 
