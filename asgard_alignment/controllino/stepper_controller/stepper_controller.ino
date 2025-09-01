@@ -1,0 +1,219 @@
+// Philosophy here is simple: we only code "safety" related features, which includes
+// maximising the voltage of the PWM output.
+//
+// Commands: 
+//  "e[MOTOR]" Enable a motor
+//  "d[MOTOR]" Disable a motor.
+//  "r[STEPS]" Relative motor move for all enabled motors
+//  "h[MOTOR]" Home a motor, but moving backwards until the home sensor is found.
+//  "w[MOTOR]" Find the position of a motor.
+//  "z[MOTOR]" Find if the motor is homed.
+//  "s[MOTOR] [STEPS]" Move to a fixed number of steps from zero. !!! Not implemented !!!
+//  "?" Ping
+//  "q" Quit this client. Can start another! (only 1 at a time)
+//
+//  Philisophy: 
+//    For a move
+
+#include <SPI.h>
+#include <NativeEthernet.h>
+
+// #define ANALOG_I2C_ADDR 40 // Not needed???
+
+// Enter a MAC address and IP address for your controller below.
+// The IP address will be dependent on your local network.
+// gateway and subnet are optional:
+byte mac[] = {0x50, 0xD7, 0x53, 0x00, 0xEB, 0x9F};    // MAC address (can be found on the Controllino)
+IPAddress ip(192,168,100,12);                           // IP address (arbitrarily choosen)
+EthernetServer server(23);                            // HTTP port
+int next_str_ix;  // The next index in the string we're passing (saves passing back and forth)
+
+#define MAX_MOTORS 12
+#define START_PIN 2
+#define MOTOR_HIGH 50 
+#define MOTOR_AB MOTOR_HIGH*5/7
+int current_pos[MAX_MOTORS] = {0,0,0,0,0,0,0,0,0,0,0,0};
+int target_pos[MAX_MOTORS] = {0,0,0,0,0,0,0,0,0,0,0,0};
+int zero_pins[MAX_MOTORS] = {20,21,22,23,16,17,18,19,3,2,1,0};
+int enable_pins[MAX_MOTORS] = {33,34,35,36,37,38,39,40,41,13,14,15};
+bool looking_for_home[MAX_MOTORS]={false,false,false,false,false,false,false,false,false,false,false,false};
+bool found_home[MAX_MOTORS]={false,false,false,false,false,false,false,false,false,false,false,false};
+
+void setup() {
+  // Ethernet initialization
+  Serial.begin(9600);
+  Ethernet.begin(mac, ip);
+  for (int i=0;i<MAX_MOTORS;i++){
+    pinMode(zero_pins[i],INPUT);
+  }
+
+  // Try to move the first motor 10000 steps
+  //looking_for_home[1] = true;
+  //looking_for_home[1] = false;
+  //target_pos[1] = -10000;
+
+  // Check for Ethernet hardware present
+  if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+    Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+    while (true) {
+      delay(1); // do nothing, no point running without Ethernet hardware
+    }
+  }
+  if (Ethernet.linkStatus() == LinkOFF) {
+    Serial.println("Ethernet cable is not connected.");
+  }
+
+  // Start listening for clients
+  server.begin();
+
+  Serial.print("Chat server address: ");
+  Serial.println(Ethernet.localIP());
+
+
+}
+
+void loop() {
+  char c = ' ';
+  int stepit=0;
+  // Listen resquests
+  EthernetClient client = server.available();
+  
+  if (client) {
+    // Wait for the request
+    String request = "";
+    
+    // Read the input string up until a newline character. Remaining characters will be left
+    // in the buffer.
+    while (client.available() && c != '\n') {
+      c = client.read();
+      request += c;
+    }
+    // Check we have a validly terminated message.
+    if (c != '\n') {
+      Serial.println("Erroneous Request (no newline):");
+      Serial.println(request);
+      return failure(client);
+    }
+    Serial.println("New Request:");
+    Serial.print(request);
+
+    // Parse the request ------------------------------------------------
+
+    char c = request[0];
+    // First, deal with any single character requests.
+    if (c=='q'){
+      client.stop();
+      return;
+    } 
+    if (c=='?'){
+      return success(client);
+    }
+    // Get the "pin" value (the first integer)
+    next_str_ix = 1;
+    int pin = get_value(request);
+    if (pin == -1){
+      Serial.println("Invalid integer pin number.");
+      return;
+    }
+    // Now the commands which use 1 or more arguments
+    if (c == 'r'){
+      int value = get_value(request);
+      // Check we have the right motor.
+      if (pin >= MAX_MOTORS) return failure(client);
+      target_pos[pin] += value;
+      return success(client);
+    }
+    else if (c == 's') {
+      int value = get_value(request);
+      // Check we have the right motor.
+      if (pin >= MAX_MOTORS) return failure(client);
+      target_pos[pin] = value;
+      return success(client);
+    } else if (c=='h'){
+      if (pin >= MAX_MOTORS) return failure(client);
+      looking_for_home[pin] = true;
+      found_home[pin] = false;
+      target_pos[pin] = -24000;
+      return success(client);
+    } else if (c=='w'){
+      if (pin >= MAX_MOTORS) return failure(client);
+      else client.println(String(current_pos[pin]));
+    } else if (c=='z'){ //Has zero been found?
+      if (pin >= MAX_MOTORS) return failure(client); //!!! This just returns "0" which isn't great.
+      else client.println(String(int(found_home[pin])));
+    } else {
+      Serial.println("Invalid command character.");
+      return failure(client);
+    }
+  }
+  else {
+    // Now lets move the motor if requested!
+    for (int i=0;i<MAX_MOTORS;i++){
+      if (looking_for_home[i]){
+        if (digitalRead(zero_pins[i])){
+          target_pos[i]=0;
+          current_pos[i]=0;
+          looking_for_home[i]=false;
+          found_home[i]=true;
+        }
+      }
+      if (target_pos[i] == current_pos[i]){
+        break;
+       // Do nothing.
+      } else {
+        /* Serial.print(i);
+        Serial.print(" ");
+        Serial.print(target_pos[i]);
+        Serial.print(" ");
+        Serial.print(current_pos[i]);
+        Serial.print(" ");
+        Serial.print(stepit);
+        Serial.println(); */
+        if (true){
+          if (target_pos[i] > current_pos[i]) {
+            current_pos[i] += 1;
+          }
+          if (target_pos[i] < current_pos[i]) {
+            current_pos[i] -= 1;
+          }
+        }
+        stepit = (stepit + 1) % 2;
+      } 
+    }
+    delay(500); // If not looking for the home sensor.
+  }
+}
+
+int get_value(String request){
+  int i = next_str_ix;
+  String svalue;
+  int value;
+  char command = request[0];
+
+  if (sizeof(request) > 1 && (isdigit(request[i])) || (request[i] == '-')) {
+    // Read the value at the end of the command
+    while ((isdigit(request[i]) || (request[i] == '-')) && i < request.length()) {
+        svalue += request[i];
+        i++;
+    }
+    value = svalue.toInt();
+
+    // Initial command - check that the pin number isn't silly.
+    // We can do more sophisticated checking later!
+    if (next_str_ix == 1 && value > 80) value=-1;
+   
+    //Increment the place of the next number.
+    next_str_ix += i;
+    return value;
+  } else {
+    return -1; // No value
+  }
+}
+
+// Failure and success as functions so behaviour is easy to read and easily changed.
+void failure(EthernetClient client){
+  client.println("F");
+}
+void success(EthernetClient client){
+  client.println("S");
+}
