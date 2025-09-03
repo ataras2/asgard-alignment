@@ -135,9 +135,9 @@ class MultiDeviceServer:
             return True, "NACK: Are you using old custom commands?"
 
         try:
-            message = message.rstrip(message[-1])
-            logging.info(f"ESO msg recv: {message}")
-            json_data = json.loads(message)
+            # message = message.rstrip(message[-1])
+            json_data = json.loads(json.loads(message.strip()))
+            logging.info(f"ESO msg recv: {json_data} (type {type(json_data)})")
         except:
             logging.error("Error: Invalid JSON message")
             return False, "NACK: Invalid JSON message"
@@ -539,12 +539,7 @@ class MultiDeviceServer:
 
         repMsg = json.dumps(reply) + "\0"
         print(repMsg)
-        srvSocket.send_string(repMsg)
-        # Send back reply to ic0fb process
-        time_stamp = MultiDeviceServer.get_time_stamp()
-        reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
-        logging.info(reply)
-        self.server.send_string(reply)
+        self.server.send_string(repMsg)
 
         return False, None
 
