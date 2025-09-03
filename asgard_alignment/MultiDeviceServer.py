@@ -144,6 +144,14 @@ class MultiDeviceServer:
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
 
+        reply = {
+            "reply": {
+                "content": "????",
+                "time": "YYYY-MM-DDThh:mm:ss",
+                "parameters": [],
+            }
+        }
+
         # Verification of received time-stamp (TODO)
         # If the time_stamp is invalid, set command_name to "none",
         # so no command will be processed but a reply will be sent
@@ -486,6 +494,17 @@ class MultiDeviceServer:
                 self.instr.devices[dev].enable()
 
             reply = "OK"
+
+        if "read" in command_name:
+            reply["reply"]["parameters"].clear()
+            temps = self.instr.temp_summary.get_temp_status(
+                probes_only=True, raw_temps=False
+            )
+
+            for t in temps:
+                reply["reply"]["parameters"].append({"value": t})
+
+            reply["reply"]["content"] = "OK"
 
         # Send back reply to ic0fb process
         time_stamp = MultiDeviceServer.get_time_stamp()
