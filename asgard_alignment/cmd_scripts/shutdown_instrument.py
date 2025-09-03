@@ -22,30 +22,35 @@ def open_zmq_connection(port):
     socket.connect(server_address)
     return socket
 
+def send_and_get_response(socket, string):
+    socket.send_string(string)
+    res = socket.recv_string()
+    return res
 
 def shutdown(inc_CRED):
     mds_connection = open_zmq_connection(5555)
     date = time.strftime("%Y-%m-%d %H:%M:%S")
-    mds_connection.send_string(f"save all before_shutdown_{date}")
+    res = send_and_get_response(mds_connection, f"save all before_shutdown_{date}")
+    print(res)
 
     if inc_CRED:
         c_red_connection = open_zmq_connection(6667)
 
-    cc = co.Controllino("192.168.100.10")
+    cc = co.Controllino("192.168.100.10", init_motors=False)
 
     # turn off all sources: SRL, SGL and SBB
     lamps = ["SRL", "SGL", "SBB"]
 
     for lamp in lamps:
-        mds_connection.send_string(f"off {lamp}")
-        time.sleep(2)  # wait for the command to be processed
+        send_and_get_response(mds_connection, f"off {lamp}")
+        time.sleep(1)  # wait for the command to be processed
 
     # flippers up
     names = [f"SSF{i}" for i in range(1, 5)]
     for i, flipper in enumerate(names):
         message = f"moveabs {flipper} 1.0"
-        mds_connection.send_string(message)
-        time.sleep(3)  # wait for the command to be processed
+        send_and_get_response(mds_connection,message)
+        time.sleep(2)  # wait for the command to be processed
 
     pdu = AtenEcoPDU("192.168.100.11")
     pdu.connect()
@@ -80,9 +85,9 @@ def shutdown(inc_CRED):
 
     if inc_CRED:
         print("Closing C RED...")
-        c_red_connection.send_string("stop")
-        c_red_connection.send_string('cli "set cooling off"')
-        c_red_connection.send_string('cli "shutdown"')
+        send_and_get_response(c_red_connection,"stop")
+        send_and_get_response(c_red_connection,'cli "set cooling off"')
+        send_and_get_response(c_red_connection,'cli "shutdown"')
         print("C RED shutdown command sent.")
 
         pdu.switch_outlet_status(C_RED_OUTLET, "off")
