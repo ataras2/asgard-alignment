@@ -209,7 +209,6 @@ while running == 1:
         ################################
 
         # Case of "setup" (sent by wag to move devices)
-
         if "setup" in cmdName:
             stopped = 0
             nbDevs = len(command["command"]["parameters"])
