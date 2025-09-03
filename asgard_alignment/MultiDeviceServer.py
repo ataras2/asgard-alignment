@@ -488,7 +488,6 @@ class MultiDeviceServer:
             reply = "OK"
 
         # Send back reply to ic0fb process
-
         time_stamp = MultiDeviceServer.get_time_stamp()
         reply = f'{{\n\t"reply" :\n\t{{\n\t\t"content" : "{reply}",\n\t\t"time" : "{time_stamp}"\n\t}}\n}}\n\0'
         logging.info(reply)
