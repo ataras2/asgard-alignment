@@ -329,7 +329,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_ids",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1], #, 2, 3, 4],
+    default=[1, 2, 3, 4],
     help="Comma-separated beam IDs. Default: 1,2,3,4"
 )
 
@@ -371,7 +371,7 @@ with open(args.toml_file.replace('#',f'{args.beam_ids[0]}') ) as file:
 c = FLI.fli() #
 
 # ### BAD PIXELS CAN RUIN PUPIL FIT - SO REDUCE INMAGES , FOR NOW WE TURN OFF SOURCE TO GET A FRESH DARK IN CURRENT SETTINGS 
-c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+#c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 time.sleep(2)
 
 # c.build_bad_pixel_mask( no_frames = 300 )
@@ -383,7 +383,7 @@ time.sleep(2)
 img_raw = c.get_data(apply_manual_reduction=True) #mySHM.get_data()
 
 # turn off 
-# bad_pixel_mask = FLI.get_bad_pixels( img_raw, std_threshold = 20, mean_threshold=6)
+bad_pixel_mask = FLI.get_bad_pixels( img_raw, std_threshold = 20, mean_threshold=6)
 bad_pixel_list = [(201,273)]
 
 print(img_raw.shape)
@@ -409,7 +409,7 @@ for beam_id in args.beam_ids:
 
     # mask 
     if args.fig_path is None:
-        savepath="delme{beam_id}.png"
+        savepath=f"delme{beam_id}.png"
     else: # we save with default name at fig path 
         savepath=args.fig_path + f'pupil_reg_beam{beam_id}'
     

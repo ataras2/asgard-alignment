@@ -102,6 +102,7 @@ parser.add_argument("--fig_path",
 
 args=parser.parse_args()
 
+# question still what to do with focus with secondary! 
 print( "filter_edge_actuators = ",args.filter_edge_actuators)
 
 with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
@@ -124,17 +125,31 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     M2C = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C", None) ).astype(float)
 
     # also the current calibrated strehl modes 
-    I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
-    I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
+    I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
+    I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
+    
+    if not np.isfinite(I2rms_sec):
+        print("\n WARNING: No secondary strehl modes found in config file, using 2x2 zero matrix instead.")
+        I2rms_sec = np.zeros((2, 2))
+    if not np.isfinite(I2rms_ext):   
+        print("\n WARNING: No exterior strehl modes found in config file, using 2x2 zero matrix instead.")
+        I2rms_ext = np.zeros((2, 2))
+        
     # # define our Tip/Tilt or lower order mode index on zernike DM basis 
     LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)
 
     # tight (non-edge) pupil filter
     inside_edge_filt = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("inner_pupil_filt", None) )#.astype(bool)
-    
+    # clear pupil 
+    N0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("N0", None) )#.astype(bool)
+    # secondary filter
+    sec = np.array(config_dict.get(f"beam{args.beam_id}" , {}).get(f"{args.phasemask}", {}).get("ctrl_model",None).get("secondary", None) )
+    #norm_pupil =np.array(config_dict.get(f"beam{args.beam_id}" , {}).get(f"{args.phasemask}", {}).get("ctrl_model",None).get("norm_pupil", None) )
     # these are just for testing things 
     poke_amp = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("poke_amp", None)
     camera_config = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("camera_config", None)
+
+
 #util.nice_heatmap_subplots( [ util.get_DM_command_in_2D(a) for a in [IM[65], IM[77] ]],savefig='delme.png')
 
 # define out Tip/Tilt or lower order modes on zernike DM basis
@@ -198,12 +213,31 @@ elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum post
 elif args.inverse_method_HO.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
     if args.filter_edge_actuators: # do this in the mode space! 
-        dm_mask =I2A @ np.array( inside_edge_filt ).reshape(-1) # I2A @ inside_edge_filt )
+        # only for simulation 
+        #dm_mask = util.get_circle_DM_command( radius = 4 ) 
+        # this is good for the real system based on comissioning
+
+        ##############################################
+        # update with simulation mode to also filter secondary obstruction in pixel space
+        # Note the original commented out below worked fine on internal source, but this version seems more stable in simulator
+        tight_pup_wo_sec_tmp = ~(sec.astype(bool)  | (~inside_edge_filt.astype(bool) ) ) #| (~bad_pix_mask_tmp )
+        tight_sec_filter = (N0 < np.min(N0[tight_pup_wo_sec_tmp ])) & inside_edge_filt
+        # now get real tight filter 
+        tight_pup_wo_sec = (inside_edge_filt - tight_sec_filter).astype(bool)
+        
+        
+        #updated for simulation mode not tested in real system
+        dm_mask = I2A @ np.array( tight_pup_wo_sec ).reshape(-1) # I2A @ inside_edge_filt )
+        #######################
+
+        #original not filtering secondary obstruction 
+        #dm_mask =I2A @ np.array( inside_edge_filt ).reshape(-1) # I2A @ inside_edge_filt )
     else:
         dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
     # util.nice_heatmap_subplots(  im_list = [util.get_DM_command_in_2D(dm_mask)], savefig='delme.png' )
     I2M_HO = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+    #I2M_HO = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if 1/IM_HO[i][i] < 1e3 else 0 for i in range(len(IM_HO))]) )
 
 
 elif 'svd_truncation' in args.inverse_method_HO.lower() :
@@ -230,6 +264,16 @@ else:
 #     # typically 71 actuators 
 
 # filter out exterior actuators in command space (from pupol) - redudant if (args.filter_edge_actuators: # do this in the mode space!)
+
+# updated in simulation mode testing (better handling of secondary pixels!)
+# tight_pup_wo_sec_tmp = ~(sec.astype(bool)  | (~inside_edge_filt.astype(bool) ) ) #| (~bad_pix_mask_tmp )
+# tight_sec_filter = (N0 < np.min(N0[tight_pup_wo_sec_tmp ])) & inside_edge_filt
+# # now get real tight filter 
+# tight_pup_wo_sec = (inside_edge_filt - tight_sec_filter).astype(bool)
+
+# dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ tight_pup_wo_sec ) ) 
+
+# original
 dm_mask_144 = np.nan_to_num( util.get_DM_command_in_2D( I2A @ np.array( pupil_mask ).reshape(-1) ) ).reshape(-1)
 
 #util.nice_heatmap_subplots( [dm_mask_144.reshape(12,12),dm_tight_mask_144.reshape(12,12)], savefig='delme.png')
@@ -242,7 +286,7 @@ if args.project_TT_out_HO:
         projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
 
 if args.project_waffle_out_HO:
-    waffle_mode = util.convert_12x12_to_140(util.waffle_mode_2D())
+    waffle_mode = util.waffle_mode_2D() #util.convert_12x12_to_140(util.waffle_mode_2D())
     projection_basis.append(dm_mask_144 * waffle_mode)
 
 if projection_basis:
@@ -280,7 +324,10 @@ else:
 
 
 
-
+# bias = np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+# dark = np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+# bad_pixel_mask = np.ones([32,32]).astype(int).reshape(-1).tolist(),
+# bad_pixels = [] # np.where( np.array( c.reduction_dict['bad_pixel_mask'][-1])[r1:r2,c1:c2].reshape(-1)   )[0].tolist(),
 
 # TO DO : FIX M2C PROJECTION ====================
 dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
@@ -307,6 +354,11 @@ dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "open_on_flux_limit": 0,
                                                "open_on_dm_limit"  : 0.3,
                                                "LO_offload_limit"  : 1,
+                                               #### in build_IM.py
+                                                # "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                # "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                # "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
+                                                # "bad_pixels" : [], 
 
                                                }
                                             }
@@ -337,8 +389,11 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 # # #### SOME TESTS FOR THE CURIOUS
 
+# just have a peak at the IM intensities registered 
+#plt.figure() ; plt.imshow( util.get_DM_command_in_2D(IM[ 77 ] ) );plt.colorbar(); plt.savefig('delme.png')
 
-# # Perform SVD
+
+# #Perform SVD
 # U, S, Vt = np.linalg.svd(IM_HO, full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
 
 # # (a) Plot singular values
@@ -383,15 +438,17 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 # noise_cov = 10 * np.eye( IM_HO.shape[1] )
 # I2M_2 = (phase_cov @ IM_HO @ np.linalg.inv(IM_HO.T @ phase_cov @ IM_HO + noise_cov) ).T #have to transpose to keep convention.. although should be other way round
 
-# dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
-# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+# #dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
+# dm_mask = util.get_circle_DM_command( radius = 4 ) 
+# I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if  np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
+# #np.diag(  np.array( [dm_mask[i]/IM_HO[i][i] if np.isfinite(1/IM_HO[i][i]) else 0 for i in range(len(IM_HO))]) )
 
 # U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
 # k= 20 # int( 5**2 * np.pi)
 # I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 0
+# act = 65
 # im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
 # titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
@@ -410,13 +467,13 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 # dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 # I2M_3 = np.diag(  np.array( [dm_mask[i]/IM_LO[i][i] if np.isfinite(1/IM_LO[i][i]) else 0 for i in range(len(IM_LO))]) )
 
-# U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
+# # U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
 
-# k= 20 # int( 5**2 * np.pi)
-# I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
+# # k= 20 # int( 5**2 * np.pi)
+# # I2M_4 = util.truncated_pseudoinverse(U, S, Vt, k=50)
 
-# act = 0
-# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act], I2M_4@IM[act] ] ]
+# act = 1
+# im_list = [util.get_DM_command_in_2D( a) for a in [IM[act], I2M_1@IM[act], I2M_2@IM[act], I2M_3@IM[act] ] ]
 # titles = ["real resp.", "pinv", "MAP", "zonal", f"svd trunc. (k={k})"]
 
 # util.nice_heatmap_subplots(  im_list , title_list=titles, savefig='delme.png' ) 

@@ -400,13 +400,16 @@ tstamp_rough =  datetime.datetime.now().strftime("%d-%m-%Y")
 #     default_path_dict = json.load(f)
     
 # setting up socket to ZMQ communication to multi device server
+
 parser = argparse.ArgumentParser(description="Mode setup")
-parser.add_argument(
-    '--data_path',
-    type=str,
-    default="/home/asg/Progs/repos/asgard-alignment/config_files/",
-    help="Path to the directory for storing pokeramp data. Default: %(default)s"
-)
+
+## remove json format option and data_path dependancy 
+# parser.add_argument(
+#     '--data_path',
+#     type=str,
+#     default="/home/asg/Progs/repos/asgard-alignment/config_files/",
+#     help="Path to the directory for storing pokeramp data. Default: %(default)s"
+# )
 
 default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") #os.path.dirname(os.path.abspath(__file__)), "..", "config_files", "baldr_config.toml")
 
@@ -416,6 +419,13 @@ parser.add_argument(
     type=str,
     default=default_toml,
     help="TOML file to write/edit. Default: ../config_files/baldr_config.toml (relative to script)"
+)
+
+parser.add_argument(
+    "--cam_split_file",
+    type=str,
+    default="/home/asg/.config/cred1_split.json",
+    help="path to json configuration file to define cred 1 splitting of baldr and heimdallr sub frames. Default: %(default)s"
 )
 
 
@@ -431,20 +441,21 @@ parser.add_argument(
     default=1,
     help="camera gain. Default: %(default)s"
 )
-parser.add_argument(
-    '--saveformat',
-    type=str,
-    default='toml',
-    help="file type to save pupil coordinates. Default: %(default)s. Options: json, toml"
-)
+# parser.add_argument(
+#     '--saveformat',
+#     type=str,
+#     default='toml',
+#     help="file type to save pupil coordinates. Default: %(default)s. Options: json, toml"
+# )
 
 parser.add_argument("--fig_path", type=str, default='', help="path/to/output/image/ for the saved figures")
 
 args = parser.parse_args()
 
-if not os.path.exists(args.data_path):
-     print(f'made directory : {args.data_path}')
-     os.makedirs(args.data_path)
+## remove json format option and data_path dependancy 
+#if not os.path.exists(args.data_path):
+#     print(f'made directory : {args.data_path}')
+#     os.makedirs(args.data_path)
 
 
 
@@ -581,17 +592,17 @@ for mask, lab in zip( mask_list, regiom_labels):
     #print( f'wrote (detected) baldr pupil cropping coordinates to : {args.data_path + "baldr_pupils_coords.json"}')
 
 
+## remove json format option and data_path dependancy 
+# if args.saveformat=='json':
+#     json_file_path = os.path.join(args.data_path,f'pupils_coords.json')
+#     # Save to a JSON file
+#     with open(json_file_path, "w") as json_file:
+#         json.dump(dict2write, json_file, indent=4)
 
-if args.saveformat=='json':
-    json_file_path = os.path.join(args.data_path,f'pupils_coords.json')
-    # Save to a JSON file
-    with open(json_file_path, "w") as json_file:
-        json.dump(dict2write, json_file, indent=4)
+#     print(f'wrote {json_file_path}')
 
-    print(f'wrote {json_file_path}')
-
-elif args.saveformat=='toml':
-
+#elif args.saveformat=='toml':
+if 1:
     for beam_id in beam_id_2write:#[1,2,3,4]: 
         
         toml_file_path = args.toml_file.replace('#',f'{beam_id}') #os.path.join(args.data_path, f"baldr_config_{beam_id}.toml")  #")#f'pupils_coords.toml')
@@ -621,13 +632,13 @@ elif args.saveformat=='toml':
 
 
 ### WRITING TO THE CRED 1 SPLIT CONFIG FILE FOR THE SERVER
-cred_server_split_file = "/home/asg/.config/cred1_split.json"
+#cred_server_split_file = "/home/asg/.config/cred1_split.json"
 # read 
 
 ui = input("enter 1 if we should update cred split json (make sure Cred server is not in split mode before updating) any button otherwise.")
 
 if "1" in ui:
-    with open( cred_server_split_file ) as f:
+    with open( args.cam_split_file ) as f:
         split_dict = json.load(f)
     
         # "/home/asg/.config/cred1_split.json"
@@ -651,9 +662,9 @@ if "1" in ui:
     #split_dict[f"baldr{beam_id}"]['xsz'] = c2-c1
     #split_dict[f"baldr{beam_id}"]['ysz'] = r2-r1
 
-    with open(cred_server_split_file, "w") as json_file:
+    with open(args.cam_split_file, "w") as json_file:
         json.dump(split_dict, json_file, indent=4)
-        print(f"wrote split pupil coords to {cred_server_split_file}")
+        print(f"wrote split pupil coords to {args.cam_split_file}")
 
 
 ## img[y0: y0+dy, x0:x0+dx] #191:191+40,271:271+40

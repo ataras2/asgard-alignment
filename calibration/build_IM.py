@@ -33,7 +33,7 @@ from asgard_alignment import FLI_Cameras as FLI
 
 
 MDS_port = 5555
-MDS_host = "192.168.100.2" # 'localhost'
+MDS_host = "127.0.0.1" #"192.168.100.2" # 'localhost'
 context = zmq.Context()
 context.socket(zmq.REQ)
 socket = context.socket(zmq.REQ)
@@ -210,6 +210,9 @@ for beam_id in args.beam_id:
 
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+
+# read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
+nrs = c.mySHM.get_data().shape[0] 
 
 # # Dont do calibration in paranal since server is doing this now 
 # # change to append master dark , bias , bad pixel mask 
@@ -420,7 +423,17 @@ for beam_id in args.beam_id:
     res = send_and_get_response(message)
     print(res) 
 
+
+# wait 2 buffers 
 # time.sleep(10)
+# wait for a new buffer to fill before we read the buffer and average it.
+t0 = c.mySHM.get_counter()
+cnt = 0
+while cnt < 2 * nrs : # wait at least 2 buffers before we average buffer 
+    t1 = c.mySHM.get_counter()
+    cnt = t1 - t0 
+    time.sleep( 1/float(c.config['fps']) )
+del cnt, t1, t0 # delete when finished
 
 
 ############## HERE  
@@ -499,6 +512,15 @@ for beam_id in args.beam_id:
 
 # ZWFS Pupil
 input("phasemasks aligned? ensure alignment then press enter")
+
+# wait for a new buffer to fill before we read the buffer and average it.
+t0 = c.mySHM.get_counter()
+cnt = 0
+while cnt < 2 * nrs : # wait at least 1 buffers before we average buffer 
+    t1 = c.mySHM.get_counter()
+    cnt = t1 - t0 
+    time.sleep( 1/float(c.config['fps']) )
+del cnt, t1, t0 # delete when finished
 
 print( 'Getting ZWFS pupils')
 I0s = c.get_data( apply_manual_reduction=True ) #get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
@@ -632,6 +654,9 @@ if args.signal_space.lower() not in ["dm", "pixel"] :
 IM = {beam_id:[] for beam_id in args.beam_id}
 Iplus_all = {beam_id:[] for beam_id in args.beam_id}
 Iminus_all = {beam_id:[] for beam_id in args.beam_id}
+
+
+
 #imgs_to_mean = 20 # for each poke we average this number of frames
 # for now we use standard get_data mehtod which is 200 frames (april 2025)
 for i,m in enumerate(modal_basis):
@@ -640,13 +665,23 @@ for i,m in enumerate(modal_basis):
     #    input("close Baldr TT and ensure stable. Then press enter.")
     I_plus_list = {beam_id:[] for beam_id in args.beam_id}
     I_minus_list = {beam_id:[] for beam_id in args.beam_id}
-    for sign in [(-1)**n for n in range(10)]: #[-1,1]:
+    for sign in [(-1)**n for n in range(4)]: #range(10)]: #[-1,1]:
         
         for beam_id in args.beam_id:
             dm_shm_dict[beam_id].set_data(  sign * args.poke_amp/2 * m ) 
         
-        time.sleep(200/float(c.config["fps"])) # 200 because get data takes 200 frames
-
+        #print( "sleep", float(c.config["fps"]) )
+        #time.sleep( nbreadworeset / 1 ) #float(c.config["fps"])) # 200 because get data takes 200 frames
+        
+        # wait for a new buffer to fill before we read the buffer and average it.
+        t0 = c.mySHM.get_counter()
+        cnt = 0
+        while cnt < 2 * nrs : # wait at least 1 buffers before we average buffer 
+            t1 = c.mySHM.get_counter()
+            cnt = t1 - t0 
+            time.sleep( 1/float(c.config['fps']) )
+        del cnt, t1, t0 # delete when finished
+        
         imgtmp_global = c.get_data(apply_manual_reduction = True )
         # quick version below just for testing . Use full ^ grab above for proper cal.
         #imgtmp_global = np.array([c.get_image(apply_manual_reduction = True ) ,c.get_image(apply_manual_reduction = True )] )#get_data(apply_manual_reduction = True ) # get_some_frames( number_of_frames = imgs_to_mean, apply_manual_reduction = True )
@@ -779,7 +814,8 @@ for beam_id in args.beam_id:
 ## reset DMs 
 dm_shm_dict[beam_id].zero_all()
 # apply dm flat + calibrated offset (does this on channel 1)
-dm_shm_dict[beam_id].activate_calibrated_flat()
+
+# dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 
@@ -816,7 +852,11 @@ for beam_id in args.beam_id:
                                                     "secondary": np.array(secondary_mask[beam_id]).astype(int).reshape(-1).tolist(),
                                                     "exterior" : np.array(exterior_mask[beam_id]).astype(int).reshape(-1).tolist(),
                                                     "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1).tolist(),
-
+                                                    # !!!! Set these calibration things to zero since they should be dealt with by cred 1 server! 
+                                                    "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                    "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                    "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
+                                                    "bad_pixels" : [], 
                                                 }
                                                 }
                                             }
@@ -847,7 +887,7 @@ c.close(erase_file=False)
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id].zero_all()
     time.sleep(0.1)
-    dm_shm_dict[beam_id].activate_calibrated_flat()
+    #dm_shm_dict[beam_id].activate_calibrated_flat()
     time.sleep(0.1)
     dm_shm_dict[beam_id].close(erase_file=False)
 

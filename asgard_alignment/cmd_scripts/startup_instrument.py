@@ -41,6 +41,8 @@ def power_on_all():
 
     print("Box and camera powered on successfully.")
 
+    time.sleep(2)
+
     # Ping test 192.168.100.10
     if not ping_test("192.168.100.10"):
         print("Ping test failed for 192.168.100.10 (controllino). Exiting.")
