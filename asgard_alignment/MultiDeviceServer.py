@@ -837,7 +837,8 @@ class MultiDeviceServer:
             if mode == "now":
                 return str(self.instr.temp_summary.get_temp_status())
             if mode == "keys":
-                return str(self.instr.temp_summary.get_temp_keys())
+                keys = self.instr.temp_summary.get_temp_keys()
+                return f"[{','.join(keys)}]"
             return "NACK: Invalid mode for temp_status, must be 'now' or 'keys'"
 
         first_word_to_function = {

@@ -1390,7 +1390,7 @@ class TemperatureSummary:
         for probe in self.temp_probes:
             try:
                 temp = self.controllino.analog_input(probe)
-                temps.append(temp)
+                temps.append(float(temp))
             except Exception as e:
                 print(f"Error getting temperature for {probe}: {e}")
                 temps.append(None)
@@ -1399,7 +1399,9 @@ class TemperatureSummary:
         for i, servo in enumerate(self.servo_names):
             try:
                 info = self.controllino.read_PI_loop_info(servo)
-                PI_infos.append(info)
+                for key in TemperatureSummary.PI_infos_of_interest:
+                    PI_infos.append(info[key]) 
+
             except Exception as e:
                 print(f"Error getting PI info for {servo}: {e}")
                 PI_infos.append(None)
