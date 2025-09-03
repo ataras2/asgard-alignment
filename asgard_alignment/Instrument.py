@@ -1385,7 +1385,11 @@ class TemperatureSummary:
 
         return keys
 
-    def get_temp_status(self):
+    @staticmethod
+    def raw_to_celsius(raw_value):
+        return 42.5 + (float(raw_value) - 512) * 0.11
+
+    def get_temp_status(self, probes_only=False, raw_temps=True):
         temps = []
         for probe in self.temp_probes:
             try:
@@ -1394,6 +1398,12 @@ class TemperatureSummary:
             except Exception as e:
                 print(f"Error getting temperature for {probe}: {e}")
                 temps.append(None)
+
+        if not raw_temps:
+            temps = [self.raw_to_celsius(t) if t is not None else None for t in temps]
+
+        if probes_only:
+            return temps
 
         PI_infos = []
         for i, servo in enumerate(self.servo_names):
