@@ -19,7 +19,7 @@ from xaosim.shmlib import shm
 import asgard_alignment.controllino as co # for turning on / off source \
 from asgard_alignment.DM_shm_ctrl import dmclass
 import common.DM_registration as DM_registration
-import common.DM_basis_functions as dmbases
+#import common.DM_basis_functions as dmbases
 import common.phasemask_centering_tool as pct
 from asgard_alignment import FLI_Cameras as FLI
 from pyBaldr import utilities as util
@@ -115,7 +115,7 @@ parser.add_argument(
 )
 parser.add_argument(
     "--use_baldr_flat", 
-    action="store_false",
+    action="store_true",
     default=False,
     help="calibrate the Baldr flat starting with the current baldr flat. If False we beging with the BMC factory flat"
 )
@@ -276,16 +276,16 @@ dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
 
-    ## for paranal initially assume correct flat is already on ! 
-    # # zero all channels
-    # dm_shm_dict[beam_id].zero_all()
-    # # activate flat 
-    # #dm_shm_dict[beam_id].activate_flat()
-    # # apply DM flat offset 
-    # if not args.use_baldr_flat:
-    #     dm_shm_dict[beam_id].activate_flat()
-    # else:
-    #     dm_shm_dict[beam_id].activate_calibrated_flat()
+    # for paranal initially assume correct flat is already on ! 
+    # zero all channels
+    dm_shm_dict[beam_id].zero_all()
+    # activate flat 
+    #dm_shm_dict[beam_id].activate_flat()
+    # apply DM flat offset 
+    if not args.use_baldr_flat:
+        dm_shm_dict[beam_id].activate_flat()
+    else:
+        dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 # # try get dark and build bad pixel mask 
@@ -311,7 +311,7 @@ for beam_id in args.beam_id:
 #disturbance = np.zeros(144) #[np.zeros(140) for _ in DM_list]
 
 # incase we want to test this with dynamic dm cmds (e.g phasescreen)
-current_cmd_list = [ np.zeros(144)  for _ in args.beam_id]
+current_cmd_list = [np.zeros(144)  for _ in args.beam_id]
 img_4_corners  = [[] for _ in args.beam_id] 
 transform_dicts = []
 bilin_interp_matricies = []
@@ -361,7 +361,8 @@ bilin_interp_matricies = []
 # ax[-1].imshow( dm_shm_dict[ii].shm0.get_data())
 # plt.savefig('delme.png')
 
-
+#size of buffer (typically number of reads without reset)
+nrs = c.mySHM.get_data().shape[0] 
 
 
 print(f'GOING VERY SLOW ({sleeptime}s delays) DUE TO SHM DELAY DM')
@@ -373,11 +374,23 @@ for act in dm_4_corners: # 4 corner indicies are in 140 length vector (not 144 2
     for nn in range(number_of_pokes):
         print( f'poke {nn}')
         poke_vector[act] = (-1)**nn * poke_amplitude
+        
+        
         # send DM commands 
         for ii, beam_id in enumerate( args.beam_id):
             dm_shm_dict[beam_id].set_data( dm_shm_dict[beam_id].cmd_2_map2D(poke_vector, fill=0) ) 
             ## Try without #DM_flat_offset[beam_id]  )
-        time.sleep(1)
+            
+        # wait for a new buffer to fill before we read the buffer and average it.
+        t0 = c.mySHM.get_counter()
+        cnt = 0
+        while cnt < 2 * nrs : # wait at least 2 buffers before we average buffer 
+            t1 = c.mySHM.get_counter()
+            cnt = t1 - t0 
+            time.sleep( 1/float(fps0) )
+        del cnt, t1, t0 # delete when finished
+        
+        #time.sleep(1)
         # get the images 
         img = np.mean( c.get_data( apply_manual_reduction=True) , axis=0)
 
@@ -496,7 +509,7 @@ for ii, beam_id in enumerate( args.beam_id ):
 
 
 
-# ## write the json file to keep record of stability 
+## write the json file to keep record of stability 
 for ii, beam_id in enumerate( args.beam_id ):
 
     tstamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")

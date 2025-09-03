@@ -25,9 +25,8 @@ from scipy.optimize import curve_fit
 import argparse
 
 
-
 class HeimdallrAA:
-    def __init__(self, shutter_pause_time=0.5, band="K2"):
+    def __init__(self, shutter_pause_time, band, flux_threshold):
         # Set target_pixels and col_bnds based on band
         if band.upper() == "K1":
             self.target_pixels = (27, 49)
@@ -37,6 +36,8 @@ class HeimdallrAA:
             self.col_bnds = (160, 320)
         else:
             raise ValueError("Unknown band: choose 'K1' or 'K2'.")
+
+        self.flux_threshold = flux_threshold
 
         self.mds = self._open_mds_connection()
 
@@ -95,16 +96,16 @@ class HeimdallrAA:
         return full_frame
 
     def _get_and_process_blob(self):
-        full_frame = self._get_frame()
+        full_frame = self._get_frame() - 1000.0
         blob_centre = self._find_blob_centre(full_frame)
         return blob_centre
 
-    def _get_blob_flux(self, radius):
+    def _get_blob_with_flux(self, radius):
         full_frame = self._get_frame() - 1000.0
         blob_centre = self._find_blob_centre(full_frame)
         mask = self.circle_mask(full_frame.shape, blob_centre, radius)
         blob_flux = full_frame[mask].sum()
-        return blob_flux
+        return blob_centre, blob_flux
 
     @staticmethod
     def circle_mask(shape, center, radius):
@@ -130,6 +131,8 @@ class HeimdallrAA:
         self._send_and_get_response(msg)
         time.sleep(self._shutter_pause_time)
 
+        flux_radius = 6
+
         for target_beam in range(1, 5):
             print(f"doing beam {target_beam}")
             if target_beam > 1:
@@ -139,15 +142,22 @@ class HeimdallrAA:
                 self._send_and_get_response(msg)
                 time.sleep(self._shutter_pause_time)
 
-            blob_centre = self._get_and_process_blob()
+            blob_centre, flux = self._get_blob_with_flux(flux_radius)
 
-            # calculate the pixel offsets from the target pixels
-            pixel_offsets[target_beam] = np.array(
-                [
-                    self.target_pixels[1] - blob_centre[0],
-                    self.target_pixels[0] - blob_centre[1],
-                ]
-            )
+            if flux < self.flux_threshold:
+                print(
+                    f"Beam {target_beam} has low flux: {flux}. setting delta to zero."
+                )
+                pixel_offsets[target_beam] = np.array([0, 0])
+            else:
+                print(f"Beam {target_beam} flux: {flux:.2f}, centre: {blob_centre}")
+                # calculate the pixel offsets from the target pixels
+                pixel_offsets[target_beam] = np.array(
+                    [
+                        self.target_pixels[1] - blob_centre[0],
+                        self.target_pixels[0] - blob_centre[1],
+                    ]
+                )
 
         # 5. unshutter all beams
         msg = "h_shut open 1,2,3,4"
@@ -183,6 +193,8 @@ class HeimdallrAA:
             self._send_and_get_response(cmd)
 
     def autoalign_3_pupil(self):
+        mv_time = 2.5
+
         beam = 3
         msg = f"h_shut close 1,2,4"
         self._send_and_get_response(msg)
@@ -218,7 +230,7 @@ class HeimdallrAA:
         # 3. move pupil to optimize flux
         pup_offset = 0.2  # mm
         n_samp = 7
-        flux_beam_radius = 8  # pixels
+        flux_beam_radius = 6  # pixels
 
         measurement_locs_x = np.linspace(-pup_offset, pup_offset, n_samp)
         relative_measurement_locs = np.array(
@@ -227,34 +239,72 @@ class HeimdallrAA:
                 for i in range(1, n_samp)
             ]
         )
-        relative_measurement_locs = np.concatenate([[-pup_offset], relative_measurement_locs])
+        relative_measurement_locs = np.concatenate(
+            [[-pup_offset], relative_measurement_locs]
+        )
+
+        def fit_func(x, m, a, b, c):
+            return -m * np.abs(x - a) - m * np.abs(x - b) + c
+
+        def get_peak_flux_loc(pos, fluxes):
+            fluxes /= np.max(fluxes)  # normalise
+            params, _ = curve_fit(fit_func, pos, fluxes, p0=[1, -0.05, 0.05, 1])
+
+            return (params[1] + params[2]) / 2
 
         fluxes = []
         for delta in relative_measurement_locs:
             cmd = f"mv_pup c_red_one_focus {beam} {delta} {0.0}"
             self._send_and_get_response(cmd)
             print("sent", cmd)
+            time.sleep(mv_time)
+            _, flux = self._get_blob_with_flux(flux_beam_radius)
+            fluxes.append(flux)
+
+        cur_pupil_pos = measurement_locs_x[-1]
+
+        fluxes = np.array(fluxes)
+        if np.max(fluxes) < self.flux_threshold:
+            print(
+                f"Beam {beam} has low flux: {np.max(fluxes)}. Setting pupil offset back to original."
+            )
+            del_needed = -cur_pupil_pos
+            cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0.0}"
+            self._send_and_get_response(cmd)
+            return
+
+        optimal_offset = get_peak_flux_loc(measurement_locs_x, fluxes)
+
+        del_needed = optimal_offset - cur_pupil_pos
+
+        print(
+            f"Optimal pupil offset for beam {beam} x: {optimal_offset:.4f} mm ({del_needed:.4f} mm from current position)"
+        )
+        cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0.0}"
+        self._send_and_get_response(cmd)
+
+        time.sleep(2)
+
+        fluxes = []
+        for delta in relative_measurement_locs:
+            cmd = f"mv_pup c_red_one_focus {beam} {0.0} {delta}"
+            self._send_and_get_response(cmd)
+            print("sent", cmd)
             time.sleep(2.5)
-            flux = self._get_blob_flux(flux_beam_radius)
+            _, flux = self._get_blob_with_flux(flux_beam_radius)
             fluxes.append(flux)
 
         fluxes = np.array(fluxes)
-        fluxes /= np.max(fluxes)  # normalise
 
-        def fit_func(x, m, a, b, c):
-            return -m * np.abs(x - a) - m * np.abs(x - b) + c
-
-        params, _ = curve_fit(
-            fit_func, measurement_locs_x, fluxes, p0=[1, -0.05, 0.05, 1]
-        )
-
-        optimal_offset = (params[1] + params[2]) / 2
+        optimal_offset = get_peak_flux_loc(measurement_locs_x, fluxes)
         cur_pupil_pos = measurement_locs_x[-1]
 
         del_needed = optimal_offset - cur_pupil_pos
 
-        print(f"Optimal pupil offset for beam {beam}: {del_needed:.4f} mm")
-        cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0.0}"
+        print(
+            f"Optimal pupil offset for beam {beam} y: {optimal_offset:.4f} mm ({del_needed:.4f} mm from current position)"
+        )
+        cmd = f"mv_pup c_red_one_focus {beam} {0.0} {del_needed}"
         self._send_and_get_response(cmd)
 
         # open all shutters
@@ -264,33 +314,8 @@ class HeimdallrAA:
     def autoalign_full(self):
         pass
 
-        # measurement_locs = np.array(
-        #     [
-        #         [0, 0],  # centre
-        #         [pup_offset, 0],  # right
-        #         [-pup_offset, 0],  # left
-        #         [0, pup_offset],  # up
-        #         [0, -pup_offset],  # down
-        #     ]
-        # )
-        # delta_positions = [
-        #     measurement_locs[i] - measurement_locs[i - 1]
-        #     for i in range(1, len(measurement_locs))
-        # ]
-
-        # fluxes = []
-        # fluxes.append(self._get_blob_flux(flux_beam_radius))  # centre flux
-
-        # for delta in delta_positions:
-        #     cmd = f"mv_pup c_red_one_focus {beam} {delta[0]} {delta[1]}"
-        #     self._send_and_get_response(cmd)
-        #     time.sleep(0.5)
-        #     flux = self._get_blob_flux(flux_beam_radius)
-        #     fluxes.append(flux)
-
 
 def main():
-
 
     parser = argparse.ArgumentParser(description="Autoalign Heimdallr beams.")
     parser.add_argument(
@@ -330,6 +355,7 @@ def main():
         raise ValueError("Unknown alignment method.")
 
     print("Autoalignment completed.")
+
 
 if __name__ == "__main__":
     main()
