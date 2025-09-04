@@ -5,7 +5,7 @@ def send_and_receive(socket, msg):
     print(f"Sending message: {msg}")
     socket.send_json(msg)
     try:
-        reply = socket.recv_json()
+        reply = socket.recv_string()
         print(f"Received reply: {reply}")
         return reply
     except zmq.Again as e:

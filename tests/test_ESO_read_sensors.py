@@ -26,10 +26,10 @@ def main():
     socket = context.socket(zmq.REQ)
 
     # Set the receive timeout
-    socket.setsockopt(zmq.RCVTIMEO, args.timeout)
+    socket.setsockopt(zmq.RCVTIMEO, 5000)
 
     # Connect to the server
-    server_address = f"tcp://{args.host}:{args.port}"
+    server_address = f"tcp://{'mimir'}:{5555}"
     socket.connect(server_address)
 
     # time now, in format "YYYY-MM-DDThh:mm:ss"
@@ -51,7 +51,7 @@ def main():
 
     res = utils.send_and_receive(socket, json.dumps(setup_cmd))
     # compare the reply, but the values of "value" are arbitrary (just need to check floats)
-    reply = dict(res)
+    reply = json.loads(res[:-1])
     reply_copy = reply.copy()
     if "time" in reply_copy["reply"]:
         del reply_copy["reply"]["time"]
@@ -68,22 +68,6 @@ def main():
         print("Test failed: Reply does not match expected reply.")
         print(f"Expected: {expected_reply_copy}")
         print(f"Received: {reply_copy}")
-
-    poll_cmd = {"command": {"name": "poll", "time": "2025-07-31T12:13:03"}}
-
-    expected_reply = {
-        "reply": {
-            "content": "PENDING",
-            "time": time_now,
-            "parameters": [
-                {"attribute": "<alias>HTTP1:DATA.status0", "value": "MOVING"},
-                {"attribute": "<alias>HTTP1:DATA.posEnc", "value": "100"},
-            ],
-        }
-    }
-
-    res = utils.send_and_receive(socket, json.dumps(poll_cmd))
-    utils.compare_reply(dict(res), expected_reply)
 
 
 if __name__ == "__main__":

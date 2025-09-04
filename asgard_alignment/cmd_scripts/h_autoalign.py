@@ -345,6 +345,7 @@ def main():
     heimdallr_aa = HeimdallrAA(
         shutter_pause_time=args.shutter_pause_time,
         band=args.band,
+        flux_threshold=200.0,
     )
 
     if args.align in ["cp", "coarseparallel"]:
