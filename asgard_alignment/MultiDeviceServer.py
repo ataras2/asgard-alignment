@@ -58,6 +58,7 @@ class MultiDeviceServer:
 
         self.poller = zmq.Poller()
         self.poller.register(self.server, zmq.POLLIN)
+        self.batch = 0
 
         self.db_update_socket = self.context.socket(zmq.PUSH)
         self.db_update_socket.connect("tcp://wag:5561")
@@ -221,11 +222,11 @@ class MultiDeviceServer:
                     )
 
             # Move devices (if two batches, move the first one)
-            batch = 0
-            if len(self.setup_ls[batch]) > 0:
-                print("batch", batch, "of devices to move:")
+            self.batch = 0
+            if len(self.setup_ls[self.batch]) > 0:
+                print("batch", self.batch, "of devices to move:")
                 reply["reply"]["parameters"].clear()
-                for s in self.setup_ls[batch]:
+                for s in self.setup_ls[self.batch]:
                     print(
                         "Moving: ",
                         s.device_name,
@@ -264,8 +265,8 @@ class MultiDeviceServer:
             is_batch_done = False
 
             reply["reply"]["parameters"].clear()
-            if len(self.setup_ls[batch]) > 0:
-                for s in self.setup_ls[batch]:
+            if len(self.setup_ls[self.batch]) > 0:
+                for s in self.setup_ls[self.batch]:
                     attribute = "<alias>" + s.device_name + ":DATA.status0"
                     # Case of motor with named position requested
                     if s.motion_type == "NAME":
@@ -347,10 +348,10 @@ class MultiDeviceServer:
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
             if is_batch_done:
-                if (batch == 0) and (len(self.setup_ls[1]) > 0) and (not stopped):
-                    batch = 1
-                    print("batch", batch, "of devices to move:")
-                    for s in self.setup_ls[batch]:
+                if (self.batch == 0) and (len(self.setup_ls[1]) > 0) and (not stopped):
+                    self.batch = 1
+                    print("batch", self.batch, "of devices to move:")
+                    for s in self.setup_ls[self.batch]:
                         print(
                             "Moving: ",
                             s.device_name,
