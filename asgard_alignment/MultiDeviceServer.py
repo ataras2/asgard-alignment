@@ -107,8 +107,8 @@ class MultiDeviceServer:
                     else:
                         if response is None:
                             response = ""
-                        if is_custom_msg:
-                            s.send_string(response + "\n")
+                        # if is_custom_msg:
+                        s.send_string(response   + "\n")
 
     @staticmethod
     def get_time_stamp():
@@ -253,7 +253,7 @@ class MultiDeviceServer:
 
         elif "poll" in command_name:
             # --------------------------------------------------
-            # Add here call to query the status of the batch of
+            # TODO: Add here call to query the status of the batch of
             # devices that is concerned by the last setup command
             # If they all reach the target position or if
             # a STOP command occured, set is_batch_done to 1
@@ -261,7 +261,7 @@ class MultiDeviceServer:
             # In this example of back-end server, we simulate
             # that by checking the cntdwnSetup variable
             # --------------------------------------------------
-            is_batch_done = stopped  # TODO: less variables
+            is_batch_done = False
 
             reply["reply"]["parameters"].clear()
             if len(self.setup_ls[batch]) > 0:
@@ -552,7 +552,7 @@ class MultiDeviceServer:
         print(repMsg)
         self.server.send_string(repMsg)
 
-        return False, None
+        return False, repMsg
 
     def _handle_custom_command(self, message):
         # this is a custom command, acutally do useful things here lol

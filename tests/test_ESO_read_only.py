@@ -1,12 +1,14 @@
 import argparse
 import zmq
 import time
+import json
+import test_utils as utils
 
 
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="ZeroMQ Client")
-    parser.add_argument("--host", type=str, default="localhost", help="Server host")
+    parser.add_argument("--host", type=str, default="mimir", help="Server host")
     parser.add_argument("--port", type=int, default=5555, help="Server port")
     parser.add_argument(
         "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
@@ -33,16 +35,14 @@ def main():
     # test 1: report the encoder position of some motors
     msg = {
         "command": {
-            "name": "write",
+            "name": "poll",
             "time": time_now,
-            "Paramters": [
-                {
-                    "attribute": "",
-                    "value": "",
-                }
-            ],
         }
     }
+
+    res = utils.send_and_receive(socket, json.dumps(msg))
+    print(res)
+
 
 
 if __name__ == "__main__":
