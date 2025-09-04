@@ -622,11 +622,10 @@ class Instrument:
         for k, v in self.devices.items():
             if k in dev_list:
                 logging.info(f"Removing {k}")
-        
-        logging.info(f"Current devices: {list(self.devices.keys())}")       
+
+        logging.info(f"Current devices: {list(self.devices.keys())}")
         self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}
-        logging.info(f"After deletion: {list(self.devices.keys())}")   
-        
+        logging.info(f"After deletion: {list(self.devices.keys())}")
 
     def _remove_controllers(self, controller_list):
         self._controllers = {
@@ -753,7 +752,6 @@ class Instrument:
                     for i in range(1, 5):
                         all_devs.append(f"{prefix}{i}")
                 # this usb also drives BDS + SSS
-                all_devs = all_devs+[f"BDS{i}" for i in range(1, 5)]+ ["SSS"]
                 usb_command = (
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )
@@ -1424,7 +1422,7 @@ class TemperatureSummary:
             try:
                 info = self.controllino.read_PI_loop_info(servo)
                 for key in TemperatureSummary.PI_infos_of_interest:
-                    PI_infos.append(info[key]) 
+                    PI_infos.append(info[key])
 
             except Exception as e:
                 print(f"Error getting PI info for {servo}: {e}")
