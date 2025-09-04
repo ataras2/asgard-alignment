@@ -14,6 +14,7 @@ import time
 import json
 import numpy as np
 import ast
+import logging
 
 import zaber_motion.binary
 
@@ -328,7 +329,8 @@ class ZaberLinearStage(ESOdevice.Motor):
         try:
             self.axis.is_busy()
             return True
-        except Exception:
+        except Exception as e:
+            logging.warning(f"{self.name} ping failed: {e}")
             return False
 
     def read_state(self):

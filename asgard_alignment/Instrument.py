@@ -619,7 +619,14 @@ class Instrument:
         )
 
     def _remove_devices(self, dev_list):
+        for k, v in self.devices.items():
+            if k in dev_list:
+                logging.info(f"Removing {k}")
+        
+        logging.info(f"Current devices: {list(self.devices.keys())}")       
         self._devices = {k: v for k, v in self.devices.items() if k not in dev_list}
+        logging.info(f"After deletion: {list(self.devices.keys())}")   
+        
 
     def _remove_controllers(self, controller_list):
         self._controllers = {
@@ -650,6 +657,7 @@ class Instrument:
         )
 
         if isinstance(self.devices[device], zabers):  # Zaber
+            logging.info("Request to standby a zaber device")
             # id the wire that powers the controller(s)
             if "BM" in device:
                 wire_name = "X-MCC (BMX,BMY)"
@@ -702,8 +710,10 @@ class Instrument:
             self._remove_controllers(controller_connctions)
 
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.LS16PAxis):
+            logging.info("Request to standby a LS16P device")
             wire_name = "LS16P (HFO)"
             all_devs = [f"HFO{i}" for i in range(1, 5)]
+            logging.info(f"preparing removing {all_devs}")
 
             controller_connctions = []
             for dev in all_devs:
@@ -715,12 +725,14 @@ class Instrument:
             self._controllers["controllino"].turn_off(wire_name)
 
             # remove the devices
+            logging.info(f"actually removing {all_devs}")
             self._remove_devices(all_devs)
 
             # and the controllers:
             self._remove_controllers(controller_connctions)
 
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.M100DAxis):
+            logging.info("Request to standby a M100D device")
             # in this case, we will need to switch off all grouped motors
             if "BT" in device:
                 # this is like the BTX + HFO row
@@ -740,6 +752,8 @@ class Instrument:
                 for prefix in prefixes:
                     for i in range(1, 5):
                         all_devs.append(f"{prefix}{i}")
+                # this usb also drives BDS + SSS
+                all_devs = all_devs+[f"BDS{i}" for i in range(1, 5)]+ ["SSS"]
                 usb_command = (
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )

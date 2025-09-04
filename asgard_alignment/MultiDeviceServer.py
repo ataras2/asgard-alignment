@@ -414,7 +414,36 @@ class MultiDeviceServer:
                 n_devs_commanded = len(self.instr.devices)  # total number of devices
                 is_all_devs = True
                 dev_names = list(self.instr.devices.keys())
+            else:
+                dev_names = [json_data["command"]["parameters"][i]["device"] for i in range(n_devs_commanded)]
 
+            # if online, it is more efficient for instrument to do it in a batch call
+            if command_name == "online":
+                self.instr.online(dev_names)
+
+                for dev_name in dev_names:
+                    attribute = "<alias>" + dev_name + ".state"
+                    reply["reply"]["parameters"].append(
+                        {"attribute": attribute, "value": 3}
+                    )
+
+            # standby is also a weird case, as standing by some devices shuts off others - need to iterate
+            if command_name == "standby":
+                for dev_name in dev_names:
+                    attribute = "<alias>" + dev_name + ".state"
+                    reply["reply"]["parameters"].append(
+                        {"attribute": attribute, "value": 2}
+                    )
+
+                devs_to_standby = dev_names.copy()
+                while len(devs_to_standby) > 0:
+                    logging.info(f"Standing by device: {devs_to_standby[0]}")
+                    self.instr.standby(devs_to_standby[0])
+
+                    devs_to_standby = list(set(self.instr.devices.keys()).intersection(devs_to_standby))
+
+
+            # for all other commands, do them one device at a time...
             for i in range(n_devs_commanded):
                 if is_all_devs:
                     dev_name = dev_names[i]
@@ -451,23 +480,6 @@ class MultiDeviceServer:
                         {"attribute": attribute, "value": 1}
                     )
 
-                elif command_name == "online":
-                    print("Setting ONLINE device:", dev_name)
-                    # .........................................................
-                    # If needed, call controller-specific functions to
-                    # have the devices ready for operations (power them up
-                    # if they have not already been ipowered up by a STANDBY
-                    # command) and initialize them (if required).
-                    # .........................................................
-
-                    # Update the wagics database to show that the device is
-                    # in ONLINE state (value of "state" attribute has to be
-                    # set to 3)
-
-                    attribute = "<alias>" + dev_name + ".state"
-                    reply["reply"]["parameters"].append(
-                        {"attribute": attribute, "value": 3}
-                    )
 
                 elif command_name == "simulat":
                     print("Simulation of device", dev_name)
@@ -490,24 +502,24 @@ class MultiDeviceServer:
                         {"attribute": attribute, "value": 1}
                     )
 
-                elif command_name == "standby":
-                    print("Setting STANDBY device:", dev_name)
-                    # .........................................................
-                    # If needed, call controller-specific functions to bring
-                    # the device to a "parking" position and to power them
-                    # off (they should not require initialization when
-                    # going ONLINE again). This command is called at
-                    # end-of-night instrument shutdown
-                    # .........................................................
+                # elif command_name == "standby":
+                #     print("Setting STANDBY device:", dev_name)
+                #     # .........................................................
+                #     # If needed, call controller-specific functions to bring
+                #     # the device to a "parking" position and to power them
+                #     # off (they should not require initialization when
+                #     # going ONLINE again). This command is called at
+                #     # end-of-night instrument shutdown
+                #     # .........................................................
 
-                    # Update the wagics database to show that the device is
-                    # in STANDBY state (value of "state" attrivute has to be
-                    # set to 2)
+                #     # Update the wagics database to show that the device is
+                #     # in STANDBY state (value of "state" attrivute has to be
+                #     # set to 2)
 
-                    attribute = "<alias>" + dev_name + ".state"
-                    reply["reply"]["parameters"].append(
-                        {"attribute": attribute, "value": 2}
-                    )
+                #     attribute = "<alias>" + dev_name + ".state"
+                #     reply["reply"]["parameters"].append(
+                #         {"attribute": attribute, "value": 2}
+                #     )
 
                 elif command_name == "stop":
                     print("Stop device:", dev_name)
