@@ -59,6 +59,9 @@ def power_on_all():
         if res != 0:
             print(f"Command '{cmd}' failed. Exiting.")
             sys.exit(1)
+        # if not the last, wait a bit
+        if cmd != cmds[-1]:
+            time.sleep(2)
 
     print("All commands executed successfully. Instrument startup complete.")
     print("Load a state using the gui, and run 'fetch' on the camera server")
