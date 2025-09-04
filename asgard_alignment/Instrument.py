@@ -752,8 +752,6 @@ class Instrument:
                 for prefix in prefixes:
                     for i in range(1, 5):
                         all_devs.append(f"{prefix}{i}")
-                # this usb also drives BDS + SSS
-                all_devs = all_devs+[f"BDS{i}" for i in range(1, 5)]+ ["SSS"]
                 usb_command = (
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )
@@ -889,7 +887,7 @@ class Instrument:
             os.system(usb_command)
             time.sleep(0.1)
 
-        time.sleep(4.0)
+        time.sleep(5.0)
 
         # reconnect all
         self._prev_port_mapping = self.compute_serial_to_port_map()

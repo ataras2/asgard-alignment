@@ -33,7 +33,7 @@ standby_subset_cmd = {
          "parameters" :
          [
              {
-                 "device" : "BOTP1"
+                 "device" : "BOTP2"
              },
             #  {
             #      "device" : "HFO1"
@@ -50,8 +50,14 @@ online_subset_cmd = {
          "parameters" :
          [
              {
-                 "device" : "BOTP1"
+                 "device" : "BOTP2"
              },
+             {
+                 "device" : "BOTT2"
+             },
+             {
+                 "device" : "BOTP3"
+             }
             #  {
             #      "device" : "HFO1"
             #  }
@@ -82,7 +88,7 @@ def main():
 
     # Create a socket to communicate with the server
     socket = context.socket(zmq.REQ)
-    socket.setsockopt(zmq.RCVTIMEO, 5000)
+    socket.setsockopt(zmq.RCVTIMEO, 10000)
 
     # Connect to the server
     server_address = f"tcp://{'mimir'}:{5555}"
@@ -91,7 +97,8 @@ def main():
     # time now, in format "YYYY-MM-DDThh:mm:ss"
     time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
 
-    use_subset = False
+    use_subset = True
+    # use_subset = False
 
     if use_subset:
         standby = standby_subset_cmd
@@ -104,10 +111,10 @@ def main():
 
     time.sleep(5)
 
-    # time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
-    # online_subset_cmd["command"]["time"] = time_now
-    # res = utils.send_and_receive(socket, json.dumps(online_subset_cmd))
-    # print(res)
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    online_subset_cmd["command"]["time"] = time_now
+    res = utils.send_and_receive(socket, json.dumps(online_subset_cmd))
+    print(res)
     
 
 if __name__ == "__main__":
