@@ -64,6 +64,8 @@ class MultiDeviceServer:
         self.db_update_socket.connect("tcp://wag:5561")
 
         self._reset_setup_ls()
+        self.batch = 0
+        self.is_stopped=True
 
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
@@ -126,6 +128,17 @@ class MultiDeviceServer:
     def _reset_setup_ls(self):
         self.setup_ls = [[], []]
 
+    def check_if_batch_done(self):
+        is_done = True
+        for dev in self.setup_ls[self.batch]:
+            logging.info(f"Checking if {dev.device_name} is moving... ")
+            is_moving = self.instr.devices[dev.device_name].is_moving()
+            logging.info(f"Value is {is_moving}")
+            if is_moving == True:
+                is_done=False
+                break
+        return is_done
+
     def handle_message(self, message):
         """
         Handles a recieved message. Custom messages are indicated by lowercase commands
@@ -174,7 +187,7 @@ class MultiDeviceServer:
 
         # Case of "setup" (sent by wag to move devices)
         if "setup" in command_name:
-            stopped = False
+            self.is_stopped = False
             n_devs_commanded = len(json_data["command"]["parameters"])
 
             semaphore_array = [0] * 100  # TODO: implement this maximum correctly
@@ -262,7 +275,7 @@ class MultiDeviceServer:
             # In this example of back-end server, we simulate
             # that by checking the cntdwnSetup variable
             # --------------------------------------------------
-            is_batch_done = False
+            is_batch_done = self.check_if_batch_done()
 
             reply["reply"]["parameters"].clear()
             if len(self.setup_ls[self.batch]) > 0:
@@ -348,7 +361,7 @@ class MultiDeviceServer:
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
             if is_batch_done:
-                if (self.batch == 0) and (len(self.setup_ls[1]) > 0) and (not stopped):
+                if (self.batch == 0) and (len(self.setup_ls[1]) > 0) and (not self.is_stopped):
                     self.batch = 1
                     print("batch", self.batch, "of devices to move:")
                     for s in self.setup_ls[self.batch]:
@@ -369,7 +382,6 @@ class MultiDeviceServer:
                             {"attribute": attribute, "value": "MOVING"}
                         )
 
-                    # Reset simulation of setup progress
                     reply["reply"]["content"] = "PENDING"
                 else:
                     # All batches of setup are done
@@ -535,7 +547,7 @@ class MultiDeviceServer:
                     )
 
             if command_name == "stop":
-                stopped = True
+                self.is_stopped = True
 
             reply["reply"]["content"] = "OK"
 
@@ -551,7 +563,7 @@ class MultiDeviceServer:
 
         repMsg = json.dumps(reply) + "\0"
         print(repMsg)
-        self.server.send_string(repMsg)
+        # self.server.send_string(repMsg)
 
         return False, repMsg
 

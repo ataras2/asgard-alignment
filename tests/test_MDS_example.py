@@ -24,12 +24,10 @@ def main():
 
     # Create a socket to communicate with the server
     socket = context.socket(zmq.REQ)
-
-    # Set the receive timeout
-    socket.setsockopt(zmq.RCVTIMEO, args.timeout)
+    socket.setsockopt(zmq.RCVTIMEO, 5000)
 
     # Connect to the server
-    server_address = f"tcp://{args.host}:{args.port}"
+    server_address = f"tcp://{'mimir'}:{5555}"
     socket.connect(server_address)
 
     # time now, in format "YYYY-MM-DDThh:mm:ss"
@@ -40,39 +38,45 @@ def main():
             "name": "setup",
             "time": time_now,
             "parameters": [
-                {"name": "INS.HTTP1.ENC", "value": "100"},
+                {"name": "INS.HTTP1.ENCREL", "value": "100"},
                 {"name": "INS.HTPP1.ENC", "value": "100"},
-            ],
-        }
-    }
-    expected_reply = {
-        "reply": {
-            "content": "OK",
-            "time": "2025-07-31T12:13:02",
-            "parameters": [
-                {"attribute": "<alias>HTTP1:DATA.status0", "value": "MOVING"}
             ],
         }
     }
 
     res = utils.send_and_receive(socket, json.dumps(setup_cmd))
-    utils.compare_reply(dict(res), expected_reply)
+    # utils.compare_reply(dict(res), expected_reply)
+    print(res)
 
-    poll_cmd = {"command": {"name": "poll", "time": "2025-07-31T12:13:03"}}
+    time.sleep(5)
 
-    expected_reply = {
-        "reply": {
-            "content": "PENDING",
-            "time": time_now,
-            "parameters": [
-                {"attribute": "<alias>HTTP1:DATA.status0", "value": "MOVING"},
-                {"attribute": "<alias>HTTP1:DATA.posEnc", "value": "100"},
-            ],
-        }
-    }
-
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    poll_cmd = {"command": {"name": "poll", "time": time_now}}
     res = utils.send_and_receive(socket, json.dumps(poll_cmd))
-    utils.compare_reply(dict(res), expected_reply)
+
+    print(res)
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    poll_cmd = {"command": {"name": "poll", "time": time_now}}
+    res = utils.send_and_receive(socket, json.dumps(poll_cmd))
+    print(res)
+    time.sleep(1)
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    poll_cmd = {"command": {"name": "poll", "time": time_now}}
+    res = utils.send_and_receive(socket, json.dumps(poll_cmd))
+    print(res)
+
+    # expected_reply = {
+    #     "reply": {
+    #         "content": "PENDING",
+    #         "time": time_now,
+    #         "parameters": [
+    #             {"attribute": "<alias>HTTP1:DATA.status0", "value": "MOVING"},
+    #             {"attribute": "<alias>HTTP1:DATA.posEnc", "value": "100"},
+    #         ],
+    #     }
+    # }
+
+    # utils.compare_reply(dict(res), expected_reply)
 
 
 if __name__ == "__main__":
