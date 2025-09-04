@@ -409,18 +409,6 @@ class ZaberLinearStage(ESOdevice.Motor):
         """
         self.move_absolute(position)
 
-    def is_reset_success(self):
-        """
-        Check if the reset was successful
-
-        Returns:
-        --------
-        bool
-            True if the reset was successful, False otherwise
-        """
-
-        return True
-
     def is_stop_success(self):
         """
         Check if the stop was successful
@@ -456,7 +444,7 @@ class ZaberLinearStage(ESOdevice.Motor):
         return self.axis.is_busy()
 
     def stop(self):
-        pass
+        self.stop_now()
 
     @staticmethod
     def internal_to_ESO(value):
