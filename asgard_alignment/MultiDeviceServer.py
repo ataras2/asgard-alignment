@@ -163,6 +163,18 @@ class MultiDeviceServer:
         command_name = json_data["command"]["name"]
         time_stampIn = json_data["command"]["time"]
 
+        # Acceptable window: ±5 minutes from current UTC time
+        try:
+            received_time = datetime.datetime.strptime(time_stampIn, "%Y-%m-%dT%H:%M:%S")
+            now_utc = datetime.datetime.utcnow()
+            delta = abs((now_utc - received_time).total_seconds())
+            if delta > 300:  # 5 minutes
+                logging.warning(f"Received time-stamp {time_stampIn} is out of range (delta={delta}s)")
+                command_name = "none"
+        except Exception as e:
+            logging.error(f"Invalid time-stamp format: {time_stampIn} ({e})")
+            command_name = "none"
+
         reply = {
             "reply": {
                 "content": "????",
@@ -494,32 +506,8 @@ class MultiDeviceServer:
                         {"attribute": attribute, "value": 1}
                     )
 
-                # elif command_name == "standby":
-                #     print("Setting STANDBY device:", dev_name)
-                #     # .........................................................
-                #     # If needed, call controller-specific functions to bring
-                #     # the device to a "parking" position and to power them
-                #     # off (they should not require initialization when
-                #     # going ONLINE again). This command is called at
-                #     # end-of-night instrument shutdown
-                #     # .........................................................
-
-                #     # Update the wagics database to show that the device is
-                #     # in STANDBY state (value of "state" attrivute has to be
-                #     # set to 2)
-
-                #     attribute = "<alias>" + dev_name + ".state"
-                #     reply["reply"]["parameters"].append(
-                #         {"attribute": attribute, "value": 2}
-                #     )
-
                 elif command_name == "stop":
                     logging.info(f"Stop device: {dev_name}")
-
-                    # ......................................................
-                    # Add here call to immediately stop the motion of the
-                    # device dev_name
-                    # ......................................................
                     self.instr.devices[dev_name].stop()
 
                     # If setup is in progress, consider it done
@@ -531,10 +519,6 @@ class MultiDeviceServer:
                     logging.info(f"Normal mode for device {dev_name}")
                     # Set the simulation flag of dev_name to 0
                     # TODO: add code here that changes the device to normal mode
-                    # for devIdx in range(nbCtrlDevs):
-                    #     if d[devIdx].name == dev_name:
-                    #         break
-                    # d[devIdx].simulated = 0
 
                     # Update the wagics database  to show that the device
                     # is not in simulation and is in LOADED state
