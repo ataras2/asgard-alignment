@@ -62,6 +62,8 @@ class MultiDeviceServer:
         self.db_update_socket = self.context.socket(zmq.PUSH)
         self.db_update_socket.connect("tcp://wag:5561")
 
+        self._reset_setup_ls()
+
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
         if config_file == "mock":
@@ -120,6 +122,9 @@ class MultiDeviceServer:
         # Format the UTC time
         return current_utc_time.strftime("%Y-%m-%dT%H:%M:%S")
 
+    def _reset_setup_ls(self):
+        self.setup_ls = [[], []]
+
     def handle_message(self, message):
         """
         Handles a recieved message. Custom messages are indicated by lowercase commands
@@ -168,26 +173,24 @@ class MultiDeviceServer:
 
         # Case of "setup" (sent by wag to move devices)
         if "setup" in command_name:
-            stopped = 0
-            nbDevs = len(json_data["command"]["parameters"])
-            # Free all semaphores
-            for i in range(nbSemas):
-                sema[i] = 0
+            stopped = False
+            n_devs_commanded = len(json_data["command"]["parameters"])
+
+            semaphore_array = [0] * 100  # TODO: implement this maximum correctly
             # Create a double-list of devices to move
-            setupList = [[], []]
-            for i in range(nbDevs):
+            self._reset_setup_ls()
+            for i in range(n_devs_commanded):
                 kwd = json_data["command"]["parameters"][i]["name"]
                 val = json_data["command"]["parameters"][i]["value"]
                 print("Setup:", kwd, "to", val)
 
                 # Keywords are in the format: INS.<device>.<motion type>
-
                 prefixes = kwd.split(".")
-                dev = prefixes[1]
-                mType = prefixes[2]
-                print("Device:", dev, " - motion type:", mType)
+                dev_name = prefixes[1]
+                motion_type = prefixes[2]
+                print("Device:", dev_name, " - motion type:", motion_type)
 
-                # mType can be one of these words:
+                # motion_type can be one of these words:
                 # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
                 # ENC    = Absolute encoder position
                 # ENCREL = Relative encoder postion (can be negative)
@@ -197,48 +200,51 @@ class MultiDeviceServer:
 
                 # Look if device exists in list
                 # (something should be done if device does not exist)
-                for devIdx in range(nbCtrlDevs):
-                    if d[devIdx].name == dev:
-                        break
-
-                semId = d[devIdx].semId
-                if sema[semId] == 0:
+                device = self.instr.devices[dev_name]
+                semaphore_id = device.semaphore_id
+                if semaphore_array[semaphore_id] == 0:
                     # Semaphore is free =>
                     # Device can be moved now
-                    setupList[0].append(setup(dev, mType, val))
-                    sema[semId] = 1
+                    self.setup_ls[0].append(
+                        asgard_alignment.ESOdevice.SetupCommand(
+                            dev_name, motion_type, val
+                        )
+                    )
+                    semaphore_array[semaphore_id] = 1
                 else:
                     # Semaphore is already taken =>
                     # Device will be moved in a second batch
-                    setupList[1].append(setup(dev, mType, val))
+                    self.setup_ls[1].append(
+                        asgard_alignment.ESOdevice.SetupCommand(
+                            dev_name, motion_type, val
+                        )
+                    )
 
             # Move devices (if two batches, move the first one)
             batch = 0
-            if len(setupList[batch]) > 0:
+            if len(self.setup_ls[batch]) > 0:
                 print("batch", batch, "of devices to move:")
                 reply["reply"]["parameters"].clear()
-                for s in setupList[batch]:
-                    print("Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )")
+                for s in self.setup_ls[batch]:
+                    print(
+                        "Moving: ",
+                        s.device_name,
+                        "to: ",
+                        s.value,
+                        "( setting",
+                        s.motion_type,
+                        " )",
+                    )
 
-                    # ......................................................
-                    # Add here call to controller-specific functions that
-                    # move the device "s.dev" to the requested position
-                    # "s.val", according to "s.mType"
-                    # ......................................................
+                    self.instr.devices[s.device_name].setup(s.motion_type, s.value)
 
                     # Inform wag ICS that the device is moving
-                    attribute = "<alias>" + s.dev + ":DATA.status0"
+                    attribute = "<alias>" + s.device_name + ":DATA.status0"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": "MOVING"}
                     )
-
-            # Simulate setup progress by setting a countdown
-            # (that will be decremented when a "poll" command is received)
-            cntdwnSetup = 3
-
             # Once setup is forwarded to the devices, reply OK if everything is
             # normal. This means that the setup has started, no that it is done!
-
             reply["reply"]["content"] = "OK"
 
         # Case of "poll" (sent by wag to get the status of the
@@ -250,29 +256,26 @@ class MultiDeviceServer:
             # Add here call to query the status of the batch of
             # devices that is concerned by the last setup command
             # If they all reach the target position or if
-            # a STOP command occured, set batchDone to 1
+            # a STOP command occured, set is_batch_done to 1
             #
             # In this example of back-end server, we simulate
             # that by checking the cntdwnSetup variable
             # --------------------------------------------------
-            if (cntdwnSetup == 0) or (stopped == 1):
-                batchDone = 1
-            else:
-                batchDone = 0
+            is_batch_done = stopped  # TODO: less variables
 
             reply["reply"]["parameters"].clear()
-            if len(setupList[batch]) > 0:
-                for s in setupList[batch]:
-                    attribute = "<alias>" + s.dev + ":DATA.status0"
+            if len(self.setup_ls[batch]) > 0:
+                for s in self.setup_ls[batch]:
+                    attribute = "<alias>" + s.device_name + ":DATA.status0"
                     # Case of motor with named position requested
-                    if s.mType == "NAME":
+                    if s.motion_type == "NAME":
                         # If motor reached the position, we set the
                         # attribute to the target named position
                         # (given in the setup) otherwise we set it
                         # to MOVING
-                        if batchDone == 1:
+                        if is_batch_done:
                             reply["reply"]["parameters"].append(
-                                {"attribute": attribute, "value": s.val}
+                                {"attribute": attribute, "value": s.value}
                             )
                         else:
                             reply["reply"]["parameters"].append(
@@ -285,35 +288,40 @@ class MultiDeviceServer:
                         # => Call function to read the encoder position
                         #    store it in a variable "posEnc" and execute:
                         #
-                        # attribute = "<alias>" + s.dev +":DATA.posEnc"
+                        # attribute = "<alias>" + s.device_name +":DATA.posEnc"
                         # dbMsg['command']['parameters'].\
                         # append({"attribute":attribute, "value":posEnc})
 
                     # Case of shutter or lamp
-                    if s.mType == "ST":
+                    if s.motion_type == "ST":
                         # Here the device can be either a lamp or a shutter
-                        # Add here code to find out the type of s.dev
+                        # Add here code to find out the type of s.device_name
+
+                        if isinstance(s.device_name, asgard_alignment.ESOdevice.Lamp):
+                            value_map = {"T": "ON", "F": "OFF"}
+                        elif isinstance(
+                            s.device_name, asgard_alignment.ESOdevice.Motor
+                        ):
+                            value_map = {"T": "OPEN", "F": "CLOSED"}
+                        else:
+                            logging.error(
+                                f"Device {s.device_name} is not lamp or shutter"
+                            )
+                            continue
+
                         # If it is a shutter do:
-                        if batchDone == 1:
-                            if s.val == "T":
-                                reply["reply"]["parameters"].append(
-                                    {"attribute": attribute, "value": "OPEN"}
-                                )
-                            else:
-                                reply["reply"]["parameters"].append(
-                                    {"attribute": attribute, "value": "CLOSED"}
-                                )
+                        if is_batch_done:
+                            reply["reply"]["parameters"].append(
+                                {"attribute": attribute, "value": value_map[s.value]}
+                            )
                         else:
                             reply["reply"]["parameters"].append(
                                 {"attribute": attribute, "value": "MOVING"}
                             )
 
-                        # If it is a lamp, reuse the code above replacing
-                        # OPEN  by ON and CLOSED by OFF
-
                     # Case of motor with absolute encoder position requested
-                    if s.mType == "ENC":
-                        if batchDone == 1:
+                    if s.motion_type == "ENC":
+                        if is_batch_done:
                             reply["reply"]["parameters"].append(
                                 {"attribute": attribute, "value": ""}
                             )
@@ -327,9 +335,9 @@ class MultiDeviceServer:
                         # Report the absolute encoder position
                         # Here (simulation), we simply use the target
                         # position (even if the motor is supposed to move)
-                        attribute = "<alias>" + s.dev + ":DATA.posEnc"
+                        attribute = "<alias>" + s.device_name + ":DATA.posEnc"
                         reply["reply"]["parameters"].append(
-                            {"attribute": attribute, "value": s.val}
+                            {"attribute": attribute, "value": s.value}
                         )
                         # Case of motor with relative encoder position
                         # not considered yet
@@ -338,35 +346,34 @@ class MultiDeviceServer:
 
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
-            if batchDone == 1:
-                if (batch == 0) and (len(setupList[1]) > 0) and (stopped == 0):
+            if is_batch_done:
+                if (batch == 0) and (len(self.setup_ls[1]) > 0) and (not stopped):
                     batch = 1
                     print("batch", batch, "of devices to move:")
-                    for s in setupList[batch]:
+                    for s in self.setup_ls[batch]:
                         print(
-                            "Moving: ", s.dev, "to: ", s.val, "( setting", s.mType, " )"
+                            "Moving: ",
+                            s.device_name,
+                            "to: ",
+                            s.value,
+                            "( setting",
+                            s.motion_type,
+                            " )",
                         )
-
-                        # ......................................................
-                        # Add here call to controller-specific functions that
-                        # move the device "s.dev" to the requested position
-                        # "s.val", according to "s.mType"
-                        # ......................................................
+                        self.instr.devices[s.device_name].setup(s.motion_type, s.value)
 
                         # Inform wag ICS that the device is moving
-                        attribute = "<alias>" + s.dev + ":DATA.status0"
+                        attribute = "<alias>" + s.device_name + ":DATA.status0"
                         reply["reply"]["parameters"].append(
                             {"attribute": attribute, "value": "MOVING"}
                         )
 
                     # Reset simulation of setup progress
-                    cntdwnSetup = 3
                     reply["reply"]["content"] = "PENDING"
                 else:
                     # All batches of setup are done
                     reply["reply"]["content"] = "DONE"
             else:
-                cntdwnSetup = cntdwnSetup - 1
                 reply["reply"]["content"] = "PENDING"
 
         # Case of sensor reading request
@@ -385,36 +392,37 @@ class MultiDeviceServer:
         # of devices, or "all" to apply the command to all the devices
         else:
             reply["reply"]["parameters"].clear()
-            nbDevs = len(json_data["command"]["parameters"])
-            allDevs = False
+            n_devs_commanded = len(json_data["command"]["parameters"])
+            is_all_devs = False
             # Check if command applies to all the existing devices
-            if (nbDevs == 1) and (
+            if (n_devs_commanded == 1) and (
                 json_data["command"]["parameters"][0]["device"] == "all"
             ):
-                nbDevs = nbCtrlDevs  # total number of devices
-                allDevs = True
+                n_devs_commanded = len(self.instr.devices)  # total number of devices
+                is_all_devs = True
+                dev_names = list(self.instr.devices.keys())
 
-            for i in range(nbDevs):
-                if allDevs:
-                    dev = d[i].name
+            for i in range(n_devs_commanded):
+                if is_all_devs:
+                    dev_name = dev_names[i]
                 else:
-                    dev = json_data["command"]["parameters"][i]["device"].upper()
+                    dev_name = json_data["command"]["parameters"][i]["device"].upper()
 
                 if command_name == "disable":
-                    print("Power off device:", dev)
+                    print("Power off device:", dev_name)
 
-                    logging.info(f"Power off device: {dev}")
+                    logging.info(f"Power off device: {dev_name}")
 
-                    self.instr.devices[dev].disable()
+                    self.instr.devices[dev_name].disable()
 
                 elif command_name == "enable":
-                    print("Power on device:", dev)
-                    logging.info(f"Power on device: {dev}")
+                    print("Power on device:", dev_name)
+                    logging.info(f"Power on device: {dev_name}")
 
-                    self.instr.devices[dev].enable()
+                    self.instr.devices[dev_name].enable()
 
                 elif command_name == "off":
-                    print("Turning off device:", dev)
+                    print("Turning off device:", dev_name)
                     # .........................................................
                     # If needed, call controller-specific functions to power
                     # down the device. It may require initialization
@@ -425,13 +433,13 @@ class MultiDeviceServer:
                     # in LOADED state (value of "state" attribute has to be
                     # set to 3)
 
-                    attribute = "<alias>" + dev + ".state"
+                    attribute = "<alias>" + dev_name + ".state"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 1}
                     )
 
                 elif command_name == "online":
-                    print("Setting ONLINE device:", dev)
+                    print("Setting ONLINE device:", dev_name)
                     # .........................................................
                     # If needed, call controller-specific functions to
                     # have the devices ready for operations (power them up
@@ -443,33 +451,34 @@ class MultiDeviceServer:
                     # in ONLINE state (value of "state" attribute has to be
                     # set to 3)
 
-                    attribute = "<alias>" + dev + ".state"
+                    attribute = "<alias>" + dev_name + ".state"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 3}
                     )
 
                 elif command_name == "simulat":
-                    print("Simulation of device", dev)
-                    # Set the simulation flag of dev to 1
-                    for devIdx in range(nbCtrlDevs):
-                        if d[devIdx].name == dev:
-                            break
-                    d[devIdx].simulated = 1
+                    print("Simulation of device", dev_name)
+                    # Set the simulation flag of dev_name to 1
+                    # TODO: add code here that changes the device to simulation mode
+                    # for devIdx in range(nbCtrlDevs):
+                    #     if d[devIdx].name == dev_name:
+                    #         break
+                    # d[devIdx].simulated = 1
 
                     # Update the wagics database  to show that the device
                     # is in simulation and is in LOADED state
 
-                    attribute = "<alias>" + dev + ".simulation"
+                    attribute = "<alias>" + dev_name + ".simulation"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 1}
                     )
-                    attribute = "<alias>" + dev + ".state"
+                    attribute = "<alias>" + dev_name + ".state"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 1}
                     )
 
                 elif command_name == "standby":
-                    print("Setting STANDBY device:", dev)
+                    print("Setting STANDBY device:", dev_name)
                     # .........................................................
                     # If needed, call controller-specific functions to bring
                     # the device to a "parking" position and to power them
@@ -482,18 +491,19 @@ class MultiDeviceServer:
                     # in STANDBY state (value of "state" attrivute has to be
                     # set to 2)
 
-                    attribute = "<alias>" + dev + ".state"
+                    attribute = "<alias>" + dev_name + ".state"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 2}
                     )
 
                 elif command_name == "stop":
-                    print("Stop device:", dev)
+                    print("Stop device:", dev_name)
 
                     # ......................................................
                     # Add here call to immediately stop the motion of the
-                    # device dev
+                    # device dev_name
                     # ......................................................
+                    self.instr.devices[dev_name].stop()
 
                     # If setup is in progress, consider it done
 
@@ -501,29 +511,30 @@ class MultiDeviceServer:
                     # done by the next "poll" command sent by wag
 
                 elif command_name == "stopsim":
-                    print("Normal mode for device", dev)
-                    # Set the simulation flag of dev to 0
-                    for devIdx in range(nbCtrlDevs):
-                        if d[devIdx].name == dev:
-                            break
-                    d[devIdx].simulated = 0
+                    print("Normal mode for device", dev_name)
+                    # Set the simulation flag of dev_name to 0
+                    # TODO: add code here that changes the device to normal mode
+                    # for devIdx in range(nbCtrlDevs):
+                    #     if d[devIdx].name == dev_name:
+                    #         break
+                    # d[devIdx].simulated = 0
 
                     # Update the wagics database  to show that the device
                     # is not in simulation and is in LOADED state
                     # (it may require an initialization when going to
                     # ONLINE state)
 
-                    attribute = "<alias>" + dev + ".simulation"
+                    attribute = "<alias>" + dev_name + ".simulation"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 0}
                     )
-                    attribute = "<alias>" + dev + ".state"
+                    attribute = "<alias>" + dev_name + ".state"
                     reply["reply"]["parameters"].append(
                         {"attribute": attribute, "value": 1}
                     )
 
             if command_name == "stop":
-                stopped = 1
+                stopped = True
 
             reply["reply"]["content"] = "OK"
 
