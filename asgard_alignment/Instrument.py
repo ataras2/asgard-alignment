@@ -96,21 +96,21 @@ class Instrument:
 
         # Create the connections to the controllers
         self._open_controllino()
-        print("Controllino on")
+        logging.info("Controllino on")
 
         time.sleep(1)
 
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
-        print("managed port:", self._managed_usb_hub_port)
+        logging.info(f"managed port: {self._managed_usb_hub_port}")
         if self._managed_usb_hub_port is None:
-            print(
-                "WARN: Could not find managed USB hub port, trying again in 5 seconds "
+            logging.warning(
+                "Could not find managed USB hub port, trying again in 5 seconds "
             )
 
             time.sleep(5)
         else:
             self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
-            print("managed port short:", self.managed_usb_port_short)
+            logging.info(f"managed port short: {self.managed_usb_port_short}")
 
         time.sleep(3)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:1")
@@ -119,7 +119,7 @@ class Instrument:
         time.sleep(0.2)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:3")
 
-        print("Turned on USB hubs, waiting 10 seconds...")
+        logging.info("Turned on USB hubs, waiting 10 seconds...")
         time.sleep(10.0)  # wait for all usb connections to be established
         self._create_controllers_and_motors()
         self._create_lamps()
@@ -251,7 +251,7 @@ class Instrument:
                 if res != "None":
                     state["position"] = float(res)
             states.append(state)
-            print(state)
+            logging.info(state)
 
         fname = os.path.expanduser(
             "~/.config/asgard-alignment/instr_states/" + filename + ".json"
@@ -269,7 +269,7 @@ class Instrument:
         if state not in ["on", "off"]:
             raise ValueError("state must be 'on' or 'off'")
         if state == self.is_h_splay:
-            print(f"H splay already in {state} state, doing nothing")
+            logging.info(f"H splay already in {state} state, doing nothing")
             return
 
         offset_mag = 15  # pixels
@@ -413,7 +413,7 @@ class Instrument:
         for dev in dev_prefixes:
             name = f"{dev}{beam_number}"
             if name in self.devices:
-                print(f"Shuttering {name} to {is_shuttered}")
+                logging.info(f"Shuttering {name} to {is_shuttered}")
                 self.devices[name].is_shuttered = is_shuttered
 
     def h_shut(self, state, beam_numbers):
@@ -459,7 +459,7 @@ class Instrument:
 
                 self.devices[max_dev].move_relative(offset)
                 self.h_shutter_states[beam_n] = "closed"
-                print(f"sending moverel {offset} to {numbered_dev}")
+                logging.info(f"sending moverel {offset} to {numbered_dev}")
             for beam_n in beam_numbers:
                 self._apply_shutter_state_to_beam(state, beam_n)
 
@@ -468,7 +468,7 @@ class Instrument:
             for beam_n in beam_numbers:
                 if not self.h_shutter_states[beam_n] == "open":
                     beams_to_open.append(beam_n)
-            print(f"beams to open{beams_to_open}")
+            logging.info(f"beams to open{beams_to_open}")
             for beam_n in beam_numbers:
                 self._apply_shutter_state_to_beam(state, beam_n)
             # if we are opening the shutter, we need apply the opposite of the offsets and set the
@@ -486,13 +486,13 @@ class Instrument:
                         self.devices[numbered_dev].move_relative(
                             -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
-                        print(
+                        logging.info(
                             f"sending moverel {-self.h_shutter_offsets[beam_n][numbered_dev]} to {numbered_dev}"
                         )
                         self.h_shutter_offsets[beam_n][numbered_dev] = 0.0
                         self.h_shutter_states[beam_n] = "open"
 
-        print(f"self.h_shutter_states: {self.h_shutter_states}")
+        logging.info(f"self.h_shutter_states: {self.h_shutter_states}")
 
     def _check_commands_against_state(self, axes, commands, type="rel"):
         """
@@ -525,20 +525,20 @@ class Instrument:
         """
         print(f"Pinging {axis}...", end="")
         if axis not in self.devices:
-            print("not in devices")
+            logging.info("not in devices")
             return False
 
         res = self.devices[axis].ping()
 
         if not res:
-            print("failed")
+            logging.info("failed")
             # need to remove the connection from dict
             # TODO: include check if it is just the axis or the controller that is down,
             # and remove as needed
             del self.devices[axis]
             return res
 
-        print("success")
+        logging.info("success")
         return res
 
     def _create_phasemask_wrapper(self):
@@ -549,7 +549,7 @@ class Instrument:
         """
         for beam in [1, 2, 3, 4]:
             if (f"BMX{beam}" not in self.devices) or (f"BMY{beam}" not in self.devices):
-                print(
+                logging.warning(
                     f"don't have both phasemasks: (BMX in devices = {(f'BMX{beam}' not in self.devices)}, BMY in devices = {(f'BMX{beam}' not in self.devices)}"
                 )
                 # Prompt the user for input
@@ -560,12 +560,12 @@ class Instrument:
                 )
 
                 if user_input == "n":
-                    print("Stopping the program as requested.")
+                    logging.info("Stopping the program as requested.")
                     sys.exit(0)  # Exit the program
                 elif user_input == "y":
-                    print("Continuing the program...")
+                    logging.info("Continuing the program...")
                 else:
-                    print("Invalid input. Assuming continuation.")
+                    logging.warning("Invalid input. Assuming continuation.")
             else:
                 # try to find if configuration file provided in config file
                 pth = phasemask_position_directory.joinpath(Path(f"beam{beam}/"))
@@ -580,13 +580,11 @@ class Instrument:
                     phase_positions_json = max(
                         files, key=lambda file: file.stat().st_mtime, default=None
                     )
-                    print(
+                    logging.info(
                         f"using most recent file for beam {beam}: {phase_positions_json}"
                     )
                 else:
-                    raise UserWarning(
-                        f"no phasemask configuration files found in {pth}"
-                    )
+                    logging.warning(f"no phasemask configuration files found in {pth}")
                 # otherwise raise error - we do not want to deal with case where we don't have on
 
                 # do I need to update the self._config dictionaries?
@@ -644,10 +642,10 @@ class Instrument:
         For any of the X-MCC common connections, the controllino will standby all axes connected after parking them.
 
         """
-        print(f"Attempting to place {device} in standby mode...")
+        logging.info(f"Attempting to place {device} in standby mode...")
 
         if device not in self.devices:
-            print(f"WARN: {device} not in devices dictionary")
+            logging.warning(f"{device} not in devices dictionary")
             return "NACK"
 
         zabers = (
@@ -683,7 +681,7 @@ class Instrument:
                     self.find_zaber_usb_port(),  # the usb connections for the BDS
                 ]
             else:
-                print(f"WARN: {device} not in devices dictionary")
+                logging.warning(f"{device} not in devices dictionary")
                 return
 
             # park all axes - note unpark is done in zaber ctor
@@ -692,7 +690,7 @@ class Instrument:
                     # park the axis
                     self.devices[dev].axis.park()
                 else:
-                    print(f"WARN: {dev} not in devices dictionary")
+                    logging.warning(f"WARN: {dev} not in devices dictionary")
 
             # turn off the relevant power
             self._controllers["controllino"].turn_off(wire_name)
@@ -702,7 +700,7 @@ class Instrument:
 
             # close all zaber connections
             for controller in controller_connctions:
-                print(f"Closing connection to {controller}")
+                logging.info(f"Closing connection to {controller}")
                 self._controllers[controller].close()
 
             # manage instrument internals to no longer show these connections
@@ -771,33 +769,33 @@ class Instrument:
             wire_names = set(wire_names)
             # usb_commands = set(usb_command)
 
-            print(f"Turning off wires: {wire_names}")
-            print(f"Sending USB command: {usb_command}")
+            logging.info(f"Turning off wires: {wire_names}")
+            logging.info(f"Sending USB command: {usb_command}")
 
             # turn off the USB
             # for cmd in usb_commands:
             os.system(usb_command)
 
-            print("USB command sent")
+            logging.info("USB command sent")
 
             # turn off the power
             for wire_name in wire_names:
                 self._controllers["controllino"].turn_off(wire_name)
-            print("Power turned off")
+            logging.info("Power turned off")
 
             # remove the devices
             self._remove_devices(all_devs)
 
             # and the controllers:
             self._remove_controllers(controller_connctions)
-            print("Devices and controllers removed")
+            logging.info("Devices and controllers removed")
             return "ACK"
 
         else:
             # just remove the device from the list
             self._remove_devices([device])
 
-            print(f"{device} is now in standby mode.")
+            logging.info(f"{device} is now in standby mode.")
             return "ACK"
 
     def home_steppers(self, dev_list, blocking=True):
@@ -808,7 +806,7 @@ class Instrument:
             if dev in self.devices:
                 self.devices[dev].home()
             else:
-                print(f"WARN: {dev} not found in device list")
+                logging.warning(f"WARN: {dev} not found in device list")
 
         # block until homed if needed
         if blocking:
@@ -820,9 +818,9 @@ class Instrument:
                     if dev in self.devices:
                         if not self.devices[dev].is_homed():
                             all_homed = False
-                            print(f"{dev} is not homed yet, waiting...")
+                            logging.info(f"{dev} is not homed yet, waiting...")
                     else:
-                        print(f"WARN: {dev} not found in device list")
+                        logging.warning(f"WARN: {dev} not found in device list")
                 if not all_homed:
                     time.sleep(0.5)
 
@@ -831,16 +829,16 @@ class Instrument:
         devs = []
         for dev in dev_list:
             if dev not in self._motor_config:
-                print(f"WARN: {dev} not in motor config")
+                logging.warning(f"WARN: {dev} not in motor config")
                 continue
             if dev in self.devices:
-                print(f"{dev} is already online")
+                logging.info(f"{dev} is already online")
                 continue
             devs.append(dev)
 
         dev_list = devs
         if len(dev_list) == 0:
-            print("No devices to turn on")
+            logging.info("No devices to turn on")
             return
 
         # turn on any nessecary power supplies
@@ -875,12 +873,12 @@ class Instrument:
         wire_list = set(wire_list)
         usb_commands = set(usb_commands)
 
-        print(f"Turning on wires: {wire_list}")
+        logging.info(f"Turning on wires: {wire_list}")
 
         for wire in set(wire_list):
             self._controllers["controllino"].turn_on(wire)
 
-        print(f"Sending USB commands: {usb_commands}")
+        logging.info(f"Sending USB commands: {usb_commands}")
 
         for usb_command in usb_commands:
             os.system(usb_command)
@@ -894,9 +892,9 @@ class Instrument:
         for name in dev_list:
             res = self._attempt_to_open(name, recheck_ports=False)
             if res:
-                print(f"Successfully connected to {name}")
+                logging.info(f"Successfully connected to {name}")
             else:
-                print(f"WARN: Could not connect to {name}")
+                logging.warning(f"WARN: Could not connect to {name}")
 
         # add phasemask compound_devices (registeres phasemask positions withj added functionality to update them)
         self._create_phasemask_wrapper()
@@ -916,9 +914,9 @@ class Instrument:
         for name in self._motor_config:
             res = self._attempt_to_open(name, recheck_ports=False)
             if res:
-                print(f"Successfully connected to {name}")
+                logging.info(f"Successfully connected to {name}")
             else:
-                print(f"WARN: Could not connect to {name}")
+                logging.warning(f"WARN: Could not connect to {name}")
 
     def _create_lamps(self):
         """
@@ -964,7 +962,9 @@ class Instrument:
             # Load flat map and initialize DM
             dm = bmc.BmcDm()
             if dm.open_dm(serial_number) != 0:
-                print(f"Failed to connect to DM with serial number {serial_number}")
+                logging.warning(
+                    f"Failed to connect to DM with serial number {serial_number}"
+                )
                 return False
             flat_map_file = self._motor_config[name]["flat_map_file"]
             flat_map = pd.read_csv(flat_map_file, header=None)[0].values
@@ -974,7 +974,7 @@ class Instrument:
                 "flat_map": flat_map,
                 "cross_map": cross_map,
             }
-            # print(f"Connected to {name} with serial {serial_number}")
+            # print(f"Connected to {name} with serial number {serial_number}")
             return True
 
         if self._motor_config[name]["motor_type"] in ["M100D", "LS16P"]:
@@ -984,10 +984,10 @@ class Instrument:
 
             if recheck_ports:
                 self._prev_port_mapping = self.compute_serial_to_port_map()
-                print(f"New port mapping: {self._prev_port_mapping}")
+                logging.info(f"New port mapping: {self._prev_port_mapping}")
 
             if cfg["serial_number"] not in self._prev_port_mapping:
-                print("WARN: Could not find serial number in port mapping")
+                logging.warning("WARN: Could not find serial number in port mapping")
                 return False
 
             port = self._prev_port_mapping[cfg["serial_number"]]
@@ -1030,7 +1030,7 @@ class Instrument:
                         cfg["x_mcc_ip_address"]
                     )
                 except Exception as e:
-                    print(e)
+                    logging.warning(e)
                     return False
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).identify()
                 self._controllers[cfg["x_mcc_ip_address"]].get_device(1).settings.set(
@@ -1097,7 +1097,7 @@ class Instrument:
             # check what the zaber com port is
             if recheck_ports:
                 self._prev_zaber_port = self.find_zaber_usb_port()
-                print(f"Zaber port found at: {self._prev_zaber_port}")
+                logging.info(f"Zaber port found at: {self._prev_zaber_port}")
 
             if self._prev_zaber_port is None:
                 return False
@@ -1177,12 +1177,14 @@ class Instrument:
         # See:
         # https://sgcdn.startech.com/005329/media/sets/USB_Admin_Software_Manual/USB_Hub_Admin_Software_Manual.pdf
         # If we try to open a Zaber connection to this port, then it seems stuck in an error state.
+        # See:
+        # https://github.com/pyserial/pyserial/issues/678
         cusb_ports = ["/dev/ttyUSBX"]
 
         for port, _, hwid in sorted(ports):
             if "SER=B001DGUX" in hwid:  # the serial for managed hub
                 if port in cusb_ports:
-                    print("Found a Managed USB hub.")
+                    logging.info("Found a Managed USB hub.")
                     continue
             if "SER=AB0NSCTM" in hwid:
                 return port
@@ -1345,7 +1347,7 @@ class Instrument:
                         mapping[sa] = port
 
                 except Exception as e:
-                    print(f"Could not connect to {device}: {e}")
+                    logging.warning(f"Could not connect to {device}: {e}")
 
         return mapping
 

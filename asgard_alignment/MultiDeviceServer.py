@@ -65,7 +65,7 @@ class MultiDeviceServer:
 
         self._reset_setup_ls()
         self.batch = 0
-        self.is_stopped=True
+        self.is_stopped = True
 
         self.database_message = self.DATABASE_MSG_TEMPLATE.copy()
 
@@ -111,7 +111,7 @@ class MultiDeviceServer:
                         if response is None:
                             response = ""
                         # if is_custom_msg:
-                        s.send_string(response   + "\n")
+                        s.send_string(response + "\n")
 
     @staticmethod
     def get_time_stamp():
@@ -135,7 +135,7 @@ class MultiDeviceServer:
             is_moving = self.instr.devices[dev.device_name].is_moving()
             logging.info(f"Value is {is_moving}")
             if is_moving == True:
-                is_done=False
+                is_done = False
                 break
         return is_done
 
@@ -196,13 +196,13 @@ class MultiDeviceServer:
             for i in range(n_devs_commanded):
                 kwd = json_data["command"]["parameters"][i]["name"]
                 val = json_data["command"]["parameters"][i]["value"]
-                print("Setup:", kwd, "to", val)
+                logging.info(f"Setup: {kwd} to {val}")
 
                 # Keywords are in the format: INS.<device>.<motion type>
                 prefixes = kwd.split(".")
                 dev_name = prefixes[1]
                 motion_type = prefixes[2]
-                print("Device:", dev_name, " - motion type:", motion_type)
+                logging.info(f"Device: {dev_name} - motion type: {motion_type}")
 
                 # motion_type can be one of these words:
                 # NAME   = Named position (e.g., IN, OUT, J1, H3, ...)
@@ -237,17 +237,11 @@ class MultiDeviceServer:
             # Move devices (if two batches, move the first one)
             self.batch = 0
             if len(self.setup_ls[self.batch]) > 0:
-                print("batch", self.batch, "of devices to move:")
+                logging.info(f"batch {self.batch} of devices to move:")
                 reply["reply"]["parameters"].clear()
                 for s in self.setup_ls[self.batch]:
-                    print(
-                        "Moving: ",
-                        s.device_name,
-                        "to: ",
-                        s.value,
-                        "( setting",
-                        s.motion_type,
-                        " )",
+                    logging.info(
+                        f"Moving: {s.device_name} to: {s.value} ( setting {s.motion_type} )"
                     )
 
                     self.instr.devices[s.device_name].setup(s.motion_type, s.value)
@@ -361,18 +355,16 @@ class MultiDeviceServer:
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
             if is_batch_done:
-                if (self.batch == 0) and (len(self.setup_ls[1]) > 0) and (not self.is_stopped):
+                if (
+                    (self.batch == 0)
+                    and (len(self.setup_ls[1]) > 0)
+                    and (not self.is_stopped)
+                ):
                     self.batch = 1
-                    print("batch", self.batch, "of devices to move:")
+                    logging.info(f"batch {self.batch} of devices to move:")
                     for s in self.setup_ls[self.batch]:
-                        print(
-                            "Moving: ",
-                            s.device_name,
-                            "to: ",
-                            s.value,
-                            "( setting",
-                            s.motion_type,
-                            " )",
+                        logging.info(
+                            f"Moving: {s.device_name} to: {s.value} ( setting {s.motion_type} )"
                         )
                         self.instr.devices[s.device_name].setup(s.motion_type, s.value)
 
@@ -415,7 +407,10 @@ class MultiDeviceServer:
                 is_all_devs = True
                 dev_names = list(self.instr.devices.keys())
             else:
-                dev_names = [json_data["command"]["parameters"][i]["device"] for i in range(n_devs_commanded)]
+                dev_names = [
+                    json_data["command"]["parameters"][i]["device"]
+                    for i in range(n_devs_commanded)
+                ]
 
             # if online, it is more efficient for instrument to do it in a batch call
             if command_name == "online":
@@ -440,8 +435,9 @@ class MultiDeviceServer:
                     logging.info(f"Standing by device: {devs_to_standby[0]}")
                     self.instr.standby(devs_to_standby[0])
 
-                    devs_to_standby = list(set(self.instr.devices.keys()).intersection(devs_to_standby))
-
+                    devs_to_standby = list(
+                        set(self.instr.devices.keys()).intersection(devs_to_standby)
+                    )
 
             # for all other commands, do them one device at a time...
             for i in range(n_devs_commanded):
@@ -451,20 +447,17 @@ class MultiDeviceServer:
                     dev_name = json_data["command"]["parameters"][i]["device"].upper()
 
                 if command_name == "disable":
-                    print("Power off device:", dev_name)
-
                     logging.info(f"Power off device: {dev_name}")
 
                     self.instr.devices[dev_name].disable()
 
                 elif command_name == "enable":
-                    print("Power on device:", dev_name)
                     logging.info(f"Power on device: {dev_name}")
 
                     self.instr.devices[dev_name].enable()
 
                 elif command_name == "off":
-                    print("Turning off device:", dev_name)
+                    logging.info(f"Turning off device: {dev_name}")
                     # .........................................................
                     # If needed, call controller-specific functions to power
                     # down the device. It may require initialization
@@ -480,9 +473,8 @@ class MultiDeviceServer:
                         {"attribute": attribute, "value": 1}
                     )
 
-
                 elif command_name == "simulat":
-                    print("Simulation of device", dev_name)
+                    logging.info(f"Simulation of device {dev_name}")
                     # Set the simulation flag of dev_name to 1
                     # TODO: add code here that changes the device to simulation mode
                     # for devIdx in range(nbCtrlDevs):
@@ -522,7 +514,7 @@ class MultiDeviceServer:
                 #     )
 
                 elif command_name == "stop":
-                    print("Stop device:", dev_name)
+                    logging.info(f"Stop device: {dev_name}")
 
                     # ......................................................
                     # Add here call to immediately stop the motion of the
@@ -536,7 +528,7 @@ class MultiDeviceServer:
                     # done by the next "poll" command sent by wag
 
                 elif command_name == "stopsim":
-                    print("Normal mode for device", dev_name)
+                    logging.info(f"Normal mode for device {dev_name}")
                     # Set the simulation flag of dev_name to 0
                     # TODO: add code here that changes the device to normal mode
                     # for devIdx in range(nbCtrlDevs):
@@ -1046,6 +1038,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # logname from the current time
+    log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
+    logging.basicConfig(
+        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
+        level=logging.INFO,
+    )
+
+    # Add stream handler to also log to stdout
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    console.setFormatter(formatter)
+    logging.getLogger().addHandler(console)
+
+    serv = MultiDeviceServer(args.port, args.host, args.config)
+    serv.run()
     log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
     logging.basicConfig(
         filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
