@@ -270,8 +270,15 @@ class HeimdallrAA:
             self._send_and_get_response(cmd)
             print("sent", cmd)
             time.sleep(mv_time)
-            _, flux = self._get_blob_with_flux(flux_beam_radius)
+            centre, flux = self._get_blob_with_flux(flux_beam_radius)
             fluxes_x.append(flux)
+
+            # check if centre is close to the edge of the frame
+            for bound in self.col_bnds:
+                if np.abs(centre[1] - bound) < 10:
+                    print(
+                        f"Warning: Beam {beam} centroid close to edge of frame ({centre[1]} pixels). Alignment may be unreliable."
+                    )
 
         cur_pupil_pos = measurement_locs_x[-1]
 
@@ -303,8 +310,13 @@ class HeimdallrAA:
             self._send_and_get_response(cmd)
             print("sent", cmd)
             time.sleep(2.5)
-            _, flux = self._get_blob_with_flux(flux_beam_radius)
+            centre, flux = self._get_blob_with_flux(flux_beam_radius)
             fluxes_y.append(flux)
+
+            if np.abs(centre[1] - bound) < 10:
+                print(
+                    f"Warning: Beam {beam} centroid close to edge of frame ({centre[1]} pixels). Alignment may be unreliable."
+                )
 
         fluxes_y = np.array(fluxes_y)
 
@@ -319,6 +331,36 @@ class HeimdallrAA:
         cmd = f"mv_pup c_red_one_focus {beam} {0.0} {del_needed}"
         self._send_and_get_response(cmd)
 
+        # now do x axis again to refine
+        time.sleep(2)
+
+        fluxes_x2 = []
+        for delta in relative_measurement_locs:
+            cmd = f"mv_pup c_red_one_focus {beam} {delta} {0.0}"
+            self._send_and_get_response(cmd)
+            print("sent", cmd)
+            time.sleep(mv_time)
+            centre, flux = self._get_blob_with_flux(flux_beam_radius)
+            fluxes_x2.append(flux)
+
+            if np.abs(centre[1] - bound) < 10:
+                print(
+                    f"Warning: Beam {beam} centroid close to edge of frame ({centre[1]} pixels). Alignment may be unreliable."
+                )
+
+        fluxes_x2 = np.array(fluxes_x2)
+
+        optimal_offset_x2 = self.get_peak_flux_loc(measurement_locs_x, fluxes_x2)
+        cur_pupil_pos = measurement_locs_x[-1]
+        del_needed = optimal_offset_x2 - cur_pupil_pos
+        print(
+            f"Refined optimal pupil offset for beam {beam} x: {optimal_offset_x2:.4f} mm ({del_needed:.4f} mm from current position)"
+        )
+
+        cmd = f"mv_pup c_red_one_focus {beam} {del_needed} {0.0}"
+        self._send_and_get_response(cmd)
+        time.sleep(2)
+
         # saving
         if self.savepth is not None:
             np.savez(
@@ -329,6 +371,9 @@ class HeimdallrAA:
                 fluxes_y=fluxes_y,
                 optimal_offset_x=optimal_offset_x,
                 optimal_offset_y=optimal_offset_y,
+                measurement_locs_x2=measurement_locs_x,
+                fluxes_x2=fluxes_x2,
+                optimal_offset_x2=optimal_offset_x2,
             )
 
     def autoalign_pupil_all(self):
