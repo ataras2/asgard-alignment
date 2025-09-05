@@ -43,6 +43,16 @@ def send_and_get_response(message):
     return response.strip()
 
 
+def expand_roi( roi0, expand_by_percent=50 ):
+    X = roi0[1] - roi0[0]
+    extra =expand_by_percent/100 * X 
+    roi = []
+    for i,rr in enumerate( roi0 ):
+        if np.mod(i,2)==0:
+            roi.append( int( rr - extra ) )
+        else:
+            roi.append( int(rr + extra ) )
+    return roi 
 
 # paths and timestamps
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
@@ -106,20 +116,20 @@ parser.add_argument(
 parser.add_argument(
     '--search_radius',
     type=float,
-    default=0.3,
+    default=10,
     help="search radius of spiral search in microns. Default: %(default)s"
 )
 parser.add_argument(
     '--dx',
     type=float,
-    default=.1,
+    default=2,
     help="step size in motor units during scan. Default: %(default)s"
 )
 
 parser.add_argument(
     '--roi',
     type=str,
-    default="[None, None, None, None]",#"[188, 252, 141, 205]",#
+    default=None,#"[188, 252, 141, 205]",#
     help="region to crop in camera (row1, row2, col1, col2). Default:%(default)s"
 )
 
@@ -162,10 +172,23 @@ server_address = f"tcp://{args.host}:{args.port}"
 socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
-
 if int(args.record_images):
-    # set up camera 
-    c = FLI.fli( roi=eval(args.roi) ) #shm(args.global_camera_shm)
+    if args.roi is None:
+        default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
+
+        with open(default_toml.replace('#',f'{args.beam}'), "r") as f:
+            config_dict = toml.load(f)
+            # Baldr pupils from global frame 
+            baldr_pupils = config_dict['baldr_pupils']
+
+        roi0 = baldr_pupils[f'{args.beam}']
+
+        roi = expand_roi( roi0, expand_by_percent=50 )
+
+        c = FLI.fli(roi = roi)
+    else:
+        # set up camera 
+        c = FLI.fli( roi=eval(args.roi) ) #shm(args.global_camera_shm)
 
 
 # try get a dark and build bad pixel map 
@@ -239,15 +262,13 @@ if "baldr" in config:
 else:
     axes = [f"HTPP{args.beam}", f"HTTP{args.beam}", f"HTPI{args.beam}", f"HTTI{args.beam}"]
 
-pos_dict = {}
+pos_dict_original = {}
 for axis in axes:
     pos = send_and_get_response(f"read {axis}")
-    pos_dict[axis] = pos
+    pos_dict_original[axis] = pos
 
 # now start 
 #############
-## SET UP CAMERA to cropped beam region
-c = FLI.fli(roi=eval(args.roi))
 
 # init dicitionaries 
 if args.record_images:
@@ -298,7 +319,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
 # move back to original position
 print("moving back to original position")
 
-for axis, pos in pos_dict.items():
+for axis, pos in pos_dict_original.items():
     msg = f"moveabs {axis} {pos}"
     send_and_get_response(msg)
     print(f"Moving {axis} back to {pos}")
@@ -321,3 +342,108 @@ if args.record_images:
     print(f"wrote {motorpos_json_file_path}")
 
 
+### read it back in 
+# look at pct aggrate functions 
+
+
+# import numpy as np 
+# import zmq
+# import time
+# import toml
+# import os 
+# import argparse
+# import matplotlib.pyplot as plt
+# import argparse
+# import subprocess
+
+
+# parser = argparse.ArgumentParser(description="scan pupil/image planes in baldr to optimize pos in cold stop.")
+
+# #input beam id 
+# parser.add_argument(
+#     '--beam',
+#     type=str,
+#     default="3",
+#     help="what beam to look at?. Default: %(default)s"
+# )
+
+
+# parser.add_argument(
+#     '--move_plane',
+#     type=str,
+#     default="pupil",
+#     help="what plane to move in the system (pupil or image). Default: %(default)s"
+# )
+
+
+# parser.add_argument(
+#     '--search_radius',
+#     type=float,
+#     default=9,
+#     help="search radius of spiral search in microns. Default: %(default)s"
+# )
+# parser.add_argument(
+#     '--dx',
+#     type=float,
+#     default=3,
+#     help="step size in motor units during scan. Default: %(default)s"
+# )
+# #open json and get regions , exapand by twice size 
+
+# args=parser.parse_args()
+
+# def expand_roi( roi0, expand_by_percent=50 ):
+#     X = roi0[1] - roi0[0]
+#     extra =expand_by_percent/100 * X 
+#     roi = []
+#     for i,rr in enumerate( roi0 ):
+#         if np.mod(i,2)==0:
+#             roi.append( int( rr - extra ) )
+#         else:
+#             roi.append( int(rr + extra ) )
+#     return roi 
+
+# data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{args.move_plane}/"
+# default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
+
+# with open(default_toml.replace('#',f'{args.beam}'), "r") as f:
+#     config_dict = toml.load(f)
+#     # Baldr pupils from global frame 
+#     baldr_pupils = config_dict['baldr_pupils']
+
+# roi0 = baldr_pupils[f'{args.beam}']
+
+# roi = expand_roi( roi0, expand_by_percent=50 )
+
+# scantype = 'spiral'
+
+# command = [
+#     "python",
+#     "common/m_scan_multiple_mirrors.py",
+#     "--beam",
+#     f"{args.beam}",
+#     '--system',
+#     "baldr",
+#     "--move_plane",
+#     args.move_plane ,
+#     "--global_camera_shm",
+#     "/dev/shm/cred1.im.shm",
+#     "--initial_pos",
+#     "current",
+#     "--search_radius",
+#     f"{args.search_radius}",
+#     "--dx",
+#     f"{args.dx}",
+#     "--roi",
+#     str(roi),
+#     "--scantype",
+#     scantype,
+#     "--data_path",
+#     data_path,
+#     ]
+
+# process = subprocess.run(
+#     command, capture_output=True, text=True
+# )
+
+# print("Script Output", process.stdout)
