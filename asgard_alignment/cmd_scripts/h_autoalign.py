@@ -401,8 +401,8 @@ def main():
         "--align",
         type=str,
         required=True,
-        choices=["cp", "coarseparallel", "p3", "pupil3"],
-        help="Alignment method: 'cp'/'coarseparallel' or 'p3'/'pupil3'",
+        choices=["cp", "coarseparallel", "p3", "pupil3", "pa", "pupilall"],
+        help="Alignment method: 'cp'/'coarseparallel', 'pa'/'pupilall' or 'p3'/'pupil3'",
     )
     parser.add_argument(
         "-b",
