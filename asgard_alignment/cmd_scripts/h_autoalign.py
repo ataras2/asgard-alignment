@@ -270,8 +270,15 @@ class HeimdallrAA:
             self._send_and_get_response(cmd)
             print("sent", cmd)
             time.sleep(mv_time)
-            _, flux = self._get_blob_with_flux(flux_beam_radius)
+            centre, flux = self._get_blob_with_flux(flux_beam_radius)
             fluxes_x.append(flux)
+
+        # check if centre is close to the edge of the frame
+        for bound in self.col_bnds:
+            if np.abs(centre[1] - bound) < 10:
+                print(
+                    f"Warning: Beam {beam} centroid close to edge of frame ({centre[1]} pixels). Alignment may be unreliable."
+                )
 
         cur_pupil_pos = measurement_locs_x[-1]
 
