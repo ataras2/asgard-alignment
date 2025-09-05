@@ -49,3 +49,5 @@ for beam in range(1, n_beams + 1):
     if beam == 1:
         ax.legend()
     ax.grid()
+
+# %%

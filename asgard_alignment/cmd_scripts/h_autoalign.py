@@ -250,7 +250,7 @@ class HeimdallrAA:
 
         # 3. move pupil to optimize flux
         pup_offset = 0.2  # mm
-        n_samp = 7
+        n_samp = 9
         flux_beam_radius = 6  # pixels
 
         measurement_locs_x = np.linspace(-pup_offset, pup_offset, n_samp)
