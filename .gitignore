@@ -20,6 +20,7 @@
 
 *.log
 
+*.delete_this
 *.DS_Store
 build
 
