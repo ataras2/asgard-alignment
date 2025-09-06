@@ -98,7 +98,9 @@ class Instrument:
         self._open_controllino()
         logging.info("Controllino on")
 
-        time.sleep(1)
+        time.sleep(
+            1
+        )  # TODO: look at the value here- longer to let managed port be found?
 
         self._managed_usb_hub_port = self.find_managed_USB_hub_port()
         logging.info(f"managed port: {self._managed_usb_hub_port}")
@@ -109,8 +111,8 @@ class Instrument:
 
             time.sleep(5)
         else:
-            self.managed_usb_port_short = self._managed_usb_hub_port.split("/")[-1]
-            logging.info(f"managed port short: {self.managed_usb_port_short}")
+            self._managed_usb_hub_port = self._managed_usb_hub_port.split("/")[-1]
+            logging.info(f"managed port short: {self._managed_usb_hub_port}")
 
         time.sleep(3)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:1")
