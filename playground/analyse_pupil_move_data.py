@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 
 # %%
 
-pth = "../data/pupil_moves"
+# pth = "../data/pupil_moves"
+pth = "/home/asg/data/pupil_moves"
 fname = f"heimdallr_pupil_beam{1}.npz"
 
 data = np.load(f"{pth}/{fname}")
@@ -15,15 +16,15 @@ positons = [data[f"meas_locs_{i}"] for i in ["x", "y"]]
 fluxes = [data[f"fluxes_{i}"] for i in ["x", "y"]]
 optimal_offsets = [data[f"optimal_offset_{i}"] for i in ["x", "y"]]
 # %%
-plt.figure()
-plt.plot(positons[0], fluxes[0], "o-", label="x", color="C0")
-plt.plot(positons[1], fluxes[1], "o-", label="y", color="C1")
-for i in range(2):
-    plt.axvline(optimal_offsets[i], color=f"C{i}", ls="--")
-plt.xlabel("Position")
-plt.ylabel("Flux")
-plt.legend()
-plt.show()
+# plt.figure()
+# plt.plot(positons[0], fluxes[0], "o-", label="x", color="C0")
+# plt.plot(positons[1], fluxes[1], "o-", label="y", color="C1")
+# for i in range(2):
+#     plt.axvline(optimal_offsets[i], color=f"C{i}", ls="--")
+# plt.xlabel("Position")
+# plt.ylabel("Flux")
+# plt.legend()
+# plt.show()
 
 # %%
 # repeat for all beams in subplots (2,2 grid)
@@ -50,4 +51,5 @@ for beam in range(1, n_beams + 1):
         ax.legend()
     ax.grid()
 
+plt.show()
 # %%

@@ -346,6 +346,9 @@ if args.record_images:
 # look at pct aggrate functions 
 
 
+
+
+
 # import numpy as np 
 # import zmq
 # import time
