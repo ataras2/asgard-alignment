@@ -24,6 +24,16 @@ import asgard_alignment.ESOdevice
 
 import logging
 
+# guarantees that errors are logged
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logging.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+sys.excepthook = handle_exception
+
 
 class MockMDS:
     def __init__(self):
@@ -165,11 +175,15 @@ class MultiDeviceServer:
 
         # Acceptable window: ±5 minutes from current UTC time
         try:
-            received_time = datetime.datetime.strptime(time_stampIn, "%Y-%m-%dT%H:%M:%S")
+            received_time = datetime.datetime.strptime(
+                time_stampIn, "%Y-%m-%dT%H:%M:%S"
+            )
             now_utc = datetime.datetime.utcnow()
             delta = abs((now_utc - received_time).total_seconds())
             if delta > 300:  # 5 minutes
-                logging.warning(f"Received time-stamp {time_stampIn} is out of range (delta={delta}s)")
+                logging.warning(
+                    f"Received time-stamp {time_stampIn} is out of range (delta={delta}s)"
+                )
                 command_name = "none"
         except Exception as e:
             logging.error(f"Invalid time-stamp format: {time_stampIn} ({e})")

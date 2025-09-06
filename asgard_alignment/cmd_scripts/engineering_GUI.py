@@ -3618,8 +3618,13 @@ with col_main:
 
                         for state in states:
                             if state["is_connected"]:
-                                message = f"moveabs {state['name']} {state['position']}"
-                                send_and_get_response(message)
+                                if "BLF" in state['name']:
+                                    # BLF can't tell where it is, so always reset to STANDAR
+                                    message = f"asg_setup {target} NAME STANDARD"
+                                    send_and_get_response(message)
+                                else:
+                                    message = f"moveabs {state['name']} {state['position']}"
+                                    send_and_get_response(message)
 
         if routine_options == "See All States":
 
