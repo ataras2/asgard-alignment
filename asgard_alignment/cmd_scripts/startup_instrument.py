@@ -85,6 +85,8 @@ def power_on_instrument_only():
         sys.exit(1)
     print("Box powered on successfully.")
 
+    time.sleep(2)
+
     # Ping test 192.168.100.10
     if not ping_test("192.168.100.10"):
         print("Ping test failed for 192.168.100.10 (controllino). Exiting.")

@@ -22,16 +22,28 @@ def open_zmq_connection(port):
     socket.connect(server_address)
     return socket
 
+
 def send_and_get_response(socket, string):
     socket.send_string(string)
     res = socket.recv_string()
     return res
 
+
 def shutdown(inc_CRED):
     mds_connection = open_zmq_connection(5555)
     date = time.strftime("%Y-%m-%d %H:%M:%S")
-    res = send_and_get_response(mds_connection, f"save all before_shutdown_{date}")
-    print(res)
+
+    try:
+        res = send_and_get_response(mds_connection, f"save all before_shutdown_{date}")
+        print("saved", res)
+    except zmq.error.Again:
+        inp = input(
+            "MDS did not respond (and hence state is not saved). Do you want to continue with shutdown? (y/n): "
+        )
+        if inp.lower() != "y":
+            print("Aborting shutdown.")
+            return
+        print("Proceeding with shutdown...")
 
     if inc_CRED:
         c_red_connection = open_zmq_connection(6667)
@@ -49,7 +61,7 @@ def shutdown(inc_CRED):
     names = [f"SSF{i}" for i in range(1, 5)]
     for i, flipper in enumerate(names):
         message = f"moveabs {flipper} 1.0"
-        send_and_get_response(mds_connection,message)
+        send_and_get_response(mds_connection, message)
         time.sleep(2)  # wait for the command to be processed
 
     pdu = AtenEcoPDU("192.168.100.11")
@@ -85,9 +97,9 @@ def shutdown(inc_CRED):
 
     if inc_CRED:
         print("Closing C RED...")
-        send_and_get_response(c_red_connection,"stop")
-        send_and_get_response(c_red_connection,'cli "set cooling off"')
-        send_and_get_response(c_red_connection,'cli "shutdown"')
+        send_and_get_response(c_red_connection, "stop")
+        send_and_get_response(c_red_connection, 'cli "set cooling off"')
+        send_and_get_response(c_red_connection, 'cli "shutdown"')
         print("C RED shutdown command sent.")
 
         pdu.switch_outlet_status(C_RED_OUTLET, "off")
