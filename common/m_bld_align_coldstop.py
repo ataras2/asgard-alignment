@@ -129,7 +129,7 @@ parser.add_argument(
 parser.add_argument(
     '--roi',
     type=str,
-    default=None,#"[188, 252, 141, 205]",#
+    default=None, #"[188, 252, 141, 205]",#
     help="region to crop in camera (row1, row2, col1, col2). Default:%(default)s"
 )
 
