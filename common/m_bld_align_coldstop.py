@@ -23,6 +23,7 @@ from xaosim.shmlib import shm
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
 import m_process_scan 
+import asgard_alignment.Engineering
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
