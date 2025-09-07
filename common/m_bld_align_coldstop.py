@@ -377,7 +377,7 @@ delta_BOTP = float(best_pos[f"BOTP{args.beam}"]) - float(pos_dict_original[f"BOT
 delta_BOTT = float(best_pos[f"BOTT{args.beam}"]) - float(pos_dict_original[f"BOTT{args.beam}"])
 
 # convert to offsets in phasemask BMX and BMY
-delta_BMX, delta_BMY = phasemask_matrix[int(beam)] @ [
+delta_BMX, delta_BMY = phasemask_matrix[int(args.beam)] @ [
         delta_BOTP,
         delta_BOTT,
     ]
@@ -385,7 +385,7 @@ delta_BMX, delta_BMY = phasemask_matrix[int(beam)] @ [
 # move phasemasks
 
 # Y
-msg = f"moverel BMY{beam} {delta_BMY}"
+msg = f"moverel BMY{args.beam} {delta_BMY}"
 resp = send_and_get_response(msg)
 print( f"offset BMY {delta_BMY}: {resp}" )
 time.sleep(0.1)
@@ -402,7 +402,7 @@ resp = send_and_get_response(msg)
 print( f"updating all local phasemask positions based on offset : {resp}" )
 
 # write file 
-msg = f"fpm_writemaskpos phasemask{beam}"
+msg = f"fpm_writemaskpos phasemask{args.beam}"
 resp = send_and_get_response(msg)
 print( f"saving updated phasemask position file for beam {args.beam} : {resp}" )
 
