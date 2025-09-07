@@ -601,7 +601,7 @@ class Instrument:
     # BCB to do , make new variable dictionary (not device)
     # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions
     # update Mutil device server
-    #
+
     def _open_controllino(self):
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]
