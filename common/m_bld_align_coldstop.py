@@ -348,7 +348,9 @@ if args.record_images:
 ### read it back in 
 # look at pct aggrate functions 
 kwargs = {}
-processed_imgs = m_process_scan.process_scan( scan_data=img_dict , method='frame_aggregate', kwargs = kwargs)
+processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
+                                                method='gaus_fit',  #'frame_aggregate'
+                                                kwargs = kwargs)
 
 means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
 
@@ -394,6 +396,7 @@ msg = f"moverel BMX{args.beam} {delta_BMX}"
 resp = send_and_get_response(msg)
 print( f"offset BMX {delta_BMX}: {resp}" )
 time.sleep(0.1)
+
 
 
 # update all phasemask positions 
