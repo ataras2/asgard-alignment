@@ -376,12 +376,44 @@ class HeimdallrAA:
                 optimal_offset_x2=optimal_offset_x2,
             )
 
-    def autoalign_pupil_all(self):
+    def autoalign_pupil_all(self, plot):
         # just like autoalign_3_pupil but for all beams
+        datas  = {}
         for beam in range(1, 5):
-            self.autoalign_pupil(beam)
+            datas[beam] = self.autoalign_pupil(beam)
             # open all shutters
             self.open_all_shutters()
+        
+        if plot:
+            self.plot_autoalign_pupil_all(datas)
+
+    @staticmethod
+    def plot_autoalign_pupil_all(data_all):
+
+        n_beams = 4
+        fig, axs = plt.subplots(2, 2, figsize=(10, 8), sharex=True, sharey=True)
+
+        for beam in range(1, n_beams + 1):
+            data=data_all[beam]
+            positions = [data[f"meas_locs_{i}"] for i in ["x", "y","x"]]
+            fluxes = [data[f"fluxes_{i}"] for i in ["x", "y","x2"]]
+            optimal_offsets = [data[f"optimal_offset_{i}"] for i in ["x", "y","x2"]]
+            ax = axs.flat[beam - 1]
+            ax.plot(positions[0], fluxes[0], "o-", label="x", color="C0")
+            ax.plot(positions[1], fluxes[1], "o-", label="y", color="C1")
+            ax.plot(positions[2], fluxes[2], "o-", label="x2", color="C2")
+            for i in range(3):
+                ax.axvline(optimal_offsets[i], color=f"C{i}", ls="--")
+            ax.set_title(f"Beam {beam}")
+            if beam in [3, 4]:
+                ax.set_xlabel("Position")
+            if beam in [1, 3]:
+                ax.set_ylabel("Flux")
+            if beam == 1:
+                ax.legend()
+            ax.grid()
+
+        plt.show()
 
     def autoalign_full(self):
         pass
@@ -428,6 +460,14 @@ def main():
         default="None",
         help="Path to save the alignment results (default: current directory)",
     )
+
+    parser.add_argument(
+        "-p",
+        "--plot",
+        type=bool,
+        default=False,
+        help="if results should be plotted to the screen when done (only valid for pa)",
+    )
     args = parser.parse_args()
 
     heimdallr_aa = HeimdallrAA(
@@ -442,7 +482,7 @@ def main():
     elif args.align in ["ia", "imageall"]:
         heimdallr_aa.autoalign_coarse_parallel()
     elif args.align in ["p3", "pupil3"]:
-        heimdallr_aa.autoalign_pupil(3)
+        heimdallr_aa.autoalign_pupil(3, plot=args.plot)
         # open all shutters
         heimdallr_aa.open_all_shutters()
     elif args.align in ["pa", "pupilall"]:
