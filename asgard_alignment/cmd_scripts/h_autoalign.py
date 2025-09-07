@@ -401,8 +401,17 @@ def main():
         "--align",
         type=str,
         required=True,
-        choices=["cp", "coarseparallel", "p3", "pupil3", "pa", "pupilall"],
-        help="Alignment method: 'cp'/'coarseparallel', 'pa'/'pupilall' or 'p3'/'pupil3'",
+        choices=[
+            "cp",
+            "coarseparallel",
+            "ia",
+            "imageall",
+            "p3",
+            "pupil3",
+            "pa",
+            "pupilall",
+        ],
+        help="Alignment method: 'ia'/'imageall', 'pa'/'pupilall' or 'p3'/'pupil3'",
     )
     parser.add_argument(
         "-b",
@@ -429,6 +438,8 @@ def main():
     )
 
     if args.align in ["cp", "coarseparallel"]:
+        print("New command name, rerun with -a ia or -a imageall instead")
+    elif args.align in ["ia", "imageall"]:
         heimdallr_aa.autoalign_coarse_parallel()
     elif args.align in ["p3", "pupil3"]:
         heimdallr_aa.autoalign_pupil(3)
