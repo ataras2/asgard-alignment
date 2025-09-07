@@ -349,7 +349,7 @@ if args.record_images:
 # look at pct aggrate functions 
 kwargs = {}
 processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
-                                                method='gaus_fit',  #'frame_aggregate'
+                                                method='frame_aggregate',  #'frame_aggregate'
                                                 kwargs = kwargs)
 
 means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
