@@ -130,7 +130,7 @@ def process_scan( scan_data , method=None, **kwargs):
 
             # in 12x12 mode we have ~113 pixels in pupil, always assume ~2 are bad 
             # so we filter out above 98th percentile (naive safety to avoid bad pixels)
-            qFilt = np.array(v) < np.quantiles(np.array(v)[pupil_mask], 0.98 )
+            qFilt = np.array(v) < np.quantile(np.array(v)[pupil_mask], 0.98 )
 
             pupil_mask &= qFilt # add it to the pupil_mask
 
@@ -153,7 +153,7 @@ def process_scan( scan_data , method=None, **kwargs):
 
             # in 12x12 mode we have ~113 pixels in pupil, always assume ~2 are bad 
             # so we filter out above 98th percentile (naive safety to avoid bad pixels)
-            qFilt = np.array(v) < np.quantiles(np.array(v)[pupil_mask], 0.98 )
+            qFilt = np.array(v) < np.quantile(np.array(v)[pupil_mask], 0.98 )
 
             pupil_mask &= qFilt # add it to the pupil_mask
 
