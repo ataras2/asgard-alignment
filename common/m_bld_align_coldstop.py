@@ -397,7 +397,7 @@ time.sleep(0.1)
 
 
 # update all phasemask positions 
-msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {str(delta_BMX)} {str(delta_BMY)}"
+msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {float(delta_BMX)} {float(delta_BMY)}"
 resp = send_and_get_response(msg)
 print( f"updating all local phasemask positions based on offset : {resp}" )
 
