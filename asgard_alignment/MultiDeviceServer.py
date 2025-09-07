@@ -24,6 +24,7 @@ import asgard_alignment.ESOdevice
 
 import logging
 
+
 # guarantees that errors are logged
 def handle_exception(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, KeyboardInterrupt):
@@ -83,6 +84,15 @@ class MultiDeviceServer:
             self.instr = MockMDS()
         else:
             self.instr = asgard_alignment.Instrument.Instrument(self.config_file)
+
+            try:
+                # set all BLF to standard
+                self.instr["BLF1"].setup("NAME", "STANDARD")
+                self.instr["BLF2"].setup("NAME", "STANDARD")
+                self.instr["BLF3"].setup("NAME", "STANDARD")
+                self.instr["BLF4"].setup("NAME", "STANDARD")
+            except Exception as e:
+                logging.error(f"Error setting BLFs to standard: {e}")
 
         logging.info("Instrument all set up, ready to accept messages")
 
