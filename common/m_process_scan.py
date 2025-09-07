@@ -82,6 +82,8 @@ def fit_gaussian_on_res(
     for (k, gval) in zip(keys, z_fit):
         # Use your preferred key spelling; here we use 'gaussian_fit'
         res[k]["gaussian_fit"] = float(gval)
+        res["x0_peak"] = float(x0)
+        res["y0_peak"] = float(y0)
 
     params = {"A": A, "x0": x0, "y0": y0, "sx": sx, "sy": sy, "theta": theta, "B": B}
     return params, res

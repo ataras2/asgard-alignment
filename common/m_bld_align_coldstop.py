@@ -352,11 +352,13 @@ processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
                                                 method='gaus_fit',  #'frame_aggregate'
                                                 kwargs = kwargs)
 
-means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+#means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
 
 
 
-best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+#best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+best_pos = [processed_img['x0_peak'],processed_img['y0_peak']]
 print(f"best position at {best_pos}")
 
 for axis, pos in best_pos.items():
