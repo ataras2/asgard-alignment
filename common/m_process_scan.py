@@ -16,9 +16,7 @@ def _gaussian2d(coords, A, x0, y0, sx, sy, theta, B):
     yr = -(x - x0) * st + (y - y0) * ct
     return B + A * np.exp(-0.5 * ((xr / sx) ** 2 + (yr / sy) ** 2))
 
-def fit_gaussian_on_res(
-    res: Dict[Tuple[float, float], Dict[str, Any]]
-) -> Tuple[Dict[str, float], Dict[Tuple[float, float], Dict[str, Any]]]:
+def fit_gaussian_on_res(res):
     """
     Fit a 2D Gaussian to the 'mean' values in `res` and add
     res[(x,y)]['gaussian_fit'] = G(x,y) for each sample.
