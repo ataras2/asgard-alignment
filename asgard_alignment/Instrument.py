@@ -99,20 +99,21 @@ class Instrument:
         logging.info("Controllino on")
 
         time.sleep(
-            1
+            2
         )  # TODO: look at the value here- longer to let managed port be found?
 
-        self._managed_usb_hub_port = self.find_managed_USB_hub_port()
-        logging.info(f"managed port: {self._managed_usb_hub_port}")
-        if self._managed_usb_hub_port is None:
+        self.managed_usb_hub_port = self.find_managed_USB_hub_port()
+        logging.info(f"managed port: {self.managed_usb_hub_port}")
+        if self.managed_usb_hub_port is None:
             logging.warning(
-                "Could not find managed USB hub port, trying again in 5 seconds "
+                "Could not find managed USB hub port."
             )
 
-            time.sleep(5)
+            # time.sleep(5)
+            sys.exit(1)
         else:
-            self._managed_usb_hub_port = self._managed_usb_hub_port.split("/")[-1]
-            logging.info(f"managed port short: {self._managed_usb_hub_port}")
+            self.managed_usb_port_short = self.managed_usb_hub_port.split("/")[-1]
+            logging.info(f"managed port short: {self.managed_usb_port_short}")
 
         time.sleep(3)
         os.system(f"cusbi /S:{self.managed_usb_port_short} 1:1")
@@ -603,7 +604,7 @@ class Instrument:
     # BCB to do , make new variable dictionary (not device)
     # _combined_device <- new variable dictionary , multiDeviceServer <- custom functions
     # update Mutil device server
-    #
+
     def _open_controllino(self):
         self._controllers["controllino"] = asgard_alignment.controllino.Controllino(
             self._other_config["controllino0"]["ip_address"]

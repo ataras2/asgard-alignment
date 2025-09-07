@@ -112,8 +112,8 @@ class BaldrPhaseMask:
     def offset_all_mask_positions(self, rel_offset_x, rel_offset_y):
         "offset ALL phasemask positions by rel_offset_x, rel_offset_y"
         for mask in self.phase_positions:
-            self.phase_positions[mask][0] += rel_offset_x
-            self.phase_positions[mask][1] += rel_offset_y
+            self.phase_positions[mask][0] += float(rel_offset_x)
+            self.phase_positions[mask][1] += float(rel_offset_y)
         
 
 

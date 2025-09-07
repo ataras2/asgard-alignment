@@ -6,7 +6,7 @@ e.g. move a pupil without moving the respective image plane
 this is important for alignment through the coldstop on the CRED1! 
 """
 import zmq
-import common.phasemask_centering_tool as pct
+import phasemask_centering_tool as pct
 import time
 import toml
 import argparse
@@ -22,7 +22,8 @@ from xaosim.shmlib import shm
 
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
-
+import m_process_scan 
+import asgard_alignment.Engineering
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -282,6 +283,7 @@ if args.record_images:
 #     st.write(f"failed to take dark with exception {e}")
 
 
+print( "performing scan...")
 for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
     #progress_bar.progress(it / len(rel_x_points))
 
@@ -299,6 +301,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         cmd = f"mv_pup {config} {args.beam} {delx} {dely}"
         send_and_get_response(cmd)
 
+    
     time.sleep(args.sleeptime)
 
     # get all the motor positions
@@ -317,7 +320,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         img_dict[str((x_points[it], y_points[it]))] = imgtmp
 
 # move back to original position
-print("moving back to original position")
+print(f"moving back to original position: {pos_dict_original}")
 
 for axis, pos in pos_dict_original.items():
     msg = f"moveabs {axis} {pos}"
@@ -344,109 +347,69 @@ if args.record_images:
 
 ### read it back in 
 # look at pct aggrate functions 
+kwargs = {}
+processed_imgs = m_process_scan.process_scan( scan_data=img_dict , method='frame_aggregate', kwargs = kwargs)
+
+means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+
+
+
+best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+print(f"best position at {best_pos}")
+
+for axis, pos in best_pos.items():
+    msg = f"moveabs {axis} {pos}"
+    send_and_get_response(msg)
+    print(f"Moving {axis} to best found pos: {pos}")
+    
+
+##=======================================
+# update phasemask 
+print("now updating phasemask positions based on BOTX offsets")
+# matrix to update phasemask positions relative to BOTX offsets 
+phasemask_matrix = asgard_alignment.Engineering.phasemask_botx_matricies
+
+#best_pos.items() # e.g. {"BOTX1":0.2}
+#pos_dict_original.items()
+
+# get difference from new (best) positions and the original starting position
+delta_BOTP = float(best_pos[f"BOTP{args.beam}"]) - float(pos_dict_original[f"BOTP{args.beam}"])
+delta_BOTT = float(best_pos[f"BOTT{args.beam}"]) - float(pos_dict_original[f"BOTT{args.beam}"])
+
+# convert to offsets in phasemask BMX and BMY
+delta_BMX, delta_BMY = phasemask_matrix[int(args.beam)] @ [
+        delta_BOTP,
+        delta_BOTT,
+    ]
+
+# move phasemasks
+
+# Y
+msg = f"moverel BMY{args.beam} {delta_BMY}"
+resp = send_and_get_response(msg)
+print( f"offset BMY {delta_BMY}: {resp}" )
+time.sleep(0.1)
+# X
+msg = f"moverel BMX{args.beam} {delta_BMX}"
+resp = send_and_get_response(msg)
+print( f"offset BMX {delta_BMX}: {resp}" )
+time.sleep(0.1)
+
+
+# update all phasemask positions 
+msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {float(delta_BMX)} {float(delta_BMY)}"
+resp = send_and_get_response(msg)
+print( f"updating all local phasemask positions based on offset : {resp}" )
+
+# write file 
+msg = f"fpm_writemaskpos phasemask{args.beam}"
+resp = send_and_get_response(msg)
+print( f"saving updated phasemask position file for beam {args.beam} : {resp}" )
+
+print('done')
 
 
 
 
 
-# import numpy as np 
-# import zmq
-# import time
-# import toml
-# import os 
-# import argparse
-# import matplotlib.pyplot as plt
-# import argparse
-# import subprocess
 
-
-# parser = argparse.ArgumentParser(description="scan pupil/image planes in baldr to optimize pos in cold stop.")
-
-# #input beam id 
-# parser.add_argument(
-#     '--beam',
-#     type=str,
-#     default="3",
-#     help="what beam to look at?. Default: %(default)s"
-# )
-
-
-# parser.add_argument(
-#     '--move_plane',
-#     type=str,
-#     default="pupil",
-#     help="what plane to move in the system (pupil or image). Default: %(default)s"
-# )
-
-
-# parser.add_argument(
-#     '--search_radius',
-#     type=float,
-#     default=9,
-#     help="search radius of spiral search in microns. Default: %(default)s"
-# )
-# parser.add_argument(
-#     '--dx',
-#     type=float,
-#     default=3,
-#     help="step size in motor units during scan. Default: %(default)s"
-# )
-# #open json and get regions , exapand by twice size 
-
-# args=parser.parse_args()
-
-# def expand_roi( roi0, expand_by_percent=50 ):
-#     X = roi0[1] - roi0[0]
-#     extra =expand_by_percent/100 * X 
-#     roi = []
-#     for i,rr in enumerate( roi0 ):
-#         if np.mod(i,2)==0:
-#             roi.append( int( rr - extra ) )
-#         else:
-#             roi.append( int(rr + extra ) )
-#     return roi 
-
-# data_path = f"/home/asg/Progs/repos/asgard-alignment/calibration/reports/scan_{args.move_plane}/"
-# default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
-
-# with open(default_toml.replace('#',f'{args.beam}'), "r") as f:
-#     config_dict = toml.load(f)
-#     # Baldr pupils from global frame 
-#     baldr_pupils = config_dict['baldr_pupils']
-
-# roi0 = baldr_pupils[f'{args.beam}']
-
-# roi = expand_roi( roi0, expand_by_percent=50 )
-
-# scantype = 'spiral'
-
-# command = [
-#     "python",
-#     "common/m_scan_multiple_mirrors.py",
-#     "--beam",
-#     f"{args.beam}",
-#     '--system',
-#     "baldr",
-#     "--move_plane",
-#     args.move_plane ,
-#     "--global_camera_shm",
-#     "/dev/shm/cred1.im.shm",
-#     "--initial_pos",
-#     "current",
-#     "--search_radius",
-#     f"{args.search_radius}",
-#     "--dx",
-#     f"{args.dx}",
-#     "--roi",
-#     str(roi),
-#     "--scantype",
-#     scantype,
-#     "--data_path",
-#     data_path,
-#     ]
-
-# process = subprocess.run(
-#     command, capture_output=True, text=True
-# )
-
-# print("Script Output", process.stdout)
