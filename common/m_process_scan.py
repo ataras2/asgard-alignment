@@ -43,6 +43,13 @@ def process_scan( scan_data , method=None, **kwargs):
                 v, sigma=2, threshold=0.5, plot=False, savepath=None
             )  # pct.detect_circle
 
+
+            # in 12x12 mode we have ~113 pixels in pupil, always assume ~2 are bad 
+            # so we filter out above 98th percentile (naive safety to avoid bad pixels)
+            qFilt = np.array(v) < np.quantiles(np.array(v)[pupil_mask], 0.98 )
+
+            pupil_mask &= qFilt # add it to the pupil_mask
+
             res[k] = {"mean":np.nanmean( np.array(v)[pupil_mask] ), 
                       "std":np.nanstd( np.array(v)[pupil_mask] ), 
                       "median":np.median( np.array(v)[pupil_mask] )} 
@@ -51,7 +58,7 @@ def process_scan( scan_data , method=None, **kwargs):
         
     elif method.lower() == 'frame_cluster':
         N_clusters = kwargs.get("N_clusters",3) # does 3 clusters if not specified
-        print("to do")
+        print("to test")
 
         data_dict_ed = {
                     tuple(map(float, key.strip("()").split(","))): value
@@ -68,12 +75,21 @@ def process_scan( scan_data , method=None, **kwargs):
         # - "clusters" (list): Cluster labels for each image.
         # - "centroids" (ndarray): Centroids of the clusters.
     
-        res = pct.cluster_analysis_on_searched_images(
+        raw_res = pct.cluster_analysis_on_searched_images(
             images=image_list,
             detect_circle_function=pct.detect_circle,
             n_clusters=int(N_clusters),
             plot_clusters=plot_results,
         )
+
+        centersRaw = raw_res['centers']
+        clustersRaw = raw_res['clusters']
+        centroidsRaw =  raw_res['centroids']
+
+        # reformatting results (untested!)
+        res = {} 
+        for ii, (cent, clus, roid) in enumerate( zip(centersRaw,clustersRaw,centroidsRaw) ):  
+            res[(x_points[ii],y_points[ii])] = {"centers": cent},{"clusters":clus,"centroids":roid}
 
         if plot_results:
             fig, ax = pct.plot_cluster_heatmap(x_points, y_points, res["clusters"])
