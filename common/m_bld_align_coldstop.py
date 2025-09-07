@@ -155,6 +155,12 @@ parser.add_argument(
     help="Do we want to include images? 1=>yes, 0=>no Default:%(default)s"
 )
 
+parser.add_argument(
+    "--process_method",
+    type=str,
+    default='frame_aggregate', # just peak flux within the measured pupil - simplest. See m_process_scan.py for more methods
+    help="how do we process the images? Default:%(default)s"
+)
 
 args = parser.parse_args()
 
@@ -349,19 +355,21 @@ if args.record_images:
 # look at pct aggrate functions 
 kwargs = {}
 processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
-                                                method='frame_aggregate',  #'frame_aggregate'
-                                                kwargs = kwargs)
+                                                method=args.process_method, #'gaus_fit'                                                kwargs = kwargs)
 
-means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+if args.process_method == 'frame_aggregate':
+    means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
 
-# not working still
-#means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
+elif args.process_method == 'gaus_fit':
+    best_pos = [processed_img['x0_peak'],processed_img['y0_peak']]
+    # not working still
+    #means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
+
+else:
+    raise NotImplemented("process method not implemented. try frame_aggregate or gaus_fit for example ")
 
 
-
-best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
-## not working still 
-#best_pos = [processed_img['x0_peak'],processed_img['y0_peak']]
 print(f"best position at {best_pos}")
 
 for axis, pos in best_pos.items():
