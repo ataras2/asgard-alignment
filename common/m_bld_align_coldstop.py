@@ -22,7 +22,7 @@ from xaosim.shmlib import shm
 
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
-
+from common.m_process_scan import process_scan
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -129,7 +129,7 @@ parser.add_argument(
 parser.add_argument(
     '--roi',
     type=str,
-    default=None,#"[188, 252, 141, 205]",#
+    default=None, #"[188, 252, 141, 205]",#
     help="region to crop in camera (row1, row2, col1, col2). Default:%(default)s"
 )
 
@@ -282,6 +282,7 @@ if args.record_images:
 #     st.write(f"failed to take dark with exception {e}")
 
 
+
 for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
     #progress_bar.progress(it / len(rel_x_points))
 
@@ -299,6 +300,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         cmd = f"mv_pup {config} {args.beam} {delx} {dely}"
         send_and_get_response(cmd)
 
+    
     time.sleep(args.sleeptime)
 
     # get all the motor positions
@@ -317,7 +319,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         img_dict[str((x_points[it], y_points[it]))] = imgtmp
 
 # move back to original position
-print("moving back to original position")
+print(f"moving back to original position: {pos_dict_original}")
 
 for axis, pos in pos_dict_original.items():
     msg = f"moveabs {axis} {pos}"
@@ -344,6 +346,24 @@ if args.record_images:
 
 ### read it back in 
 # look at pct aggrate functions 
+kwargs = {}
+processed_imgs = process_scan( scan_data=img_dict , method='frame_aggregate', kwargs = kwargs)
+
+means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+
+
+
+best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+print(f"best position at {best_pos}")
+
+for axis, pos in best_pos.items():
+    msg = f"moveabs {axis} {pos}"
+    send_and_get_response(msg)
+    print(f"Moving {axis} back to {pos}")
+    
+
+
+
 
 
 
