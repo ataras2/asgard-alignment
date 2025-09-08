@@ -31,7 +31,7 @@ CONNEXIONS = {
     "BLF2": 23,
     "BLF3": 24,
     "BLF4": 25,
-    "USB upper power": 37,
+    "USB upper coms power": 37,
     "SBB": 22,
     "SRL": 30,
     "SGL": 31,
@@ -115,7 +115,7 @@ class Controllino:
             self.turn_on("Lower Kickstart")
 
             
-            self.turn_on("USB upper power")
+            self.turn_on("USB upper coms power")
 
             self.turn_on("DM1")
             self.turn_on("DM2")

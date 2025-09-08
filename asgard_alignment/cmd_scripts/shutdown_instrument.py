@@ -70,7 +70,7 @@ def shutdown(inc_CRED):
     print(f"Pre-shutdown current: {pre_shutdown_current} A")
 
     devices = [
-        "USB upper power",
+        "USB upper coms power",
         "X-MCC (BMX,BMY)",
         "X-MCC (BFO,SDL,BDS,SSS)",
         "LS16P (HFO)",
