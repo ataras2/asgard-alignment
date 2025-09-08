@@ -301,6 +301,15 @@ class Instrument:
                 )
             self.is_h_splay = False
 
+    def set_kaya(self, state):
+        if state not in ["on", "off"]:
+            raise ValueError("state must be 'on' or 'off'")
+
+        if state == "on":
+            self._controllers["controllino"].turn_on("Kaya")
+        elif state == "off":
+            self._controllers["controllino"].turn_off("Kaya")
+
     def _validate_move_img_pup_inputs(self, config, beam_number, x, y):
         # input validation
         if beam_number not in [1, 2, 3, 4]:
