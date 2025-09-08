@@ -341,7 +341,6 @@ if args.record_images:
 
     print(f"wrote {img_json_file_path}")
 
-
     motorpos_json_file_path = (
         args.data_path + f"motorpos_dict_beam{args.beam}-{args.move_plane}.json"
     )
@@ -357,6 +356,14 @@ kwargs = {}
 processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
                                                 method=args.process_method, #'gaus_fit',  #'frame_aggregate'
                                                 kwargs = kwargs)
+
+
+img_json_file_path = args.data_path + f"processed_img_dict_beam{args.beam}-{args.move_plane}.json"
+with open(img_json_file_path, "w") as json_file:
+    json.dump(util.convert_to_serializable(res), json_file)
+
+print(f"wrote {img_json_file_path}")
+
 
 if args.process_method == 'frame_aggregate':
     means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
