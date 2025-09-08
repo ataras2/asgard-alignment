@@ -55,6 +55,24 @@ class HeimdallrAA:
         self.row_bnds = (0, 128)
         # self.col_bnds is set above
 
+    def get_init_motors_state(self):
+        motors = {}
+        for beam in range(1, 5):
+            axis_list = ["HTPP", "HTTP", "HTPI", "HTTI"]
+            axes = [axis + str(beam) for axis in axis_list]
+            motors[beam] = {}
+            for axis in axes:
+                cmd = f"read {axis}"
+                resp = self._send_and_get_response(cmd)
+                motors[beam][axis] = float(resp)
+        return motors
+
+    def set_complete_state(self, motors):
+        for beam in range(1, 5):
+            for axis, pos in motors[beam].items():
+                cmd = f"moveabs {axis} {pos}"
+                self._send_and_get_response(cmd)
+
     # MDS interface
     def _open_mds_connection(self):
         context = zmq.Context()
@@ -378,12 +396,12 @@ class HeimdallrAA:
 
     def autoalign_pupil_all(self, plot):
         # just like autoalign_3_pupil but for all beams
-        datas  = {}
+        datas = {}
         for beam in range(1, 5):
             datas[beam] = self.autoalign_pupil(beam)
             # open all shutters
             self.open_all_shutters()
-        
+
         if plot:
             self.plot_autoalign_pupil_all(datas)
 
@@ -394,10 +412,10 @@ class HeimdallrAA:
         fig, axs = plt.subplots(2, 2, figsize=(10, 8), sharex=True, sharey=True)
 
         for beam in range(1, n_beams + 1):
-            data=data_all[beam]
-            positions = [data[f"meas_locs_{i}"] for i in ["x", "y","x"]]
-            fluxes = [data[f"fluxes_{i}"] for i in ["x", "y","x2"]]
-            optimal_offsets = [data[f"optimal_offset_{i}"] for i in ["x", "y","x2"]]
+            data = data_all[beam]
+            positions = [data[f"meas_locs_{i}"] for i in ["x", "y", "x"]]
+            fluxes = [data[f"fluxes_{i}"] for i in ["x", "y", "x2"]]
+            optimal_offsets = [data[f"optimal_offset_{i}"] for i in ["x", "y", "x2"]]
             ax = axs.flat[beam - 1]
             ax.plot(positions[0], fluxes[0], "o-", label="x", color="C0")
             ax.plot(positions[1], fluxes[1], "o-", label="y", color="C1")
@@ -477,20 +495,28 @@ def main():
         savepth=args.save_path,
     )
 
-    if args.align in ["cp", "coarseparallel"]:
-        print("New command name, rerun with -a ia or -a imageall instead")
-    elif args.align in ["ia", "imageall"]:
-        heimdallr_aa.autoalign_coarse_parallel()
-    elif args.align in ["p3", "pupil3"]:
-        heimdallr_aa.autoalign_pupil(3, plot=args.plot)
-        # open all shutters
-        heimdallr_aa.open_all_shutters()
-    elif args.align in ["pa", "pupilall"]:
-        heimdallr_aa.autoalign_pupil_all()
-    else:
-        raise ValueError("Unknown alignment method.")
+    init_vals = heimdallr_aa.get_init_motors_state()
 
-    print("Autoalignment completed.")
+    try:
+        if args.align in ["cp", "coarseparallel"]:
+            print("New command name, rerun with -a ia or -a imageall instead")
+        elif args.align in ["ia", "imageall"]:
+            heimdallr_aa.autoalign_coarse_parallel()
+        elif args.align in ["p3", "pupil3"]:
+            heimdallr_aa.autoalign_pupil(3, plot=args.plot)
+            # open all shutters
+            heimdallr_aa.open_all_shutters()
+        elif args.align in ["pa", "pupilall"]:
+            heimdallr_aa.autoalign_pupil_all()
+        else:
+            raise ValueError("Unknown alignment method.")
+
+        print("Autoalignment completed.")
+    except Exception as e:
+        print(f"Error during alignment: {e}")
+        print("Restoring initial motor positions.")
+        heimdallr_aa.set_complete_state(init_vals)
+        print("Initial motor positions restored.")
 
 
 if __name__ == "__main__":

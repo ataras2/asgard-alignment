@@ -156,7 +156,7 @@ stats = np.zeros([len(stepper_vals), len(dl_vals), n_samples, 2])
 
 for i, step in tqdm(enumerate(stepper_vals)):
     mv_stepper(mds, moving_beam, step)
-    for j, dlp in tqdm(enumerate(dl_vals)):
+    for j, dlp in enumerate(dl_vals):
         mv_dl(mds, moving_beam, dlp, blocking=True)
         time.sleep(0.5)
         v2s = capture_and_process_data(ps_stream, mask, n_samples)

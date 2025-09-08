@@ -31,7 +31,7 @@ CONNEXIONS = {
     "BLF2": 23,
     "BLF3": 24,
     "BLF4": 25,
-    "USB upper power": 37,
+    "USB upper coms power": 37,
     "SBB": 22,
     "SRL": 30,
     "SGL": 31,

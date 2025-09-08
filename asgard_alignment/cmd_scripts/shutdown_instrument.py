@@ -70,14 +70,15 @@ def shutdown(inc_CRED):
     print(f"Pre-shutdown current: {pre_shutdown_current} A")
 
     devices = [
+        "USB upper coms power",
         "X-MCC (BMX,BMY)",
         "X-MCC (BFO,SDL,BDS,SSS)",
         "LS16P (HFO)",
-        "USB hubs",
         "DM1",
         "DM2",
         "DM3",
         "DM4",
+        "USB hubs",
     ]
     for device in devices:
         cc.turn_off(device)

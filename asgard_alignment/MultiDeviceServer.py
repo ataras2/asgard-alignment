@@ -87,10 +87,10 @@ class MultiDeviceServer:
 
             try:
                 # set all BLF to standard
-                self.instr["BLF1"].setup("NAME", "STANDARD")
-                self.instr["BLF2"].setup("NAME", "STANDARD")
-                self.instr["BLF3"].setup("NAME", "STANDARD")
-                self.instr["BLF4"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF1"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF2"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF3"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF4"].setup("NAME", "STANDARD")
             except Exception as e:
                 logging.error(f"Error setting BLFs to standard: {e}")
 
@@ -924,6 +924,13 @@ class MultiDeviceServer:
                 return f"[{','.join(keys)}]"
             return "NACK: Invalid mode for temp_status, must be 'now' or 'keys'"
 
+        def set_kaya_msg(state):
+            if state not in ["on", "off"]:
+                return "NACK: Invalid state for set_kaya, must be 'on' or 'off'"
+
+            self.instr.set_kaya(state)
+            return "ACK"
+
         first_word_to_function = {
             "read": read_msg,
             "stop": stop_msg,
@@ -964,6 +971,7 @@ class MultiDeviceServer:
             "h_shut": h_shut_msg,
             "h_splay": h_splay_msg,
             "temp_status": temp_status_msg,
+            "set_kaya" : set_kaya_msg,
         }
 
         first_word_to_format = {
@@ -1006,6 +1014,7 @@ class MultiDeviceServer:
             "h_shut": "h_shut {} {}",
             "h_splay": "h_splay {}",
             "temp_status": "temp_status {}",
+            "set_kaya": "set_kaya {}",
         }
 
         try:
