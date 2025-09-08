@@ -155,6 +155,12 @@ parser.add_argument(
     help="Do we want to include images? 1=>yes, 0=>no Default:%(default)s"
 )
 
+parser.add_argument(
+    "--process_method",
+    type=str,
+    default='gaus_fit',  #this is most robust, but simplest (less dependencies) is 'frame_aggregate', # just peak flux within the measured pupil - simplest. See m_process_scan.py for more methods
+    help="how do we process the images? Default:%(default)s"
+)
 
 args = parser.parse_args()
 
@@ -348,13 +354,29 @@ if args.record_images:
 ### read it back in 
 # look at pct aggrate functions 
 kwargs = {}
-processed_imgs = m_process_scan.process_scan( scan_data=img_dict , method='frame_aggregate', kwargs = kwargs)
-
-means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+processed_imgs = m_process_scan.process_scan( scan_data=img_dict, method=args.process_method, kwargs = kwargs)
 
 
+img_json_file_path = args.data_path + f"processed_img_dict_beam{args.beam}-{args.move_plane}.json"
+with open(img_json_file_path, "w") as json_file:
+    json.dump(util.convert_to_serializable(processed_imgs), json_file)
 
-best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+print(f"wrote {img_json_file_path}")
+
+
+if args.process_method == 'frame_aggregate':
+    means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+
+elif args.process_method == 'gaus_fit':
+    fitted_samples =np.array( [processed_imgs[k]["gaussian_fit"] for k in processed_imgs.keys() ] ) #[processed_imgs['x0_peak'],processed_imgs['y0_peak']]
+    # not working still
+    #means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( fitted_samples ) ] # we could interpolate this for better results but its a 4D surface (two TT motors).. to do later
+else:
+    raise NotImplemented("process method not implemented. try frame_aggregate or gaus_fit for example ")
+
+
 print(f"best position at {best_pos}")
 
 for axis, pos in best_pos.items():
@@ -394,6 +416,7 @@ msg = f"moverel BMX{args.beam} {delta_BMX}"
 resp = send_and_get_response(msg)
 print( f"offset BMX {delta_BMX}: {resp}" )
 time.sleep(0.1)
+
 
 
 # update all phasemask positions 

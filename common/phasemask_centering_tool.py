@@ -1251,6 +1251,15 @@ def plot_aggregate_cluster_images(images, clusters, operation="median"):
 
 
 
+def plot_mask_positions( positions_dict):
+    # positions_dict = {"H1":[x,y],"H2",[x,y]...}
+    x = [xx[0] for xx in positions_dict.values()]
+    y = [yy[1] for yy in positions_dict.values()]
+    plt.figure()
+    plt.plot(x,y,'x')
+    plt.show()
+
+
 def plot_image_grid(image_dict, savepath='delme.png'):
     """
     Plots images on a grid where positions correspond to their (x, y) keys,
