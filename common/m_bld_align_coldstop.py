@@ -354,18 +354,17 @@ if args.record_images:
 ### read it back in 
 # look at pct aggrate functions 
 kwargs = {}
-processed_imgs = m_process_scan.process_scan( scan_data=img_dict ,
-                                                method=args.process_method, #'gaus_fit'                                                kwargs = kwargs)
+processed_imgs = m_process_scan.process_scan( scan_data=img_dict, method=args.process_method, kwargs = kwargs)
 
 if args.process_method == 'frame_aggregate':
     means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
     best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
 
 elif args.process_method == 'gaus_fit':
-    best_pos = [processed_img['x0_peak'],processed_img['y0_peak']]
+    fitted_samples =np.array( list( v["gaussian_fit"] for v in processed_imgs.values() ) ) #[processed_imgs['x0_peak'],processed_imgs['y0_peak']]
     # not working still
     #means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
-
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( fitted_samples ) ] # we could interpolate this for better results but its a 4D surface (two TT motors).. to do later
 else:
     raise NotImplemented("process method not implemented. try frame_aggregate or gaus_fit for example ")
 
