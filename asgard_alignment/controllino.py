@@ -39,6 +39,7 @@ CONNEXIONS = {
     "Upper T": 56,
     "Bench T": 55,
     "Floor T": 58,
+    "Kaya": 35,
 }
 
 
@@ -116,6 +117,7 @@ class Controllino:
 
             
             self.turn_on("USB upper power")
+            self.turn_on("Kaya")
 
             self.turn_on("DM1")
             self.turn_on("DM2")
