@@ -87,10 +87,10 @@ class MultiDeviceServer:
 
             try:
                 # set all BLF to standard
-                self.instr["BLF1"].setup("NAME", "STANDARD")
-                self.instr["BLF2"].setup("NAME", "STANDARD")
-                self.instr["BLF3"].setup("NAME", "STANDARD")
-                self.instr["BLF4"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF1"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF2"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF3"].setup("NAME", "STANDARD")
+                self.instr.devices["BLF4"].setup("NAME", "STANDARD")
             except Exception as e:
                 logging.error(f"Error setting BLFs to standard: {e}")
 
