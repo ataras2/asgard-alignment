@@ -36,9 +36,13 @@ CONNEXIONS = {
     "SRL": 30,
     "SGL": 31,
     "Lower T": 54,
-    "Upper T": 56,
+    # "Upper T": 56, # Old
     "Bench T": 55,
-    "Floor T": 58,
+    # "Floor T": 58, # Old
+    # new mapping: pin 6 on PCB is A3=57
+    # new mapping: pin 8 on PCB is A5=59
+    "Upper T": 57,
+    "Floor T": 59,
     "Kaya": 35,
 }
 
@@ -115,7 +119,6 @@ class Controllino:
             time.sleep(0.1)
             self.turn_on("Lower Kickstart")
 
-            
             self.turn_on("USB upper power")
             self.turn_on("Kaya")
 
