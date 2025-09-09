@@ -328,14 +328,14 @@ class M100DAxis(ESOdevice.Motor):
     @staticmethod
     def internal_to_ESO(value):
         """
-        Internal positions in mm, ESO in um (discrete)
+        Internal positions in deg, ESO in mdeg (discrete)
         """
-        return int(value * 1e3)  # ESO in um
+        return int(value * 1e3)  # ESO in 
 
     @staticmethod
     def ESO_to_internal(value):
         """
-        ESO positions in um, internal in mm (discrete)
+        ESO positions in mdeg, internal in deg (discrete)
         """
         return value * 1e-3
 

@@ -33,7 +33,7 @@ from asgard_alignment import FLI_Cameras as FLI
 
 
 MDS_port = 5555
-MDS_host = "127.0.0.1" #"192.168.100.2" # 'localhost'
+MDS_host = "192.168.100.2" # simmode : "127.0.0.1" #'localhost'
 context = zmq.Context()
 context.socket(zmq.REQ)
 socket = context.socket(zmq.REQ)

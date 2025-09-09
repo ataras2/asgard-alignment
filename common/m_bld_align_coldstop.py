@@ -6,7 +6,7 @@ e.g. move a pupil without moving the respective image plane
 this is important for alignment through the coldstop on the CRED1! 
 """
 import zmq
-import common.phasemask_centering_tool as pct
+import phasemask_centering_tool as pct
 import time
 import toml
 import argparse
@@ -22,7 +22,8 @@ from xaosim.shmlib import shm
 
 from pyBaldr import utilities as util
 from asgard_alignment import FLI_Cameras as FLI
-
+import m_process_scan 
+import asgard_alignment.Engineering
 
 def send_and_get_response(message):
     # st.write(f"Sending message to server: {message}")
@@ -43,6 +44,16 @@ def send_and_get_response(message):
     return response.strip()
 
 
+def expand_roi( roi0, expand_by_percent=50 ):
+    X = roi0[1] - roi0[0]
+    extra =expand_by_percent/100 * X 
+    roi = []
+    for i,rr in enumerate( roi0 ):
+        if np.mod(i,2)==0:
+            roi.append( int( rr - extra ) )
+        else:
+            roi.append( int(rr + extra ) )
+    return roi 
 
 # paths and timestamps
 tstamp = datetime.datetime.now().strftime("%d-%m-%YT%H.%M.%S")
@@ -106,20 +117,20 @@ parser.add_argument(
 parser.add_argument(
     '--search_radius',
     type=float,
-    default=0.3,
+    default=10,
     help="search radius of spiral search in microns. Default: %(default)s"
 )
 parser.add_argument(
     '--dx',
     type=float,
-    default=.1,
+    default=2,
     help="step size in motor units during scan. Default: %(default)s"
 )
 
 parser.add_argument(
     '--roi',
     type=str,
-    default="[None, None, None, None]",#"[188, 252, 141, 205]",#
+    default=None, #"[188, 252, 141, 205]",#
     help="region to crop in camera (row1, row2, col1, col2). Default:%(default)s"
 )
 
@@ -144,6 +155,12 @@ parser.add_argument(
     help="Do we want to include images? 1=>yes, 0=>no Default:%(default)s"
 )
 
+parser.add_argument(
+    "--process_method",
+    type=str,
+    default='gaus_fit',  #this is most robust, but simplest (less dependencies) is 'frame_aggregate', # just peak flux within the measured pupil - simplest. See m_process_scan.py for more methods
+    help="how do we process the images? Default:%(default)s"
+)
 
 args = parser.parse_args()
 
@@ -162,10 +179,23 @@ server_address = f"tcp://{args.host}:{args.port}"
 socket.connect(server_address)
 state_dict = {"message_history": [], "socket": socket}
 
-
 if int(args.record_images):
-    # set up camera 
-    c = FLI.fli( roi=eval(args.roi) ) #shm(args.global_camera_shm)
+    if args.roi is None:
+        default_toml = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
+
+        with open(default_toml.replace('#',f'{args.beam}'), "r") as f:
+            config_dict = toml.load(f)
+            # Baldr pupils from global frame 
+            baldr_pupils = config_dict['baldr_pupils']
+
+        roi0 = baldr_pupils[f'{args.beam}']
+
+        roi = expand_roi( roi0, expand_by_percent=50 )
+
+        c = FLI.fli(roi = roi)
+    else:
+        # set up camera 
+        c = FLI.fli( roi=eval(args.roi) ) #shm(args.global_camera_shm)
 
 
 # try get a dark and build bad pixel map 
@@ -239,15 +269,13 @@ if "baldr" in config:
 else:
     axes = [f"HTPP{args.beam}", f"HTTP{args.beam}", f"HTPI{args.beam}", f"HTTI{args.beam}"]
 
-pos_dict = {}
+pos_dict_original = {}
 for axis in axes:
     pos = send_and_get_response(f"read {axis}")
-    pos_dict[axis] = pos
+    pos_dict_original[axis] = pos
 
 # now start 
 #############
-## SET UP CAMERA to cropped beam region
-c = FLI.fli(roi=eval(args.roi))
 
 # init dicitionaries 
 if args.record_images:
@@ -261,6 +289,7 @@ if args.record_images:
 #     st.write(f"failed to take dark with exception {e}")
 
 
+print( "performing scan...")
 for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
     #progress_bar.progress(it / len(rel_x_points))
 
@@ -278,6 +307,7 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         cmd = f"mv_pup {config} {args.beam} {delx} {dely}"
         send_and_get_response(cmd)
 
+    
     time.sleep(args.sleeptime)
 
     # get all the motor positions
@@ -296,9 +326,9 @@ for it, (delx, dely) in enumerate(zip(rel_x_points, rel_y_points)):
         img_dict[str((x_points[it], y_points[it]))] = imgtmp
 
 # move back to original position
-print("moving back to original position")
+print(f"moving back to original position: {pos_dict_original}")
 
-for axis, pos in pos_dict.items():
+for axis, pos in pos_dict_original.items():
     msg = f"moveabs {axis} {pos}"
     send_and_get_response(msg)
     print(f"Moving {axis} back to {pos}")
@@ -319,5 +349,90 @@ if args.record_images:
         json.dump(util.convert_to_serializable(motor_pos_dict), json_file)
 
     print(f"wrote {motorpos_json_file_path}")
+
+
+### read it back in 
+# look at pct aggrate functions 
+kwargs = {}
+processed_imgs = m_process_scan.process_scan( scan_data=img_dict, method=args.process_method, kwargs = kwargs)
+
+
+img_json_file_path = args.data_path + f"processed_img_dict_beam{args.beam}-{args.move_plane}.json"
+with open(img_json_file_path, "w") as json_file:
+    json.dump(util.convert_to_serializable(processed_imgs), json_file)
+
+print(f"wrote {img_json_file_path}")
+
+
+if args.process_method == 'frame_aggregate':
+    means = np.array( list( v["mean"] for v in processed_imgs.values() ) )
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( means )  ]
+
+elif args.process_method == 'gaus_fit':
+    fitted_samples =np.array( [processed_imgs[k]["gaussian_fit"] for k in processed_imgs.keys() ] ) #[processed_imgs['x0_peak'],processed_imgs['y0_peak']]
+    # not working still
+    #means = np.array( list( v["gauss_fit"] for v in processed_imgs.values() ) )
+    best_pos = list( motor_pos_dict.values() )[ np.argmax( fitted_samples ) ] # we could interpolate this for better results but its a 4D surface (two TT motors).. to do later
+else:
+    raise NotImplemented("process method not implemented. try frame_aggregate or gaus_fit for example ")
+
+
+print(f"best position at {best_pos}")
+
+for axis, pos in best_pos.items():
+    msg = f"moveabs {axis} {pos}"
+    send_and_get_response(msg)
+    print(f"Moving {axis} to best found pos: {pos}")
+    
+
+##=======================================
+# update phasemask 
+print("now updating phasemask positions based on BOTX offsets")
+# matrix to update phasemask positions relative to BOTX offsets 
+phasemask_matrix = asgard_alignment.Engineering.phasemask_botx_matricies
+
+#best_pos.items() # e.g. {"BOTX1":0.2}
+#pos_dict_original.items()
+
+# get difference from new (best) positions and the original starting position
+delta_BOTP = float(best_pos[f"BOTP{args.beam}"]) - float(pos_dict_original[f"BOTP{args.beam}"])
+delta_BOTT = float(best_pos[f"BOTT{args.beam}"]) - float(pos_dict_original[f"BOTT{args.beam}"])
+
+# convert to offsets in phasemask BMX and BMY
+delta_BMX, delta_BMY = phasemask_matrix[int(args.beam)] @ [
+        delta_BOTP,
+        delta_BOTT,
+    ]
+
+# move phasemasks
+
+# Y
+msg = f"moverel BMY{args.beam} {delta_BMY}"
+resp = send_and_get_response(msg)
+print( f"offset BMY {delta_BMY}: {resp}" )
+time.sleep(0.1)
+# X
+msg = f"moverel BMX{args.beam} {delta_BMX}"
+resp = send_and_get_response(msg)
+print( f"offset BMX {delta_BMX}: {resp}" )
+time.sleep(0.1)
+
+
+
+# update all phasemask positions 
+msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {float(delta_BMX)} {float(delta_BMY)}"
+resp = send_and_get_response(msg)
+print( f"updating all local phasemask positions based on offset : {resp}" )
+
+# write file 
+msg = f"fpm_writemaskpos phasemask{args.beam}"
+resp = send_and_get_response(msg)
+print( f"saving updated phasemask position file for beam {args.beam} : {resp}" )
+
+print('done')
+
+
+
+
 
 

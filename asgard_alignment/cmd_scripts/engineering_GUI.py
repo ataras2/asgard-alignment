@@ -158,6 +158,7 @@ beam_common_devices = [
     "SDL34",
     "lamps",
     "BLF",  # just do all 4 at once in a single page
+    "Kaya",
 ]
 
 all_devices = beam_common_devices + beam_specific_devices
@@ -683,6 +684,32 @@ def handle_phasemask():
         if submit2:
             message = f"moveabs BMY{beam} {Y_position}"
             send_and_get_response(message)
+
+
+def handle_kaya():
+    st.subheader("Kaya camera realy control")
+
+    # two buttons, power off and power on
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("Power On Kaya"):
+            message = f"set_kaya on"
+            res = send_and_get_response(message)
+
+            if "NACK" in res:
+                st.error(f"Error powering on Kaya: {res}")
+            else:
+                st.success(f"Kaya powered on successfully.")
+    with col2:
+        if st.button("Power Off Kaya"):
+            message = f"set_kaya off"
+            res = send_and_get_response(message)
+
+            if "NACK" in res:
+                st.error(f"Error powering off Kaya: {res}")
+            else:
+                st.success(f"Kaya powered off successfully.")
 
 
 def handle_deformable_mirror():
@@ -1489,6 +1516,9 @@ with col_main:
 
             elif component in ["HTXP", "HTXI", "BTX", "BOTX"]:
                 handle_tt_motor()
+
+            elif component in ["Kaya"]:
+                handle_kaya()
 
             elif component in ["BFO", "SDLA", "SDL12", "SDL34", "HFO", "BMX", "BMY"]:
                 handle_linear_actuator()
@@ -3016,7 +3046,6 @@ with col_main:
                         cmd = f"save {instr} {save_location}"
                         send_and_get_response(cmd)
 
-
         if routine_options == "Scan Mirror":
 
             st.warning(
@@ -3618,8 +3647,14 @@ with col_main:
 
                         for state in states:
                             if state["is_connected"]:
-                                message = f"moveabs {state['name']} {state['position']}"
-                                send_and_get_response(message)
+                                if "BLF" in state["name"]:
+                                    # BLF can't tell where it is, so do nothing
+                                    pass
+                                else:
+                                    message = (
+                                        f"moveabs {state['name']} {state['position']}"
+                                    )
+                                    send_and_get_response(message)
 
         if routine_options == "See All States":
 

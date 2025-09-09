@@ -269,9 +269,12 @@ def vis_given_opd(opd, wavel):
 
 theta_vals = np.linspace(0, 40, 100) * u.deg  # angle of incidence in degrees
 
-opd_offset = -1.1 * u.um
+opd_offset = -2.5 * u.um
 wavelength = 2.2 * u.um  # wavelength in microns
-wavels = [2.0, 2.2, 2.4] * u.um  # wavelength in microns
+# wavels = [2.0, 2.2, 2.4] * u.um  # wavelength in microns
+wavels = np.linspace(2.0, 2.4, 10) * u.um  # wavelength in microns
+
+vis_totals = np.zeros(len(theta_vals))
 
 for wavelength in wavels:
     opd_vals_h = (
@@ -285,8 +288,13 @@ for wavelength in wavels:
     vis_vals = vis_given_opd(opd_diff, wavelength)
 
     plt.plot(theta_vals, vis_vals, label=f"{wavelength.to(u.um):.2f}")
+    vis_totals += vis_vals[:,0]
+    
+plt.plot(theta_vals, vis_totals/len(wavels), 'k')
 
 plt.xlabel(f"Angle of Incidence ({theta_vals.unit})")
 plt.ylabel("Visibility")
 plt.title(f"Vis for OPD offset of {opd_offset.to(u.um):.2f}")
 plt.legend()
+
+# %%

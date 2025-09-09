@@ -59,7 +59,7 @@ class dmclass():
                         "4":"17DW019#122_FLAT_MAP_COMMANDS.txt"
                         }
         
-        return wdir / flat_cmd_files[f"{self.beam_id}"] #wdir + '/' + flat_cmd_files[f"{self.beam_id}"]
+        return os.path.join(wdir ,flat_cmd_files[f"{self.beam_id}"]) #wdir + '/' + flat_cmd_files[f"{self.beam_id}"]
 
 
     def select_flat_cmd_offset(self,  wdir='DMShapes'):

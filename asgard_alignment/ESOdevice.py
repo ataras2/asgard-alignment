@@ -28,6 +28,8 @@ class SetupCommand:
     def __init__(self, device_name, motion_type, value) -> None:
         self.device_name = device_name
         self.motion_type = motion_type
+        if motion_type in ["ENC","ENCREL"]:
+            value = float(value)
         self.value = value
 
 

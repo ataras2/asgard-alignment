@@ -4,29 +4,28 @@ import time
 import json
 
 
-standby_cmd = """
-{
+standby_cmd = {
      "command" :
      {
          "name" : "standby",
-         "time" : "2025-04-21T09:42:46"
+         "time" : "2025-04-21T09:42:46",
+         "parameters" :
+         [
+             {"device": "all"}
+         ]
      }
 }
-"""
 
-online_cmd = """
-{
+online_cmd = {
      "command" :
      {
          "name" : "online",
          "time" : "2025-04-21T09:43:39"
      }
 }
-"""
 
 
-standby_subset_cmd = """
-{
+standby_subset_cmd = {
      "command" :
      {
          "name" : "standby",
@@ -34,18 +33,16 @@ standby_subset_cmd = """
          "parameters" :
          [
              {
-                 "device" : "HTTP1"
+                 "device" : "BOTP2"
              },
-             {
-                 "device" : "HFO1"
-             }
+            #  {
+            #      "device" : "HFO1"
+            #  }
          ]
      }
 }
-"""
 
-online_subset_cmd = """
-{
+online_subset_cmd = {
      "command" :
      {
          "name" : "online",
@@ -53,106 +50,72 @@ online_subset_cmd = """
          "parameters" :
          [
              {
-                 "device" : "HTTP1"
+                 "device" : "BOTP2"
              },
              {
-                 "device" : "HFO1"
+                 "device" : "BOTT2"
+             },
+             {
+                 "device" : "BOTP3"
              }
+            #  {
+            #      "device" : "HFO1"
+            #  }
          ]
      }
 }
-"""
-
-# disable_cmd = """
-# {
-#      "command" :
-#      {
-#          "name" : "disable",
-#          "time" : "2025-04-21T09:46:39",
-#          "parameters" :
-#          [
-#              {
-#                  "device" : "HTTP1"
-#              }
-#          ]
-#      }
-# }
-# """
-
-# enable_cmd = """
-# {
-#      "command" :
-#      {
-#          "name" : "enable",
-#          "time" : "2025-04-21T09:47:39",
-#          "parameters" :
-#          [
-#              {
-#                  "device" : "HTTP1"
-#              }
-#          ]
-#      }
-# }
-# """
 
 
-# setup socket
-def setup_socket(host, port):
+import argparse
+import zmq
+import time
+import json
+import test_utils as utils
+
+
+def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="MDS example")
+    # parser.add_argument("--host", type=str, default="localhost", help="Server host")
+    # parser.add_argument("--port", type=int, default=5555, help="Server port")
+    # parser.add_argument(
+    #     "--timeout", type=int, default=5000, help="Response timeout in milliseconds"
+    # )
+    args = parser.parse_args()
+
     # Create a ZeroMQ context
     context = zmq.Context()
 
     # Create a socket to communicate with the server
     socket = context.socket(zmq.REQ)
-
-    # Set the receive timeout
-    socket.setsockopt(zmq.RCVTIMEO, 40000)
+    socket.setsockopt(zmq.RCVTIMEO, 10000)
 
     # Connect to the server
-    server_address = f"tcp://{host}:{port}"
+    server_address = f"tcp://{'mimir'}:{5555}"
     socket.connect(server_address)
-    return socket
 
+    # time now, in format "YYYY-MM-DDThh:mm:ss"
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
 
-def send_and_recv_cmd(socket, cmd):
-    # Send the command to the server
-    print(f"Sending command to server: {cmd}")
-    socket.send_string(cmd)
+    use_subset = True
+    # use_subset = False
 
-    try:
-        # Wait for a response from the server
-        response = socket.recv_string()
-        print(f"Received response from server: {response}")
-    except zmq.Again as e:
-        print(f"Timeout waiting for response from server: {e}")
+    if use_subset:
+        standby = standby_subset_cmd
+    else:
+        standby = standby_cmd
 
+    res = utils.send_and_receive(socket, json.dumps(standby))
+    standby["command"]["time"] = time_now
+    print(res)
 
-def main():
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(description="ZeroMQ Client")
-    parser.add_argument("--host", type=str, default="172.16.8.6", help="Server host")
-    parser.add_argument("--port", type=int, default=5555, help="Server port")
-    args = parser.parse_args()
+    time.sleep(5)
 
-    # Setup socket
-    socket = setup_socket(args.host, args.port)
-
-    # Send commands
-    cmds = [
-        # standby_cmd,
-        # online_cmd,
-        # disable_cmd,
-        standby_subset_cmd,
-        online_subset_cmd,
-        online_cmd,
-        # enable_cmd,
-    ]
-    for cmd in cmds:
-        send_and_recv_cmd(socket, cmd)
-        time.sleep(1)
-
-    # Close the socket
-    socket.close()
-
+    time_now = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime())
+    online_subset_cmd["command"]["time"] = time_now
+    res = utils.send_and_receive(socket, json.dumps(online_subset_cmd))
+    print(res)
+    
 
 if __name__ == "__main__":
     main()
