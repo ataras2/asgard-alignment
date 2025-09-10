@@ -137,11 +137,12 @@ class Controllino:
             self.turn_off("Lower Kickstart")
             time.sleep(0.1)
             self.modulate("Lower Fan", 128)
+            time.sleep(0.1)
 
-    #            self.set_piezo_dac(0, 2048)
-    #            self.set_piezo_dac(1, 2048)
-    #            self.set_piezo_dac(2, 2048)
-    #            self.set_piezo_dac(3, 2048)
+            self.set_piezo_dac(0, 2048)
+            self.set_piezo_dac(1, 2048)
+            self.set_piezo_dac(2, 2048)
+            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """
