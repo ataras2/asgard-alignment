@@ -175,7 +175,7 @@ class MultiDeviceServer:
 
         try:
             # message = message.rstrip(message[-1])
-            json_data = json.loads(json.loads(message.strip()))
+            json_data = json.loads(message.rstrip(message[-1]))
             logging.info(f"ESO msg recv: {json_data} (type {type(json_data)})")
         except:
             logging.error("Error: Invalid JSON message")
