@@ -105,9 +105,7 @@ class Instrument:
         self.managed_usb_hub_port = self.find_managed_USB_hub_port()
         logging.info(f"managed port: {self.managed_usb_hub_port}")
         if self.managed_usb_hub_port is None:
-            logging.warning(
-                "Could not find managed USB hub port."
-            )
+            logging.warning("Could not find managed USB hub port.")
 
             # time.sleep(5)
             sys.exit(1)
@@ -473,11 +471,9 @@ class Instrument:
                 timeout = 3.0
                 start_time = time.time()
                 while self.devices[max_dev].is_moving():
-                    logging.info(f"waiting for {max_dev} to stop moving") 
+                    logging.info(f"waiting for {max_dev} to stop moving")
                     if time.time() - start_time > timeout:
-                        logging.warning(
-                            f"Timeout waiting for {max_dev} to stop moving"
-                        )
+                        logging.warning(f"Timeout waiting for {max_dev} to stop moving")
                         break
                     time.sleep(0.1)
 
@@ -509,11 +505,11 @@ class Instrument:
                     ):
                         timeout = 3.0
                         start_time = time.time()
-                        while self.devices[dev].is_moving():
-                            logging.info(f"waiting for {dev} to stop moving") 
+                        while self.devices[numbered_dev].is_moving():
+                            logging.info(f"waiting for {numbered_dev} to stop moving")
                             if time.time() - start_time > timeout:
                                 logging.warning(
-                                    f"Timeout waiting for {dev} to stop moving"
+                                    f"Timeout waiting for {numbered_dev} to stop moving"
                                 )
                                 break
                             time.sleep(0.1)
