@@ -509,14 +509,14 @@ class Instrument:
                     ):
                         timeout = 3.0
                         start_time = time.time()
-                        while self.devices[max_dev].is_moving():
-                            logging.info(f"waiting for {max_dev} to stop moving") 
-                                if time.time() - start_time > timeout:
-                                    logging.warning(
-                                        f"Timeout waiting for {max_dev} to stop moving"
-                                    )
-                                    break
-                                time.sleep(0.1)
+                        while self.devices[dev].is_moving():
+                            logging.info(f"waiting for {dev} to stop moving") 
+                            if time.time() - start_time > timeout:
+                                logging.warning(
+                                    f"Timeout waiting for {dev} to stop moving"
+                                )
+                                break
+                            time.sleep(0.1)
                         self.devices[numbered_dev].move_relative(
                             -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
