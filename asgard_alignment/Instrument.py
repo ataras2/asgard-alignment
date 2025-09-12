@@ -469,6 +469,18 @@ class Instrument:
                 offset = offest_mag if axis_pos[max_dev] < 0 else -offest_mag
                 self.h_shutter_offsets[beam_n][max_dev] = offset
 
+                # wait in a blocking way for the device to stop moving
+                timeout = 3.0
+                start_time = time.time()
+                while self.devices[max_dev].is_moving():
+                    logging.info(f"waiting for {max_dev} to stop moving") 
+                    if time.time() - start_time > timeout:
+                        logging.warning(
+                            f"Timeout waiting for {max_dev} to stop moving"
+                        )
+                        break
+                    time.sleep(0.1)
+
                 self.devices[max_dev].move_relative(offset)
                 self.h_shutter_states[beam_n] = "closed"
                 logging.info(f"sending moverel {offset} to {numbered_dev}")
@@ -495,6 +507,16 @@ class Instrument:
                     if not np.isclose(
                         self.h_shutter_offsets[beam_n][numbered_dev], 0.0
                     ):
+                        timeout = 3.0
+                        start_time = time.time()
+                        while self.devices[max_dev].is_moving():
+                            logging.info(f"waiting for {max_dev} to stop moving") 
+                                if time.time() - start_time > timeout:
+                                    logging.warning(
+                                        f"Timeout waiting for {max_dev} to stop moving"
+                                    )
+                                    break
+                                time.sleep(0.1)
                         self.devices[numbered_dev].move_relative(
                             -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
