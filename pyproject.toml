@@ -10,6 +10,7 @@ license = {file = "LICENSE"}
 test-cmd-script = "asgard_alignment.cmd_scripts.test_cmd_script:main"
 instrument-shutdown = "asgard_alignment.cmd_scripts.shutdown_instrument:main"
 instrument-startup = "asgard_alignment.cmd_scripts.startup_instrument:main"
+restart-kaya = "asgard_alignment.cmd_scripts.restart_kaya:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["asgard_alignment"]
