@@ -473,7 +473,7 @@ class Instrument:
                 timeout = 3.0
                 start_time = time.time()
                 while self.devices[max_dev].is_moving():
-                   logging.info(f"waiting for {max_dev} to stop moving") 
+                    logging.info(f"waiting for {max_dev} to stop moving") 
                     if time.time() - start_time > timeout:
                         logging.warning(
                             f"Timeout waiting for {max_dev} to stop moving"
