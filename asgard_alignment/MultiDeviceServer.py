@@ -1087,24 +1087,28 @@ if __name__ == "__main__":
 
     # logname from the current time
     log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    logging.basicConfig(
-        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
-        level=logging.INFO,
-    )
+    log_path = os.path.join(os.path.expanduser(args.log_location), log_fname)
 
-    # Add stream handler to also log to stdout
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
+    # Remove all handlers associated with the root logger object (if any)
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # File handler with ms precision
+    file_handler = logging.FileHandler(log_path)
     formatter = logging.Formatter(
         "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Console handler with same formatter
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
     console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
+    logger.addHandler(console)
 
     serv = MultiDeviceServer(args.port, args.host, args.config)
     serv.run()
-    log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    logging.basicConfig(
-        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
-        level=logging.INFO,
-    )
