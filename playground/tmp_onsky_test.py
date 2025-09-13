@@ -182,7 +182,7 @@ args=parser.parse_args()
 #                               args.global_camera_shm, 
 #                               args.toml_file) 
 
-NNN= 10 # how many groups of 100 to take for reference images 
+#NNN= 10 # how many groups of 100 to take for reference images 
 
 I2A_dict = {}
 pupil_mask = {}
@@ -208,11 +208,53 @@ for beam_id in args.beam_id:
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
 
+dm_shm_dict = {}
+for beam_id in args.beam_id:
+    dm_shm_dict[beam_id] = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
+    # zero all channels
+
 # read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
 nrs = c.mySHM.get_data().shape[0] 
 
 # mask offset 
 rel_offset = 200 
+
+
+
+# Move to phase mask
+for beam_id in args.beam_id:
+    message = f"fpm_movetomask phasemask{beam_id} {args.phasemask}"
+    res = send_and_get_response(message)
+    print(f"moved to phasemask {args.phasemask} with response: {res}")
+
+time.sleep(1)
+
+# Get reference pupils (later this can just be a SHM address)
+zwfs_pupils = {}
+clear_pupils = {}
+normalized_pupils = {}
+rel_offset = 200.0 #um phasemask offset for clear pupil
+print( 'Moving FPM out to get clear pupils')
+for beam_id in args.beam_id:
+    message = f"moverel BMX{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+    time.sleep( 1 )
+    message = f"moverel BMY{beam_id} {rel_offset}"
+    res = send_and_get_response(message)
+    print(res) 
+
+
+# wait 2 buffers 
+# time.sleep(10)
+# wait for a new buffer to fill before we read the buffer and average it.
+t0 = c.mySHM.get_counter()
+cnt = 0
+while cnt < 2 * nrs : # wait at least 2 buffers before we average buffer 
+    t1 = c.mySHM.get_counter()
+    cnt = t1 - t0 
+    time.sleep( 1/float(c.config['fps']) )
+del cnt, t1, t0 # delete when finished
 
 #Clear Pupil
 print( 'gettin clear pupils')
@@ -225,8 +267,6 @@ for beam_id in args.beam_id:
     
     clear_pupils[beam_id] = N0s[:,r1:r2,c1:c2]
 
-    #bad_pix_mask_tmp = np.array( c.reduction_dict["bad_pixel_mask"][-1][r1:r2,c1:c2] ).astype(bool)
-
     # move back 
     print( 'Moving FPM back in beam.')
     message = f"moverel BMX{beam_id} {-rel_offset}"
@@ -236,7 +276,7 @@ for beam_id in args.beam_id:
     message = f"moverel BMY{beam_id} {-rel_offset}"
     res = send_and_get_response(message)
     print(res) 
-    time.sleep(5)
+    time.sleep(10)
 
     inner_pupil_filt[beam_id] = util.remove_boundary(pupil_mask[beam_id])
 
@@ -249,29 +289,31 @@ for beam_id in args.beam_id:
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
 
-
-
 # ZWFS Pupil
 input("phasemasks aligned? ensure alignment then press enter")
 
-time.sleep(5)
+# wait for a new buffer to fill before we read the buffer and average it.
+t0 = c.mySHM.get_counter()
+cnt = 0
+while cnt < 2 * nrs : # wait at least 1 buffers before we average buffer 
+    t1 = c.mySHM.get_counter()
+    cnt = t1 - t0 
+    time.sleep( 1/float(c.config['fps']) )
+del cnt, t1, t0 # delete when finished
 
 print( 'Getting ZWFS pupils')
+#for _ in range(10):
+#    time.sleep(1)
 I0s = c.get_data( apply_manual_reduction=True ) #get_some_frames( number_of_frames = 1000,  apply_manual_reduction=True ) 
 
 for beam_id in args.beam_id:
 
-    #I0s = []
-    #for _ in range(NNN):
-    #    I0s.append(  c_dict[beam_id].get_data( apply_manual_reduction=True ) )
-    #I0s = np.array(  I0s ).reshape(-1,  I0s[0].shape[1],  I0s[0].shape[2])
-
+    
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
-    #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
-    #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
     zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] #cropped_img
 
 
+##### PROBES 
 
 
 modal_basis = np.array(  dmbases.zer_bank(2, 10 ) ) 
@@ -306,7 +348,7 @@ for i,m in enumerate(modal_basis):
     #    input("close Baldr TT and ensure stable. Then press enter.")
     I_plus_list = {beam_id:[] for beam_id in args.beam_id}
     I_minus_list = {beam_id:[] for beam_id in args.beam_id}
-    for sign in [(-1)**n for n in range(20)]: #range(10)]: #[-1,1]:
+    for sign in [(-1)**n for n in range(50)]: #range(10)]: #[-1,1]:
         
         for beam_id in args.beam_id:
             dm_shm_dict[beam_id].set_data(  sign * args.poke_amp/2 * m ) 
@@ -317,7 +359,7 @@ for i,m in enumerate(modal_basis):
         # wait for a new buffer to fill before we read the buffer and average it.
         t0 = c.mySHM.get_counter()
         cnt = 0
-        while cnt < 2 * nrs : # wait at least 1 buffers before we average buffer 
+        while cnt < 4 * nrs : # wait at least 1 buffers before we average buffer 
             t1 = c.mySHM.get_counter()
             cnt = t1 - t0 
             time.sleep( 1/float(c.config['fps']) )
@@ -341,8 +383,10 @@ for i,m in enumerate(modal_basis):
 
 
     for beam_id in args.beam_id:
-        I_plus = np.mean( I_plus_list[beam_id], axis = 0).reshape(-1) / normalized_pupils[beam_id].reshape(-1)
-        I_minus = np.mean( I_minus_list[beam_id], axis = 0).reshape(-1) /  normalized_pupils[beam_id].reshape(-1)
+
+        # FOR ON SKY PROBE I DONT NORMALIZE BY N0
+        I_plus = np.mean( I_plus_list[beam_id], axis = 0).reshape(-1) #/ normalized_pupils[beam_id].reshape(-1)
+        I_minus = np.mean( I_minus_list[beam_id], axis = 0).reshape(-1) #/  normalized_pupils[beam_id].reshape(-1)
 
         #errsig = dm_mask[beam_id] * ( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
         #errsig = #( I2A_dict[beam_id] @ ((I_plus - I_minus))  )  / args.poke_amp  # dont use pokeamp norm so I2M maps to naitive DM units (checked in /Users/bencb/Documents/ASGARD/Nice_March_tests/IM_zernike100/SVD_IM_analysis.py)
@@ -364,8 +408,8 @@ for i,m in enumerate(modal_basis):
         #############
 
         # reenter pokeamp norm <- this is used for detailed analysis sometimes
-        #Iplus_all[beam_id].append( I_plus_list )
-        #Iminus_all[beam_id].append( I_minus_list )
+        Iplus_all[beam_id].append( I_plus_list[beam_id] )
+        Iminus_all[beam_id].append( I_minus_list[beam_id] )
 
         IM[beam_id].append( list(  errsig.reshape(-1) ) ) 
 
@@ -376,9 +420,9 @@ for i,m in enumerate(modal_basis):
 
 hdul = fits.HDUList()
 
-hdu = fits.ImageHDU(IM)
+hdu = fits.ImageHDU(IM[beam_id])
 hdu.header['EXTNAME'] = 'IM'
-hdu.header['units'] = "sec.gain/DMunit"
+hdu.header['units'] = "adu/sec.gain/DMunit"
 hdu.header['phasemask'] = args.phasemask
 hdu.header['beam'] = beam_id
 hdu.header['poke_amp'] = args.poke_amp
@@ -395,7 +439,7 @@ hdul.append(hdu)
 # hdu = fits.ImageHDU( dark_fits["DARK_FRAMES"].data )
 # hdu.header['EXTNAME'] = 'DARKS'
 
-hdu = fits.ImageHDU(Iplus_all)
+hdu = fits.ImageHDU([Iplus_all[beam_id][i] for i in range(len(Iplus_all[beam_id]))])
 hdu.header['EXTNAME'] = 'I+'
 hdul.append(hdu)
 
@@ -413,11 +457,11 @@ hdu.header['EXTNAME'] = 'normalized_pupil'
 hdul.append(hdu)
 
 
-hdu = fits.ImageHDU(Iplus_all)
+hdu = fits.ImageHDU(Iplus_all[beam_id])
 hdu.header['EXTNAME'] = 'I+'
 hdul.append(hdu)
 
-hdu = fits.ImageHDU(Iminus_all)
+hdu = fits.ImageHDU(Iminus_all[beam_id])
 hdu.header['EXTNAME'] = 'I-'
 hdul.append(hdu)
 
@@ -449,7 +493,7 @@ hdul.append(hdu)
 # hdu.header['EXTNAME'] = 'N0'
 # hdul.append(hdu)
 
-fits_file = '/home/asg/Videos/' + f'IM_full_{Nmodes}{basis_name}_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}_fps-{c.config["fps"]}_gain-{c.config["gain"]}.fits' #_{args.phasemask}.fits'
+fits_file = '/home/asg/Music/' + f'IM_2_full_10_zernike_beam{beam_id}_mask-{args.phasemask}_pokeamp_{args.poke_amp}_fps-{c.config["fps"]}_gain-{c.config["gain"]}.fits' #_{args.phasemask}.fits'
 #f'IM_full_{Nmodes}ZERNIKE_beam{beam_id}_mask-H5_pokeamp_{poke_amp}.fits' #_{args.phasemask}.fits'
 hdul.writeto(fits_file, overwrite=True)
 print(f'wrote telemetry to \n{fits_file}')

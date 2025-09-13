@@ -119,7 +119,12 @@ class MultiDeviceServer:
                 if data == -1:
                     running = False
                 elif data != 0:
-                    logging.info(f"Received message: {data}")
+                    data_disp = data
+                    if data_disp[0] == '{':
+                        data_disp = data[:-1]
+
+                    logging.info(f"Received message: {data_disp}")
+                    
                     is_custom_msg, response = self.handle_message(data)
                     if response == -1:
                         running = False
@@ -251,7 +256,10 @@ class MultiDeviceServer:
                 # Look if device exists in list
                 # (something should be done if device does not exist)
                 device = self.instr.devices[dev_name]
-                semaphore_id = device.semaphore_id
+                if isinstance(device, asgard_alignment.ESOdevice.ESOdevice):
+                    semaphore_id = 99
+                else:
+                    semaphore_id = device.semaphore_id
                 if semaphore_array[semaphore_id] == 0:
                     # Semaphore is free =>
                     # Device can be moved now
@@ -332,19 +340,19 @@ class MultiDeviceServer:
                         # => Call function to read the encoder position
                         #    store it in a variable "posEnc" and execute:
                         #
-                        # attribute = "<alias>" + s.device_name +":DATA.posEnc"
-                        # dbMsg['command']['parameters'].\
-                        # append({"attribute":attribute, "value":posEnc})
+                        pos_enc = self.instr.devices[s.device_name].read_position()
+                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
 
                     # Case of shutter or lamp
                     if s.motion_type == "ST":
                         # Here the device can be either a lamp or a shutter
                         # Add here code to find out the type of s.device_name
 
-                        if isinstance(s.device_name, asgard_alignment.ESOdevice.Lamp):
+                        if isinstance(self.instr.devices[s.device_name], asgard_alignment.ESOdevice.Lamp):
                             value_map = {"T": "ON", "F": "OFF"}
                         elif isinstance(
-                            s.device_name, asgard_alignment.ESOdevice.Motor
+                            self.instr.devices[s.device_name], asgard_alignment.ESOdevice.Motor
                         ):
                             value_map = {"T": "OPEN", "F": "CLOSED"}
                         else:
@@ -379,14 +387,33 @@ class MultiDeviceServer:
                         # Report the absolute encoder position
                         # Here (simulation), we simply use the target
                         # position (even if the motor is supposed to move)
-                        attribute = "<alias>" + s.device_name + ":DATA.posEnc"
-                        reply["reply"]["parameters"].append(
-                            {"attribute": attribute, "value": s.value}
-                        )
+                        pos_enc = self.instr.devices[s.device_name].read_position()
+                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
                         # Case of motor with relative encoder position
                         # not considered yet
                         # The simplest would be to read the encoder position
                         # and to update the database as for the previous case
+
+                    # Case of motor with 
+                    if s.motion_type == "ENCREL":
+                        if is_batch_done:
+                            reply["reply"]["parameters"].append(
+                                {"attribute": attribute, "value": ""}
+                            )
+                        else:
+                            reply["reply"]["parameters"].append(
+                                {"attribute": attribute, "value": "MOVING"}
+                            )
+
+                        # Note: if motor is at limit, do:
+                        # dbMsg['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
+                        # Report the absolute encoder position
+                        # Here (simulation), we simply use the target
+                        # position (even if the motor is supposed to move)
+                        pos_enc = self.instr.devices[s.device_name].read_position()
+                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
 
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
@@ -425,7 +452,7 @@ class MultiDeviceServer:
             )
 
             for t in temps:
-                reply["reply"]["parameters"].append({"value": t})
+                reply["reply"]["parameters"].append({"value": round(t,2)})
 
             reply["reply"]["content"] = "OK"
 
@@ -574,7 +601,7 @@ class MultiDeviceServer:
         # in coded in C++ and needs null character to mark end of the string)
 
         repMsg = json.dumps(reply) + "\0"
-        print(repMsg)
+        logging.info(repMsg)
         # self.server.send_string(repMsg)
 
         return False, repMsg

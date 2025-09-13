@@ -3640,8 +3640,8 @@ with col_main:
             with button_col:
                 if st.button("Load"):
                     if selected_file is not None:
-
                         full_file = os.path.join(pth, selected_file)
+                        print(f"reading {full_file}")
                         with open(full_file) as f:
                             states = json.load(f)
 
@@ -3649,6 +3649,7 @@ with col_main:
                             if state["is_connected"]:
                                 if "BLF" in state["name"]:
                                     # BLF can't tell where it is, so do nothing
+                                    print("passing on BLF")
                                     pass
                                 else:
                                     message = (

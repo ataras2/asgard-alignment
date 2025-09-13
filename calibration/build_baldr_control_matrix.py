@@ -54,7 +54,7 @@ parser.add_argument(
 parser.add_argument(
     "--phasemask",
     type=str,
-    default="H3",
+    default="H5",
     help="what phasemask was used for building the IM. THis is to search the right entry in the configuration file. Default: %(default)s"
 )
 
@@ -129,11 +129,11 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
     
     if not np.isfinite(I2rms_sec):
-        print("\n WARNING: No secondary strehl modes found in config file, using 2x2 zero matrix instead.")
-        I2rms_sec = np.zeros((2, 2))
+        print("\n WARNING: No secondary strehl modes found in config file, using 2x2 I matrix instead.")
+        I2rms_sec = np.eye(2) #(2, 2))
     if not np.isfinite(I2rms_ext):   
-        print("\n WARNING: No exterior strehl modes found in config file, using 2x2 zero matrix instead.")
-        I2rms_ext = np.zeros((2, 2))
+        print("\n WARNING: No exterior strehl modes found in config file, using 2x2 I matrix instead.")
+        I2rms_ext = np.eye(2) #((2, 2))
         
     # # define our Tip/Tilt or lower order mode index on zernike DM basis 
     LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)

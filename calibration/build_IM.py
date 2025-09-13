@@ -385,20 +385,22 @@ print( 'setting up DMs')
 dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
     
-    if args.DM_flat.lower() == 'factory':
-        # activate flat (does this on channel 1)
-        dm_shm_dict[beam_id].activate_flat()
-    elif args.DM_flat.lower() == 'baldr':
-        # apply dm flat + calibrated offset (does this on channel 1)
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+    ###     UP TO USER TO PUT THE FLAT ON!!!
+    # zero all channels
+    # dm_shm_dict[beam_id].zero_all()
+    
+    # if args.DM_flat.lower() == 'factory':
+    #     # activate flat (does this on channel 1)
+    #     dm_shm_dict[beam_id].activate_flat()
+    # elif args.DM_flat.lower() == 'baldr':
+    #     # apply dm flat + calibrated offset (does this on channel 1)
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
         
-    else:
-        print( "Unknow flat option. Valid options are 'factory' or 'baldr'. Using baldr flat as default")
-        args.DM_flat == 'baldr'
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+    # else:
+    #     print( "Unknow flat option. Valid options are 'factory' or 'baldr'. Using baldr flat as default")
+    #     args.DM_flat == 'baldr'
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
 
 # Move to phase mask
 for beam_id in args.beam_id:
@@ -812,7 +814,8 @@ for beam_id in args.beam_id:
 
 
 ## reset DMs 
-dm_shm_dict[beam_id].zero_all()
+
+#dm_shm_dict[beam_id].zero_all()
 # apply dm flat + calibrated offset (does this on channel 1)
 
 # dm_shm_dict[beam_id].activate_calibrated_flat()
@@ -884,8 +887,9 @@ for beam_id in args.beam_id:
 
 #closing stuff 
 c.close(erase_file=False)
+
 for beam_id in args.beam_id:
-    dm_shm_dict[beam_id].zero_all()
+    #dm_shm_dict[beam_id].zero_all()
     time.sleep(0.1)
     #dm_shm_dict[beam_id].activate_calibrated_flat()
     time.sleep(0.1)
