@@ -210,6 +210,13 @@ for beam_id in args.beam_id:
 
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+print("taking Dark")## post TTonsky
+_ = input("press enter when ready to turn source off and check it is actually dark")
+## post TTonsky
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+#^ holds dark and bad pixel mask in c.reduction_dict['dark'] and c.reduction_dict['bad_pixel_mask'] , is nice to check time to time especially in the subfrmes 
+# THis matters for the better normalization 
+print("Took dark and built bad pixel mask held in FLI camera object")
 
 # read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
 nrs = c.mySHM.get_data().shape[0] 
@@ -472,6 +479,11 @@ for beam_id in args.beam_id:
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
+    # normalize by sum in the subframe ## post TTonsky 
+    normalized_pupils[beam_id] /= np.sum( N0s[:,r1:r2,c1:c2] )
+
+
+
     #N0 for normalization ( set exterior pixels )
     #pupil_norm = np.mean( N0s ,axis=0)
     #pupil_norm[~np.array( pupil_mask[beam_id] ) ] = np.mean( pupil_norm[pupil_mask[beam_id]])
@@ -535,7 +547,7 @@ for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
     #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
-    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] #cropped_img
+    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( I0s[:,r1:r2,c1:c2] ) ## post TTonsky#cropped_img
 
 
 # #dark = np.mean( darks_dict[beam_id],axis=0)
@@ -657,6 +669,9 @@ Iminus_all = {beam_id:[] for beam_id in args.beam_id}
 
 
 
+
+    # return img
+
 #imgs_to_mean = 20 # for each poke we average this number of frames
 # for now we use standard get_data mehtod which is 200 frames (april 2025)
 for i,m in enumerate(modal_basis):
@@ -688,15 +703,19 @@ for i,m in enumerate(modal_basis):
 
         for beam_id in args.beam_id:
             r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+            
+
+            img_tmp = np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)
+
+            img_tmp /= np.sum( img_tmp ) ## post TTonsky
+
             if sign > 0:
-                
-                I_plus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
-                #I_plus *= 1/np.mean( I_plus )
+
+                I_plus_list[beam_id].append( list( img_tmp ) )
 
             if sign < 0:
-                
-                I_minus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
-                #I_minus *= 1/np.mean( I_minus )
+
+                I_minus_list[beam_id].append( list( img_tmp ) )
 
 
     for beam_id in args.beam_id:
@@ -715,9 +734,13 @@ for i,m in enumerate(modal_basis):
         #(~secondary_mask[beam_id].astype(bool)).reshape(-1) 
 
         if args.signal_space.lower() == 'dm':
-            errsig = I2A_dict[beam_id] @ ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
+            ## post TTonsky
+            errsig = I2A_dict[beam_id] @   (I_plus - I_minus)  / args.poke_amp  
+            #errsig = I2A_dict[beam_id] @ ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
         elif args.signal_space.lower() == 'pixel':
-            errsig = ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
+            ## post TTonsky
+            errsig =  (I_plus - I_minus)  / args.poke_amp  # 1 / DMcmd * (s * gain)  projected to Pixel space
+            #errsig = ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
         
         #############
         #############
@@ -841,9 +864,9 @@ for beam_id in args.beam_id:
                                                     "poke_amp":args.poke_amp,
                                                     "LO":args.LO, ## THIS DEFINES WHAT INDEX IN IM WE HAVE LO VS HO MODES , DONE HERE NOW RATHER THAN build_baldr_control_matrix.py.
                                                     "M2C": np.nan_to_num( np.array(M2C), 0 ).tolist(),   # 
-                                                    "I0":  (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
-                                                    "N0": (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
-                                                    "norm_pupil": ( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
+                                                    "I0": np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1).tolist(), ## ## post TTonsky  #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
+                                                    "N0": np.mean( clear_pupils[beam_id],axis=0).reshape(-1).tolist()## ## post TTonsky #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
+                                                    "norm_pupil": np.array( normalized_pupils[beam_id] ).reshape(-1).tolist() ## post TTonsky #( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
                                                     "camera_config" : {k:str(v) for k,v in c.config.items()},
                                                     #"bias": np.array(c.reduction_dict["bias"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
                                                     #"dark": np.array(c.reduction_dict["dark"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
