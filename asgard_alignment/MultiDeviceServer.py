@@ -340,9 +340,13 @@ class MultiDeviceServer:
                         # => Call function to read the encoder position
                         #    store it in a variable "posEnc" and execute:
                         #
-                        pos_enc = self.instr.devices[s.device_name].read_position()
-                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
-                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
+                        # attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        # dbMsg['command']['parameters'].\
+                        # append({"attribute":attribute, "value":posEnc})
+                        attribute = "<alias>" + s.device_name + ":DATA.posEnc"
+                        reply["reply"]["parameters"].append(
+                            {"attribute": attribute, "value": s.value}
+                        )
 
                     # Case of shutter or lamp
                     if s.motion_type == "ST":
@@ -998,7 +1002,7 @@ class MultiDeviceServer:
             "h_shut": h_shut_msg,
             "h_splay": h_splay_msg,
             "temp_status": temp_status_msg,
-            "set_kaya" : set_kaya_msg,
+            "set_kaya": set_kaya_msg,
         }
 
         first_word_to_format = {
@@ -1091,7 +1095,9 @@ if __name__ == "__main__":
     # Add stream handler to also log to stdout
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
     console.setFormatter(formatter)
     logging.getLogger().addHandler(console)
 
@@ -1102,13 +1108,3 @@ if __name__ == "__main__":
         filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
         level=logging.INFO,
     )
-
-    # Add stream handler to also log to stdout
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
-
-    serv = MultiDeviceServer(args.port, args.host, args.config)
-    serv.run()
