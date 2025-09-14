@@ -509,7 +509,11 @@ class MultiDeviceServer:
             # for all other commands, do them one device at a time...
             for i in range(n_devs_commanded):
                 if is_all_devs:
-                    dev_name = dev_names[i]
+                    try:
+                        dev_name = dev_names[i]
+                    except Exception as e:
+                        logging.error(f"Error {e}")
+                        break
                 else:
                     dev_name = json_data["command"]["parameters"][i]["device"].upper()
 

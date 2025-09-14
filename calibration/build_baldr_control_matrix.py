@@ -88,7 +88,7 @@ parser.add_argument("--project_waffle_out_HO",
 ## NEED TO CHECK THIS AGAIN - BUG
 parser.add_argument("--filter_edge_actuators",
                     dest="filter_edge_actuators",
-                    action="store_false",
+                    action="store_true",
                     help="Filter actuators that interpolate from edge pixels (default: enabled)")
 
 

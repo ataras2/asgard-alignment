@@ -210,13 +210,19 @@ for beam_id in args.beam_id:
 
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
-print("taking Dark")## post TTonsky
-_ = input("press enter when ready to turn source off and check it is actually dark")
+#print("taking Dark")## post TTonsky
+# cant do this if this same subtraction isnt done in RTC
+
+# could remove dark manually so it isnt subtracted (since already done in the cred1 server! )
+#c.reduction_dict['dark'] = [] 
+# but we keep the badpixels
+
+#_ = input("press enter when ready to turn source off and check it is actually dark")
 ## post TTonsky
-c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+#c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 #^ holds dark and bad pixel mask in c.reduction_dict['dark'] and c.reduction_dict['bad_pixel_mask'] , is nice to check time to time especially in the subfrmes 
 # THis matters for the better normalization 
-print("Took dark and built bad pixel mask held in FLI camera object")
+#print("Took dark and built bad pixel mask held in FLI camera object")
 
 # read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
 nrs = c.mySHM.get_data().shape[0] 
@@ -482,9 +488,9 @@ for beam_id in args.beam_id:
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
     # normalize by sum in the subframe ## post TTonsky 
-    normalized_pupils[beam_id] /= np.sum( N0s[:,r1:r2,c1:c2] )
-
-
+    #normalized_pupils[beam_id] /= np.sum( N0s[:,r1:r2,c1:c2] )
+    #^^ bug, it should sum over agregated frame 
+    normalized_pupils[beam_id] /= np.sum( np.mean( N0s[:,r1:r2,c1:c2] ,axis=0 ) )
 
     #N0 for normalization ( set exterior pixels )
     #pupil_norm = np.mean( N0s ,axis=0)
@@ -549,8 +555,10 @@ for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
     #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
-    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( I0s[:,r1:r2,c1:c2] ) ## post TTonsky#cropped_img
-
+    
+    #zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( I0s[:,r1:r2,c1:c2] ) ## post TTonsky#cropped_img
+    #^^ bug! it should sum over a signal aggregated frame! 
+    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( np.mean( I0s[:,r1:r2,c1:c2],axis=0 ) )
 
 # #dark = np.mean( darks_dict[beam_id],axis=0)
 
@@ -708,6 +716,8 @@ for i,m in enumerate(modal_basis):
             
 
             img_tmp = np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)
+
+            
 
             img_tmp /= np.sum( img_tmp ) ## post TTonsky
 

@@ -592,6 +592,18 @@ for mask, lab in zip( mask_list, regiom_labels):
     #print( f'wrote (detected) baldr pupil cropping coordinates to : {args.data_path + "baldr_pupils_coords.json"}')
 
 
+# here we need to add details about offsets
+# detect if in cropped mode
+# calculate y_offset
+# test_img = c.get_data()
+# y_offset = c.y_offset
+
+# for beam in dict2write:
+#    r1,r2,c1,c2 = dict2write:
+#    dict2write[beam] = [r1+y_offset,r2+y_offset,c1,c2]
+# 
+
+
 ## remove json format option and data_path dependancy 
 # if args.saveformat=='json':
 #     json_file_path = os.path.join(args.data_path,f'pupils_coords.json')

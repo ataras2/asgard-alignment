@@ -397,9 +397,8 @@ def segment_ndro_stream(data, threshold=15.0):
 class fli( ):
     ## cred1 server now has crop_mode which crops (as of 13/9/25) only in y 
     # the server hasnt got a method to query the crop mode yet.
-    # so we infer it by getting an image and checking if its size 320x256. If not 
-    # then we calculate a y-offset to apply to the roi
-    # IMPORTANT ! the ROI is always referenced to the full frame (320x256) 
+    # here we dont deal with it, just make an attribute that its cropped with the difference  , we just leave it. only place we care is when we update
+    # the subframes for the cred1 
 
     def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None, quick_startup=False):
         #self.camera = FliSdk_V2.Init() # init camera object
@@ -453,19 +452,26 @@ class fli( ):
         
         if test_img[0].shape == (256,320):
             print('Camera in crop mode')
-            self.crop_mode = True 
-            self.y_offset = 0
-            self.pupil_crop_region = roi # region of interest where we crop (post readout)
-
-        else:
-            print('Camera NOT in crop mode')
             self.crop_mode = False 
+            self.y_offset = 0
+           
+        else:
+            #_ = input("camera not in cropped mode. It must be in cropped mode for Baldr calibration, do you wish to continue") 
+            print('Camera NOT in crop mode')
+            self.crop_mode = True 
             self.y_offset = int( (256 - test_img[0].shape[0])  ) 
-            
-            print(f'inferred y-offset of {self.y_offset} pixels')
-            self.pupil_crop_region = [roi[0]-self.y_offset, roi[1]-self.y_offset, roi[2], roi[3]] # region of interest where we crop (post readout)
 
+        # either way we reference the roi to the read in (potentially already cropped frame)        
+        self.pupil_crop_region = roi 
 
+        # if roi != [None, None, None,None]:
+        #     # then we reference the roi to the cropped frame
+        #     #print(f'inferred y-offset of {self.y_offset} pixels')
+
+        #     self.pupil_crop_region = roi #[roi[0]-self.y_offset, roi[1]-self.y_offset, roi[2], roi[3]] # region of interest where we crop (post readout)
+        # else:
+        #     print("no roi input, so no crop offset applied") 
+        #     self.pupil_crop_region = roi #[None,None,None,None]
         try:
             self.shm_shape = self.mySHM.get_data().shape
         except:
