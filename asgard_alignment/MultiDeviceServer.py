@@ -563,7 +563,8 @@ class MultiDeviceServer:
 
                 elif command_name == "stop":
                     logging.info(f"Stop device: {dev_name}")
-                    self.instr.devices[dev_name].stop()
+                    logging.info("ignored")
+                    # self.instr.devices[dev_name].stop()
 
                     # If setup is in progress, consider it done
 

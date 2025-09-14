@@ -395,6 +395,11 @@ def segment_ndro_stream(data, threshold=15.0):
 
 
 class fli( ):
+    ## cred1 server now has crop_mode which crops (as of 13/9/25) only in y 
+    # the server hasnt got a method to query the crop mode yet.
+    # so we infer it by getting an image and checking if its size 320x256. If not 
+    # then we calculate a y-offset to apply to the roi
+    # IMPORTANT ! the ROI is always referenced to the full frame (320x256) 
 
     def __init__(self, shm_target = "/dev/shm/cred1.im.shm" , roi=[None, None, None, None], config_file_path = None, quick_startup=False):
         #self.camera = FliSdk_V2.Init() # init camera object
@@ -439,7 +444,27 @@ class fli( ):
         #self.flat = []
         self.reduction_dict = {'bias':[], 'dark':[],'flat':[],'bad_pixel_mask':[]}
         #self.bad_pixel_mask = []
-        self.pupil_crop_region = roi # region of interest where we crop (post readout)
+        
+        # try get size to infer crop mode
+        test_img = self.mySHM.get_data() # typically for full frame this should be 200 frames x 320x256
+        if len(test_img.shape) < 3:
+            raise RuntimeError(f"shm.get_data() method returns array that is not a data cube (frames x pix_x x pix_y) ")
+        print(f"shm.get_data() returns array of shape {test_img.shape} ")
+        
+        if test_img[0].shape == (256,320):
+            print('Camera in crop mode')
+            self.crop_mode = True 
+            self.y_offset = 0
+            self.pupil_crop_region = roi # region of interest where we crop (post readout)
+
+        else:
+            print('Camera NOT in crop mode')
+            self.crop_mode = False 
+            self.y_offset = int( (256 - test_img[0].shape[0])  ) 
+            
+            print(f'inferred y-offset of {self.y_offset} pixels')
+            self.pupil_crop_region = [roi[0]-self.y_offset, roi[1]-self.y_offset, roi[2], roi[3]] # region of interest where we crop (post readout)
+
 
         try:
             self.shm_shape = self.mySHM.get_data().shape
