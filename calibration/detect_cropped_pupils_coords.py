@@ -515,9 +515,16 @@ for mask, lab in zip( mask_list, regiom_labels):
     print(f"looking at {lab}")
     if lab == 'baldr':
 
-        crop_pupil_coords = np.array( percentile_based_detect_pupils(
-            img * mask, percentile = 99.3, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
-        ) )
+        # statistics changge depending if cred1 camera server is in cropped mode or not 
+        if c.crop_mode:
+            crop_pupil_coords = np.array( percentile_based_detect_pupils(
+                img * mask, percentile = 98.3, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
+            ) )
+        else:
+            #original 
+            crop_pupil_coords = np.array( percentile_based_detect_pupils(
+                img * mask, percentile = 99.3, min_group_size=100, buffer=9, square_region=True,fixed_square_size=32, plot=True
+            ) )
     elif lab == 'heimdallr':
         crop_pupil_coords = np.array( percentile_based_detect_pupils(
             img * mask, percentile = 90, min_group_size=50, buffer=20,  square_region=True, plot=True
@@ -595,14 +602,12 @@ for mask, lab in zip( mask_list, regiom_labels):
 # here we need to add details about offsets
 # detect if in cropped mode
 # calculate y_offset
-# test_img = c.get_data()
-# y_offset = c.y_offset
 
-# for beam in dict2write:
-#    r1,r2,c1,c2 = dict2write:
-#    dict2write[beam] = [r1+y_offset,r2+y_offset,c1,c2]
-# 
 
+for beam in dict2write['baldr_pupils']:
+   r1,r2,c1,c2 = dict2write['baldr_pupils'][beam]
+   dict2write['baldr_pupils'][beam] = [int(r1)+c.y_offset, int(r2)+c.y_offset,c1,c2]
+   
 
 ## remove json format option and data_path dependancy 
 # if args.saveformat=='json':
@@ -633,8 +638,9 @@ if 1:
             current_data = {}
 
         #current_data.update(dict2write)
-
-        current_data = recursive_update(current_data, dict2write)
+        dict2write_tobaldr = dict2write
+        dict2write_tobaldr["crop_mode_offset"] = c.y_offset
+        current_data = recursive_update(current_data, dict2write_tobaldr)
         
         # Write the dictionary to the TOML file
         with open(toml_file_path, "w") as toml_file:
