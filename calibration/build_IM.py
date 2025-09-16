@@ -604,7 +604,7 @@ for beam_id in args.beam_id:
 
 LO_basis = dmbases.zer_bank(2, args.LO+1 )
 zonal_basis = np.array([dm_shm_dict[beam_id].cmd_2_map2D(ii) for ii in np.eye(140)]) 
-
+#zonal_basis = dmbases.zer_bank(4, 143 )
 modal_basis = np.array( LO_basis.tolist() +  zonal_basis.tolist() ) 
 # should be 144 x 140 (we deal with errors in 140 actuator space (columns), but SHM takes 144 vector as input (rows)) 
 # this is why we do transpose 
@@ -878,6 +878,7 @@ for beam_id in args.beam_id:
                                                     "LO":args.LO, ## THIS DEFINES WHAT INDEX IN IM WE HAVE LO VS HO MODES , DONE HERE NOW RATHER THAN build_baldr_control_matrix.py.
                                                     "M2C": np.nan_to_num( np.array(M2C), 0 ).tolist(),   # 
                                                     "I0": np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1).tolist(), ## ## post TTonsky  #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
+                                                    "intrn_flx_I0":np.sum( np.mean( I0s[:,r1:r2,c1:c2],axis=0) ),
                                                     "N0": np.mean( clear_pupils[beam_id],axis=0).reshape(-1).tolist(), ## ## post TTonsky #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
                                                     "norm_pupil": np.array( normalized_pupils[beam_id] ).reshape(-1).tolist(), ## post TTonsky #( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
                                                     "camera_config" : {k:str(v) for k,v in c.config.items()},
