@@ -918,6 +918,70 @@ for beam_id in args.beam_id:
     print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 
 
+## A QUICK LOOK 
+for beam_id in args.beam_id:
+
+    ################################
+    # the reference intensities
+    im_list = [ np.mean( zwfs_pupils[beam_id],axis=0), np.mean( clear_pupils[beam_id],axis=0), normalized_pupils[beam_id] ]
+    title_list = ['<I0>','<N0>','normalized pupil']
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , title_list=title_list, cbar_label_list=cbar_list) 
+    plt.savefig(f'{args.fig_path}' + f'reference_intensities_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    plt.show()
+
+    ################################
+    # the interaction signal 
+    modes2look = [0,1,65,67]
+    im_list = [IM[beam_id][M].reshape(12,12) for m in modes2look]
+
+    title_list = [f'mode {m}' for m in modes2look]
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , cbar_label_list=cbar_list, savefig=f'{args.fig_path}' + f'IM_first16modes_beam{beam_id}.png') 
+    plt.savefig(f'{args.fig_path}' + f'IM_some_modes_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    plt.show()
+
+    ################################
+    # the eigenmodes 
+    U, S, Vt = np.linalg.svd(IM[beam_id], full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
+
+    # (a) Plot singular values
+    plt.figure(figsize=(6, 4))
+    plt.semilogy(S, 'o-')
+    plt.title("Singular Values of IM_HO")
+    plt.xlabel("Index")
+    plt.ylabel("Singular value (log scale)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_singular_values_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+    # (b) Intensity eigenmodes (Vt)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, Vt.shape[0])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(Vt[i]), cmap='viridis')
+        ax.set_title(f"Vt[{i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+
+    # (c) System eigenmodes (U)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, U.shape[1])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(U[:, i]), cmap='plasma')
+        ax.set_title(f"U[:, {i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 system eigenmodes (U) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_system_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    plt.show()
+
+
+    plt.close("all")
+
 
 #closing stuff 
 c.close(erase_file=False)
