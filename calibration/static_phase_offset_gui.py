@@ -137,8 +137,6 @@ c = shm(global_camera_shm, nosem=False)
 dm = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
 zero_cmd = np.zeros( 144 )
 
-# how many do we capture 
-Ncaptures = 10000
 
 # Original I0
 I0_ref_0 = I2A @ I0 # we keep an original copy 
@@ -149,10 +147,10 @@ I0_ref = I0_ref_0.copy()  # by default we use the original first
 dt = 0.001 #s
 T = 1 #s
 alpha = 0.99
-amplitude = 0.1 # DM units 
+amplitude = 1 # DM units 
 lucky_quantile = 0.99
 unlucky_qunatile = 0.5
-savefile_name = "/fits/file/name.fits"
+savefile_name = "/home/Music/telem_test.fits"
 
 # state 
 capture_imgs = True
@@ -212,141 +210,173 @@ lucky_imgs = np.array(imgs)[ext_signal > lucky_cutoff]
 unlucky_imgs = np.array(imgs)[ext_signal < unlucky_cutoff]
 
 
-# show the user the results 
-img_list = [ np.mean( lucky_imgs, axis=0), np.mean( unlucky_imgs, axis=0) ,np.mean( imgs, axis=0) ]
-title_list = [f"mean lucky onsky I0 (>{lucky_quantile} quantile)", f"mean unlucky onsky I0 (<{unlucky_qunatile} quantile)","mean all images"]
-util.nice_heatmap_subplots(im_list = img_list,
-                           title_list = title_list, 
-                           vlims=[[0,np.max(I0)] for _ in range(len(img_list))])    
-plt.show()
+# # show the user the results 
+# img_list = [ np.mean( lucky_imgs, axis=0), np.mean( unlucky_imgs, axis=0) ,np.mean( imgs, axis=0) ]
+# title_list = [f"mean lucky onsky I0 (>{lucky_quantile} quantile)", f"mean unlucky onsky I0 (<{unlucky_qunatile} quantile)","mean all images"]
+# util.nice_heatmap_subplots(im_list = img_list,
+#                            title_list = title_list, 
+#                            vlims=[[0,np.max(I0)] for _ in range(len(img_list))])    
+# plt.show()
 
 # aggregate our lucky and unlucky ones 
 I0_bad = np.mean( unlucky_imgs, axis=0)
 I0_unlucky_ref = I0_bad / np.sum( I0_bad )
 
 I0_new = np.mean( lucky_imgs, axis=0)
-I0_ref = I0_new / np.sum( I0_new ) 
+# I0_ref = I0_new / np.sum( I0_new ) 
 
 I0_dm_ref = I2A @ I0_ref.reshape(-1) 
+
 
 if update_I0:
     I0_ref = I0_dm_ref.copy() 
 
 
-if iterate_HO:    
-    sig = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) ) - I0_ref
+img_in = np.mean( lucky_imgs, axis=0) / np.sum( np.mean( lucky_imgs, axis=0) )
 
-    # update DM shape to amplitude * 
-    cmd = alpha * (cmd + amplitude * sig)
-    dm.send_data( cmd)
+sig = img_in - I0_ref
+
+sig_dm = I2A@sig 
+
+err_LO = M2C_LO @ (I2M_LO @ sig_dm)
+
+err_HO = M2C_HO @ (I2M_HO @ sig_dm)
+
+cmd = err_LO + err_HO
+img_list = [img_in, 
+            I0_ref.reshape(32,32), 
+            util.get_DM_command_in_2D( sig_dm ), 
+            util.get_DM_command_in_2D( err_LO ), 
+            util.get_DM_command_in_2D( err_HO ),
+            cmd ]
+
+
+util.nice_heatmap_subplots(im_list = img_list,
+                           title_list = ["lucky onsky I0","current I0_ref","signal on DM","LO error","HO error", "total cmd"],
+)
+
+update_dm = input("enter 1 if you want to update the DM shape")
+if update_dm=='1':
+    dm.send_data( amplitude * cmd)
+    time.sleep(0.1)
+    print("updated DM")
+
+plt.show() 
+
+# if iterate_HO:    
+#     sig = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) ) - I0_ref
+
+#     # update DM shape to amplitude * 
+#     cmd = alpha * (cmd + amplitude * sig)
+#     dm.send_data( cmd)
     
 
-if iterate_LO:    
-    # update DM shape to amplitude * 
-    sig = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) ) - I0_dm_ref
-    cmd_err = M2C_LO @ (I2M_LO @ (amplitude * sig) ) 
-    cmd = alpha * (cmd + cmd_err)
-    dm.send_data(amplitude * cmd)
+# if iterate_LO:    
+#     # update DM shape to amplitude * 
+#     sig = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) ) - I0_dm_ref
+#     cmd_err = M2C_LO @ (I2M_LO @ (amplitude * sig) ) 
+#     cmd = alpha * (cmd + cmd_err)
+#     dm.send_data(amplitude * cmd)
     
 
-# # at all times we show the user 
-# # the last image in the buffer (updated not super quick)
-# # the reference intensity I0_ref 
-# # the last lucky image 
-# # the signal 
-# # the current DM command
+# # # at all times we show the user 
+# # # the last image in the buffer (updated not super quick)
+# # # the reference intensity I0_ref 
+# # # the last lucky image 
+# # # the signal 
+# # # the current DM command
 
 
-# ####### FOR LATER 
-# # ## Bright BOTT2 : 0.04 BOTP2 : -0.377
-# # ## faint  BOTT2 : -0.031 BOTP2 : -0.373
+# # ####### FOR LATER 
+# # # ## Bright BOTT2 : 0.04 BOTP2 : -0.377
+# # # ## faint  BOTT2 : -0.031 BOTP2 : -0.373
 
-# # # plot results 
-# # img_list = [I0.reshape(32,32), I0_ref ,I0.reshape(32,32) - I0_ref, I0_unlucky_ref ]
-# # title_list = ["original internal I0", "lucky onsky I0","delta", "unlucky onsky I0"]
-
-# # util.nice_heatmap_subplots(im_list = img_list,
-# #                            title_list = title_list, 
-# #                            vlims=[[0,np.max(I0_ref)] for _ in range(len(img_list))])
-
-# # img_fname = savepath + f"beam{beam_id}_I0_onsky_flat_{tstamp}.jpeg"
-# # plt.savefig(img_fname, bbox_inches='tight')
-# # if args.user_input:
-# #     plt.show() # let the user review it 
-# # else:
-# #     plt.close()
-# # # # On DM
-# # # img_list = [util.get_DM_command_in_2D( I2A@I0 ), 
-# # #             util.get_DM_command_in_2D(I2A @ (I0_ref.reshape(-1))) ,
-# # #             util.get_DM_command_in_2D( I2A @(I0.reshape(32,32) - I0_ref).reshape(-1) )]
-# # # title_list = ["original internal I0", "lucky onsky I0","delta"]
+# # # # plot results 
+# # # img_list = [I0.reshape(32,32), I0_ref ,I0.reshape(32,32) - I0_ref, I0_unlucky_ref ]
+# # # title_list = ["original internal I0", "lucky onsky I0","delta", "unlucky onsky I0"]
 
 # # # util.nice_heatmap_subplots(im_list = img_list,
-# # #                            title_list = title_list)
+# # #                            title_list = title_list, 
+# # #                            vlims=[[0,np.max(I0_ref)] for _ in range(len(img_list))])
 
-# # if args.user_input:
-# #     update_flat = input("review the flat and enter 1 if we should update rtc")
-# # else:
-# #     update_flat = '1' # update automatically 
-# # if update_flat=='1': 
-# #     # connect to Baldr RTC socket and update I2A via ZMQ
-# #     addr = SERVER_ADDR_DICT[beam_id] # "tcp://127.0.0.1:6662"  # this will change depending on if we are in simulation mode
-# #     ctx = zmq.Context.instance()
-# #     s = ctx.socket(zmq.REQ)
-# #     s.RCVTIMEO = 5000  # ms
-# #     s.SNDTIMEO = 5000  # ms
-# #     s.connect(addr)
+# # # img_fname = savepath + f"beam{beam_id}_I0_onsky_flat_{tstamp}.jpeg"
+# # # plt.savefig(img_fname, bbox_inches='tight')
+# # # if args.user_input:
+# # #     plt.show() # let the user review it 
+# # # else:
+# # #     plt.close()
+# # # # # On DM
+# # # # img_list = [util.get_DM_command_in_2D( I2A@I0 ), 
+# # # #             util.get_DM_command_in_2D(I2A @ (I0_ref.reshape(-1))) ,
+# # # #             util.get_DM_command_in_2D( I2A @(I0.reshape(32,32) - I0_ref).reshape(-1) )]
+# # # # title_list = ["original internal I0", "lucky onsky I0","delta"]
 
-# #     # get the current config file 
-# #     s.send_string('list_rtc_fields ""')
-# #     rep = s.recv_json()
+# # # # util.nice_heatmap_subplots(im_list = img_list,
+# # # #                            title_list = title_list)
 
-# #     # update the field (example!)
-# #     #s.send_string('set_rtc_field "inj_signal.freq_hz",0.04')
-# #     #rep = s.recv_json()
+# # # if args.user_input:
+# # #     update_flat = input("review the flat and enter 1 if we should update rtc")
+# # # else:
+# # #     update_flat = '1' # update automatically 
+# # # if update_flat=='1': 
+# # #     # connect to Baldr RTC socket and update I2A via ZMQ
+# # #     addr = SERVER_ADDR_DICT[beam_id] # "tcp://127.0.0.1:6662"  # this will change depending on if we are in simulation mode
+# # #     ctx = zmq.Context.instance()
+# # #     s = ctx.socket(zmq.REQ)
+# # #     s.RCVTIMEO = 5000  # ms
+# # #     s.SNDTIMEO = 5000  # ms
+# # #     s.connect(addr)
 
+# # #     # get the current config file 
+# # #     s.send_string('list_rtc_fields ""')
+# # #     rep = s.recv_json()
 
-# #     # I0
-# #     s.send_string(f'set_rtc_field "reference_pupils.I0",{I0_ref.reshape(-1).tolist()}')
-# #     rep = s.recv_json()
-
-# #     print( "sucess?", rep['ok'] )
-# #     if not rep['ok'] :
-# #         print( '  error: ', rep['error'] )
-
-# #     #I0-dm
-# #     s.send_string(f'set_rtc_field "reference_pupils.I0_dm",{I0_dm_ref.reshape(-1).tolist()}')
-# #     rep = s.recv_json()
-
-# #     print( "sucess?", rep['ok'] )
-# #     if not rep['ok'] :
-# #         print( '  error: ', rep['error'] )
-
-# #     # I0-dm_runtime
-# #     s.send_string(f'set_rtc_field "I0_dm_runtime",{I0_dm_ref.reshape(-1).tolist()}')
-# #     rep = s.recv_json()
-
-# #     print( "sucess?", rep['ok'] )
-# #     if not rep['ok'] :
-# #         print( '  error: ', rep['error'] )
+# # #     # update the field (example!)
+# # #     #s.send_string('set_rtc_field "inj_signal.freq_hz",0.04')
+# # #     #rep = s.recv_json()
 
 
+# # #     # I0
+# # #     s.send_string(f'set_rtc_field "reference_pupils.I0",{I0_ref.reshape(-1).tolist()}')
+# # #     rep = s.recv_json()
 
-# #     # close connection
-# #     s.setsockopt(zmq.LINGER, 0)   # don't wait on unsent msgs
-# #     s.close()  # closes the socket
+# # #     print( "sucess?", rep['ok'] )
+# # #     if not rep['ok'] :
+# # #         print( '  error: ', rep['error'] )
+
+# # #     #I0-dm
+# # #     s.send_string(f'set_rtc_field "reference_pupils.I0_dm",{I0_dm_ref.reshape(-1).tolist()}')
+# # #     rep = s.recv_json()
+
+# # #     print( "sucess?", rep['ok'] )
+# # #     if not rep['ok'] :
+# # #         print( '  error: ', rep['error'] )
+
+# # #     # I0-dm_runtime
+# # #     s.send_string(f'set_rtc_field "I0_dm_runtime",{I0_dm_ref.reshape(-1).tolist()}')
+# # #     rep = s.recv_json()
+
+# # #     print( "sucess?", rep['ok'] )
+# # #     if not rep['ok'] :
+# # #         print( '  error: ', rep['error'] )
 
 
-# # # save the fits of the images 
-# # from astropy.io import fits 
-# # hdulist = fits.HDUList([])
-# # hdu = fits.ImageHDU(imgs)
-# # hdulist.append(hdu)
-# # frame_fname = savepath + f"beam{beam_id}_I0_onsky_flat_{tstamp}.fits"
-# # hdulist.writeto(frame_fname, overwrite=True)
 
-# # print( f"saved the frames at {frame_fname}")
+# # #     # close connection
+# # #     s.setsockopt(zmq.LINGER, 0)   # don't wait on unsent msgs
+# # #     s.close()  # closes the socket
 
-# # print("done")
+
+# # # # save the fits of the images 
+# # # from astropy.io import fits 
+# # # hdulist = fits.HDUList([])
+# # # hdu = fits.ImageHDU(imgs)
+# # # hdulist.append(hdu)
+# # # frame_fname = savepath + f"beam{beam_id}_I0_onsky_flat_{tstamp}.fits"
+# # # hdulist.writeto(frame_fname, overwrite=True)
+
+# # # print( f"saved the frames at {frame_fname}")
+
+# # # print("done")
 
 
