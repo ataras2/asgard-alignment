@@ -1638,7 +1638,7 @@ with col_main:
                         st.write(res)
 
                     # we use a hard coded path for now
-                    file_pth = "~/.config/asgard-alignment/stable_states/baldr_ONLY_bright.json"
+                    file_pth = "/home/asg/.config/asgard-alignment/stable_states/baldr_ONLY_bright.json"
 
                     st.write( f"loading hard coded stable state from {file_pth}")
                     with open(file_pth) as f:
@@ -1668,7 +1668,7 @@ with col_main:
                         st.write(res)
 
                     # we use a hard coded path for now
-                    file_pth = "~/.config/asgard-alignment/stable_states/baldr_ONLY_faint.json"
+                    file_pth = "/home/asg/.config/asgard-alignment/stable_states/baldr_ONLY_faint.json"#"~/.config/asgard-alignment/stable_states/baldr_ONLY_faint.json"
                     st.write( f"loading hard coded stable state from {file_pth}")
                     with open(file_pth) as f:
                         states = json.load(f)
