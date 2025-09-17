@@ -94,7 +94,7 @@ parser.add_argument("--filter_edge_actuators",
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='~/Downloads/', 
+                    default='/home/asg/ben_bld_data/17-9-25night8/', 
                     help="path/to/output/image/ for the saved figures"
                     )
 
@@ -393,7 +393,7 @@ print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}
 
 
 ## A QUICK LOOK 
-for beam_id in args.beam_id:
+for beam_id in [args.beam_id]:
 
     ################################
     # the reference intensities
@@ -407,7 +407,7 @@ for beam_id in args.beam_id:
     ################################
     # the interaction signal 
     modes2look = [0,1,65,67]
-    im_list = [IM[beam_id][M].reshape(12,12) for m in modes2look]
+    im_list = [util.get_DM_command_in_2D(IM[m])for m in modes2look]
 
     title_list = [f'mode {m}' for m in modes2look]
     cbar_list = ["UNITLESS"] * len(im_list)
@@ -417,7 +417,7 @@ for beam_id in args.beam_id:
 
     ################################
     # the eigenmodes 
-    U, S, Vt = np.linalg.svd(IM[beam_id], full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
+    U, S, Vt = np.linalg.svd(IM_HO, full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
 
     # (a) Plot singular values
     plt.figure(figsize=(6, 4))
@@ -468,8 +468,8 @@ if test_reco != '0':
 
     # ---------- configurable test knobs ----------
     TEST_BEAM   = int(args.beam_id)             # use the beam we just wrote
-    N_TRIALS    = 20                            # number of random TT trials
-    AMP_STD     = 0.02                          # DM units (per-mode stdev)
+    N_TRIALS    = 40                            # number of random TT trials
+    AMP_STD     = 0.05                          # DM units (per-mode stdev)
     CAM_SHM     = "/dev/shm/cred1.im.shm"       # global camera SHM
     FIG_DIR     = os.path.expanduser(args.fig_path or "~/Downloads/")
     # --------------------------------------------
@@ -573,13 +573,14 @@ if test_reco != '0':
         plt.scatter(true_tt[:,i], rec_tt[:,i], s=18)
         m = max(np.max(np.abs(true_tt[:,i])), np.max(np.abs(rec_tt[:,i]))) * 1.1 + 1e-6
         plt.plot([-m, m], [-m, m], '--', lw=1)
-        plt.xlabel(f"True {name}")
-        plt.ylabel(f"Reconstructed {name}")
+        plt.xlabel(f"True {name} [DM units]")
+        plt.ylabel(f"Reconstructed {name} [DM units]")
         plt.title(f"{name}  RMSE={np.sqrt(np.mean(err[:,i]**2)):.3g}")
         plt.axis('equal'); plt.grid(True, alpha=0.3)
     out_png = os.path.join(args.fig_path, f"recon_LO_TT_sanity_beam{TEST_BEAM}.png")
-    plt.tight_layout(); plt.savefig(out_png, dpi=180); plt.close()
-
+    plt.tight_layout(); plt.savefig(out_png, dpi=180); 
+    plt.show()
+    plt.close('all')
     # Print summary
     print("\n=== LO (Tip/Tilt) reconstructor sanity test ===")
     print(f"Beam: {TEST_BEAM} | Signal space: {sigspace} | Trials: {N_TRIALS}")
