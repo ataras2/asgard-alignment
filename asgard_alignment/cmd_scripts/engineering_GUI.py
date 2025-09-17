@@ -1591,24 +1591,100 @@ with col_main:
                     st.warning("could not run script for some reason..")
             ## DMS
 
-            st.title("Quick Check on CRED 1 Server")
-            st.write(
-                "Checks the camera server comminication and that the camera is updating and not skipping frames. Provides trouble shooting recommendations if errors are found."
-            )
-            if st.button("health check"):
-                command = ["python", "playground/skipped_frames.py"]
+            # st.title("Quick Check on CRED 1 Server")
+            # st.write(
+            #     "Checks the camera server comminication and that the camera is updating and not skipping frames. Provides trouble shooting recommendations if errors are found."
+            # )
+            # if st.button("health check"):
+            #     command = ["python", "playground/skipped_frames.py"]
 
-                success, log_output = run_script_with_output(command)
+            #     success, log_output = run_script_with_output(command)
 
-                if success:
-                    st.success("Camera test completed successfully!")
-                else:
-                    st.error("Camera test failed. Check logs.")
+            #     if success:
+            #         st.success("Camera test completed successfully!")
+            #     else:
+            #         st.error("Camera test failed. Check logs.")
 
-                # Show full log output in an expandable section
-                with st.expander("Detailed Log Output"):
-                    for line in log_output:
-                        st.text(line)
+            #     # Show full log output in an expandable section
+            #     with st.expander("Detailed Log Output"):
+            #         for line in log_output:
+            #             st.text(line)
+
+            st.title("BALDR MODE")
+
+            def move_all_BLF_beams(target_pos: str):
+                results = []
+                for beam_num in [1,2,3,4]:
+                    target = f"BLF{beam_num}"
+                    message = f"asg_setup {target} NAME {target_pos}"
+                    try:
+                        res = send_and_get_response(message)
+                    except Exception as e:
+                        res = f"ERROR: {e}"
+                    results.append((beam_num, message, res))
+                return results
+
+            col_std, col_faint = st.columns(2)
+
+            with col_std:
+                if st.button("STANDARD", use_container_width=True):
+
+                    
+                    with st.spinner("Moving baldr lens flippers to STANDARD (bright mode)…"):
+                        results = move_all_BLF_beams("STANDARD")
+                    st.success("Commands sent.")
+                    for beam_num, msg, res in results:
+                        st.write(f"beam{beam_num}: {msg}")
+                        st.write(res)
+
+                    # we use a hard coded path for now
+                    file_pth = "~/.config/asgard-alignment/stable_states/baldr_ONLY_bright.json"
+
+                    st.write( f"loading hard coded stable state from {file_pth}")
+                    with open(file_pth) as f:
+                        states = json.load(f)
+
+                        for state in states:
+                            if state["is_connected"]:
+                                if "BLF" in state["name"]:
+                                    # BLF can't tell where it is, so do nothing
+                                    print("passing on BLF")
+                                    pass
+                                else:
+                                    message = (
+                                        f"moveabs {state['name']} {state['position']}"
+                                    )
+                                    send_and_get_response(message)
+                        
+
+            with col_faint:
+                if st.button("FAINT", use_container_width=True):
+
+                    with st.spinner("Moving baldr lens flippers to FAINT mode…"):
+                        results = move_all_BLF_beams("FAINT")
+                    st.success("Commands sent.")
+                    for beam_num, msg, res in results:
+                        st.write(f"beam{beam_num}: {msg}")
+                        st.write(res)
+
+                    # we use a hard coded path for now
+                    file_pth = "~/.config/asgard-alignment/stable_states/baldr_ONLY_faint.json"
+                    st.write( f"loading hard coded stable state from {file_pth}")
+                    with open(file_pth) as f:
+                        states = json.load(f)
+
+                        for state in states:
+                            if state["is_connected"]:
+                                if "BLF" in state["name"]:
+                                    # BLF can't tell where it is, so do nothing
+                                    print("passing on BLF")
+                                    pass
+                                else:
+                                    message = (
+                                        f"moveabs {state['name']} {state['position']}"
+                                    )
+                                    send_and_get_response(message)
+                                            
 
             st.title("Deformable Mirrors (DM's)")
 
