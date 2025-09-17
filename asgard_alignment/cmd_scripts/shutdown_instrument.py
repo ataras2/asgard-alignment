@@ -96,6 +96,10 @@ def shutdown(inc_CRED):
             "In C red server text client, type 'stop' and then type 'exit'. Then press Enter here to continue..."
         )
 
+
+    pdu = AtenEcoPDU("192.168.100.11")
+    pdu.connect()
+
     if inc_CRED:
         print("Closing C RED...")
         send_and_get_response(c_red_connection, "stop")
