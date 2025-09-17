@@ -384,50 +384,61 @@ for axis, pos in best_pos.items():
     send_and_get_response(msg)
     print(f"Moving {axis} to best found pos: {pos}")
     
+stay_here =  input("should we stay here or move back to original position? (1 - stay 0 -back)")
 
-##=======================================
-# update phasemask 
-print("now updating phasemask positions based on BOTX offsets")
-# matrix to update phasemask positions relative to BOTX offsets 
-phasemask_matrix = asgard_alignment.Engineering.phasemask_botx_matricies
+if stay_here == '1':
+    ##=======================================
+    # update phasemask 
+    print("now updating phasemask positions based on BOTX offsets")
+    # matrix to update phasemask positions relative to BOTX offsets 
+    phasemask_matrix = asgard_alignment.Engineering.phasemask_botx_matricies
 
-#best_pos.items() # e.g. {"BOTX1":0.2}
-#pos_dict_original.items()
+    #best_pos.items() # e.g. {"BOTX1":0.2}
+    #pos_dict_original.items()
 
-# get difference from new (best) positions and the original starting position
-delta_BOTP = float(best_pos[f"BOTP{args.beam}"]) - float(pos_dict_original[f"BOTP{args.beam}"])
-delta_BOTT = float(best_pos[f"BOTT{args.beam}"]) - float(pos_dict_original[f"BOTT{args.beam}"])
+    # get difference from new (best) positions and the original starting position
+    delta_BOTP = float(best_pos[f"BOTP{args.beam}"]) - float(pos_dict_original[f"BOTP{args.beam}"])
+    delta_BOTT = float(best_pos[f"BOTT{args.beam}"]) - float(pos_dict_original[f"BOTT{args.beam}"])
 
-# convert to offsets in phasemask BMX and BMY
-delta_BMX, delta_BMY = phasemask_matrix[int(args.beam)] @ [
-        delta_BOTP,
-        delta_BOTT,
-    ]
+    # convert to offsets in phasemask BMX and BMY
+    delta_BMX, delta_BMY = phasemask_matrix[int(args.beam)] @ [
+            delta_BOTP,
+            delta_BOTT,
+        ]
 
-# move phasemasks
+    # move phasemasks
 
-# Y
-msg = f"moverel BMY{args.beam} {delta_BMY}"
-resp = send_and_get_response(msg)
-print( f"offset BMY {delta_BMY}: {resp}" )
-time.sleep(0.1)
-# X
-msg = f"moverel BMX{args.beam} {delta_BMX}"
-resp = send_and_get_response(msg)
-print( f"offset BMX {delta_BMX}: {resp}" )
-time.sleep(0.1)
+    # Y
+    msg = f"moverel BMY{args.beam} {delta_BMY}"
+    resp = send_and_get_response(msg)
+    print( f"offset BMY {delta_BMY}: {resp}" )
+    time.sleep(0.1)
+    # X
+    msg = f"moverel BMX{args.beam} {delta_BMX}"
+    resp = send_and_get_response(msg)
+    print( f"offset BMX {delta_BMX}: {resp}" )
+    time.sleep(0.1)
 
 
 
-# update all phasemask positions 
-msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {float(delta_BMX)} {float(delta_BMY)}"
-resp = send_and_get_response(msg)
-print( f"updating all local phasemask positions based on offset : {resp}" )
+    # update all phasemask positions 
+    msg = f"fpm_offsetallmaskpositions phasemask{args.beam} {float(delta_BMX)} {float(delta_BMY)}"
+    resp = send_and_get_response(msg)
+    print( f"updating all local phasemask positions based on offset : {resp}" )
 
-# write file 
-msg = f"fpm_writemaskpos phasemask{args.beam}"
-resp = send_and_get_response(msg)
-print( f"saving updated phasemask position file for beam {args.beam} : {resp}" )
+    # write file 
+    msg = f"fpm_writemaskpos phasemask{args.beam}"
+    resp = send_and_get_response(msg)
+    print( f"saving updated phasemask position file for beam {args.beam} : {resp}" )
+
+else:
+
+    print('moving back to original pos and not updating phasemask postions')
+
+    for axis, pos in pos_dict_original.items():
+        msg = f"moveabs {axis} {pos}"
+        send_and_get_response(msg)
+        print(f"Moving {axis} back to {pos}")
 
 print('done')
 

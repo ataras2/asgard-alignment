@@ -43,7 +43,7 @@ parser.add_argument(
 parser.add_argument(
     "--savepath",
     type=str,
-    default="/home/asg/ben_bld_data/15-9-25night6/",
+    default="/home/asg/ben_bld_data/16-9-25night7/",
     help="where to save results . Default: /home/asg/ben_bld_data/15-9-25night6/"
 )
 
@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=int, #lambda s: [int(item) for item in s.split(",")],
-    default=1, # 1, 2, 3, 4],
+    default=4, # 1, 2, 3, 4],
     help="which beam to apply. Default: 1"
 )
 
@@ -136,10 +136,10 @@ c = shm(global_camera_shm, nosem=False)
 # deformable mirror 
 dm = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
 zero_cmd = np.zeros( 144 )
-
+cmd = np.zeros( 140 )
 
 # Original I0
-I0_ref_0 = I2A @ I0 # we keep an original copy 
+I0_ref_0 = I0 #I2A @ I0 # we keep an original copy 
 I0_ref = I0_ref_0.copy()  # by default we use the original first  
 
 
@@ -155,113 +155,115 @@ savefile_name = "/home/Music/telem_test.fits"
 # state 
 capture_imgs = True
 iterate = False
-updated_I0 = False
+update_I0 = True # False
 
 
-def reset():
-    global capture_imgs, iterate, updated_I0
-    capture_imgs = False
-    iterate = False
-    updated_I0 = False
-    I0_ref = I0_ref_0.copy()  # reset to original
-    cmd = zero_cmd.copy()
-    dm.send_data( cmd )
-    time.sleep(0.1)
-    print("reset done")
 
-# PROCESS THE IMAGES 
-######################
-# go and capture
-img_buffer = []
-t1 = 0
-#while capture_imgs:
-if 1:
-    t0 = time.time()
+
+while 1:
+    # PROCESS THE IMAGES 
+    ######################
+    # go and capture
     img_buffer = []
-    while t1-t0 < T:
-        time.sleep(dt)
+    t1 = 0
+    #while capture_imgs:
+    if 1:
+        t0 = time.time()
+        img_buffer = []
+        while t1-t0 < T:
+            time.sleep(dt)
 
-        img_buffer.append( c.get_data() )
-        t1=time.time()
-    print("capture done")    
-    imgs = np.array( img_buffer.copy() )
+            img_buffer.append( c.get_data() )
+            t1=time.time()
+        print("capture done")    
+        imgs = np.array( img_buffer.copy() )
+        t0=t1
+        
+    # PROCESS THE IMAGES 
+    ######################    
+    #external signal (light scattered outside of pupil by phasemask which scales with strehl)
+    ext_signal = np.array( [np.mean( ii[exterior_mask.astype(bool)] ) for ii in imgs] )
 
+    # cut off quantile for lucky images
+    lucky_cutoff = np.quantile( ext_signal , 0.8) #10k samples => 99th perc. keeps 100 samples 
+
+    # also look at the unlucky ones for reference that this is working 
+    unlucky_cutoff = np.quantile( ext_signal , 0.10)
+
+    # filter the lucky external pupil signals  
+    lucky_ext_signals = np.array(ext_signal)[ext_signal > lucky_cutoff]
+
+    # if np.mean(lucky_ext_signals) < 0.1 * np.mean( I0[exterior_mask] ) : # if the lucky exterior signals are less than 10% of the internal reference exterior signal then we warn the user 
+    #     print("WARNING : lucky exterior signals are less than 10% of the internal reference exterior signal. May not be a good reference")
+
+    # filter the images 
+    lucky_imgs = np.array(imgs)[ext_signal > lucky_cutoff]
+
+    unlucky_imgs = np.array(imgs)[ext_signal < unlucky_cutoff]
+
+
+    # # show the user the results 
+    # img_list = [ np.mean( lucky_imgs, axis=0), np.mean( unlucky_imgs, axis=0) ,np.mean( imgs, axis=0) ]
+    # title_list = [f"mean lucky onsky I0 (>{lucky_quantile} quantile)", f"mean unlucky onsky I0 (<{unlucky_qunatile} quantile)","mean all images"]
+    # util.nice_heatmap_subplots(im_list = img_list,
+    #                            title_list = title_list, 
+    #                            vlims=[[0,np.max(I0)] for _ in range(len(img_list))])    
+    # plt.show()
+
+    # aggregate our lucky and unlucky ones 
+    #I0_bad = np.mean( unlucky_imgs, axis=0)
+    #I0_unlucky_ref = I0_bad / np.sum( I0_bad )
+
+    if update_I0:
+        I0_new = np.mean( lucky_imgs, axis=0)
+        I0_ref = (I0_new / np.sum( I0_new ) ).reshape(-1)
+        update_I0 = False
+    #I0_dm_ref = I2A @ I0_ref.reshape(-1) 
+
+
+    #if update_I0:
+    #    I0_ref = I0_dm_ref.copy() 
+
+
+    img_in = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) )
+
+    sig = img_in.reshape(-1) - np.sum( img_in)/np.sum(I0_ref) * I0_ref
+
+    sig_dm = I2A@sig 
+
+    err_LO = 1e4*M2C_LO.T @ (I2M_LO @ sig_dm)
+
+    err_HO = sig_dm #M2C_HO.T @ (I2M_HO @ sig_dm)
+
+    new_cmd = err_LO #sig_dm# err_LO #+ err_HO
+
+    print( np.std(sig_dm) ,)
+
+    img_list = [img_in.reshape(32,32), 
+                I0_ref.reshape(32,32), 
+                #util.get_DM_command_in_2D( sig_dm ), 
+                #util.get_DM_command_in_2D( err_LO ), 
+                #util.get_DM_command_in_2D( err_HO ),
+                util.get_DM_command_in_2D( cmd ) ]
+
+
+    # util.nice_heatmap_subplots(im_list = img_list,
+    #                         title_list = ["lucky onsky I0","current I0_r1ef","signal on DM","LO error","HO error", "total cmd"],
+    # )
+    #plt.show()
+    act_filt = util.get_circle_DM_command(radius=5,Nx_act =12)
     
-# PROCESS THE IMAGES 
-######################    
-# external signal (light scattered outside of pupil by phasemask which scales with strehl)
-ext_signal = np.array( [np.mean( ii[exterior_mask.astype(bool)] ) for ii in imgs] )
 
-# cut off quantile for lucky images
-lucky_cutoff = np.quantile( ext_signal , 0.99) #10k samples => 99th perc. keeps 100 samples 
+    #update_dm = input("enter 1 if you want to update the DM shape")
+    if 1: #update_dm=='1':
 
-# also look at the unlucky ones for reference that this is working 
-unlucky_cutoff = np.quantile( ext_signal , 0.10)
+        cmd = alpha * (cmd + new_cmd)
+        
+        dm.set_data( util.get_DM_command_in_2D(act_filt*amplitude * cmd) )
+        time.sleep(0.1)
+        print("updated DM")
 
-# filter the lucky external pupil signals  
-lucky_ext_signals = np.array(ext_signal)[ext_signal > lucky_cutoff]
-
-# if np.mean(lucky_ext_signals) < 0.1 * np.mean( I0[exterior_mask] ) : # if the lucky exterior signals are less than 10% of the internal reference exterior signal then we warn the user 
-#     print("WARNING : lucky exterior signals are less than 10% of the internal reference exterior signal. May not be a good reference")
-
-# filter the images 
-lucky_imgs = np.array(imgs)[ext_signal > lucky_cutoff]
-
-unlucky_imgs = np.array(imgs)[ext_signal < unlucky_cutoff]
-
-
-# # show the user the results 
-# img_list = [ np.mean( lucky_imgs, axis=0), np.mean( unlucky_imgs, axis=0) ,np.mean( imgs, axis=0) ]
-# title_list = [f"mean lucky onsky I0 (>{lucky_quantile} quantile)", f"mean unlucky onsky I0 (<{unlucky_qunatile} quantile)","mean all images"]
-# util.nice_heatmap_subplots(im_list = img_list,
-#                            title_list = title_list, 
-#                            vlims=[[0,np.max(I0)] for _ in range(len(img_list))])    
-# plt.show()
-
-# aggregate our lucky and unlucky ones 
-I0_bad = np.mean( unlucky_imgs, axis=0)
-I0_unlucky_ref = I0_bad / np.sum( I0_bad )
-
-I0_new = np.mean( lucky_imgs, axis=0)
-# I0_ref = I0_new / np.sum( I0_new ) 
-
-I0_dm_ref = I2A @ I0_ref.reshape(-1) 
-
-
-if update_I0:
-    I0_ref = I0_dm_ref.copy() 
-
-
-img_in = np.mean( lucky_imgs, axis=0) / np.sum( np.mean( lucky_imgs, axis=0) )
-
-sig = img_in - I0_ref
-
-sig_dm = I2A@sig 
-
-err_LO = M2C_LO @ (I2M_LO @ sig_dm)
-
-err_HO = M2C_HO @ (I2M_HO @ sig_dm)
-
-cmd = err_LO + err_HO
-img_list = [img_in, 
-            I0_ref.reshape(32,32), 
-            util.get_DM_command_in_2D( sig_dm ), 
-            util.get_DM_command_in_2D( err_LO ), 
-            util.get_DM_command_in_2D( err_HO ),
-            cmd ]
-
-
-util.nice_heatmap_subplots(im_list = img_list,
-                           title_list = ["lucky onsky I0","current I0_ref","signal on DM","LO error","HO error", "total cmd"],
-)
-
-update_dm = input("enter 1 if you want to update the DM shape")
-if update_dm=='1':
-    dm.send_data( amplitude * cmd)
-    time.sleep(0.1)
-    print("updated DM")
-
-plt.show() 
+#plt.show() 
 
 # if iterate_HO:    
 #     sig = np.mean( imgs, axis=0) / np.sum( np.mean( imgs, axis=0) ) - I0_ref
