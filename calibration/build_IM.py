@@ -928,7 +928,7 @@ for beam_id in args.beam_id:
     cbar_list = ["UNITLESS"] * len(im_list)
     util.nice_heatmap_subplots( im_list , title_list=title_list, cbar_label_list=cbar_list) 
     plt.savefig(f'{args.fig_path}' + f'reference_intensities_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
-    plt.show()
+    #plt.show()
 
     ################################
     # the interaction signal 
@@ -939,7 +939,7 @@ for beam_id in args.beam_id:
     cbar_list = ["UNITLESS"] * len(im_list)
     util.nice_heatmap_subplots( im_list , cbar_label_list=cbar_list, savefig=f'{args.fig_path}' + f'IM_first16modes_beam{beam_id}.png') 
     plt.savefig(f'{args.fig_path}' + f'IM_some_modes_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
-    plt.show()
+    #plt.show()
 
     ################################
     # the eigenmodes 
@@ -964,7 +964,7 @@ for beam_id in args.beam_id:
         plt.colorbar(im, ax=ax)
     plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
     plt.tight_layout()
-    plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    #plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
 
 
     # (c) System eigenmodes (U)
@@ -977,7 +977,7 @@ for beam_id in args.beam_id:
     plt.suptitle("First 5 system eigenmodes (U) mapped to 2D")
     plt.tight_layout()
     plt.savefig(f"{args.fig_path}" + f'IM_first5_system_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
-    plt.show()
+    #plt.show()
 
 
     plt.close("all")

@@ -127,7 +127,9 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     I0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I0", None) )
     N0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("N0", None) )#.astype(bool)
     norm_pupil = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("norm_pupil", None) )# matrix bool
-
+    intrn_flx_I0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("intrn_flx_I0", None) )# matrix bool
+    
+    print(f"ENSURE FLUX NORMALIZATION EXISTS AND IS NOT LOW (i.e. ~ 1). intrn_flx_I0={intrn_flx_I0}")
     # also the current calibrated strehl modes 
     I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
     I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
