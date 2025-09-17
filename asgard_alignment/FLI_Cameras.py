@@ -446,21 +446,35 @@ class fli( ):
         
         # try get size to infer crop mode
         test_img = self.mySHM.get_data() # typically for full frame this should be 200 frames x 320x256
-        if len(test_img.shape) < 3:
-            raise RuntimeError(f"shm.get_data() method returns array that is not a data cube (frames x pix_x x pix_y) ")
-        print(f"shm.get_data() returns array of shape {test_img.shape} ")
+        #if len(test_img.shape) < 3:
+        #    raise RuntimeError(f"shm.get_data() method returns array that is not a data cube (frames x pix_x x pix_y) ")
+        #print(f"shm.get_data() returns array of shape {test_img.shape} ")
         
-        if test_img[0].shape == (256,320):
-            print('Camera in crop mode')
-            self.crop_mode = False 
-            self.y_offset = 0
-           
-        else:
-            #_ = input("camera not in cropped mode. It must be in cropped mode for Baldr calibration, do you wish to continue") 
-            print('Camera NOT in crop mode')
-            self.crop_mode = True 
-            self.y_offset = int( (256 - test_img[0].shape[0])  ) 
+        if len(test_img.shape) == 3:
+            if test_img[0].shape == (256,320):
+                print('Camera in crop mode')
+                self.crop_mode = False 
+                self.y_offset = 0
+            
+            else:
+                #_ = input("camera not in cropped mode. It must be in cropped mode for Baldr calibration, do you wish to continue") 
+                print('Camera NOT in crop mode')
+                self.crop_mode = True 
+                self.y_offset = int( (256 - test_img[0].shape[0])  ) 
 
+        elif len(test_img.shape) == 2:
+            if test_img.shape == (256,320):
+                print('Camera in crop mode')
+                self.crop_mode = False 
+                self.y_offset = 0
+            
+            else:
+                #_ = input("camera not in cropped mode. It must be in cropped mode for Baldr calibration, do you wish to continue") 
+                print('Camera NOT in crop mode')
+                self.crop_mode = True 
+                self.y_offset = int( (256 - test_img[0].shape[0])  ) 
+        else:
+            raise UserWarning(f"test image has funny shape = {test_img.shape}. please check or update code in this module here.")
         # either way we reference the roi to the read in (potentially already cropped frame)        
         self.pupil_crop_region = roi 
 
