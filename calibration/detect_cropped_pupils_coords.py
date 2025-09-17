@@ -669,7 +669,7 @@ if "1" in ui:
 
             split_dict[f"baldr{beam_id}"].update({
                 "x0": c1,
-                "y0": r1,
+                "y0": r1+1, ## This was the 1 pixel offset bug from the global gropping of the full frame and how cred1 server defines the subframe! 
                 "xsz": c2-c1,
                 "ysz": r2-r1,
             })
