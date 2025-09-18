@@ -289,8 +289,10 @@ projection_basis = []
 
 if args.project_TT_out_HO:
     for t in M2C.T[:LO]:  # TT modes
-        projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
-
+        if 'zonal' in args.inverse_method_HO.lower(): # we actively filter actuators with mask
+            projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
+        else:
+            projection_basis.append( np.nan_to_num(t, 0))
 if args.project_waffle_out_HO:
     waffle_mode = util.waffle_mode_2D() #util.convert_12x12_to_140(util.waffle_mode_2D())
     projection_basis.append(dm_mask_144 * waffle_mode)
@@ -360,7 +362,9 @@ dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "open_on_flux_limit": 0,
                                                "open_on_dm_limit"  : 0.3,
                                                "LO_offload_limit"  : 1,
-                                               #### in build_IM.py
+                                                #"dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(), 
+                                                # include temp here 
+                                                #### in build_IM.py
                                                 # "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
                                                 # "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
                                                 # "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
@@ -502,7 +506,7 @@ if test_reco != '0':
 
     ## NOW WE GET DARKS TO BE CONSISTENT WITH BUILD_IM
     print("turning off calibration source to get darks ...")
-    c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+    cam.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
     print("darks acquired. turn calibration source back on and press enter to continue ...")
 
     time.sleep(0.5)

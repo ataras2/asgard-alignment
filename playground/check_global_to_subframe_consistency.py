@@ -8,6 +8,8 @@ from xaosim.shmlib import shm
 from asgard_alignment import FLI_Cameras as FLI
 import matplotlib.pyplot as plt
 import numpy as np
+import os 
+import toml 
 
 beam = 1
 toml_file = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml") 
@@ -17,6 +19,8 @@ toml_file = os.path.join("/usr/local/etc/baldr/", "baldr_config_#.toml")
 c_sub  = FLI.fli(f"/dev/shm/baldr{beam}.im.shm", roi = [None,None,None,None])
 sub_img = c_sub.mySHM.get_data() 
 
+plt.imshow(sub_img)
+plt.show()
 _ = input("change crop_mode 0")
 
 # change camera crop_mode 0
@@ -28,7 +32,8 @@ with open(toml_file.replace('#',f'{beam}'), "r") as f:
     baldr_pupils = config_dict['baldr_pupils']
 
 r1,r2,c1,c2 = baldr_pupils[f'{beam}']
-
+#
+#c_full  = 
 c_full  = FLI.fli("/dev/shm/cred1.im.shm", roi = [None,None,None,None])
 full_img = np.mean( c_full.get_data() ,axis=0) # full frame get_data returns cube instead of frame 
 my_crop = full_img[r1:r2,c1:c2]
