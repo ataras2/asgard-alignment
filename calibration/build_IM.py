@@ -894,7 +894,7 @@ for beam_id in args.beam_id:
                                                     "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1).tolist(),
                                                     # !!!! Set these calibration things to zero since they should be dealt with by cred 1 server! 
                                                     "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
-                                                    "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                    "dark" : 1000 * np.ones([32,32]).reshape(-1).astype(int).tolist(), # just update to a default 1000 adu offset. In rtc this can be updated with dark_update function!
                                                     "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
                                                     "bad_pixels" : [], 
                                                 }
