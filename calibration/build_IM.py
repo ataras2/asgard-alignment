@@ -213,17 +213,20 @@ c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
 #print("taking Dark")## post TTonsky
 # cant do this if this same subtraction isnt done in RTC
 
+# actuually we really should subtract off the dark bias! 
+
 # could remove dark manually so it isnt subtracted (since already done in the cred1 server! )
 #c.reduction_dict['dark'] = [] 
 # but we keep the badpixels
 
-#_ = input("press enter when ready to turn source off and check it is actually dark")
+_ = input("press enter when ready to turn source off and check it is actually dark")
 ## post TTonsky
-#c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
 #^ holds dark and bad pixel mask in c.reduction_dict['dark'] and c.reduction_dict['bad_pixel_mask'] , is nice to check time to time especially in the subfrmes 
 # THis matters for the better normalization 
-#print("Took dark and built bad pixel mask held in FLI camera object")
+print("Took dark and built bad pixel mask held in FLI camera object")
 
+print( f"\n\nmean dark signal per frame { np.mean( c.reduction_dict['dark'][-1] ) }. This should be near 1000 (default cred1 aduoffset!) . If not be concerned!! " )
 # read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
 nrs = c.mySHM.get_data().shape[0] 
 

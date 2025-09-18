@@ -497,6 +497,14 @@ if test_reco != '0':
 
     # Connect camera (global SHM) and determine buffer length (# reads per burst)
     cam = FLI.fli(CAM_SHM, roi=[None, None, None, None])
+
+    ## NOW WE GET DARKS TO BE CONSISTENT WITH BUILD_IM
+    print("turning off calibration source to get darks ...")
+    c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+    print("darks acquired. turn calibration source back on and press enter to continue ...")
+
+    time.sleep(0.5)
+    
     nrs = cam.mySHM.get_data().shape[0]   # number of reads per buffer (burst)
 
     # DM control on a side channel (like build_IM)
