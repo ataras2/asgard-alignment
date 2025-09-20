@@ -187,7 +187,7 @@ elif args.inverse_method_LO.lower() == 'map': # minimum variance of maximum post
 
 
 elif 'svd_truncation' in args.inverse_method_LO.lower() :
-    k = int( args.inverse_method.split('truncation_')[-1] ) 
+    k = int( args.inverse_method_LO.split('truncation_')[-1] ) 
 
     U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
 
@@ -247,7 +247,7 @@ elif args.inverse_method_HO.lower() == 'zonal':
 
 
 elif 'svd_truncation' in args.inverse_method_HO.lower() :
-    k = int( args.inverse_method.split('truncation_')[-1] ) 
+    k = int( args.inverse_method_HO.split('truncation_')[-1] ) 
     U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
     I2M_HO = util.truncated_pseudoinverse(U, S, Vt, k)
