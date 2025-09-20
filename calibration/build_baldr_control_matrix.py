@@ -204,6 +204,8 @@ if args.inverse_method_HO.lower() == 'pinv':
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
     I2M_HO = np.linalg.pinv( IM_HO )
     
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
 elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum posterior estimator 
     #phase_cov = np.eye( IM.shape[0] )
@@ -215,6 +217,9 @@ elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum post
     noise_cov_HO = np.eye( IM_HO.shape[1] ) 
 
     I2M_HO = phase_cov_HO @ IM_HO.T @ np.linalg.inv(IM_HO @ phase_cov_HO @ IM_HO.T + noise_cov_HO)
+
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
 elif args.inverse_method_HO.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
@@ -253,6 +258,8 @@ elif 'svd_truncation' in args.inverse_method_HO.lower() :
     I2M_HO = util.truncated_pseudoinverse(U, S, Vt, k)
 
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 else:
     raise UserWarning('no inverse method provided for HO')
 
@@ -305,15 +312,16 @@ if projection_basis:
     #_ , M2C_HO = util.project_matrix(M2C[:,LO:], proj_mat)
     #M2C_LO = M2C[:,:LO]
 
-    M2C_LO_tmp = M2C[:, :LO]  # before projection
-    overlap = np.dot(proj_mat, M2C_LO_tmp)  # shape (N_proj, LO)
-    max_overlap = np.max(np.abs(overlap))
-    if max_overlap > 1e-6:
-        print(f"Max overlap between LO and projected modes = {max_overlap:.2e}, re-orthogonalizing LO")
-        M2C_LO, _ = util.project_matrix(M2C[:, :LO], proj_mat)
-    else:
-        print(f"LO commands already orthogonal to projection modes (max overlap = {max_overlap:.2e})")
-        M2C_LO = M2C[:, :LO]
+    M2C_LO = M2C[:, :LO]
+    # M2C_LO_tmp = M2C[:, :LO]  # before projection
+    # overlap = np.dot(proj_mat, M2C_LO_tmp)  # shape (N_proj, LO)
+    # max_overlap = np.max(np.abs(overlap))
+    # if max_overlap > 1e-6:
+    #     print(f"Max overlap between LO and projected modes = {max_overlap:.2e}, re-orthogonalizing LO")
+    #     M2C_LO, _ = util.project_matrix(M2C[:, :LO], proj_mat)
+    # else:
+    #     print(f"LO commands already orthogonal to projection modes (max overlap = {max_overlap:.2e})")
+    #     M2C_LO = M2C[:, :LO]
 else:
     M2C_LO = M2C[:,:LO]
     M2C_HO = M2C[:,LO:]
