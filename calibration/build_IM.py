@@ -894,7 +894,7 @@ for beam_id in args.beam_id:
                                                     "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1).tolist(),
                                                     # !!!! Set these calibration things to zero since they should be dealt with by cred 1 server! 
                                                     "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
-                                                    "dark" : 1000 * np.ones([32,32]).reshape(-1).astype(int).tolist(), # just update to a default 1000 adu offset. In rtc this can be updated with dark_update function!
+                                                    "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(), # just update to a default 1000 adu offset. In rtc this can be updated with dark_update function!
                                                     "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
                                                     "bad_pixels" : [], 
                                                 }
@@ -936,7 +936,7 @@ for beam_id in args.beam_id:
     ################################
     # the interaction signal 
     modes2look = [0,1,65,67]
-    im_list = [IM[beam_id][M].reshape(12,12) for m in modes2look]
+    im_list = [IM[beam_id][m].reshape(12,12) for m in modes2look]
 
     title_list = [f'mode {m}' for m in modes2look]
     cbar_list = ["UNITLESS"] * len(im_list)
@@ -967,7 +967,7 @@ for beam_id in args.beam_id:
         plt.colorbar(im, ax=ax)
     plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
     plt.tight_layout()
-    #plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
 
 
     # (c) System eigenmodes (U)
