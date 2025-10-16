@@ -54,7 +54,7 @@ parser.add_argument(
 parser.add_argument(
     "--phasemask",
     type=str,
-    default="H3",
+    default="H5",
     help="what phasemask was used for building the IM. THis is to search the right entry in the configuration file. Default: %(default)s"
 )
 
@@ -88,13 +88,13 @@ parser.add_argument("--project_waffle_out_HO",
 ## NEED TO CHECK THIS AGAIN - BUG
 parser.add_argument("--filter_edge_actuators",
                     dest="filter_edge_actuators",
-                    action="store_false",
+                    action="store_true",
                     help="Filter actuators that interpolate from edge pixels (default: enabled)")
 
 
 parser.add_argument("--fig_path", 
                     type=str, 
-                    default='~/Downloads/', 
+                    default='/home/asg/ben_bld_data/17-9-25night8/', 
                     help="path/to/output/image/ for the saved figures"
                     )
 
@@ -124,16 +124,22 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "r") as f:
     IM = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("IM", None) ).astype(float)
     M2C = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("M2C", None) ).astype(float)
 
+    I0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("I0", None) )
+    N0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("N0", None) )#.astype(bool)
+    norm_pupil = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("norm_pupil", None) )# matrix bool
+    intrn_flx_I0 = np.array(config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("intrn_flx_I0", None) )# matrix bool
+    
+    print(f"ENSURE FLUX NORMALIZATION EXISTS AND IS NOT LOW (i.e. ~ 1). intrn_flx_I0={intrn_flx_I0}")
     # also the current calibrated strehl modes 
     I2rms_sec = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("secondary", None)).astype(float)
     I2rms_ext = np.array(config_dict.get(f"beam{args.beam_id}", {}).get("strehl_model", {}).get(f"{args.phasemask}", {}).get("exterior", None)).astype(float)
     
     if not np.isfinite(I2rms_sec):
-        print("\n WARNING: No secondary strehl modes found in config file, using 2x2 zero matrix instead.")
-        I2rms_sec = np.zeros((2, 2))
+        print("\n WARNING: No secondary strehl modes found in config file, using 2x2 I matrix instead.")
+        I2rms_sec = np.eye(2) #(2, 2))
     if not np.isfinite(I2rms_ext):   
-        print("\n WARNING: No exterior strehl modes found in config file, using 2x2 zero matrix instead.")
-        I2rms_ext = np.zeros((2, 2))
+        print("\n WARNING: No exterior strehl modes found in config file, using 2x2 I matrix instead.")
+        I2rms_ext = np.eye(2) #((2, 2))
         
     # # define our Tip/Tilt or lower order mode index on zernike DM basis 
     LO = config_dict.get(f"beam{args.beam_id}", {}).get(f"{args.phasemask}", {}).get("ctrl_model", None).get("LO", None)
@@ -181,7 +187,7 @@ elif args.inverse_method_LO.lower() == 'map': # minimum variance of maximum post
 
 
 elif 'svd_truncation' in args.inverse_method_LO.lower() :
-    k = int( args.inverse_method.split('truncation-')[-1] ) 
+    k = int( args.inverse_method_LO.split('truncation_')[-1] ) 
 
     U,S,Vt = np.linalg.svd( IM_LO, full_matrices=True)
 
@@ -198,6 +204,8 @@ if args.inverse_method_HO.lower() == 'pinv':
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
     I2M_HO = np.linalg.pinv( IM_HO )
     
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
 elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum posterior estimator 
     #phase_cov = np.eye( IM.shape[0] )
@@ -209,6 +217,9 @@ elif args.inverse_method_HO.lower() == 'map': # minimum variance of maximum post
     noise_cov_HO = np.eye( IM_HO.shape[1] ) 
 
     I2M_HO = phase_cov_HO @ IM_HO.T @ np.linalg.inv(IM_HO @ phase_cov_HO @ IM_HO.T + noise_cov_HO)
+
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 
 elif args.inverse_method_HO.lower() == 'zonal':
     # just literally filter weight the pupil and take inverse of the IM signal on diagonals (dm actuator registered pixels)
@@ -241,12 +252,14 @@ elif args.inverse_method_HO.lower() == 'zonal':
 
 
 elif 'svd_truncation' in args.inverse_method_HO.lower() :
-    k = int( args.inverse_method.split('truncation-')[-1] ) 
+    k = int( args.inverse_method_HO.split('truncation_')[-1] ) 
     U,S,Vt = np.linalg.svd( IM_HO, full_matrices=True)
 
     I2M_HO = util.truncated_pseudoinverse(U, S, Vt, k)
 
     #I2M_LO , I2M_HO = util.project_matrix( I2M , [util.convert_12x12_to_140(t) for t in LO] )
+    # for plotting later
+    dm_mask = I2A @ np.array( pupil_mask ).reshape(-1)
 else:
     raise UserWarning('no inverse method provided for HO')
 
@@ -283,8 +296,10 @@ projection_basis = []
 
 if args.project_TT_out_HO:
     for t in M2C.T[:LO]:  # TT modes
-        projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
-
+        if 'zonal' in args.inverse_method_HO.lower(): # we actively filter actuators with mask
+            projection_basis.append(dm_mask_144 * np.nan_to_num(t, 0))
+        else:
+            projection_basis.append( np.nan_to_num(t, 0))
 if args.project_waffle_out_HO:
     waffle_mode = util.waffle_mode_2D() #util.convert_12x12_to_140(util.waffle_mode_2D())
     projection_basis.append(dm_mask_144 * waffle_mode)
@@ -297,15 +312,16 @@ if projection_basis:
     #_ , M2C_HO = util.project_matrix(M2C[:,LO:], proj_mat)
     #M2C_LO = M2C[:,:LO]
 
-    M2C_LO_tmp = M2C[:, :LO]  # before projection
-    overlap = np.dot(proj_mat, M2C_LO_tmp)  # shape (N_proj, LO)
-    max_overlap = np.max(np.abs(overlap))
-    if max_overlap > 1e-6:
-        print(f"Max overlap between LO and projected modes = {max_overlap:.2e}, re-orthogonalizing LO")
-        M2C_LO, _ = util.project_matrix(M2C[:, :LO], proj_mat)
-    else:
-        print(f"LO commands already orthogonal to projection modes (max overlap = {max_overlap:.2e})")
-        M2C_LO = M2C[:, :LO]
+    M2C_LO = M2C[:, :LO]
+    # M2C_LO_tmp = M2C[:, :LO]  # before projection
+    # overlap = np.dot(proj_mat, M2C_LO_tmp)  # shape (N_proj, LO)
+    # max_overlap = np.max(np.abs(overlap))
+    # if max_overlap > 1e-6:
+    #     print(f"Max overlap between LO and projected modes = {max_overlap:.2e}, re-orthogonalizing LO")
+    #     M2C_LO, _ = util.project_matrix(M2C[:, :LO], proj_mat)
+    # else:
+    #     print(f"LO commands already orthogonal to projection modes (max overlap = {max_overlap:.2e})")
+    #     M2C_LO = M2C[:, :LO]
 else:
     M2C_LO = M2C[:,:LO]
     M2C_HO = M2C[:,LO:]
@@ -354,7 +370,9 @@ dict2write = {f"beam{args.beam_id}":{f"{args.phasemask}":{"ctrl_model": {
                                                "open_on_flux_limit": 0,
                                                "open_on_dm_limit"  : 0.3,
                                                "LO_offload_limit"  : 1,
-                                               #### in build_IM.py
+                                                #"dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(), 
+                                                # include temp here 
+                                                #### in build_IM.py
                                                 # "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
                                                 # "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
                                                 # "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
@@ -384,6 +402,221 @@ with open(args.toml_file.replace('#',f'{args.beam_id}'), "w") as f:
     toml.dump(current_data, f)
 
 print( f"updated configuration file {args.toml_file.replace('#',f'{args.beam_id}')}")
+
+
+
+
+## A QUICK LOOK 
+for beam_id in [args.beam_id]:
+
+    ################################
+    # the reference intensities
+    im_list = [ I0.reshape(32,32), np.array(N0).reshape(32,32), np.array( norm_pupil).reshape(32,32), util.get_DM_command_in_2D(dm_mask) ]
+    title_list = ['<I0>','<N0>','normalized pupil','mask']
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , title_list=title_list, cbar_label_list=cbar_list) 
+    plt.savefig(f'{args.fig_path}' + f'reference_intensities_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    plt.show()
+
+    ################################
+    # the interaction signal 
+    modes2look = [0,1,65,67]
+    im_list = [util.get_DM_command_in_2D(IM[m])for m in modes2look]
+
+    title_list = [f'mode {m}' for m in modes2look]
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , cbar_label_list=cbar_list, savefig=f'{args.fig_path}' + f'IM_first16modes_beam{beam_id}.png') 
+    plt.savefig(f'{args.fig_path}' + f'IM_some_modes_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    plt.show()
+
+    ################################
+    # the eigenmodes 
+    U, S, Vt = np.linalg.svd(IM_HO, full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
+
+    # (a) Plot singular values
+    plt.figure(figsize=(6, 4))
+    plt.semilogy(S, 'o-')
+    plt.title("Singular Values of IM_HO")
+    plt.xlabel("Index")
+    plt.ylabel("Singular value (log scale)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_singular_values_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+    # (b) Intensity eigenmodes (Vt)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, Vt.shape[0])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(Vt[i]), cmap='viridis')
+        ax.set_title(f"Vt[{i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+
+    # (c) System eigenmodes (U)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, U.shape[1])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(U[:, i]), cmap='plasma')
+        ax.set_title(f"U[:, {i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 system eigenmodes (U) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_system_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    plt.show()
+
+
+    plt.close("all")
+
+### test 
+test_reco = input("press enter to continue recon tests. 0 to finish ...")
+
+if test_reco != '0':
+
+    import numpy as np
+    import os, time, toml, matplotlib.pyplot as plt
+    from asgard_alignment.DM_shm_ctrl import dmclass
+    from asgard_alignment import FLI_Cameras as FLI
+
+    # ---------- configurable test knobs ----------
+    TEST_BEAM   = int(args.beam_id)             # use the beam we just wrote
+    N_TRIALS    = 40                            # number of random TT trials
+    AMP_STD     = 0.05                          # DM units (per-mode stdev)
+    CAM_SHM     = "/dev/shm/cred1.im.shm"       # global camera SHM
+    FIG_DIR     = os.path.expanduser(args.fig_path or "~/Downloads/")
+    # --------------------------------------------
+
+    # Load what we just wrote, so the test also works if you re-run later
+    with open(args.toml_file.replace('#', f'{TEST_BEAM}'), "r") as f:
+        cfg = toml.load(f)
+
+    top      = cfg[f"beam{TEST_BEAM}"]
+    ctrl     = top[args.phasemask]["ctrl_model"]
+    I2A      = np.array(top["I2A"], dtype=float)                        # (140 x 1024)
+    I2M_LO   = np.array(ctrl["I2M_LO"], dtype=float)                    # (LO x P)  (stored transposed)
+    M2C_LO   = np.array(ctrl["M2C_LO"], dtype=float)                    # (144 x LO)
+    LO_count = int(ctrl.get("LO", 2))                                   # how many LO modes were built
+    sigspace = str(ctrl.get("signal_space", "dm")).lower()              # 'dm' or 'pixel'
+
+    # Pixel-space references saved by build_IM.py (already normalized)
+    I0_flat      = np.array(ctrl["I0"], dtype=float)                     # (1024,)
+    N0_flat      = np.array(ctrl["norm_pupil"], dtype=float)             # (1024,)
+    r1, r2, c1, c2 = map(int, ctrl["crop_pixels"])                       # global crop -> local 32x32
+
+    # Sanity guardrails
+    assert LO_count >= 2, "LO must include at least tip & tilt (LO>=2)."
+    assert I2M_LO.shape[0] >= 2, "I2M_LO must have at least 2 rows for tip/tilt."
+
+    # Connect camera (global SHM) and determine buffer length (# reads per burst)
+    cam = FLI.fli(CAM_SHM, roi=[None, None, None, None])
+
+    ## NOW WE GET DARKS TO BE CONSISTENT WITH BUILD_IM
+    print("turning off calibration source to get darks ...")
+    cam.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+    print("darks acquired. turn calibration source back on and press enter to continue ...")
+
+    time.sleep(0.5)
+    
+    nrs = cam.mySHM.get_data().shape[0]   # number of reads per buffer (burst)
+
+    # DM control on a side channel (like build_IM)
+    dm  = dmclass(beam_id=TEST_BEAM, main_chn=3)
+
+    # Helper: wait for a fresh buffer, then return normalized 32x32 (crop) as 1D (1024,)
+    def grab_norm_frame_flat():
+        t0 = cam.mySHM.get_counter()
+        while (cam.mySHM.get_counter() - t0) < 2 * nrs:
+            time.sleep(1.0 / float(cam.config["fps"]))
+        frames = cam.get_data(apply_manual_reduction=True)              # (nrs, H, W)
+        sub    = frames[:, r1:r2, c1:c2].mean(axis=0)                   # 2D mean
+        sub   /= sub.sum()                                              # post-TTonsky normalization
+        return sub.reshape(-1)                                          # (1024,)
+
+    # Run trials
+    rng = np.random.default_rng(0)
+    true_tt  = []   # shape (N, 2)
+    rec_tt   = []   # shape (N, 2)
+
+    # zero command for cleanup
+    zero144 = np.zeros(144, dtype=float)
+
+    try:
+        for k in range(N_TRIALS):
+            # draw random tip/tilt (the first two LO coefficients)
+            a_tt = rng.normal(0.0, AMP_STD, size=2)                     # [tip, tilt]
+            a_lo = np.zeros(LO_count, dtype=float)
+            a_lo[:2] = a_tt
+
+            # command DM in SHM space: u = M2C_LO @ a_lo   (144,)
+            u_cmd = M2C_LO @ a_lo
+            dm.set_data(u_cmd)
+
+            # acquire normalized pupil and form Baldr signal s = (I - I0)/N0 (pixel-space)
+            I_norm_flat = grab_norm_frame_flat()                        # (1024,)
+            s_pix       = (I_norm_flat - I0_flat) / N0_flat             # (1024,)
+
+            # map to chosen signal space
+            if sigspace == "dm":
+                s = I2A @ s_pix                                        # (140,)
+            else:
+                s = s_pix                                               # (1024,)
+
+            # reconstruct LO coefficients: a_hat = I2M_LO @ s
+            a_hat_lo = I2M_LO @ s                                       # (LO,)
+            a_hat_tt = a_hat_lo[:2]
+
+            true_tt.append(a_tt)
+            rec_tt.append(a_hat_tt)
+
+        # Reset DM shape on exit from loop
+        dm.set_data(zero144)
+
+    finally:
+        # Ensure DM is cleared even if an exception happens
+        try: dm.set_data(zero144)
+        except Exception: pass
+
+    true_tt = np.array(true_tt)   # (N,2)
+    rec_tt  = np.array(rec_tt)    # (N,2)
+    err     = rec_tt - true_tt
+
+    # Per-mode & overall RMSE
+    rmse_tip  = np.sqrt(np.mean(err[:,0]**2))
+    rmse_tilt = np.sqrt(np.mean(err[:,1]**2))
+    rmse_all  = np.sqrt(np.mean(err**2))
+
+    # Simple figure: scatter true vs reconstructed for tip & tilt
+    os.makedirs(FIG_DIR, exist_ok=True)
+    plt.figure(figsize=(6,3))
+    for i, name in enumerate(["Tip", "Tilt"]):
+        plt.subplot(1,2,i+1)
+        plt.scatter(true_tt[:,i], rec_tt[:,i], s=18)
+        m = max(np.max(np.abs(true_tt[:,i])), np.max(np.abs(rec_tt[:,i]))) * 1.1 + 1e-6
+        plt.plot([-m, m], [-m, m], '--', lw=1)
+        plt.xlabel(f"True {name} [DM units]")
+        plt.ylabel(f"Reconstructed {name} [DM units]")
+        plt.title(f"{name}  RMSE={np.sqrt(np.mean(err[:,i]**2)):.3g}")
+        plt.axis('equal'); plt.grid(True, alpha=0.3)
+    out_png = os.path.join(args.fig_path, f"recon_LO_TT_sanity_beam{TEST_BEAM}.png")
+    plt.tight_layout(); plt.savefig(out_png, dpi=180); 
+    plt.show()
+    plt.close('all')
+    # Print summary
+    print("\n=== LO (Tip/Tilt) reconstructor sanity test ===")
+    print(f"Beam: {TEST_BEAM} | Signal space: {sigspace} | Trials: {N_TRIALS}")
+    print(f"Std of commanded TT: {AMP_STD} (per mode)")
+    print(f"RMSE Tip : {rmse_tip:.4g}")
+    print(f"RMSE Tilt: {rmse_tilt:.4g}")
+    print(f"RMSE All : {rmse_all:.4g}")
+    print(f"Saved plot: {out_png}")
+
+
+
+
+
+
 
 
 

@@ -119,7 +119,8 @@ class Controllino:
             time.sleep(0.1)
             self.turn_on("Lower Kickstart")
 
-            self.turn_on("USB upper power")
+            self.turn_on("USB upper coms power")
+
             self.turn_on("Kaya")
 
             self.turn_on("DM1")

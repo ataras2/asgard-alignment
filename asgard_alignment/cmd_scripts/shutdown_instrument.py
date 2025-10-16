@@ -89,12 +89,16 @@ def shutdown(inc_CRED):
     post_shutdown_current = float(pdu.read_power_value("olt", LOWER_BOX_OUTLET, "curr"))
     print(f"Post-shutdown current: {post_shutdown_current} A")
 
-    input("Close the MDS and engineering GUI, then press Enter to continue...")
+    input("Type 'exit' in text client for DM server. Close the MDS and engineering GUI, then press Enter to continue...")
 
     if not inc_CRED:
         input(
-            "In C red server terminal, type 'stop' and then type 'exit'. Then press Enter here to continue..."
+            "In C red server text client, type 'stop' and then type 'exit'. Then press Enter here to continue..."
         )
+
+
+    pdu = AtenEcoPDU("192.168.100.11")
+    pdu.connect()
 
     if inc_CRED:
         print("Closing C RED...")

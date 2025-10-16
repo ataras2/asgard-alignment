@@ -119,7 +119,12 @@ class MultiDeviceServer:
                 if data == -1:
                     running = False
                 elif data != 0:
-                    logging.info(f"Received message: {data}")
+                    data_disp = data
+                    if data_disp[0] == '{':
+                        data_disp = data[:-1]
+
+                    logging.info(f"Received message: {data_disp}")
+                    
                     is_custom_msg, response = self.handle_message(data)
                     if response == -1:
                         running = False
@@ -175,7 +180,7 @@ class MultiDeviceServer:
 
         try:
             # message = message.rstrip(message[-1])
-            json_data = json.loads(json.loads(message.strip()))
+            json_data = json.loads(message.rstrip(message[-1]))
             logging.info(f"ESO msg recv: {json_data} (type {type(json_data)})")
         except:
             logging.error("Error: Invalid JSON message")
@@ -251,7 +256,10 @@ class MultiDeviceServer:
                 # Look if device exists in list
                 # (something should be done if device does not exist)
                 device = self.instr.devices[dev_name]
-                semaphore_id = device.semaphore_id
+                if isinstance(device, asgard_alignment.ESOdevice.ESOdevice):
+                    semaphore_id = 99
+                else:
+                    semaphore_id = device.semaphore_id
                 if semaphore_array[semaphore_id] == 0:
                     # Semaphore is free =>
                     # Device can be moved now
@@ -335,16 +343,20 @@ class MultiDeviceServer:
                         # attribute = "<alias>" + s.device_name +":DATA.posEnc"
                         # dbMsg['command']['parameters'].\
                         # append({"attribute":attribute, "value":posEnc})
+                        attribute = "<alias>" + s.device_name + ":DATA.posEnc"
+                        reply["reply"]["parameters"].append(
+                            {"attribute": attribute, "value": s.value}
+                        )
 
                     # Case of shutter or lamp
                     if s.motion_type == "ST":
                         # Here the device can be either a lamp or a shutter
                         # Add here code to find out the type of s.device_name
 
-                        if isinstance(s.device_name, asgard_alignment.ESOdevice.Lamp):
+                        if isinstance(self.instr.devices[s.device_name], asgard_alignment.ESOdevice.Lamp):
                             value_map = {"T": "ON", "F": "OFF"}
                         elif isinstance(
-                            s.device_name, asgard_alignment.ESOdevice.Motor
+                            self.instr.devices[s.device_name], asgard_alignment.ESOdevice.Motor
                         ):
                             value_map = {"T": "OPEN", "F": "CLOSED"}
                         else:
@@ -379,14 +391,33 @@ class MultiDeviceServer:
                         # Report the absolute encoder position
                         # Here (simulation), we simply use the target
                         # position (even if the motor is supposed to move)
-                        attribute = "<alias>" + s.device_name + ":DATA.posEnc"
-                        reply["reply"]["parameters"].append(
-                            {"attribute": attribute, "value": s.value}
-                        )
+                        pos_enc = self.instr.devices[s.device_name].read_position()
+                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
                         # Case of motor with relative encoder position
                         # not considered yet
                         # The simplest would be to read the encoder position
                         # and to update the database as for the previous case
+
+                    # Case of motor with 
+                    if s.motion_type == "ENCREL":
+                        if is_batch_done:
+                            reply["reply"]["parameters"].append(
+                                {"attribute": attribute, "value": ""}
+                            )
+                        else:
+                            reply["reply"]["parameters"].append(
+                                {"attribute": attribute, "value": "MOVING"}
+                            )
+
+                        # Note: if motor is at limit, do:
+                        # dbMsg['command']['parameters'].append({"attribute":attribute, "value":"LIMIT"})
+                        # Report the absolute encoder position
+                        # Here (simulation), we simply use the target
+                        # position (even if the motor is supposed to move)
+                        pos_enc = self.instr.devices[s.device_name].read_position()
+                        attribute = "<alias>" + s.device_name +":DATA.posEnc"
+                        reply['reply']['parameters'].append({"attribute":attribute, "value":pos_enc})
 
             # Check if second batch remains to setup
             # (if no STOP command has been sent)
@@ -425,7 +456,7 @@ class MultiDeviceServer:
             )
 
             for t in temps:
-                reply["reply"]["parameters"].append({"value": t})
+                reply["reply"]["parameters"].append({"value": round(t,2)})
 
             reply["reply"]["content"] = "OK"
 
@@ -441,7 +472,7 @@ class MultiDeviceServer:
             ):
                 n_devs_commanded = len(self.instr.devices)  # total number of devices
                 is_all_devs = True
-                dev_names = list(self.instr.devices.keys())
+                dev_names = list(self.instr._motor_config.keys())
             else:
                 dev_names = [
                     json_data["command"]["parameters"][i]["device"]
@@ -478,7 +509,11 @@ class MultiDeviceServer:
             # for all other commands, do them one device at a time...
             for i in range(n_devs_commanded):
                 if is_all_devs:
-                    dev_name = dev_names[i]
+                    try:
+                        dev_name = dev_names[i]
+                    except Exception as e:
+                        logging.error(f"Error {e}")
+                        break
                 else:
                     dev_name = json_data["command"]["parameters"][i]["device"].upper()
 
@@ -532,7 +567,8 @@ class MultiDeviceServer:
 
                 elif command_name == "stop":
                     logging.info(f"Stop device: {dev_name}")
-                    self.instr.devices[dev_name].stop()
+                    logging.info("ignored")
+                    # self.instr.devices[dev_name].stop()
 
                     # If setup is in progress, consider it done
 
@@ -574,7 +610,7 @@ class MultiDeviceServer:
         # in coded in C++ and needs null character to mark end of the string)
 
         repMsg = json.dumps(reply) + "\0"
-        print(repMsg)
+        logging.info(repMsg)
         # self.server.send_string(repMsg)
 
         return False, repMsg
@@ -971,7 +1007,7 @@ class MultiDeviceServer:
             "h_shut": h_shut_msg,
             "h_splay": h_splay_msg,
             "temp_status": temp_status_msg,
-            "set_kaya" : set_kaya_msg,
+            "set_kaya": set_kaya_msg,
         }
 
         first_word_to_format = {
@@ -1056,32 +1092,28 @@ if __name__ == "__main__":
 
     # logname from the current time
     log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    logging.basicConfig(
-        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
-        level=logging.INFO,
-    )
+    log_path = os.path.join(os.path.expanduser(args.log_location), log_fname)
 
-    # Add stream handler to also log to stdout
+    # Remove all handlers associated with the root logger object (if any)
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # File handler with ms precision
+    file_handler = logging.FileHandler(log_path)
+    formatter = logging.Formatter(
+        "%(asctime)s.%(msecs)03d %(levelname)s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # Console handler with same formatter
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
-
-    serv = MultiDeviceServer(args.port, args.host, args.config)
-    serv.run()
-    log_fname = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S") + ".log"
-    logging.basicConfig(
-        filename=os.path.join(os.path.expanduser(args.log_location), log_fname),
-        level=logging.INFO,
-    )
-
-    # Add stream handler to also log to stdout
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-    console.setFormatter(formatter)
-    logging.getLogger().addHandler(console)
+    logger.addHandler(console)
 
     serv = MultiDeviceServer(args.port, args.host, args.config)
     serv.run()

@@ -219,6 +219,64 @@ def waffle_mode_2D(n=12):
     W = np.fromfunction(lambda i, j: (-1) ** (i + j), (n, n))
     return W
 
+
+def waffle_mode_2D(n=12, fx_cpa=None, fy_cpa=None, phase=(0.0, 0.0),
+                   binary=True, normalize=False):
+    """
+    Make a 2D waffle/checker pattern with selectable spatial frequency.
+
+    Parameters
+    ----------
+    n : int
+        Grid size (n x n).
+    fx_cpa, fy_cpa : float or None
+        Spatial frequency in cycles-per-pupil (cpa) along x and y.
+        - If None, defaults to alternating-pixel waffle: n/2 cpa.
+        - Example (n=12):
+            fx_cpa=fy_cpa=6  -> classic alternating ± pattern (period 2 px)
+            fx_cpa=fy_cpa=3  -> 3 cycles across the pupil in each axis
+    phase : (float, float)
+        Phase offsets (radians) for x and y cosines.
+    binary : bool
+        If True, return a ±1 checkerboard (sign of the cosine product).
+        If False, return the continuous product cos(...) * cos(...).
+    normalize : bool
+        If not binary:
+          - If True, scale to unit RMS over the grid.
+
+    Returns
+    -------
+    W : (n, n) ndarray
+        Waffle pattern.
+    """
+    # Defaults: classic waffle is Nyquist (alternating pixels): n/2 cpa
+    if fx_cpa is None:
+        fx_cpa = n / 2.0
+    if fy_cpa is None:
+        fy_cpa = fx_cpa
+
+    # Grid (sample at actuator centers)
+    i, j = np.indices((n, n))
+    x = (j + 0.5) / n   # 0..1 across the pupil
+    y = (i + 0.5) / n
+
+    # Continuous 2D cosine "waffle"
+    W = np.cos(2*np.pi*fx_cpa * x + phase[0]) * np.cos(2*np.pi*fy_cpa * y + phase[1])
+
+    if binary:
+        W = np.sign(W)
+        # Avoid zeros if exactly hitting nodes
+        W[W == 0] = 1.0
+        return W
+
+    if normalize:
+        # unit RMS normalization over the grid
+        rms = np.sqrt(np.mean(W**2))
+        if rms > 0:
+            W = W / rms
+    return W
+
+
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    

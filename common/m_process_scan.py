@@ -84,8 +84,9 @@ def fit_gaussian_on_res(
         res[k]['gaussian_fit'] = float(g)
 
     # Store peak coords at top level as requested
-    res['x0_peak'] = x0
-    res['y0_peak'] = y0
+    # DONT INCLUDE THESE BECAUSE IT CHANGES STANDARDS THAT CAN LEAD TO ERRORS LATER 
+    #res['x0_peak'] = x0
+    #res['y0_peak'] = y0
 
     params = {"A": A, "x0": x0, "y0": y0, "sx": sx, "sy": sy, "theta": theta, "B": B}
     return params, res
@@ -166,8 +167,8 @@ def process_scan( scan_data , method=None, **kwargs):
                       "std":np.nanstd( np.array(v)[pupil_mask] ), 
                       "median":np.median( np.array(v)[pupil_mask] )} 
 
-            params, res = fit_gaussian_on_res(res)
-            print("Peak at (x0,y0) =", params["x0"], params["y0"])
+        params, res = fit_gaussian_on_res(res)
+        print("Peak at (x0,y0) =", params["x0"], params["y0"])
 
         return res 
         

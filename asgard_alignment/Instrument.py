@@ -105,9 +105,7 @@ class Instrument:
         self.managed_usb_hub_port = self.find_managed_USB_hub_port()
         logging.info(f"managed port: {self.managed_usb_hub_port}")
         if self.managed_usb_hub_port is None:
-            logging.warning(
-                "Could not find managed USB hub port."
-            )
+            logging.warning("Could not find managed USB hub port.")
 
             # time.sleep(5)
             sys.exit(1)
@@ -469,6 +467,16 @@ class Instrument:
                 offset = offest_mag if axis_pos[max_dev] < 0 else -offest_mag
                 self.h_shutter_offsets[beam_n][max_dev] = offset
 
+                # wait in a blocking way for the device to stop moving
+                timeout = 3.0
+                start_time = time.time()
+                while self.devices[max_dev].is_moving():
+                    logging.info(f"waiting for {max_dev} to stop moving")
+                    if time.time() - start_time > timeout:
+                        logging.warning(f"Timeout waiting for {max_dev} to stop moving")
+                        break
+                    time.sleep(0.1)
+
                 self.devices[max_dev].move_relative(offset)
                 self.h_shutter_states[beam_n] = "closed"
                 logging.info(f"sending moverel {offset} to {numbered_dev}")
@@ -495,6 +503,16 @@ class Instrument:
                     if not np.isclose(
                         self.h_shutter_offsets[beam_n][numbered_dev], 0.0
                     ):
+                        timeout = 3.0
+                        start_time = time.time()
+                        while self.devices[numbered_dev].is_moving():
+                            logging.info(f"waiting for {numbered_dev} to stop moving")
+                            if time.time() - start_time > timeout:
+                                logging.warning(
+                                    f"Timeout waiting for {numbered_dev} to stop moving"
+                                )
+                                break
+                            time.sleep(0.1)
                         self.devices[numbered_dev].move_relative(
                             -self.h_shutter_offsets[beam_n][numbered_dev]
                         )
@@ -742,6 +760,7 @@ class Instrument:
 
         elif isinstance(self.devices[device], asgard_alignment.NewportMotor.M100DAxis):
             logging.info("Request to standby a M100D device")
+            controller_connctions = []
             # in this case, we will need to switch off all grouped motors
             if "BT" in device:
                 # this is like the BTX + HFO row
@@ -754,6 +773,10 @@ class Instrument:
                 usb_command = (
                     f"cusbi /S:{self.managed_usb_port_short} 0:3"  # 0 means off
                 )
+                for dev in all_devs:
+                    sn = self._motor_config[dev]["serial_number"]
+                    port = self._prev_port_mapping[sn]
+                    controller_connctions.append(port)
             elif "HT" in device:
                 wire_names = []
                 prefixes = ["HTTP", "HTPI", "HTPP", "HTTI"]
@@ -764,19 +787,36 @@ class Instrument:
                 usb_command = (
                     f"cusbi /S:{self.managed_usb_port_short} 0:1"  # 0 means off
                 )
+                for dev in all_devs:
+                    sn = self._motor_config[dev]["serial_number"]
+                    port = self._prev_port_mapping[sn]
+                    controller_connctions.append(port)
             elif "BOT" in device:
-                wire_names = []
                 all_devs = [f"BOTP{i}" for i in range(2, 5)] + [
                     f"BOTT{i}"
                     for i in range(2, 5)  # noting that BOTX is only beams 2-4
                 ]
                 usb_command = f"cusbi /S:{self.managed_usb_port_short} 0:2"
+                for dev in all_devs:
+                    sn = self._motor_config[dev]["serial_number"]
+                    port = self._prev_port_mapping[sn]
+                    controller_connctions.append(port)
 
-            controller_connctions = []
-            for dev in all_devs:
-                sn = self._motor_config[dev]["serial_number"]
-                port = self._prev_port_mapping[sn]
-                controller_connctions.append(port)
+                # note that since BDS is connected to BOTX at the usb, this is needed
+                wire_names = ["X-MCC (BFO,SDL,BDS,SSS)"]
+                all_devs += [
+                    ["BFO"]
+                    + ["SDLA", "SDL12", "SDL34"]
+                    + [f"BDS{i}" for i in range(1, 5)]
+                    + ["SSS"]
+                ]
+                controller_connctions += [
+                    self._motor_config["BFO"]["x_mcc_ip_address"],
+                    self.find_zaber_usb_port(),  # the usb connections for the BDS
+                ]
+
+            if controller_connctions is None:
+                controller_connctions = []
 
             wire_names = set(wire_names)
             # usb_commands = set(usb_command)
@@ -940,6 +980,7 @@ class Instrument:
                 self._controllers["controllino"],
                 **self._lamps_config[name]["config"],
             )
+        logging.info(f"Lamps added, now devices are {self.devices}")
 
     def _create_shutters(self):
         """

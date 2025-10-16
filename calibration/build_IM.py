@@ -210,7 +210,23 @@ for beam_id in args.beam_id:
 
 
 c = FLI.fli(args.global_camera_shm, roi = [None,None,None,None])
+#print("taking Dark")## post TTonsky
+# cant do this if this same subtraction isnt done in RTC
 
+# actuually we really should subtract off the dark bias! 
+
+# could remove dark manually so it isnt subtracted (since already done in the cred1 server! )
+#c.reduction_dict['dark'] = [] 
+# but we keep the badpixels
+
+_ = input("press enter when ready to turn source off and check it is actually dark")
+## post TTonsky
+c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_threshold':20, 'mean_threshold':6} )
+#^ holds dark and bad pixel mask in c.reduction_dict['dark'] and c.reduction_dict['bad_pixel_mask'] , is nice to check time to time especially in the subfrmes 
+# THis matters for the better normalization 
+print("Took dark and built bad pixel mask held in FLI camera object")
+
+print( f"\n\nmean dark signal per frame { np.mean( c.reduction_dict['dark'][-1] ) }. This should be near 1000 (default cred1 aduoffset!) . If not be concerned!! " )
 # read the data to get directly the number of reads without reset (this is what the buffer is typically set to in non-destructive read mode)
 nrs = c.mySHM.get_data().shape[0] 
 
@@ -385,20 +401,22 @@ print( 'setting up DMs')
 dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id, main_chn=3 ) # we poke on ch3 so we can close TT on chn 2 with rtc when building IM 
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
     
-    if args.DM_flat.lower() == 'factory':
-        # activate flat (does this on channel 1)
-        dm_shm_dict[beam_id].activate_flat()
-    elif args.DM_flat.lower() == 'baldr':
-        # apply dm flat + calibrated offset (does this on channel 1)
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+    ###     UP TO USER TO PUT THE FLAT ON!!!
+    # zero all channels
+    # dm_shm_dict[beam_id].zero_all()
+    
+    # if args.DM_flat.lower() == 'factory':
+    #     # activate flat (does this on channel 1)
+    #     dm_shm_dict[beam_id].activate_flat()
+    # elif args.DM_flat.lower() == 'baldr':
+    #     # apply dm flat + calibrated offset (does this on channel 1)
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
         
-    else:
-        print( "Unknow flat option. Valid options are 'factory' or 'baldr'. Using baldr flat as default")
-        args.DM_flat == 'baldr'
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+    # else:
+    #     print( "Unknow flat option. Valid options are 'factory' or 'baldr'. Using baldr flat as default")
+    #     args.DM_flat == 'baldr'
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
 
 # Move to phase mask
 for beam_id in args.beam_id:
@@ -472,6 +490,11 @@ for beam_id in args.beam_id:
     normalized_pupils[beam_id] = np.mean( clear_pupils[beam_id] , axis=0) 
     normalized_pupils[beam_id][ pixel_filter  ] = np.mean( np.mean(clear_pupils[beam_id],0)[~pixel_filter]  ) # set exterior and boundary pupils to interior mean
 
+    # normalize by sum in the subframe ## post TTonsky 
+    #normalized_pupils[beam_id] /= np.sum( N0s[:,r1:r2,c1:c2] )
+    #^^ bug, it should sum over agregated frame 
+    normalized_pupils[beam_id] /= np.sum( np.mean( N0s[:,r1:r2,c1:c2] ,axis=0 ) )
+
     #N0 for normalization ( set exterior pixels )
     #pupil_norm = np.mean( N0s ,axis=0)
     #pupil_norm[~np.array( pupil_mask[beam_id] ) ] = np.mean( pupil_norm[pupil_mask[beam_id]])
@@ -535,8 +558,10 @@ for beam_id in args.beam_id:
     r1,r2,c1,c2 = baldr_pupils[f"{beam_id}"]
     #cropped_img = interpolate_bad_pixels(img[r1:r2, c1:c2], bad_pixel_mask[r1:r2, c1:c2])
     #cropped_img = [nn[r1:r2,c1:c2] for nn in I0s] #/np.mean(img[r1:r2, c1:c2][pupil_mask[bb]])
-    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] #cropped_img
-
+    
+    #zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( I0s[:,r1:r2,c1:c2] ) ## post TTonsky#cropped_img
+    #^^ bug! it should sum over a signal aggregated frame! 
+    zwfs_pupils[beam_id] = I0s[:,r1:r2,c1:c2] / np.sum( np.mean( I0s[:,r1:r2,c1:c2],axis=0 ) )
 
 # #dark = np.mean( darks_dict[beam_id],axis=0)
 
@@ -582,7 +607,7 @@ for beam_id in args.beam_id:
 
 LO_basis = dmbases.zer_bank(2, args.LO+1 )
 zonal_basis = np.array([dm_shm_dict[beam_id].cmd_2_map2D(ii) for ii in np.eye(140)]) 
-
+#zonal_basis = dmbases.zer_bank(4, 143 )
 modal_basis = np.array( LO_basis.tolist() +  zonal_basis.tolist() ) 
 # should be 144 x 140 (we deal with errors in 140 actuator space (columns), but SHM takes 144 vector as input (rows)) 
 # this is why we do transpose 
@@ -657,6 +682,9 @@ Iminus_all = {beam_id:[] for beam_id in args.beam_id}
 
 
 
+
+    # return img
+
 #imgs_to_mean = 20 # for each poke we average this number of frames
 # for now we use standard get_data mehtod which is 200 frames (april 2025)
 for i,m in enumerate(modal_basis):
@@ -688,15 +716,21 @@ for i,m in enumerate(modal_basis):
 
         for beam_id in args.beam_id:
             r1,r2,c1,c2 = baldr_pupils[f'{beam_id}']
+            
+
+            img_tmp = np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)
+
+            
+
+            img_tmp /= np.sum( img_tmp ) ## post TTonsky
+
             if sign > 0:
-                
-                I_plus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
-                #I_plus *= 1/np.mean( I_plus )
+
+                I_plus_list[beam_id].append( list( img_tmp ) )
 
             if sign < 0:
-                
-                I_minus_list[beam_id].append( list( np.mean( imgtmp_global[:,r1:r2,c1:c2], axis = 0)  ) )
-                #I_minus *= 1/np.mean( I_minus )
+
+                I_minus_list[beam_id].append( list( img_tmp ) )
 
 
     for beam_id in args.beam_id:
@@ -715,9 +749,13 @@ for i,m in enumerate(modal_basis):
         #(~secondary_mask[beam_id].astype(bool)).reshape(-1) 
 
         if args.signal_space.lower() == 'dm':
-            errsig = I2A_dict[beam_id] @ ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
+            ## post TTonsky
+            errsig = I2A_dict[beam_id] @   (I_plus - I_minus)  / args.poke_amp  
+            #errsig = I2A_dict[beam_id] @ ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to DM space
         elif args.signal_space.lower() == 'pixel':
-            errsig = ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
+            ## post TTonsky
+            errsig =  (I_plus - I_minus)  / args.poke_amp  # 1 / DMcmd * (s * gain)  projected to Pixel space
+            #errsig = ( float( c.config["gain"] ) / float( c.config["fps"] )  * (I_plus - I_minus)  / args.poke_amp ) # 1 / DMcmd * (s * gain)  projected to Pixel space
         
         #############
         #############
@@ -812,7 +850,8 @@ for beam_id in args.beam_id:
 
 
 ## reset DMs 
-dm_shm_dict[beam_id].zero_all()
+
+#dm_shm_dict[beam_id].zero_all()
 # apply dm flat + calibrated offset (does this on channel 1)
 
 # dm_shm_dict[beam_id].activate_calibrated_flat()
@@ -841,9 +880,10 @@ for beam_id in args.beam_id:
                                                     "poke_amp":args.poke_amp,
                                                     "LO":args.LO, ## THIS DEFINES WHAT INDEX IN IM WE HAVE LO VS HO MODES , DONE HERE NOW RATHER THAN build_baldr_control_matrix.py.
                                                     "M2C": np.nan_to_num( np.array(M2C), 0 ).tolist(),   # 
-                                                    "I0":  (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
-                                                    "N0": (float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
-                                                    "norm_pupil": ( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
+                                                    "I0": np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1).tolist(), ## ## post TTonsky  #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( zwfs_pupils[beam_id],axis=0).reshape(-1) ).tolist(),  # ADU / s / gain (flattened)
+                                                    "intrn_flx_I0":float(np.sum( np.mean( I0s[:,r1:r2,c1:c2],axis=0) )),
+                                                    "N0": np.mean( clear_pupils[beam_id],axis=0).reshape(-1).tolist(), ## ## post TTonsky #(float( c.config["fps"] ) / float( c.config["gain"] ) * np.mean( clear_pupils[beam_id],axis=0).reshape(-1) ).tolist(), # ADU / s / gain (flattened)
+                                                    "norm_pupil": np.array( normalized_pupils[beam_id] ).reshape(-1).tolist(), ## post TTonsky #( float( c.config["fps"] ) / float( c.config["gain"] ) * np.array( normalized_pupils[beam_id] ).reshape(-1) ).tolist(),
                                                     "camera_config" : {k:str(v) for k,v in c.config.items()},
                                                     #"bias": np.array(c.reduction_dict["bias"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
                                                     #"dark": np.array(c.reduction_dict["dark"][-1])[r1:r2,c1:c2].reshape(-1).tolist(),
@@ -854,7 +894,7 @@ for beam_id in args.beam_id:
                                                     "inner_pupil_filt": np.array(inner_pupil_filt[beam_id]).astype(int).reshape(-1).tolist(),
                                                     # !!!! Set these calibration things to zero since they should be dealt with by cred 1 server! 
                                                     "bias" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
-                                                    "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(),
+                                                    "dark" : np.zeros([32,32]).reshape(-1).astype(int).tolist(), # just update to a default 1000 adu offset. In rtc this can be updated with dark_update function!
                                                     "bad_pixel_mask" : np.ones([32,32]).reshape(-1).astype(int).tolist(),
                                                     "bad_pixels" : [], 
                                                 }
@@ -881,11 +921,76 @@ for beam_id in args.beam_id:
     print( f"updated configuration file {args.toml_file.replace('#',f'{beam_id}')}")
 
 
+## A QUICK LOOK 
+for beam_id in args.beam_id:
+
+    ################################
+    # the reference intensities
+    im_list = [ np.mean( zwfs_pupils[beam_id],axis=0), np.mean( clear_pupils[beam_id],axis=0), normalized_pupils[beam_id] ]
+    title_list = ['<I0>','<N0>','normalized pupil']
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , title_list=title_list, cbar_label_list=cbar_list) 
+    plt.savefig(f'{args.fig_path}' + f'reference_intensities_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    #plt.show()
+
+    ################################
+    # the interaction signal 
+    modes2look = [0,1,65,67]
+    im_list = [IM[beam_id][m].reshape(12,12) for m in modes2look]
+
+    title_list = [f'mode {m}' for m in modes2look]
+    cbar_list = ["UNITLESS"] * len(im_list)
+    util.nice_heatmap_subplots( im_list , cbar_label_list=cbar_list, savefig=f'{args.fig_path}' + f'IM_first16modes_beam{beam_id}.png') 
+    plt.savefig(f'{args.fig_path}' + f'IM_some_modes_beam{beam_id}.jpeg', bbox_inches='tight', dpi=200)
+    #plt.show()
+
+    ################################
+    # the eigenmodes 
+    U, S, Vt = np.linalg.svd(IM[beam_id], full_matrices=False)  # shapes: (M, M), (min(M,N),), (min(M,N), N)
+
+    # (a) Plot singular values
+    plt.figure(figsize=(6, 4))
+    plt.semilogy(S, 'o-')
+    plt.title("Singular Values of IM_HO")
+    plt.xlabel("Index")
+    plt.ylabel("Singular value (log scale)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_singular_values_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+    # (b) Intensity eigenmodes (Vt)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, Vt.shape[0])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(Vt[i]), cmap='viridis')
+        ax.set_title(f"Vt[{i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 intensity eigenmodes (Vt) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_intensity_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+
+
+    # (c) System eigenmodes (U)
+    plt.figure(figsize=(15, 3))
+    for i in range(min(5, U.shape[1])):
+        ax = plt.subplot(1, 5, i+1)
+        im = ax.imshow(util.get_DM_command_in_2D(U[:, i]), cmap='plasma')
+        ax.set_title(f"U[:, {i}]")
+        plt.colorbar(im, ax=ax)
+    plt.suptitle("First 5 system eigenmodes (U) mapped to 2D")
+    plt.tight_layout()
+    plt.savefig(f"{args.fig_path}" + f'IM_first5_system_eigenmodes_beam{beam_id}.png', bbox_inches='tight', dpi=200)
+    #plt.show()
+
+
+    plt.close("all")
+
 
 #closing stuff 
 c.close(erase_file=False)
+
 for beam_id in args.beam_id:
-    dm_shm_dict[beam_id].zero_all()
+    #dm_shm_dict[beam_id].zero_all()
     time.sleep(0.1)
     #dm_shm_dict[beam_id].activate_calibrated_flat()
     time.sleep(0.1)

@@ -385,14 +385,16 @@ print( 'setting up DMs')
 dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
-    
-    # activate flat (does this on channel 1)
-    #dm_shm_dict[beam_id].activate_flat()
 
-    # apply dm flat + calibrated offset (does this on channel 1)
-    dm_shm_dict[beam_id].activate_calibrated_flat()
+    # UP TO USER TO PUT THE RIGHT SHAPE ON!!!!
+    # # zero all channels
+    # dm_shm_dict[beam_id].zero_all()
+    
+    # # activate flat (does this on channel 1)
+    # #dm_shm_dict[beam_id].activate_flat()
+
+    # # apply dm flat + calibrated offset (does this on channel 1)
+    # dm_shm_dict[beam_id].activate_calibrated_flat()
     
 
 
