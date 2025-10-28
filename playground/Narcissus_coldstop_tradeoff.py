@@ -259,7 +259,7 @@ if __name__ == "__main__":
 
     # --- pick baseline & comparison from your 'results' (which include "main_map") ---
     baseline_scale = 1.0
-    compare_scale  = 2.0
+    compare_scale  = 1.2 #2.0
 
     def _row_for_scale(rows, s):
         return rows[int(np.argmin([abs(r["scale"] - s) for r in rows]))]
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     # ×2 cold stop
     im1 = axs[1].imshow(B1_plot, origin='lower', cmap='viridis',
                         norm=LogNorm(vmin=vmin_log, vmax=vmax_log))
-    axs[1].set_title(f'×2 Cold Stop Diam.', fontsize=15)
+    axs[1].set_title(f'×{compare_scale} Cold Stop Diam.', fontsize=15)
     c1 = plt.colorbar(im1, ax=axs[1], orientation='horizontal', pad=0.08)
     c1.set_label('e⁻/s/pixel',fontsize=fs)
 
@@ -374,7 +374,7 @@ if __name__ == "__main__":
     # Heatmap comparing fractional increase in background for 2 different coldstop diameters 
     # -------- choose the two sizes to compare --------
     baseline_scale = 1.0     # nominal
-    compare_scale  = 2.0     # e.g., doubled radius
+    compare_scale  = 1.2     # e.g., doubled radius
 
     def _get_row_for_scale(rows, s_target):
         # pick the closest available scale in case of float rounding

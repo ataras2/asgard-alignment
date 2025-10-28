@@ -308,3 +308,138 @@ if __name__ == "__main__":
     print("\n[Comparison]")
     print("  Bound uses S_bound independent of detector sampling; exact uses detector + TT reconstructor.")
     print("  Typically, ||J||_2 ≤ O(2π kpass ||LP*deltaI_C||), often smaller depending on sampling and basis.")
+
+
+
+
+
+######
+import numpy as np
+import matplotlib.pyplot as plt
+
+# -----------------------------
+# Demo parameters (edit freely)
+# -----------------------------
+N_pup   = 512          # pupil-plane grid (NxN)
+N_img   = 512          # image-plane grid for cold stop (same N keeps FFT pairs simple)
+m_lamD  = 16.0         # image-plane field-of-view in λ/D (extent across the frame)
+Dcs     = 4.0          # cold stop DIAMETER in λ/D
+misalign = (0.75, -0.25)  # cold stop offset in λ/D (dx, dy)
+
+theta   = np.deg2rad(90.0)  # ZWFS mask phase
+show_linearized = True      # also compute and show ΔI_E^lin for comparison
+
+# -----------------------------
+# 1) Pupil-plane: Ψ_C = Ψ_in - (1-e^{iθ}) b Ψ_avg
+# -----------------------------
+# pupil (unit-radius disk inside the frame)
+yy, xx = np.meshgrid(np.linspace(-1, 1, N_pup, endpoint=False),
+                     np.linspace(-1, 1, N_pup, endpoint=False), indexing='xy')
+R = np.sqrt(xx**2 + yy**2)
+P = (R <= 1.0).astype(float)
+
+# broad Gaussian b(r): unit peak, σ = 2 × pupil diameter = 4 in our normalized radius units
+# (pupil diameter = 2 in these normalized coordinates)
+sigma_b = 4.0
+b = np.exp(-(xx**2 + yy**2) / (2.0 * sigma_b**2))
+
+# simple choice: Ψ_in = P (flat unit amplitude within the pupil), Ψ_avg = average of Ψ_in over pupil
+Psi_in  = P.astype(complex)
+Psi_avg = (Psi_in[P>0].mean() if np.any(P>0) else 1.0) + 0j
+
+Psi_C = Psi_in - (1.0 - np.exp(1j*theta)) * b * Psi_avg
+I_C   = np.abs(Psi_C)**2
+
+# Split for linearization: Ψ_C = Ψ_0 + δΨ
+Psi_0   = Psi_in
+deltaPsi = Psi_C - Psi_0
+I_0     = np.abs(Psi_0)**2
+dI_C    = I_C - I_0
+
+# -----------------------------
+# 2) Image-plane cold stop K(ρ): circular aperture with misalignment (λ/D units)
+# -----------------------------
+# image-plane coordinates in λ/D across [-m/2, +m/2)
+rho = np.linspace(-m_lamD/2, m_lamD/2, N_img, endpoint=False)
+RY, RX = np.meshgrid(rho, rho, indexing='xy')
+dx_lD, dy_lD = misalign
+K = ((RX - dx_lD)**2 + (RY - dy_lD)**2 <= (Dcs/2.0)**2).astype(float)
+
+# -----------------------------
+# 3) Back to pupil: K-hat(r) = F^{-1}{K(ρ)} (using unitary-ish FFT conventions)
+#    Then convolve in pupil: Ψ_E = K-hat ⊗ Ψ_C  (via FFT: FFT^-1[FFT(K-hat)*FFT(Ψ_C)])
+#    Note: Using same-sized grids keeps sampling consistent for this demo.
+# -----------------------------
+# Build K-hat on the same N_pup grid by zero-padding or trimming as needed
+# For simplicity, use same size here: N_img == N_pup
+K_hat = np.fft.ifft2(np.fft.ifftshift(K))   # complex kernel in pupil space
+K_hat = np.fft.fftshift(K_hat)              # center it for visualization
+
+# Convolution via FFT
+PsiC_hat = np.fft.fft2(np.fft.ifftshift(Psi_C))
+Khat_hat = np.fft.fft2(np.fft.ifftshift(K_hat))
+Psi_E = np.fft.fftshift(np.fft.ifft2(PsiC_hat * Khat_hat))
+I_E   = np.abs(Psi_E)**2
+
+# -----------------------------
+# 4) Linearized ΔI_E ≈ 2 Re{ (K⊗Ψ0)^* (K⊗δΨ) }
+# -----------------------------
+if show_linearized:
+    Psi0_hat = np.fft.fft2(np.fft.ifftshift(Psi_0))
+    dPsi_hat = np.fft.fft2(np.fft.ifftshift(deltaPsi))
+
+    Psi0_conv = np.fft.fftshift(np.fft.ifft2(Psi0_hat * Khat_hat))  # K⊗Ψ0
+    dPsi_conv = np.fft.fftshift(np.fft.ifft2(dPsi_hat * Khat_hat))  # K⊗δΨ
+
+    dI_E_lin = 2.0 * np.real(np.conj(Psi0_conv) * dPsi_conv)
+    # exact perturbation (for comparison)
+    dI_E_exact = I_E - np.abs(Psi0_conv + 0.0*dPsi_conv)**2  # compare to I0 filtered if desired
+
+# -----------------------------
+# 5) Plots
+# -----------------------------
+fig, axs = plt.subplots(2, 3 if show_linearized else 2, figsize=(13, 8), constrained_layout=True)
+
+# (a) I_C in the pupil
+im0 = axs[0,0].imshow(I_C, origin='lower', cmap='viridis')
+axs[0,0].set_title(r"$I_C( r)=|\Psi_C|^2$")
+axs[0,0].set_xticks([]); axs[0,0].set_yticks([])
+plt.colorbar(im0, ax=axs[0,0], fraction=0.046, pad=0.03)
+
+# (b) cold stop K(ρ) (image plane)
+im1 = axs[0,1].imshow(K, origin='lower', extent=[rho[0], rho[-1], rho[0], rho[-1]], cmap='gray_r')
+axs[0,1].set_title(r"$K(\rho)$ in image plane (λ/D)")
+axs[0,1].set_xlabel(r"$\rho_x$ [λ/D]"); axs[0,1].set_ylabel(r"$\rho_y$ [λ/D]")
+plt.colorbar(im1, ax=axs[0,1], fraction=0.046, pad=0.03)
+
+# (c) K-hat in pupil (real part and magnitude)
+im2 = axs[1,0].imshow(np.real(K_hat), origin='lower', cmap='RdBu_r')
+axs[1,0].set_title(r"$\widehat K( r)$ (real part)")
+axs[1,0].set_xticks([]); axs[1,0].set_yticks([])
+plt.colorbar(im2, ax=axs[1,0], fraction=0.046, pad=0.03)
+
+im3 = axs[1,1].imshow(np.abs(K_hat), origin='lower', cmap='magma')
+axs[1,1].set_title(r"$|\widehat K( r)|$")
+axs[1,1].set_xticks([]); axs[1,1].set_yticks([])
+plt.colorbar(im3, ax=axs[1,1], fraction=0.046, pad=0.03)
+
+# (d) I_E in the pupil (post-cold-stop)
+if show_linearized:
+    im4 = axs[0,2].imshow(I_E, origin='lower', cmap='viridis')
+    axs[0,2].set_title(r"$I_E( r)=|\Psi_E|^2$")
+    axs[0,2].set_xticks([]); axs[0,2].set_yticks([])
+    plt.colorbar(im4, ax=axs[0,2], fraction=0.046, pad=0.03)
+
+    # (e) linearized ΔI_E and exact perturbation (optional comparison)
+    v = np.max(np.abs(dI_E_lin)) * 0.9
+    im5 = axs[1,2].imshow(dI_E_lin, origin='lower', cmap='RdBu_r', vmin=-v, vmax=+v)
+    axs[1,2].set_title(r"Linearized $\Delta I_E$ approx")# \approx 2\,\Re\{(\widehat K\!\otimes\!\Psi_0)^*(\widehat K\!\otimes\!\delta\Psi)\}$")
+    axs[1,2].set_xticks([]); axs[1,2].set_yticks([])
+    plt.colorbar(im5, ax=axs[1,2], fraction=0.046, pad=0.03)
+else:
+    im4 = axs[0,2-1].imshow(I_E, origin='lower', cmap='viridis')
+    axs[0,2-1].set_title(r"$I_E( r)=|\Psi_E|^2$")
+    axs[0,2-1].set_xticks([]); axs[0,2-1].set_yticks([])
+    plt.colorbar(im4, ax=axs[0,2-1], fraction=0.046, pad=0.03)
+
+plt.show()

@@ -1,9 +1,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from pyBaldr import utilities as util
 from common import DM_basis_functions as dmbasis
 from xaosim.shmlib import shm
 
+
+from scipy.ndimage import zoom  # already used elsewhere in your codebase
 
 
 """
@@ -37,7 +40,7 @@ and including the atmosphere it is ~1420-1820nm.
 T = 1900 #K lab thermal source temperature 
 lambda_cut_on, lambda_cut_off =  1.38, 1.82 # um
 wvl = util.find_central_wavelength(lambda_cut_on, lambda_cut_off, T) # central wavelength of Nice setup
-mask = "J5"
+mask = "J3"
 F_number = 21.2
 coldstop_diam = 4.04 #according to calc in thesis 8.07 lmabda/D bright, 4.04 lambda/D faint
 mask_diam = 1.22 * F_number * wvl / phasemask_parameters[mask]['diameter']
@@ -87,27 +90,48 @@ def pick_low_order_zernikes(basis, P, noll_indices=(2,3,4,5,6)):
         los.append(unit_rms(z, P))
     return los
 
-def zwfs_intensity(phi, coldstop_diam_lamOverD, padding=6, phaseshift=None):
-    """
-    Wrapper to call your util forward model. Returns (PupilAmplitude, Intensity) on the fine grid.
-    """
+# def zwfs_intensity(phi, coldstop_diam_lamOverD, padding=6, phaseshift=None):
+#     """
+#     Wrapper to call your util forward model. Returns (PupilAmplitude, Intensity) on the fine grid.
+#     """
+#     P_, Ic_ = util.get_theoretical_reference_pupils_with_aber(
+#         wavelength = wvl,
+#         F_number = F_number,
+#         mask_diam = mask_diam,
+#         coldstop_diam = coldstop_diam_lamOverD,  # in λ/D (DIAMETER)
+#         coldstop_misalign = [0,0],
+#         eta = eta,
+#         phi = phi,
+#         diameter_in_angular_units = True,
+#         get_individual_terms = False,
+#         phaseshift = phaseshift if phaseshift is not None 
+#                            else util.get_phasemask_phaseshift(wvl=wvl, depth=phasemask_parameters[mask]['depth'], dot_material='N_1405'),
+#         padding_factor = padding,
+#         debug = False,
+#         analytic_solution = False
+#     )
+#     return P_, Ic_
+
+
+def zwfs_intensity(phi, coldstop_diam_lamOverD, padding=6, phaseshift=None,coldstop_misalign=[0,0]):
     P_, Ic_ = util.get_theoretical_reference_pupils_with_aber(
         wavelength = wvl,
         F_number = F_number,
         mask_diam = mask_diam,
-        coldstop_diam = coldstop_diam_lamOverD,  # in λ/D (DIAMETER)
-        coldstop_misalign = [0,0],
+        coldstop_diam = coldstop_diam_lamOverD,  # DIAMETER in λ/D
+        coldstop_misalign = coldstop_misalign,
         eta = eta,
         phi = phi,
         diameter_in_angular_units = True,
         get_individual_terms = False,
         phaseshift = phaseshift if phaseshift is not None 
-                           else util.get_phasemask_phaseshift(wvl=wvl, depth=phasemask_parameters[mask]['depth'], dot_material='N_1405'),
-        padding_factor = padding,
+                         else util.get_phasemask_phaseshift(wvl=wvl, depth=phasemask_parameters[mask]['depth'], dot_material='N_1405'),
+        padding_factor = 6,
         debug = False,
         analytic_solution = False
     )
     return P_, Ic_
+
 
 # def bin_to_detector(P_amp, I_fine, pupil_pixels_diam=12):
 #     """
@@ -284,173 +308,6 @@ def fit_low_order_coeffs(deltaI_img, S_list, mask=None):
     return coeffs, residual
 
 
-# =========================
-# Visual aliasing on fine grid
-# =========================
-
-# Choose a high-frequency probe (cycles / pupil diameter)
-k_probe = 2.0   # adjust; for D_cs=4 (diameter), passband edge ~ 2 c/pd (radius)
-theta_probe = 0.0
-
-phi_probe = make_fourier_probe(X, Y, P, k_cyc_per_diam=k_probe, theta_deg=theta_probe)
-
-# (1) No cold stop (very large diameter ⇒ effectively pass all)
-P1, I1 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=1e6, padding=6)
-P0, I0 = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=1e6, padding=6)
-dI_nostop = I1 - I0
-
-# (2) Tight cold stop: D_cs = 4 λ/D (diameter)
-D_cs_tight = 4.0
-P2, I2 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs_tight, padding=6)
-_,   I0cs = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs_tight, padding=6)
-dI_stop = I2 - I0cs
-
-# Plot side-by-side to visually see smoothing/low-order-looking pattern
-util.nice_heatmap_subplots(
-    im_list=[dI_nostop, dI_stop],
-    title_list=[fr'$\Delta I$ (no stop, $k={k_probe}$ c/pd)', fr'$\Delta I$ (cold stop $D_{{cs}}={D_cs_tight}\,\lambda/D$)'],
-    cbar_label_list=['arb.', 'arb.'],
-    fontsize=14, cbar_orientation='bottom', axis_off=True, vlims=None, savefig=None
-)
-plt.show()
-
-
-# =========================
-# Quantify mixing into low orders (fine grid)
-# =========================
-
-low_order = pick_low_order_zernikes(basis, P, noll_indices=(2,3,4,5,6))  # TT, TT, Defocus, Astig±
-
-# Build sensing matrices for "no stop" and "tight stop"
-P0_n, I0_n, S_nostop = build_sensing_matrix(low_order, coldstop_diam_lamOverD=1e6, padding=6)
-P0_s, I0_s, S_stop   = build_sensing_matrix(low_order, coldstop_diam_lamOverD=D_cs_tight, padding=6)
-
-# Fit coefficients
-c_nostop, r_nostop = fit_low_order_coeffs(dI_nostop, S_nostop, mask=np.abs(P0_n)>0)
-c_stop,   r_stop   = fit_low_order_coeffs(dI_stop,   S_stop,   mask=np.abs(P0_s)>0)
-
-print("Low-order leakage (no stop):    coeffs =", np.round(c_nostop,3), "  residual =", np.round(r_nostop,3))
-print("Low-order leakage (tight stop): coeffs =", np.round(c_stop,3),   "  residual =", np.round(r_stop,3))
-
-
-# =========================
-# Detector-mapped visuals (pixel aliasing view)
-# =========================
-
-# Case (a): D_cs = 4 λ/D, 6-pixel pupil diameter
-I_det_a = bin_to_detector(P2, dI_stop, pupil_pixels_diam=6)
-
-# Case (b): D_cs = 8 λ/D, 12-pixel pupil diameter
-D_cs_wider = 8.0
-P3, I3 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs_wider, padding=6)
-_,  I0w = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs_wider, padding=6)
-dI_wide = I3 - I0w
-I_det_b = bin_to_detector(P3, dI_wide, pupil_pixels_diam=12)
-
-util.nice_heatmap_subplots(
-    im_list=[phi_probe,I_det_a, I_det_b],
-    title_list=['probe',r'(a) $\Delta I$ on detector: $D_{cs}=4$, $M=6$ px/diam',
-                r'(b) $\Delta I$ on detector: $D_{cs}=8$, $M=12$ px/diam'],
-    cbar_label_list=['arb','arb.','arb.'],
-    fontsize=14, cbar_orientation='bottom', axis_off=True, vlims=None, savefig=None
-)
-plt.show()
-
-
-# =========================
-# Convergence test
-# =========================
-
-probe_list = [(2.0, 0.0), (2.0, 45.0)]  # (k,theta) pairs
-D_list     = [4.0, 8.0]                 # cold-stop diameters to test
-pads       = [4, 6, 8]
-
-for D_cs in D_list:
-    print(f"\n=== Convergence for D_cs = {D_cs} λ/D ===")
-    for pad in pads:
-        # recompute dI for this padding
-        phi_probe = make_fourier_probe(X, Y, P, k_cyc_per_diam=2.0, theta_deg=0.0)
-        P0, I0 = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs, padding=pad)
-        _,  I1 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs, padding=pad)
-        dI = I1 - I0
-
-        # low-order sensing with same padding
-        low_order = pick_low_order_zernikes(basis, P, noll_indices=(2,3,4,5,6))
-        _, _, S   = build_sensing_matrix(low_order, coldstop_diam_lamOverD=D_cs, padding=pad)
-
-        c, r = fit_low_order_coeffs(dI, S, mask=np.abs(P0)>0)
-        print(f" padding={pad}: coeffs={np.round(c,3)}, residual={np.round(r,3)}")
-
-
-
-
-# ============================================================
-# 2nd-stage AO aliasing demo:
-# High-fidelity phase screen -> remove first 14 Zernikes (incl. TT)
-# Measure aliased Tip/Tilt vs cold-stop diameter
-# at 6 px/diam and 12 px/diam detector samplings.
-# ============================================================
-
-# ---------- utilities from the earlier message ----------
-def unit_rms(arr, mask):
-    arr = arr.copy()
-    arr -= arr[mask].mean()
-    rms = np.sqrt((arr[mask]**2).mean()) + 1e-12
-    return arr / rms
-
-def zwfs_intensity(phi, coldstop_diam_lamOverD, padding=6, phaseshift=None):
-    P_, Ic_ = util.get_theoretical_reference_pupils_with_aber(
-        wavelength = wvl,
-        F_number = F_number,
-        mask_diam = mask_diam,
-        coldstop_diam = coldstop_diam_lamOverD,  # DIAMETER in λ/D
-        coldstop_misalign = [0,0],
-        eta = eta,
-        phi = phi,
-        diameter_in_angular_units = True,
-        get_individual_terms = False,
-        phaseshift = phaseshift if phaseshift is not None 
-                         else util.get_phasemask_phaseshift(wvl=wvl, depth=phasemask_parameters[mask]['depth'], dot_material='N_1405'),
-        padding_factor = 6,
-        debug = False,
-        analytic_solution = False
-    )
-    return P_, Ic_
-
-# def bin_to_detector(P_amp, I_fine, pupil_pixels_diam=12):
-#     Mfine, Nfine = I_fine.shape
-#     m = n = 3 * pupil_pixels_diam
-#     x_c = y_c = m//2
-#     new_radius = pupil_pixels_diam // 2
-#     I_det = util.interpolate_pupil_to_measurement(np.abs(P_amp), np.abs(I_fine),
-#                                                   Mfine, Nfine, m, n, x_c, y_c, new_radius)
-#     return I_det
-
-def bin_block_divisible(I_fine, pupil_center, pupil_radius_pixels, M, mode='mean'):
-    """
-    Block-average/sum onto an MxM detector, assuming fine pupil diameter is
-    an integer multiple of M (i.e., 2*r % M == 0).
-    """
-    cx, cy = pupil_center
-    r  = int(round(pupil_radius_pixels))
-    Df = 2*r                      # fine-grid pupil diameter in px
-    assert Df % M == 0, "Use this only when 2*r is divisible by M."
-    k = Df // M                   # reduction factor per axis
-
-    # Crop a tight square around the pupil
-    x0, x1 = cx - r, cx + r
-    y0, y1 = cy - r, cy + r
-    I_crop = I_fine[y0:y1, x0:x1]           # shape (Df, Df)
-
-    # Block reduce: (M, k, M, k) -> (M, M)
-    I_blocks = I_crop.reshape(M, k, M, k).swapaxes(1,2)  # (M, M, k, k)
-    if mode == 'mean':
-        I_det = I_blocks.mean(axis=(2,3))   # area-average (recommended)
-    elif mode == 'sum':
-        I_det = I_blocks.sum(axis=(2,3))    # photon-sum (scales with k^2)
-    else:
-        raise ValueError("mode must be 'mean' or 'sum'")
-    return I_det
 
 def fit_coeffs_against_columns(img, cols, mask=None):
     if mask is None:
@@ -584,6 +441,176 @@ def sweep_tt_aliasing_vs_stop(N_fine=513, coldstop_list=(3,4,5,6,7,8,9,10), pupi
 
     return results, phi_raw, phi_ho
 
+
+
+def response_matrix_for_stop(Dcs, mode_indices, Zbasis, Pmask, Mdet, probe_amp_rad=0.5):
+    """
+    For a given cold stop and detector sampling, probe each mode at probe_amp_rad and
+    reconstruct onto all modes; return the response matrix R (n_modes x n_modes).
+    """
+    # detector-space sensing columns for unit-RMS modes
+    S_det, I0_det, P_amp = build_detector_sensing(Dcs, mode_indices, Zbasis, Pmask, Mdet)
+    n_modes = len(mode_indices)
+
+    # Flatten columns into matrix A
+    mask_det = np.isfinite(I0_det)   # all pixels valid; you can also mask pupil pixels only
+    A = np.stack([S[mask_det].ravel() for S in S_det], axis=1)  # [Npix, n_modes]
+    # Precompute normal equations inverse
+    AtA = A.T @ A + 1e-12*np.eye(n_modes)
+    AtA_inv = np.linalg.inv(AtA)
+    At_ = A.T
+
+    # Build the response matrix
+    R = np.zeros((n_modes, n_modes), float)  # rows: reconstructed j, cols: input i
+
+    for col_i, idx in enumerate(mode_indices):
+        # probe i at amplitude (rad RMS)
+        Z = unit_rms(np.nan_to_num(Zbasis[idx]) * Pmask, Pmask)
+        phi_i = probe_amp_rad * Z
+        _, Ii = zwfs_intensity(phi=phi_i, coldstop_diam_lamOverD=Dcs, padding=6)
+        dI_fine = Ii - (I0_det*0 + Ii*0)  # placeholder to reuse variable names
+        # re-generate ref on fine grid to compute delta properly (avoid numerical drift)
+        _, I0_fine = zwfs_intensity(phi=np.zeros_like(Pmask,float), coldstop_diam_lamOverD=Dcs, padding=6)
+        dI_fine = Ii - I0_fine
+        # bin to detector
+        dI_det = bin_to_detector( P_amp,dI_fine, Mdet)
+
+        y = dI_det[mask_det].ravel()
+        c_hat = AtA_inv @ (At_ @ y)   # LS coefficients, units = rad RMS (since sensing cols are for 1 rad RMS)
+        R[:, col_i] = (c_hat / probe_amp_rad)  # normalize so ideal diag≈1
+    return R
+
+
+def build_detector_sensing(Dcs, mode_indices, Zbasis, Pmask, Mdet):
+    """
+    Returns:
+      S_det  : list of detector-space sensing images S_j = I(phi_j) - I(0) for unit-RMS phase (rad)
+      I0_det : detector-space reference intensity
+      P_amp  : fine-grid amplitude (for binning)
+    """
+    # reference on fine grid
+    P_amp, I0 = zwfs_intensity(phi=np.zeros_like(Pmask, float), coldstop_diam_lamOverD=Dcs, padding=6)
+
+    # bin reference once
+    I0_det = bin_to_detector(P_amp,I0,  Mdet)
+
+    S_det = []
+    for idx in mode_indices:
+        Z = unit_rms(np.nan_to_num(Zbasis[idx]) * Pmask, Pmask)         # 1 rad RMS mode
+        _, Ij = zwfs_intensity(phi=Z, coldstop_diam_lamOverD=Dcs, padding=6)
+        Sj = Ij - I0
+        Sj_det = bin_to_detector( P_amp, Sj, Mdet)
+        S_det.append(Sj_det)
+    return S_det, I0_det, P_amp
+
+# =========================
+# Visual aliasing on fine grid
+# =========================
+
+# Choose a high-frequency probe (cycles / pupil diameter)
+k_probe = 2.0   # adjust; for D_cs=4 (diameter), passband edge ~ 2 c/pd (radius)
+theta_probe = 0.0
+
+phi_probe = make_fourier_probe(X, Y, P, k_cyc_per_diam=k_probe, theta_deg=theta_probe)
+
+# (1) No cold stop (very large diameter ⇒ effectively pass all)
+P1, I1 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=1e6, padding=6)
+P0, I0 = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=1e6, padding=6)
+dI_nostop = I1 - I0
+
+# (2) Tight cold stop: D_cs = 4 λ/D (diameter)
+D_cs_tight = 4.0
+P2, I2 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs_tight, padding=6)
+_,   I0cs = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs_tight, padding=6)
+dI_stop = I2 - I0cs
+
+# Plot side-by-side to visually see smoothing/low-order-looking pattern
+util.nice_heatmap_subplots(
+    im_list=[dI_nostop, dI_stop],
+    title_list=[fr'$\Delta I$ (no stop, $k={k_probe}$ c/pd)', fr'$\Delta I$ (cold stop $D_{{cs}}={D_cs_tight}\,\lambda/D$)'],
+    cbar_label_list=['arb.', 'arb.'],
+    fontsize=14, cbar_orientation='bottom', axis_off=True, vlims=None, savefig=None
+)
+plt.show()
+
+
+# =========================
+# Quantify mixing into low orders (fine grid)
+# =========================
+
+low_order = pick_low_order_zernikes(basis, P, noll_indices=(2,3,4,5,6))  # TT, TT, Defocus, Astig±
+
+# Build sensing matrices for "no stop" and "tight stop"
+P0_n, I0_n, S_nostop = build_sensing_matrix(low_order, coldstop_diam_lamOverD=1e6, padding=6)
+P0_s, I0_s, S_stop   = build_sensing_matrix(low_order, coldstop_diam_lamOverD=D_cs_tight, padding=6)
+
+# Fit coefficients
+c_nostop, r_nostop = fit_low_order_coeffs(dI_nostop, S_nostop, mask=np.abs(P0_n)>0)
+c_stop,   r_stop   = fit_low_order_coeffs(dI_stop,   S_stop,   mask=np.abs(P0_s)>0)
+
+print("Low-order leakage (no stop):    coeffs =", np.round(c_nostop,3), "  residual =", np.round(r_nostop,3))
+print("Low-order leakage (tight stop): coeffs =", np.round(c_stop,3),   "  residual =", np.round(r_stop,3))
+
+
+# =========================
+# Detector-mapped visuals (pixel aliasing view)
+# =========================
+
+# Case (a): D_cs = 4 λ/D, 6-pixel pupil diameter
+I_det_a = bin_to_detector(P2, dI_stop, pupil_pixels_diam=6)
+
+# Case (b): D_cs = 8 λ/D, 12-pixel pupil diameter
+D_cs_wider = 8.0
+P3, I3 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs_wider, padding=6)
+_,  I0w = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs_wider, padding=6)
+dI_wide = I3 - I0w
+I_det_b = bin_to_detector(P3, dI_wide, pupil_pixels_diam=12)
+
+util.nice_heatmap_subplots(
+    im_list=[phi_probe,I_det_a, I_det_b],
+    title_list=['probe',r'(a) $\Delta I$ on detector: $D_{cs}=4$, $M=6$ px/diam',
+                r'(b) $\Delta I$ on detector: $D_{cs}=8$, $M=12$ px/diam'],
+    cbar_label_list=['arb','arb.','arb.'],
+    fontsize=14, cbar_orientation='bottom', axis_off=True, vlims=None, savefig=None
+)
+plt.show()
+
+
+# =========================
+# Convergence test
+# =========================
+
+probe_list = [(2.0, 0.0), (2.0, 45.0)]  # (k,theta) pairs
+D_list     = [4.0, 8.0]                 # cold-stop diameters to test
+pads       = [4, 6, 8]
+
+for D_cs in D_list:
+    print(f"\n=== Convergence for D_cs = {D_cs} λ/D ===")
+    for pad in pads:
+        # recompute dI for this padding
+        phi_probe = make_fourier_probe(X, Y, P, k_cyc_per_diam=2.0, theta_deg=0.0)
+        P0, I0 = zwfs_intensity(phi=np.zeros_like(phi_probe), coldstop_diam_lamOverD=D_cs, padding=pad)
+        _,  I1 = zwfs_intensity(phi=phi_probe, coldstop_diam_lamOverD=D_cs, padding=pad)
+        dI = I1 - I0
+
+        # low-order sensing with same padding
+        low_order = pick_low_order_zernikes(basis, P, noll_indices=(2,3,4,5,6))
+        _, _, S   = build_sensing_matrix(low_order, coldstop_diam_lamOverD=D_cs, padding=pad)
+
+        c, r = fit_low_order_coeffs(dI, S, mask=np.abs(P0)>0)
+        print(f" padding={pad}: coeffs={np.round(c,3)}, residual={np.round(r,3)}")
+
+
+
+
+# ============================================================
+# 2nd-stage AO aliasing demo:
+# High-fidelity phase screen -> remove first 14 Zernikes (incl. TT)
+# Measure aliased Tip/Tilt vs cold-stop diameter
+# at 6 px/diam and 12 px/diam detector samplings.
+# ============================================================
+
+
 # ---------- 5) Run sweep and plot ----------
 coldstop_list = np.arange(1.0, 10.0, 2.0)  # DIAMETERS in λ/D to test
 results, phi_raw, phi_ho = sweep_tt_aliasing_vs_stop(N_fine=N, coldstop_list=coldstop_list, pupil_px_opts=(6,12),noll_indices_remove=list(range(2,16)), scaling_factor=0.1)
@@ -658,6 +685,461 @@ util.nice_heatmap_subplots(
     fontsize=13, cbar_orientation='bottom', axis_off=True, vlims=None, savefig=None
 )
 plt.show()
+
+
+
+######################################################################
+######################################################################
+### COVARIANCE OF MODAL LEAKAGE 
+######################################################################
+######################################################################
+# ============================================================
+# Mode–mode covariance / cross-talk demo (uses your helpers)
+# - Builds response matrices R for a list of cold-stop diameters
+# - Plots heatmaps of R
+# - Plots a scalar aliasing index vs cold-stop
+#
+# EXPECTED IN SCOPE (already defined by you earlier):
+#   - build_detector_sensing(Dcs, mode_indices, Zbasis, Pmask, Mdet)
+#   - response_matrix_for_stop(Dcs, mode_indices, Zbasis, Pmask, Mdet, probe_amp_rad=0.5)
+#   - bin_to_detector_mean(I_fine, P_amp, M)
+#   - unit_rms(...), zwfs_intensity(...), dmbasis.zernike_basis(...)
+#   - fine grid size N (or pass Nfine explicitly)
+# ============================================================
+
+
+def run_covariance_demo(
+        coldstop_list=(3,5,7,9),         # λ/D (diameters)
+        mode_indices=list(range(1,21)),   # Noll 2..21 (exclude piston=0)
+        Mdet_list=(6,12),                 # pixels across pupil diameter
+        probe_amp_rad=0.5,
+        Nfine=None):
+    """
+    Returns:
+      Rs: dict[Mdet][Dcs] -> response matrix R (n_modes x n_modes), rows=reconstructed, cols=input
+      alias_idx: dict[Mdet] -> list of (Dcs, A_i array per input mode, mean(A_i))
+                 where A_i = off-diagonal energy fraction for column i
+    """
+    # ---- Fine grid & pupil mask
+    if Nfine is None:
+        # fall back to your existing fine grid 'N' if available
+        try:
+            Nfine = N
+        except NameError:
+            raise ValueError("Provide Nfine or define global N (fine grid size).")
+    x = np.linspace(-1, 1, Nfine)
+    X, Y = np.meshgrid(x, x, indexing='xy')
+    Pmask = (X**2 + Y**2) <= 1
+
+    # ---- Zernikes on fine grid (only once)
+    Zbasis = dmbasis.zernike_basis(nterms=max(mode_indices)+1, npix=Nfine, rho=None, theta=None)
+    Zbasis = [np.nan_to_num(z) for z in Zbasis]
+
+    # ---- Storage
+    Rs = {Mdet: {} for Mdet in Mdet_list}
+    alias_idx = {Mdet: [] for Mdet in Mdet_list}
+
+    # ---- Build response matrices
+    for Mdet in Mdet_list:
+        for Dcs in coldstop_list:
+            # NOTE: response_matrix_for_stop() already includes the fix:
+            # ΔI computed on fine grid (Ii - I0_fine) THEN binned.
+            R = response_matrix_for_stop(
+                    Dcs=Dcs,
+                    mode_indices=mode_indices,
+                    Zbasis=Zbasis,
+                    Pmask=Pmask,
+                    Mdet=Mdet,
+                    probe_amp_rad=probe_amp_rad
+                )
+            Rs[Mdet][Dcs] = R
+
+            # Aliasing index per input mode i (off-diagonal energy fraction)
+            Ai = []
+            for i in range(len(mode_indices)):
+                col = R[:, i]
+                num = np.sum(col**2) - col[i]**2
+                den = np.sum(col**2) + 1e-16
+                Ai.append(num/den)
+            alias_idx[Mdet].append((Dcs, np.array(Ai), float(np.mean(Ai))))
+
+    # ---- Plot heatmaps (rows = Mdet, cols = Dcs) ----
+    nD = len(coldstop_list)
+    fig, axs = plt.subplots(len(Mdet_list), nD, figsize=(3.6*nD, 3.6*len(Mdet_list)), squeeze=False)
+    for r, Mdet in enumerate(Mdet_list):
+        for c, Dcs in enumerate(coldstop_list):
+            R = Rs[Mdet][Dcs]
+            im = axs[r, c].imshow(R, vmin=-1.0, vmax=1.0, cmap='coolwarm')
+            axs[r, c].set_title(f"M={Mdet} px/diam,  Dcs={Dcs:.1f} λ/D")
+            axs[r, c].set_xlabel("Input mode (Noll)")
+            if c == 0:
+                axs[r, c].set_ylabel("Reconstructed mode (Noll)")
+            # Light labeling every few modes
+            ticks = list(range(0, len(mode_indices), max(1, len(mode_indices)//5)))
+            axs[r, c].set_xticks(ticks)
+            axs[r, c].set_yticks(ticks)
+            axs[r, c].set_xticklabels([mode_indices[t] for t in ticks])
+            axs[r, c].set_yticklabels([mode_indices[t] for t in ticks])
+    cbar = fig.colorbar(im, ax=axs, shrink=0.9, label=r"Response $R_{ji}$ (norm. by input; ideal diag ≈ 1)")
+    fig.suptitle("Mode–mode response / cross-talk matrices", y=0.995)
+    plt.tight_layout()
+    plt.show()
+
+    # ---- Plot scalar aliasing index vs Dcs ----
+    plt.figure(figsize=(6.4, 4.2))
+    for Mdet in Mdet_list:
+        Dcs_vals = [d for (d, _, _) in alias_idx[Mdet]]
+        mean_A = [m for (_, _, m) in alias_idx[Mdet]]
+        plt.plot(Dcs_vals, mean_A, marker='o', label=f"{Mdet} px/diam")
+    plt.xlabel(r"Cold-stop diameter $D_{\rm cs}$ [$\lambda/D$]")
+    plt.ylabel(r"Mean aliasing index $\langle A_i\rangle$ (off-diagonal energy fraction)")
+    plt.ylim(0, 1); plt.grid(True, alpha=0.3); plt.legend()
+    plt.tight_layout(); plt.show()
+
+    return Rs, alias_idx
+
+# ===== Example call =====
+# First 20 non-piston Zernikes, Dcs = 3,5,7,9 λ/D, probe 0.5 rad RMS, M = 6 & 12 px/diam
+Rs, alias_idx = run_covariance_demo(
+    coldstop_list=(3, 5, 7, 9),
+    mode_indices=list(range(1, 21)),  # Noll 2..21
+    Mdet_list=(6, 12),
+    probe_amp_rad=0.5,
+    Nfine=N,  # reuse your fine grid
+)
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# --- Helpers you likely already have ---
+def unit_rms(arr, mask):
+    arr = np.nan_to_num(arr.copy())
+    arr -= arr[mask].mean()
+    rms = np.sqrt((arr[mask]**2).mean()) + 1e-16
+    return arr / rms
+
+def make_fourier_probe(N, cycles_per_diam=0.95, theta=0.0, pupil_mask=None, amp_rad=0.3):
+    """
+    φ(r) = amp_rad * cos(2π k ⋅ r), where |k| = cycles_per_diam (cycles per pupil diameter)
+    The grid x,y span [-1,1], so 1 cycle/diam means one cosine period across the diameter.
+    """
+    x = np.linspace(-1, 1, N)
+    X, Y = np.meshgrid(x, x, indexing="xy")
+    kx = cycles_per_diam * np.cos(theta)
+    ky = cycles_per_diam * np.sin(theta)
+    phi = amp_rad * np.cos(2*np.pi*(kx*X + ky*Y))
+    if pupil_mask is not None:
+        phi *= pupil_mask
+    return phi
+
+def even_odd_decompose(img):
+    # even(r) = (I(r)+I(-r))/2; odd(r) = (I(r)-I(-r))/2. Use array flips to approximate I(-r).
+    even = 0.5*(img + np.flipud(np.fliplr(img)))
+    odd  = 0.5*(img - np.flipud(np.fliplr(img)))
+    return even, odd
+
+def build_TT_sensing_detector(Dcs, Zbasis, Pmask, Mdet):
+    Zx = unit_rms(np.nan_to_num(Zbasis[1])*Pmask, Pmask)  # Z2: tip (x)
+    Zy = unit_rms(np.nan_to_num(Zbasis[2])*Pmask, Pmask)  # Z3: tilt (y)
+    # Reference (fine)
+    P_amp, I0_fine = zwfs_intensity(phi=np.zeros_like(Pmask), coldstop_diam_lamOverD=Dcs, padding=6)
+    # TT differentials (fine)
+    _, Ix = zwfs_intensity(phi=Zx, coldstop_diam_lamOverD=Dcs, padding=6)
+    _, Iy = zwfs_intensity(phi=Zy, coldstop_diam_lamOverD=Dcs, padding=6)
+    dIx_det = bin_to_detector(P_amp, Ix - I0_fine, Mdet)
+    dIy_det = bin_to_detector(P_amp, Iy - I0_fine, Mdet)
+    I0_det  = bin_to_detector(P_amp, I0_fine, Mdet)
+    mask_det = np.isfinite(I0_det)
+    A = np.stack([dIx_det[mask_det].ravel(), dIy_det[mask_det].ravel()], axis=1)
+    AtA_inv = np.linalg.inv(A.T @ A + 1e-12*np.eye(2))
+    At_ = A.T
+    return (dIx_det, dIy_det), I0_det, mask_det, A, AtA_inv, At_
+
+
+def _radial_profile(img, x, y, nbins=200):
+    R = np.sqrt(x**2 + y**2)
+    rmax = R.max()
+    edges = np.linspace(0, rmax, nbins+1)
+    centers = 0.5*(edges[:-1] + edges[1:])
+    prof = np.zeros(nbins)
+    for i in range(nbins):
+        m = (R>=edges[i]) & (R<edges[i+1])
+        prof[i] = img[m].mean() if np.any(m) else 0.0
+    return centers, prof
+
+def psf_crop_with_stop_calibrated(E_pupil, Dcs, pad_factor=8,
+                                  samples_across_cs=254, margin_frac=0.15):
+    """
+    High-res PSF near the cold stop, with axes correctly in cycles/pupil diameter
+    using self-calibration to the first Airy zero.
+    Returns: I_crop_hi, extent_crop (cycles/diam), Rcs_plot (cycles/diam)
+    """
+    N = E_pupil.shape[0]
+    Np = int(pad_factor * N)
+
+    # Zero-pad pupil
+    Epad = np.zeros((Np, Np), dtype=complex)
+    off = (Np - N) // 2
+    Epad[off:off+N, off:off+N] = E_pupil
+
+    # FFT → focal plane
+    F = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(Epad)))
+    Iimg = (np.abs(F)**2)
+
+    # "Raw" frequency axes (some arbitrary units if dx is not perfect)
+    dx = 2.0 / Np
+    fx_raw = np.fft.fftshift(np.fft.fftfreq(Np, d=dx))
+    fy_raw = np.fft.fftshift(np.fft.fftfreq(Np, d=dx))
+    FX, FY = np.meshgrid(fx_raw, fy_raw, indexing='xy')
+
+    # --- Self-calibrate to 1.22 λ/D using a clear circular pupil ---
+    # Recompute Iimg0 from a clear pupil of same support to avoid phase effects
+    P = np.zeros_like(Epad, dtype=float)
+    yy, xx = np.indices((Np, Np))
+    cy = cx = Np//2
+    r = N/2.0   # outer radius in fine pixels
+    P[(xx-cx)**2 + (yy-cy)**2 <= r**2] = 1.0
+
+    F0 = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(P)))
+    I0 = (np.abs(F0)**2)
+    kr, prof = _radial_profile(I0, FX, FY, nbins=400)
+
+    # find first minimum beyond the peak
+    i_peak = np.argmax(prof)
+    i_null = i_peak + 1 + np.argmin(prof[i_peak+1:i_peak+80])  # search in a reasonable window
+    xi_meas = kr[i_null] if i_null < len(kr) else kr[-1]
+
+    # scale factor to true cycles/diam
+    s = 1.22 / (xi_meas + 1e-16)
+    fx = fx_raw * s
+    fy = fy_raw * s
+
+    # Crop around the cold stop (now in true cycles/diam)
+    Rcs_plot = Dcs / 2.0
+    Rwin = (1.0 + margin_frac) * Rcs_plot
+    ix_min = np.searchsorted(fx, -Rwin, side='left')
+    ix_max = np.searchsorted(fx,  Rwin, side='right')
+    iy_min = np.searchsorted(fy, -Rwin, side='left')
+    iy_max = np.searchsorted(fy,  Rwin, side='right')
+
+    I_crop = Iimg[iy_min:iy_max, ix_min:ix_max]
+    fx_crop = fx[ix_min:ix_max]
+    fy_crop = fy[iy_min:iy_max]
+
+    # Resample so the stop DIAMETER ~ samples_across_cs
+    # count pixels inside [-Rcs,Rcs] along fx_crop
+    pix_per_diam_now = np.sum((fx_crop >= -Rcs_plot) & (fx_crop <= Rcs_plot)) - 1
+    pix_per_diam_now = max(int(pix_per_diam_now), 1)
+    zoom_factor = samples_across_cs / float(pix_per_diam_now)
+    I_crop_hi = zoom(I_crop, zoom_factor, order=1)
+
+    # Extent in cycles/diam (world coords unchanged by zoom)
+    extent_crop = [fx_crop[0], fx_crop[-1], fy_crop[0], fy_crop[-1]]
+
+    return I_crop_hi, extent_crop, Rcs_plot
+
+# def _psf_with_extent(E_pupil):
+#     """
+#     FFT-based focal-plane intensity and an extent so axes are in cycles/pupil-diameter.
+#     Assumes the pupil grid spans [-1,1] in each dimension.
+#     """
+#     N = E_pupil.shape[0]
+#     # Focal-plane complex field (no scaling constants needed for visualization)
+#     F = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(E_pupil)))
+#     Iimg = np.abs(F)**2
+
+#     # Build frequency axes in cycles per pupil diameter
+#     # Grid spacing in pupil coords is dx = 2/N (because x in [-1,1])
+#     dx = 2.0 / N
+#     fx = np.fft.fftshift(np.fft.fftfreq(N, d=dx))  # cycles/diam
+#     fy = np.fft.fftshift(np.fft.fftfreq(N, d=dx))
+#     # imshow extent = [xmin, xmax, ymin, ymax]; we want cycles/diam units
+#     extent = [fx.min(), fx.max(), fy.min(), fy.max()]
+#     return Iimg, extent
+
+
+# --- Storyboard function ---
+def storyboard_cutoff(
+    N, wvl, F_number, mask_diam, eta, phasemask_parameters, #mask_key,
+    cycles_per_diam=0.95, theta=0.0, amp_rad=0.3,
+    Dcs_list=(3.0,), misalign_list=([0,0], [0.2,0.0]), Mdet=12
+):
+    # Pupil mask & Zernikes
+    x = np.linspace(-1, 1, N)
+    X, Y = np.meshgrid(x, x, indexing='xy')
+    Pmask = (X**2 + Y**2) <= 1
+    Zbasis = dmbasis.zernike_basis(nterms=20, npix=N, rho=None, theta=None)
+    Zbasis = [np.nan_to_num(z) for z in Zbasis]
+
+    # Phase probe near cutoff
+    phi = make_fourier_probe(N, cycles_per_diam, theta, pupil_mask=Pmask, amp_rad=amp_rad)
+
+    # Reference ZWFS (no stop) → ΔI_C on fine grid
+    P0, I0C = zwfs_intensity(phi=np.zeros_like(Pmask), coldstop_diam_lamOverD=1e6, padding=6)  # effectively no stop
+    _,    IC = zwfs_intensity(phi=phi,                coldstop_diam_lamOverD=1e6, padding=6)
+    dI_C = IC - I0C
+
+    # Entrance-pupil field (proxy to show speckles at ±k)
+    E_A = Pmask * np.exp(1j*phi)
+
+
+
+
+    for r, Dcs in enumerate(Dcs_list):
+        
+        for misalign in misalign_list:
+            #pass  # (kept for clarity; misalign entered below via util)
+            fig, axs = plt.subplots(len(Dcs_list), 5, figsize=(15, 3.2*len(Dcs_list)), squeeze=False)
+            # With stop (aligned)
+            P_al, I0_al = zwfs_intensity(phi=np.zeros_like(Pmask), coldstop_diam_lamOverD=Dcs, padding=6, coldstop_misalign=misalign)
+            _,     I_al = zwfs_intensity(phi=phi,                coldstop_diam_lamOverD=Dcs, padding=6,coldstop_misalign=misalign)
+            dI_al = I_al - I0_al
+
+            # With stop (misaligned) — change the misalign by calling util directly once if you prefer.
+            # If your wrapper cannot pass misalign, skip this block or run a second util.get_theoretical... call.
+            # Here we illustrate "misalign" by reusing same call and noting in the caption.
+
+            # High-res PSF crop around cold stop, with ~254 px across the diameter
+            PSF_crop, extent_crop, Rcs = psf_crop_with_stop_calibrated(
+                E_A, Dcs,
+                pad_factor=8,
+                samples_across_cs=254,
+                margin_frac=0.20
+            )
+
+            
+            # Even/odd (aligned)
+            even_al, odd_al = even_odd_decompose(dI_al)
+
+            # Detector-space TT fit for aligned case
+            (dIx_det, dIy_det), I0_det, mask_det, A, AtA_inv, At_ = build_TT_sensing_detector(Dcs, Zbasis, Pmask, Mdet)
+            dI_al_det = bin_to_detector( P_al,dI_al, Mdet)
+            y = dI_al_det[mask_det].ravel()
+            c_hat = AtA_inv @ (At_ @ y)
+            cTT = np.sqrt(np.sum(c_hat**2))  # [rad RMS]
+
+            # ---- Plot row for this Dcs (aligned storyboard) ----
+            axs[r,0].imshow(dI_C, origin='lower');         axs[r,0].set_title(r"$\Delta I_C$ (no stop)")
+            axs[r,1].imshow(I0_al*0, origin='lower');      axs[r,1].set_axis_off()  # placeholder for focal-plane panel if you have it
+
+            # Focal-plane panel with stop overlay (dashed circle at Rcs)
+            ax = axs[r,1]
+            im = ax.imshow(PSF_crop**0.2, origin='lower', extent=extent_crop, cmap='magma')  # gamma for visibility
+            circ = Circle((0.0, 0.0), radius=Rcs/2, edgecolor='w', linestyle='--', fill=False, linewidth=1.5)
+            ax.add_patch(circ)
+            ax.set_title("Entrance-PSF (cropped) with stop overlay")
+            ax.set_xlabel(r"$\xi_x$ [cycles/diam]"); ax.set_ylabel(r"$\xi_y$ [cycles/diam]")
+            
+            # xi_h = cycles_per_diam
+            # kx = xi_h * np.cos(theta)
+            # ky = xi_h * np.sin(theta)
+            # ax.plot([kx, -kx], [ky, -ky], 'wo', ms=5, mfc='none', mew=1.5)  # ±k markers
+
+
+
+            axs[r,2].imshow(dI_al, origin='lower');        axs[r,2].set_title(rf"$\Delta I_E$ (stop {Dcs:.1f} $\lambda/D$)")
+            axs[r,3].imshow(even_al, origin='lower');      axs[r,3].set_title(r"even($\Delta I_E$)")
+            axs[r,4].imshow(odd_al, origin='lower');       axs[r,4].set_title(f"odd($\\Delta I_E$)\nTT fit ≈ {cTT:.3e} rad")
+
+            for c in range(5):
+                axs[r,c].set_xticks([]); axs[r,c].set_yticks([])
+
+            plt.tight_layout(); plt.show()
+
+storyboard_cutoff(
+    N, wvl, F_number, mask_diam, eta, phasemask_parameters, 
+    cycles_per_diam=4, theta=0.0, amp_rad=0.3,
+    Dcs_list=(4,), misalign_list=([0,0], [1,0.0]), Mdet=12
+)
+
+
+######################################################################
+
+
+def radial_profile(img_fft_abs, kx, ky, nbins=60):
+    """
+    Radial binning of |FFT| (or any image) into nbins from 0..kmax.
+    Returns bin centers (kr), mean values (prof), and counts.
+    """
+    R = np.sqrt(kx**2 + ky**2)
+    kmax = R.max()
+    edges = np.linspace(0, kmax, nbins+1)
+    centers = 0.5*(edges[:-1] + edges[1:])
+    prof = np.zeros(nbins); cnt = np.zeros(nbins)
+    for i in range(nbins):
+        m = (R>=edges[i]) & (R<edges[i+1])
+        cnt[i]  = np.count_nonzero(m)
+        prof[i] = img_fft_abs[m].mean() if cnt[i]>0 else 0.0
+    return centers, prof, cnt
+
+def gain_phase_vs_freq(
+    N=513, cycles_per_diam=0.95, theta=0.0, amp_rad=0.3, Dcs_list=(3,5,7,9)
+):
+    # Grid and pupil
+    x = np.linspace(-1, 1, N)
+    X, Y = np.meshgrid(x, x, indexing='xy')
+    Pmask = (X**2 + Y**2) <= 1
+
+    # Phase probe (use same probe for all stops)
+    phi = make_fourier_probe(N, cycles_per_diam, theta, pupil_mask=Pmask, amp_rad=amp_rad)
+
+    # FFT frequency coords (cycles per diameter because x,y span [-1,1])
+    fx = np.fft.fftfreq(N, d=(2/N))  # spacing in "diameter units" since length is 2
+    fy = np.fft.fftfreq(N, d=(2/N))
+    KX, KY = np.meshgrid(np.fft.fftshift(fx), np.fft.fftshift(fy), indexing='xy')
+
+    # Reference (no stop)
+    _, I0C = zwfs_intensity(phi=np.zeros_like(Pmask), coldstop_diam_lamOverD=1e6,  padding=6)
+    _, IC  = zwfs_intensity(phi=phi,                coldstop_diam_lamOverD=1e6, padding=6)
+    dI_C = IC - I0C
+    F_C  = np.fft.fftshift(np.fft.fft2(dI_C))
+
+    # Prepare plot
+    fig, axs = plt.subplots(1, 2, figsize=(10,4.2))
+
+    for Dcs in Dcs_list:
+        # With stop
+        _, I0E = zwfs_intensity(phi=np.zeros_like(Pmask), coldstop_diam_lamOverD=Dcs, padding=6)
+        _, IE  = zwfs_intensity(phi=phi,                coldstop_diam_lamOverD=Dcs, padding=6)
+        dI_E = IE - I0E
+        F_E  = np.fft.fftshift(np.fft.fft2(dI_E))
+
+        # Radial gain: ||F_E|| / ||F_C||
+        k, magE, _ = radial_profile(np.abs(F_E), KX, KY, nbins=60)
+        _, magC, _ = radial_profile(np.abs(F_C), KX, KY, nbins=60)
+        gain = np.divide(magE, magC + 1e-16)
+
+        # Radial phase rotation: arg(<F_E, F_C>) per ring
+        phase = []
+        edges = np.linspace(0, KX.max(), 61)
+        for i in range(60):
+            m = (np.sqrt(KX**2 + KY**2)>=edges[i]) & (np.sqrt(KX**2 + KY**2)<edges[i+1])
+            num = np.vdot(F_C[m].ravel(), F_E[m].ravel())   # inner product on ring
+            phase.append(np.angle(num))
+        phase = np.array(phase)
+
+        axs[0].plot(k, gain, marker='o', label=fr"$D_{{\rm cs}}={Dcs}\,\lambda/D$")
+        axs[1].plot(k, phase, marker='o', label=fr"$D_{{\rm cs}}={Dcs}\,\lambda/D$")
+
+    axs[0].set_xlabel(r"Spatial frequency [cycles / pupil diam]"); axs[0].set_ylabel("Gain  $g(||)$")
+    axs[1].set_xlabel(r"Spatial frequency  [cycles / pupil diam]"); axs[1].set_ylabel("Phase rotation  $\phi(||)$ [rad]")
+    axs[0].grid(True, alpha=0.3); axs[1].grid(True, alpha=0.3)
+    axs[0].legend(); axs[1].legend()
+    plt.tight_layout(); plt.show()
 
 
 ### END CURRENT 
