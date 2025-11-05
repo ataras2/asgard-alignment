@@ -86,7 +86,7 @@ parser.add_argument(
 parser.add_argument(
     "--beam_id",
     type=lambda s: [int(item) for item in s.split(",")],
-    default=[1],
+    default=[4],
     help="Comma-separated beam IDs to apply. Default: 1,2,3,4"
 )
 
@@ -207,6 +207,43 @@ c.build_manual_dark(no_frames = 200 , build_bad_pixel_mask=True, kwargs={'std_th
 # plt.figure(); plt.imshow( bad_pixel_mask[r1:r2,c1:c2] ) ;plt.savefig('delme.png')
 
 
+
+def apply_flat( beam_list, DM_flat ):
+    print( 'setting up DMs')
+    dm_shm_dict = {}
+    for beam in beam_list:
+        dm_shm_dict[beam] = dmclass( beam_id=beam) 
+        # zero all channels
+        dm_shm_dict[beam].zero_all()
+        
+        if DM_flat.lower() == 'factory':
+            # activate flat (does this on channel 1)
+            dm_shm_dict[beam].activate_flat()
+        elif DM_flat.lower() == 'baldr':
+            # apply dm flat + calibrated offset (does this on channel 1)
+            dm_shm_dict[beam].activate_calibrated_flat()
+
+        elif DM_flat.lower() == 'heim':
+            # not implemented in dmclass .. to do, so do it manually
+            # heim flat is relative to factory flat so they are added 
+            wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"  # os.path.dirname(__file__)
+            flat_cmd = dm_shm_dict[beam].cmd_2_map2D(
+                np.loadtxt(
+                    dm_shm_dict[beam].select_flat_cmd(
+                        wdirtmp
+                    )
+                )
+            )
+            flat_cmd_offset = np.loadtxt(
+                wdirtmp + f"heim_flat_beam_{beam}.txt"
+            )
+            dm_shm_dict[beam].shms[0].set_data(
+                flat_cmd + flat_cmd_offset
+            )
+            
+            dm_shm_dict[beam].shm0.post_sems(1)
+
+
 #---------- DMs
 dm_shm_dict = {}
 for beam_id in args.beam_id:
@@ -218,6 +255,7 @@ for beam_id in args.beam_id:
         dm_shm_dict[beam_id].activate_flat()
     else:
         dm_shm_dict[beam_id].activate_calibrated_flat()
+        apply_flat( [beam_id], DM_flat = 'heim' ) # onksy commissioning heimdallr flat was good starting point
     # apply DM flat offset 
 
 
@@ -495,7 +533,7 @@ plt.savefig(fig_path + f'dm_flat_cal_beam{beam_id}_RMSE.png')
 # seems to work best using experior 
 ib = np.argmax( exterior_sig ) #np.argmin( rmse )
 
-dm_shm_dict[beam_id].set_data( amps[ib] * cc )
+dm_shm_dict[beam_id].set_data( amps[ib] * cc  )
 
 #dm_shm_dict[beam_id].shms[1].set_data( amps[ib] * cc )
 
@@ -504,8 +542,25 @@ if not args.start_with_current_baldr_flat:
     best_baldr_flat_offset = amps[ib] * cc140
 else : # we must also add in the previous DM flat
     # add previous flat we used here 
-    best_baldr_flat_offset_2D =  amps[ib] * cc + dm_shm_dict[beam_id].cmd_2_map2D( dm_shm_dict[beam_id].get_baldr_flat_offset()  )
-    best_baldr_flat_offset = amps[ib] * cc140 + dm_shm_dict[beam_id].get_baldr_flat_offset() 
+
+    ############## IF STARTING WITH HEIMDALLR FLAT 
+    ### if starting with heim flat (exception for first light )
+    
+    #if heim #start with heim flat  
+    wdirtmp = "/home/asg/Progs/repos/asgard-alignment/DMShapes/"  
+    heim_flat_cmd_offset = np.loadtxt(
+        wdirtmp + f"heim_flat_beam_{beam_id}.txt"
+    )
+    begin_flat_offset =heim_flat_cmd_offset  ### this -> doesn work cause include factory flat dm_shm_dict[beam_id].shms[0].get_data()
+    
+    
+    best_baldr_flat_offset_2D =  amps[ib] * cc + begin_flat_offset #dm_shm_dict[beam_id].cmd_2_map2D( dm_shm_dict[beam_id].get_baldr_flat_offset()  )
+    best_baldr_flat_offset = amps[ib] * cc140 + util.convert_12x12_to_140(begin_flat_offset)#dm_shm_dict[beam_id].get_baldr_flat_offset() 
+
+    # else: #with baldr  
+    # best_baldr_flat_offset_2D =  amps[ib] * cc + dm_shm_dict[beam_id].cmd_2_map2D( dm_shm_dict[beam_id].get_baldr_flat_offset()  )
+    # best_baldr_flat_offset = amps[ib] * cc140 + dm_shm_dict[beam_id].get_baldr_flat_offset() 
+
 # savefits 
 # Convert to a dictionary
 
@@ -545,6 +600,7 @@ fits_filename = fig_path + f"flat_dm_beam{beam_id}_mask{args.phasemask}_{tstamp}
 hdul.writeto(fits_filename, overwrite=True)
 
 print(f"Saved FITS file as {fits_filename}")
+
 
 
 

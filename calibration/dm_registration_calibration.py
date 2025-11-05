@@ -276,16 +276,17 @@ dm_shm_dict = {}
 for beam_id in args.beam_id:
     dm_shm_dict[beam_id] = dmclass( beam_id=beam_id )
 
-    # for paranal initially assume correct flat is already on ! 
-    # zero all channels
-    dm_shm_dict[beam_id].zero_all()
-    # activate flat 
-    #dm_shm_dict[beam_id].activate_flat()
-    # apply DM flat offset 
-    if not args.use_baldr_flat:
-        dm_shm_dict[beam_id].activate_flat()
-    else:
-        dm_shm_dict[beam_id].activate_calibrated_flat()
+    ### FOR NOW JUST DO IT FOR WHAT EVER IS ON THE DM 
+    # # for paranal initially assume correct flat is already on ! 
+    # # zero all channels
+    # dm_shm_dict[beam_id].zero_all()
+    # # activate flat 
+    # #dm_shm_dict[beam_id].activate_flat()
+    # # apply DM flat offset 
+    # if not args.use_baldr_flat:
+    #     dm_shm_dict[beam_id].activate_flat()
+    # else:
+    #     dm_shm_dict[beam_id].activate_calibrated_flat()
 
 
 # # try get dark and build bad pixel mask 

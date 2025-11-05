@@ -20,6 +20,8 @@ def move_motors(diff_file, mds_host, mds_port):
     with open(diff_file) as f:
         delta_dict = json.load(f)
 
+    print( f"we are applying the following relative movements:\n {delta_dict}")
+    _ = input("\n proceed? escape program now if not.")
     # Set up ZMQ
     context = zmq.Context()
     mds_socket = context.socket(zmq.REQ)

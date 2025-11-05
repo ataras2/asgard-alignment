@@ -36,9 +36,13 @@ CONNEXIONS = {
     "SRL": 30,
     "SGL": 31,
     "Lower T": 54,
-    "Upper T": 56,
+    # "Upper T": 56, # Old
     "Bench T": 55,
-    "Floor T": 58,
+    # "Floor T": 58, # Old
+    # new mapping: pin 6 on PCB is A3=57
+    # new mapping: pin 8 on PCB is A5=59
+    "Upper T": 57,
+    "Floor T": 59,
     "Kaya": 35,
 }
 
@@ -115,8 +119,8 @@ class Controllino:
             time.sleep(0.1)
             self.turn_on("Lower Kickstart")
 
-            
-            self.turn_on("USB upper power")
+            self.turn_on("USB upper coms power")
+
             self.turn_on("Kaya")
 
             self.turn_on("DM1")
@@ -134,11 +138,12 @@ class Controllino:
             self.turn_off("Lower Kickstart")
             time.sleep(0.1)
             self.modulate("Lower Fan", 128)
+            time.sleep(0.1)
 
-    #            self.set_piezo_dac(0, 2048)
-    #            self.set_piezo_dac(1, 2048)
-    #            self.set_piezo_dac(2, 2048)
-    #            self.set_piezo_dac(3, 2048)
+            self.set_piezo_dac(0, 2048)
+            self.set_piezo_dac(1, 2048)
+            self.set_piezo_dac(2, 2048)
+            self.set_piezo_dac(3, 2048)
 
     def _ensure_device(self, key: str):
         """

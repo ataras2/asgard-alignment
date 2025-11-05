@@ -60,7 +60,7 @@ parser.add_argument("--number_of_frames",
                     default=1000, 
                     help="number of frames to take for dark")
 
-parser.add_argument("--host", type=str, default="localhost", help="Server host")
+parser.add_argument("--host", type=str, default="192.168.100.2", help="Server host")
 parser.add_argument("--port", type=int, default=5555, help="Server port")
 parser.add_argument(
     "--timeout", type=int, default=2000, help="Response timeout in milliseconds"

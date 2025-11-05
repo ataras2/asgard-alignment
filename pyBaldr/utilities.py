@@ -219,6 +219,64 @@ def waffle_mode_2D(n=12):
     W = np.fromfunction(lambda i, j: (-1) ** (i + j), (n, n))
     return W
 
+
+def waffle_mode_2D(n=12, fx_cpa=None, fy_cpa=None, phase=(0.0, 0.0),
+                   binary=True, normalize=False):
+    """
+    Make a 2D waffle/checker pattern with selectable spatial frequency.
+
+    Parameters
+    ----------
+    n : int
+        Grid size (n x n).
+    fx_cpa, fy_cpa : float or None
+        Spatial frequency in cycles-per-pupil (cpa) along x and y.
+        - If None, defaults to alternating-pixel waffle: n/2 cpa.
+        - Example (n=12):
+            fx_cpa=fy_cpa=6  -> classic alternating ± pattern (period 2 px)
+            fx_cpa=fy_cpa=3  -> 3 cycles across the pupil in each axis
+    phase : (float, float)
+        Phase offsets (radians) for x and y cosines.
+    binary : bool
+        If True, return a ±1 checkerboard (sign of the cosine product).
+        If False, return the continuous product cos(...) * cos(...).
+    normalize : bool
+        If not binary:
+          - If True, scale to unit RMS over the grid.
+
+    Returns
+    -------
+    W : (n, n) ndarray
+        Waffle pattern.
+    """
+    # Defaults: classic waffle is Nyquist (alternating pixels): n/2 cpa
+    if fx_cpa is None:
+        fx_cpa = n / 2.0
+    if fy_cpa is None:
+        fy_cpa = fx_cpa
+
+    # Grid (sample at actuator centers)
+    i, j = np.indices((n, n))
+    x = (j + 0.5) / n   # 0..1 across the pupil
+    y = (i + 0.5) / n
+
+    # Continuous 2D cosine "waffle"
+    W = np.cos(2*np.pi*fx_cpa * x + phase[0]) * np.cos(2*np.pi*fy_cpa * y + phase[1])
+
+    if binary:
+        W = np.sign(W)
+        # Avoid zeros if exactly hitting nodes
+        W[W == 0] = 1.0
+        return W
+
+    if normalize:
+        # unit RMS normalization over the grid
+        rms = np.sqrt(np.mean(W**2))
+        if rms > 0:
+            W = W / rms
+    return W
+
+
 def construct_command_basis( basis='Zernike_pinned_edges', number_of_modes = 20, Nx_act_DM = 12, Nx_act_basis = 12, act_offset=(0,0), without_piston=True):
     """
     returns a change of basis matrix M2C to go from modes to DM commands, where columns are the DM command for a given modal basis. e.g. M2C @ [0,1,0,...] would return the DM command for tip on a Zernike basis. Modes are normalized on command space such that <M>=0, <M|M>=1. Therefore these should be added to a flat DM reference if being applied.    
@@ -825,6 +883,239 @@ def get_theoretical_reference_pupils( wavelength = 1.65e-6 ,F_number = 21.2, mas
         Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
     
         return( P, Ic )
+
+
+
+
+def get_theoretical_reference_pupils_with_aber( wavelength = 1.65e-6 ,F_number = 21.2, mask_diam = 1.2, coldstop_diam=None, coldstop_misalign=None, eta=0, phi= None, diameter_in_angular_units = True, get_individual_terms=False, phaseshift = np.pi/2 , padding_factor = 4, debug= True, analytic_solution = True ) :
+    """
+    get theoretical reference pupil intensities of ZWFS with / without phasemask 
+    
+
+    Parameters
+    ----------
+    wavelength : TYPE, optional
+        DESCRIPTION. input wavelength The default is 1.65e-6.
+    F_number : TYPE, optional
+        DESCRIPTION. The default is 21.2.
+    mask_diam : phase dot diameter. TYPE, optional
+            if diameter_in_angular_units=True than this has diffraction limit units ( 1.22 * f * lambda/D )
+            if  diameter_in_angular_units=False than this has physical units (m) determined by F_number and wavelength
+        DESCRIPTION. The default is 1.2.
+    coldstop_diam : diameter in lambda / D of focal plane coldstop
+    coldstop_misalign : alignment offset of the cold stop (in units of image plane pixels)  
+    phi : input phase aberrations (None by default). should be same size as pupil which by default is 2D grid of 2**9+1
+    eta : ratio of secondary obstruction radius (r_2/r_1), where r2 is secondary, r1 is primary. 0 meams no secondary obstruction
+    diameter_in_angular_units : TYPE, optional
+        DESCRIPTION. The default is True.
+    get_individual_terms : Type optional
+        DESCRIPTION : if false (default) with jsut return intensity, otherwise return P^2, abs(M)^2 , phi + mu
+    phaseshift : TYPE, optional
+        DESCRIPTION. phase phase shift imparted on input field (radians). The default is np.pi/2.
+    padding_factor : pad to change the resolution in image plane. TYPE, optional
+        DESCRIPTION. The default is 4.
+    debug : TYPE, optional
+        DESCRIPTION. Do we want to plot some things? The default is True.
+    analytic_solution: TYPE, optional
+        DESCRIPTION. use analytic formula or calculate numerically? The default is True.
+    Returns
+    -------
+    Ic, reference pupil intensity with phasemask in 
+    P, reference pupil intensity with phasemask out 
+
+    """
+    pupil_radius = 1  # Pupil radius in meters
+
+    # Define the grid in the pupil plane
+    N = 2**9+1  # for parity (to not introduce tilt) works better ODD!  # Number of grid points (assumed to be square)
+    L_pupil = 2 * pupil_radius  # Pupil plane size (physical dimension)
+    dx_pupil = L_pupil / N  # Sampling interval in the pupil plane
+    x_pupil = np.linspace(-L_pupil/2, L_pupil/2, N)   # Pupil plane coordinates
+    y_pupil = np.linspace(-L_pupil/2, L_pupil/2, N) 
+    X_pupil, Y_pupil = np.meshgrid(x_pupil, y_pupil)
+    
+    
+
+
+    # Define a circular pupil function
+    pupil = (np.sqrt(X_pupil**2 + Y_pupil**2) > eta*pupil_radius) & (np.sqrt(X_pupil**2 + Y_pupil**2) <= pupil_radius)
+    pupil = pupil.astype( complex )
+    if phi is not None:
+        pupil *= np.exp(1j * phi)
+    else:
+        phi = np.zeros( pupil.shape ) # added aberrations 
+        
+    # Zero padding to increase resolution
+    # Increase the array size by padding (e.g., 4x original size)
+    N_padded = N * padding_factor
+    if (N % 2) != (N_padded % 2):  
+        N_padded += 1  # Adjust to maintain parity
+        
+    pupil_padded = np.zeros((N_padded, N_padded)).astype(complex)
+    #start_idx = (N_padded - N) // 2
+    #pupil_padded[start_idx:start_idx+N, start_idx:start_idx+N] = pupil
+
+    start_idx_x = (N_padded - N) // 2
+    start_idx_y = (N_padded - N) // 2  # Explicitly ensure symmetry
+
+    pupil_padded[start_idx_y:start_idx_y+N, start_idx_x:start_idx_x+N] = pupil
+
+
+    phi_padded = np.zeros((N_padded, N_padded), dtype=float)
+    phi_padded[start_idx_y:start_idx_y+N, start_idx_x:start_idx_x+N] = phi
+
+    # Perform the Fourier transform on the padded array (normalizing for the FFT)
+    #pupil_ft = np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(pupil_padded))) # we do this laters
+    
+    # Compute the Airy disk scaling factor (1.22 * lambda * F)
+    airy_scale = 1.22 * wavelength * F_number
+
+    # Image plane sampling interval (adjusted for padding)
+    #L_image = wavelength * F_number / dx_pupil  # Total size in the image plane
+    #dx_image_padded = L_image / N_padded  # Sampling interval in the image plane with padding
+    
+    dx_image_padded = wavelength * F_number * (N / N_padded)
+    L_image = dx_image_padded * N_padded
+
+    if diameter_in_angular_units:
+        x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale  # Image plane coordinates in Airy units
+        y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) / airy_scale
+    else:
+        x_image_padded = np.linspace(-L_image/2, L_image/2, N_padded)  # Image plane coordinates in Airy units
+        y_image_padded = np.linspace(-L_image/2, L_image/2, N_padded) 
+        
+    X_image_padded, Y_image_padded = np.meshgrid(x_image_padded, y_image_padded)
+
+    if diameter_in_angular_units:
+        mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 2 #4
+    else: 
+        mask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= mask_diam / 2 #4
+
+
+    # --- convert misalignment from wvl/D to your image-plane units ---
+    # ---- cold stop offset: wvl/D -> grid units ----
+    if coldstop_misalign is not None:
+        dx_wvld, dy_wvld = coldstop_misalign
+    else:
+        dx_wvld, dy_wvld = [0.0, 0.0]
+
+    if diameter_in_angular_units:
+        wvld_to_units = 1.0/1.22            # Airy radii per (wvl/D)
+    else:
+        wvld_to_units = F_number * wavelength  # meters per (wvl/D)
+    dx_units = dx_wvld * wvld_to_units
+    dy_units = dy_wvld * wvld_to_units
+
+    if coldstop_diam is not None:
+        if diameter_in_angular_units:
+            cs_radius_units = (coldstop_diam * (1.0/1.22)) / 2.0
+        else:
+            cs_radius_units = (coldstop_diam * (F_number * wavelength)) / 2.0
+        coldmask = (np.hypot(X_image_padded - dx_units, Y_image_padded - dy_units) <= cs_radius_units).astype(float)
+    else:
+        coldmask = np.ones_like(X_image_padded)
+
+
+    # if coldstop_misalign is not None:
+    #     dx_wvld, dy_wvld = coldstop_misalign
+    # else:
+    #     dx_wvld, dy_wvld = [0,0]
+    
+
+    # if diameter_in_angular_units:
+    #     # Your X_image_padded, Y_image_padded are in "Airy radii" units set by:
+    #     # airy_scale = 1.22 * wavelength * F_number
+    #     # 1 (wvl/D) equals (F_number * wavelength) in meters,
+    #     # which is (1 / 1.22) Airy radii on this normalized grid.
+    #     wvld_to_units = 1.0 / 1.22                      # Airy radii per (wvl/D)
+    #     dx_units = dx_wvld * wvld_to_units
+    #     dy_units = dy_wvld * wvld_to_units
+    # else:
+    #     # Your X_image_padded, Y_image_padded are in meters.
+    #     # 1 (wvl/D) = F_number * wavelength  [meters]
+    #     wvld_to_units = F_number * wavelength           # meters per (wvl/D)
+    #     dx_units = dx_wvld * wvld_to_units
+    #     dy_units = dy_wvld * wvld_to_units
+        
+    # # if coldstop_diam is not None:
+    # #     coldmask = np.sqrt(X_image_padded**2 + Y_image_padded**2) <= coldstop_diam / 4
+    # # else:
+    # #     coldmask = np.ones(X_image_padded.shape)
+    # if coldstop_diam is not None: # apply also the cold stop offset 
+    #     coldmask = np.sqrt((X_image_padded-dx_units)**2 + (Y_image_padded-dy_units)**2) <= coldstop_diam / 2 #4
+    # else:
+    #     coldmask = np.ones(X_image_padded.shape)
+
+    pupil_ft = np.fft.fft2(np.fft.ifftshift(pupil_padded))  # Remove outer fftshift
+    pupil_ft = np.fft.fftshift(pupil_ft)  # Shift only once at the end
+
+    psi_B = coldmask * pupil_ft
+                            
+    b = np.fft.fftshift( np.fft.ifft2( mask * psi_B ) ) # we do mask here because really the cold stop is after phase mask in physical system
+
+    
+    if debug: 
+        
+        psf = np.abs(pupil_ft)**2  # Get the PSF by taking the square of the absolute value
+        psf /= np.max(psf)  # Normalize PSF intensity
+        
+        if diameter_in_angular_units:
+            zoom_range = 3  # Number of Airy disk radii to zoom in on
+        else:
+            zoom_range = 3 * airy_scale 
+            
+        extent = (-zoom_range, zoom_range, -zoom_range, zoom_range)
+
+        fig,ax = plt.subplots(1,1)
+        ax.imshow(psf, extent=(x_image_padded.min(), x_image_padded.max(), y_image_padded.min(), y_image_padded.max()), cmap='gray')
+        ax.contour(X_image_padded, Y_image_padded, mask, levels=[0.5], colors='red', linewidths=2, label='phasemask')
+        #ax[1].imshow( mask, extent=(x_image_padded.min(), x_image_padded.max(), y_image_padded.min(), y_image_padded.max()), cmap='gray')
+        #for axx in ax.reshape(-1):
+        #    axx.set_xlim(-zoom_range, zoom_range)
+        #    axx.set_ylim(-zoom_range, zoom_range)
+        ax.set_xlim(-zoom_range, zoom_range)
+        ax.set_ylim(-zoom_range, zoom_range)
+        ax.set_title( 'PSF' )
+        ax.legend() 
+        #ax[1].set_title('phasemask')
+
+
+    
+    # if considering complex b 
+    # beta = np.angle(b) # complex argunment of b 
+    # M = b * (np.exp(1J*theta)-1)**0.5
+    
+    # relabelling
+    theta = phaseshift # rad , 
+    P = pupil_padded.copy() 
+    
+    if analytic_solution :
+        
+        M = abs( b ) * np.sqrt((np.cos(theta)-1)**2 + np.sin(theta)**2)
+        mu = np.angle((np.exp(1J*theta)-1) ) # np.arctan( np.sin(theta)/(np.cos(theta)-1) ) #
+        
+
+        # out formula ----------
+        #if measured_pupil!=None:
+        #    P = measured_pupil / np.mean( P[P > np.mean(P)] ) # normalize by average value in Pupil
+        P = np.abs(pupil_padded).real  # we already dealt with the complex part in this analytic expression which is in phi
+        Ic = ( P**2 + abs(M)**2 + 2* P* abs(M) * np.cos(phi_padded + mu) ) #+ beta)
+        if not get_individual_terms:
+            return( P, Ic )
+        else:
+            return( P, abs(M) , phi+mu )
+    else:
+        
+        # phasemask filter 
+        
+        T_on = 1
+        T_off = 1
+        H = T_off*(1 + (T_on/T_off * np.exp(1j * theta) - 1) * mask  ) 
+        
+        Ic = abs( np.fft.fftshift( np.fft.ifft2( H * psi_B ) ) ) **2 
+    
+        return( P, Ic )
+
 
 
 
