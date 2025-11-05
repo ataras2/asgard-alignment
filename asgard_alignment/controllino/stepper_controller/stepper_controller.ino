@@ -36,7 +36,8 @@ int next_str_ix;  // The next index in the string we're passing (saves passing b
 #define MS3 32
 int current_pos[MAX_MOTORS] = {0,0,0,0,0,0,0,0,0,0,0,0};
 int target_pos[MAX_MOTORS] = {0,0,0,0,0,0,0,0,0,0,0,0};
-int zero_pins[MAX_MOTORS] = {20,21,22,23,16,17,18,19,3,2,1,0};
+int zero_pins[MAX_MOTORS] = {21,20,23,22,17,16,19,18,2,3,0,1};
+int last_zero[MAX_MOTORS];
 int enable_pins[MAX_MOTORS] = {33,34,35,36,37,38,39,40,41,13,14,15};
 bool looking_for_home[MAX_MOTORS]={false,false,false,false,false,false,false,false,false,false,false,false};
 bool found_home[MAX_MOTORS]=      {false,false,false,false,false,false,false,false,false,false,false,false};
@@ -58,10 +59,14 @@ void setup() {
   pinMode(MS1,OUTPUT);
   pinMode(MS2,OUTPUT);
   pinMode(MS3,OUTPUT);
-  digitalWrite(MS1,0);
-  digitalWrite(MS2,0);
-  digitalWrite(MS3,0);
-  
+  digitalWrite(MS1,HIGH);
+  digitalWrite(MS2,LOW);
+  digitalWrite(MS3,LOW);
+
+  // Initialize the Zero pins
+  for (int i=0;i<MAX_MOTORS; i++){
+    last_zero[i] = digitalRead(zero_pins[i]);
+  }
 
   // Check for Ethernet hardware present
   if (Ethernet.hardwareStatus() == EthernetNoHardware) {
@@ -174,7 +179,7 @@ void loop() {
         if (pin >= MAX_MOTORS) return failure(clients[i]);
         looking_for_home[pin] = true;
         found_home[pin] = false;
-        target_pos[pin] = -24000;
+        target_pos[pin] = -36000;
         return success(clients[i]);
       } else if (c=='w'){
         if (pin >= MAX_MOTORS) return failure(clients[i]);
@@ -204,11 +209,23 @@ void loop() {
   // Now lets move the motors!!!
   for (int i=0;i<MAX_MOTORS;i++){
     if (looking_for_home[i]){
-      if (digitalRead(zero_pins[i])){
-        target_pos[i]=0;
-        current_pos[i]=0;
-        looking_for_home[i]=false;
-        found_home[i]=true;
+      if (digitalRead(zero_pins[i]) != last_zero[i]){
+        delay(1);
+        if (digitalRead(zero_pins[i] != last_zero[i])){
+          delay(1);
+          if (digitalRead(zero_pins[i] != last_zero[i])){
+            delay(1);
+            if (digitalRead(zero_pins[i]) != last_zero[i]){
+              last_zero[i] = (last_zero[i] + 1) % 2;
+              if (last_zero[i]==1){
+                target_pos[i]=0;
+                current_pos[i]=0;
+                looking_for_home[i]=false;
+                found_home[i]=true;
+              }
+            }
+          }
+        }
       }
     }
     if ((target_pos[i] == current_pos[i]) || !enable_motors[i]){
@@ -241,18 +258,17 @@ void loop() {
       stepit = (stepit + 1) % 2;
     } 
   }
-  delay(5); // If not looking for the home sensor.
+  delay(1); // If not looking for the home sensor.
 }
 
 int get_value(String request){
-  int i = next_str_ix;
+  unsigned int i = next_str_ix;
   String svalue;
   int value;
-  char command = request[0];
 
-  if (sizeof(request) > 1 && (isdigit(request[i])) || (request[i] == '-')) {
+  if ((sizeof(request) > 1) && ((isdigit(request[i])) || (request[i] == '-'))) {
     // Read the value at the end of the command
-    while ((isdigit(request[i]) || (request[i] == '-')) && i < request.length()) {
+    while ((isdigit(request[i]) || (request[i] == '-')) && (i < request.length())) {
         svalue += request[i];
         i++;
     }
